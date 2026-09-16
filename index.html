@@ -1,0 +1,1155 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>等离子 · Plasma</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #EFE9DC; }
+  body { font: 13px/1.6 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #2B2118; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  #ui {
+    position: fixed; inset: 0; pointer-events: none;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 20px calc(20px + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  #ui > * { pointer-events: auto; }
+
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: .22em; }
+  .sub { font-size: 12px; opacity: .5; letter-spacing: .06em; }
+
+  footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .hint { font-size: 12px; opacity: .55; max-width: 34ch; }
+  .hint b { font-weight: 500; opacity: .85; }
+
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 12px; padding: 8px 15px; cursor: pointer;
+    border: 1px solid rgba(43,33,24,.28); background: rgba(255,253,248,.72);
+    color: #2B2118; border-radius: 2px; letter-spacing: .06em;
+    backdrop-filter: blur(6px); transition: background .15s, border-color .15s;
+  }
+  button:hover { background: rgba(255,253,248,.95); border-color: rgba(43,33,24,.5); }
+  button:disabled { opacity: .35; cursor: default; }
+
+  html[data-dark] #panel { background: rgba(10,14,22,.88); border-left-color: rgba(200,212,228,.18); }
+  html[data-dark] button { background: rgba(16,22,34,.72); color: #C8D4E4; border-color: rgba(200,212,228,.3); }
+  html[data-dark] button:hover { background: rgba(26,34,50,.95); }
+  html[data-dark] .row select { background: #10141E; color: #C8D4E4; border-color: rgba(200,212,228,.25); }
+  html[data-dark] .row input[type=range] { accent-color: #5AC8FF; }
+  #panel {
+    position: fixed; top: 0; right: 0; height: 100%; width: 260px; max-width: 80vw;
+    padding: calc(22px + env(safe-area-inset-top, 0px)) 20px calc(22px + env(safe-area-inset-bottom, 0px));
+    background: rgba(250,246,238,.9); backdrop-filter: blur(10px);
+    border-left: 1px solid rgba(43,33,24,.14);
+    overflow-y: auto; transform: translateX(100%); transition: transform .25s ease;
+  }
+  #panel.open { transform: none; }
+  #recenter, #exit { display: none; }
+  body.xr-active #recenter, body.xr-active #exit { display: inline-block; }
+  body.xr-active .hint, body.xr-active #xr { display: none; }
+  body.xr-active #exit { border-color: rgba(255,120,110,.55); }
+  #ui.shift footer { padding-right: 272px; }
+  #panel h2 { display: flex; justify-content: space-between; align-items: center; }
+  #close {
+    font: inherit; font-size: 18px; line-height: 1; padding: 2px 8px 4px; cursor: pointer;
+    background: none; border: none; color: inherit; opacity: .55; letter-spacing: 0;
+  }
+  #close:hover { opacity: 1; background: none; }
+  #panel h2 { margin: 0 0 14px; font-size: 12px; font-weight: 500; letter-spacing: .18em; opacity: .5; }
+  .row { margin-bottom: 13px; }
+  .row label { display: flex; justify-content: space-between; font-size: 11px; opacity: .65; margin-bottom: 3px; }
+  .row input[type=range] { width: 100%; accent-color: #2B2118; }
+  .row select { width: 100%; font: inherit; font-size: 12px; padding: 5px; background: #fff;
+                border: 1px solid rgba(43,33,24,.22); border-radius: 2px; color: inherit; }
+  #stat { font-size: 11px; opacity: .45; margin-top: 16px; font-variant-numeric: tabular-nums; }
+
+  #err { position: fixed; inset: 0; display: none; place-items: center; padding: 24px;
+         background: #EFE9DC; text-align: center; font-size: 14px; line-height: 1.8; }
+
+  @media (max-width: 560px) { .hint { display: none; } h1 { font-size: 18px; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <header>
+    <h1 id="title">等离子</h1>
+    <span class="sub">伸手搅动 · WebXR</span>
+  </header>
+  <footer>
+    <div class="hint">
+      <b>桌面</b>：移动鼠标搅动 · 按住左键注入 · 右键拖拽转视角 · 滚轮远近 · <b>R</b> 重置 · <b>H</b> 面板<br>
+      <b>头显</b>：双手伸进去搅 · <b>握拳</b>吸拢光点 · 任一手捏合注入 · 摆位/退出用左边按钮
+    </div>
+    <div class="btns">
+      <button id="xr" disabled>检测 XR…</button>
+      <button id="recenter">重新摆位</button>
+      <button id="exit">退出 VR</button>
+      <button id="toggle">参数</button>
+      <button id="reset">重置</button>
+    </div>
+  </footer>
+</div>
+
+<div id="panel">
+  <h2>参数 <button id="close" title="关闭 (H)">×</button></h2>
+  <div class="row">
+    <label>风格 <span></span></label>
+    <select id="p_style">
+      <option value="plasma" selected>等离子 · 电弧追手</option>
+      <option value="core">能量核心</option>
+      <option value="ferro">磁流体</option>
+      <option value="ink">水墨（仅桌面）</option>
+    </select>
+  </div>
+  <div class="row">
+    <label>粒子量 <span></span></label>
+    <select id="p_count">
+      <option value="8192">稀 · 8k</option>
+      <option value="16384" selected>中 · 16k</option>
+      <option value="32768">浓 · 32k</option>
+    </select>
+  </div>
+  <div class="row"><label>锐度（糊就往右） <span id="v_sharp"></span></label><input type="range" id="p_sharp" min="0" max="1" step="0.02" value="0.8"></div>
+  <div class="row"><label>吸附强度（追手） <span id="v_attract"></span></label><input type="range" id="p_attract" min="0" max="3" step="0.02" value="0.5"></div>
+  <div class="row"><label>搅动强度 <span id="v_stir"></span></label><input type="range" id="p_stir" min="0" max="3" step="0.02" value="1.1"></div>
+  <div class="row"><label>手的影响半径 <span id="v_srad"></span></label><input type="range" id="p_srad" min="0.02" max="0.2" step="0.005" value="0.075"></div>
+  <div class="row"><label>水的黏滞 <span id="v_damp"></span></label><input type="range" id="p_damp" min="0.1" max="4" step="0.05" value="0.7"></div>
+  <div class="row"><label>暗流湍动 <span id="v_turb"></span></label><input type="range" id="p_turb" min="0" max="0.5" step="0.005" value="0.10"></div>
+  <div class="row"><label>笔触大小 <span id="v_size"></span></label><input type="range" id="p_size" min="0.002" max="0.03" step="0.0005" value="0.012"></div>
+  <div class="row"><label>亮度 / 浓度 <span id="v_op"></span></label><input type="range" id="p_op" min="0.02" max="0.6" step="0.01" value="0.13"></div>
+  <div class="row"><label>拖尾长度 <span id="v_tail"></span></label><input type="range" id="p_tail" min="1" max="12" step="1" value="8"></div>
+  <div class="row"><label>速度→亮度 <span id="v_dry"></span></label><input type="range" id="p_dry" min="0" max="3" step="0.05" value="1.1"></div>
+  <div class="row"><label>球体半径 <span id="v_rad"></span></label><input type="range" id="p_rad" min="0.1" max="0.45" step="0.005" value="0.22"></div>
+  <div id="stat"></div>
+</div>
+
+<div id="err"><div></div></div>
+
+<script>
+"use strict";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 悬浮体 —— WebXR 手部搅动的三维粒子场
+//
+// 架构：
+//   模拟层（低分辨率纹理，ping-pong）：粒子位置 + 速度，手在这里注入涡旋
+//   渲染层（屏幕分辨率）：点精灵 + 乘法混合，美术全在这一层
+// 状态放在粒子里而不是体素里 —— 64³ 体积对「墨的丝缕」太糙，且立体 raymarching
+// 在 WebXR 上撑不住。
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TEX_W     = 256;   // 位置纹理宽度；粒子数 = TEX_W * rows
+const MAX_SLOTS = 12;    // 历史环形缓冲的槽位数 = 最长拖尾
+const MAX_STIR  = 12;    // 最多 12 个搅动点（双手 × 6 关节）
+
+const P = {               // 可调参数，与面板绑定
+  count: 16384, stir: 1.1, srad: 0.075, damp: 0.7, turb: 0.10,
+  size: 0.012, op: 0.13, tail: 8, dry: 1.1, radius: 0.22,
+  style: "plasma", attract: 0, sharp: 0.72,
+};
+
+// 风格预设。additive/dark 决定混合模式与底色；attract 是朝手的远程吸附。
+// 光学透视眼镜（birdbath 加光显示，黑 = 透明）上只有 dark 的几档能看，
+// 「墨」那套亮纸底会变成一块糊在眼前的发光白板。
+const STYLES = {
+  plasma: {                                        // 等离子辉光球：电弧追着手走
+    label: "等离子", additive: 1, dark: 1, attract: 0.5,
+    cool: [0.16, 0.62, 1.00], warm: [0.72, 0.30, 1.00],
+    op: 0.055, size: 0.0062, damp: 0.34, turb: 0.26, dry: 1.5, stir: 1.5, srad: 0.09, sharp: 0.80,
+  },
+  core: {                                          // 能量核心：冷白→琥珀，更"机械"
+    label: "能量核心", additive: 1, dark: 1, attract: 0.25,
+    cool: [0.55, 0.85, 1.00], warm: [1.00, 0.62, 0.22],
+    op: 0.05, size: 0.008, damp: 0.9, turb: 0.13, dry: 1.0, stir: 1.1, srad: 0.075, sharp: 0.72,
+  },
+  ferro: {                                         // 磁流体：手是磁极，强吸附 + 低湍流
+    label: "磁流体", additive: 1, dark: 1, attract: 1.1,
+    cool: [0.40, 0.95, 0.85], warm: [0.20, 0.45, 0.95],
+    op: 0.06, size: 0.0055, damp: 1.6, turb: 0.05, dry: 1.2, stir: 2.0, srad: 0.11, sharp: 0.88,
+  },
+  ink: {                                           // 水墨：只适合桌面 / 不透明屏
+    label: "水墨（仅桌面）", additive: 0, dark: 0, attract: 0,
+    cool: [0.102, 0.118, 0.157], warm: [0.169, 0.129, 0.098],
+    op: 0.13, size: 0.012, damp: 0.7, turb: 0.10, dry: 1.1, stir: 1.1, srad: 0.075, sharp: 0.35,
+  },
+};
+let ST = STYLES[P.style];
+
+const canvas = document.getElementById("c");
+const gl = canvas.getContext("webgl2", {
+  xrCompatible: true, antialias: false, alpha: false,
+  depth: true, powerPreference: "high-performance",
+});
+
+function fatal(msg) {
+  const e = document.getElementById("err");
+  e.firstElementChild.innerHTML = msg;
+  e.style.display = "grid";
+  document.getElementById("ui").style.display = "none";
+}
+if (!gl) fatal("这台设备的浏览器不支持 WebGL2。<br>WebXR 请用 Quest Browser / Chrome。");
+const extCBF = gl && gl.getExtension("EXT_color_buffer_float");
+if (gl && !extCBF) fatal("缺少 EXT_color_buffer_float 扩展，无法用浮点纹理做粒子模拟。");
+
+// ── GL 小工具 ────────────────────────────────────────────────────────────────
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    throw new Error(gl.getShaderInfoLog(s) + "\n" + src.split("\n").map((l, i) => (i + 1) + "| " + l).join("\n"));
+  return s;
+}
+function program(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {};
+  const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) {
+    const info = gl.getActiveUniform(p, i);
+    const name = info.name.replace(/\[0\]$/, "");
+    u[name] = gl.getUniformLocation(p, name);
+  }
+  return { p, u };
+}
+function tex(w, h, data) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data || null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+function fbo(attachments) {
+  const f = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  attachments.forEach((t, i) =>
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0));
+  return f;
+}
+
+// ── 矩阵 ─────────────────────────────────────────────────────────────────────
+
+function mat4() { return new Float32Array(16); }
+function perspective(out, fovy, aspect, near, far) {
+  const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+  out.fill(0);
+  out[0] = f / aspect; out[5] = f; out[11] = -1;
+  out[10] = (far + near) * nf; out[14] = 2 * far * near * nf;
+  return out;
+}
+function lookAt(out, eye, center, up) {
+  let z0 = eye[0] - center[0], z1 = eye[1] - center[1], z2 = eye[2] - center[2];
+  let l = 1 / Math.hypot(z0, z1, z2); z0 *= l; z1 *= l; z2 *= l;
+  let x0 = up[1] * z2 - up[2] * z1, x1 = up[2] * z0 - up[0] * z2, x2 = up[0] * z1 - up[1] * z0;
+  l = Math.hypot(x0, x1, x2); l = l ? 1 / l : 0; x0 *= l; x1 *= l; x2 *= l;
+  const y0 = z1 * x2 - z2 * x1, y1 = z2 * x0 - z0 * x2, y2 = z0 * x1 - z1 * x0;
+  out[0] = x0; out[1] = y0; out[2] = z0; out[3] = 0;
+  out[4] = x1; out[5] = y1; out[6] = z1; out[7] = 0;
+  out[8] = x2; out[9] = y2; out[10] = z2; out[11] = 0;
+  out[12] = -(x0 * eye[0] + x1 * eye[1] + x2 * eye[2]);
+  out[13] = -(y0 * eye[0] + y1 * eye[1] + y2 * eye[2]);
+  out[14] = -(z0 * eye[0] + z1 * eye[1] + z2 * eye[2]);
+  out[15] = 1;
+  return out;
+}
+function mul(out, a, b) {           // out = a * b
+  for (let c = 0; c < 4; c++) {
+    const b0 = b[c * 4], b1 = b[c * 4 + 1], b2 = b[c * 4 + 2], b3 = b[c * 4 + 3];
+    out[c * 4]     = a[0] * b0 + a[4] * b1 + a[8]  * b2 + a[12] * b3;
+    out[c * 4 + 1] = a[1] * b0 + a[5] * b1 + a[9]  * b2 + a[13] * b3;
+    out[c * 4 + 2] = a[2] * b0 + a[6] * b1 + a[10] * b2 + a[14] * b3;
+    out[c * 4 + 3] = a[3] * b0 + a[7] * b1 + a[11] * b2 + a[15] * b3;
+  }
+  return out;
+}
+function invert(out, m) {
+  const a00=m[0],a01=m[1],a02=m[2],a03=m[3], a10=m[4],a11=m[5],a12=m[6],a13=m[7],
+        a20=m[8],a21=m[9],a22=m[10],a23=m[11], a30=m[12],a31=m[13],a32=m[14],a33=m[15];
+  const b00=a00*a11-a01*a10, b01=a00*a12-a02*a10, b02=a00*a13-a03*a10,
+        b03=a01*a12-a02*a11, b04=a01*a13-a03*a11, b05=a02*a13-a03*a12,
+        b06=a20*a31-a21*a30, b07=a20*a32-a22*a30, b08=a20*a33-a23*a30,
+        b09=a21*a32-a22*a31, b10=a21*a33-a23*a31, b11=a22*a33-a23*a32;
+  let det = b00*b11-b01*b10+b02*b09+b03*b08-b04*b07+b05*b06;
+  if (!det) return out;
+  det = 1 / det;
+  out[0]=(a11*b11-a12*b10+a13*b09)*det;  out[1]=(a02*b10-a01*b11-a03*b09)*det;
+  out[2]=(a31*b05-a32*b04+a33*b03)*det;  out[3]=(a22*b04-a21*b05-a23*b03)*det;
+  out[4]=(a12*b08-a10*b11-a13*b07)*det;  out[5]=(a00*b11-a02*b08+a03*b07)*det;
+  out[6]=(a32*b02-a30*b05-a33*b01)*det;  out[7]=(a20*b05-a22*b02+a23*b01)*det;
+  out[8]=(a10*b10-a11*b08+a13*b06)*det;  out[9]=(a01*b08-a00*b10-a03*b06)*det;
+  out[10]=(a30*b04-a31*b02+a33*b00)*det; out[11]=(a21*b02-a20*b04-a23*b00)*det;
+  out[12]=(a11*b07-a10*b09-a12*b06)*det; out[13]=(a00*b09-a01*b07+a02*b06)*det;
+  out[14]=(a31*b01-a30*b03-a32*b00)*det; out[15]=(a20*b03-a21*b01+a22*b00)*det;
+  return out;
+}
+
+// ── 着色器 ───────────────────────────────────────────────────────────────────
+
+const VS_QUAD = `#version 300 es
+out vec2 vUv;
+void main(){
+  vec2 uv = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);   // (0,0) (2,0) (0,2)
+  vUv = uv;
+  gl_Position = vec4(uv * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+// 噪声与旋度 —— 势场直接沿用 XorDev 的 p += sin(p.yzx*f)/f，
+// 取旋度后得到无散度速度场（不会让墨堆积或凭空消失，省掉压力投影）。
+const GLSL_NOISE = `
+float hash11(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+vec3 hash31(float p){
+  vec3 q = fract(vec3(p) * vec3(0.1031, 0.1030, 0.0973));
+  q += dot(q, q.yxz + 33.33);
+  return fract((q.xxy + q.yzz) * q.zyx);
+}
+vec3 warp(vec3 p, float t){
+  vec3 q = p; float f = 1.0;
+  for (int i = 0; i < 4; i++){ q += sin(q.yzx * f + t) / f; f *= 1.9; }
+  return q - p;
+}
+vec3 curlNoise(vec3 p, float t){
+  const float e = 0.09;
+  vec3 x0 = warp(p - vec3(e,0,0), t), x1 = warp(p + vec3(e,0,0), t);
+  vec3 y0 = warp(p - vec3(0,e,0), t), y1 = warp(p + vec3(0,e,0), t);
+  vec3 z0 = warp(p - vec3(0,0,e), t), z1 = warp(p + vec3(0,0,e), t);
+  return vec3((y1.z - y0.z) - (z1.y - z0.y),
+              (z1.x - z0.x) - (x1.z - x0.z),
+              (x1.y - x0.y) - (y1.x - y0.x)) / (2.0 * e);
+}`;
+
+const FS_UPDATE = `#version 300 es
+precision highp float;
+in vec2 vUv;
+layout(location = 0) out vec4 outPos;   // xyz 位置, w 寿命
+layout(location = 1) out vec4 outVel;   // xyz 速度, w 备用
+
+uniform sampler2D uPos, uVel;
+uniform float uDt, uTime, uRadius, uDamp, uTurb;
+uniform vec3  uCenter;
+uniform vec3  uStirPos[${MAX_STIR}];
+uniform vec3  uStirVel[${MAX_STIR}];
+uniform float uStirW[${MAX_STIR}];
+uniform float uStirGrab[${MAX_STIR}];
+uniform float uStirRadius, uStirStrength, uAttract;
+uniform vec3  uInjectPos[2];
+uniform float uInjectN;      // 0/1/2 个注入点
+${GLSL_NOISE}
+
+void main(){
+  vec4 dp = texture(uPos, vUv);
+  vec3 p = dp.xyz;
+  float life = dp.w;
+  vec3 vel = texture(uVel, vUv).xyz;
+
+  // 1. 暗流：水本身的湍动，让墨永远在缓慢自转，不会死寂
+  vec3 ambient = curlNoise((p - uCenter) / uRadius * 1.6 + 11.0, uTime * 0.12) * uTurb * uRadius;
+  vec3 acc = (ambient - vel) * 1.2;
+
+  // 2. 手：cross(手速, 相对位置) = 绕着手的运动轴旋转 —— 这是「搅」而不是「吹」
+  for (int i = 0; i < ${MAX_STIR}; i++){
+    vec3 r = p - uStirPos[i];
+    float d2 = dot(r, r);
+    float fall = exp(-d2 / (uStirRadius * uStirRadius)) * uStirW[i];
+    acc += cross(uStirVel[i], r) / (d2 + 0.0006) * fall * uStirStrength;
+    acc += uStirVel[i] * fall * 2.5;         // 一点直推，否则纯旋转会显得粘手
+    // 远程吸附：电弧丝从远处伸过来追着手走。用比高斯更长的尾巴。
+    // near 这一项是关键：靠得太近就撤掉吸引力，否则粒子会全部塌缩到手上糊成一团。
+    // 撤掉之后近处只剩上面的 cross 涡旋项，粒子转为绕着手公转。
+    float g = uStirGrab[i];                       // 0 = 张开, 1 = 攥紧
+    float dist1 = sqrt(d2);
+    float nearR = mix(0.030, 0.004, g);           // 攥紧时允许光点一直被收到掌心
+    float near = smoothstep(nearR, nearR + 0.045, dist1);
+    float wide = uStirW[i] / (1.0 + d2 * mix(80.0, 18.0, g));   // 攥紧时够得更远
+    acc -= r / (dist1 + 0.02) * wide * (uAttract + 1.6 * g) * near;
+  }
+
+  // 3. 软容器：在球面之前就开始温和回收，避免粒子全堆在同一层壳上结出硬边
+  float dist = length(p - uCenter);
+  float push = smoothstep(0.78, 1.12, dist / uRadius);
+  acc -= (p - uCenter) / max(dist, 1e-4) * push * 3.2;
+  acc.y -= 0.012;                             // 极轻的下沉
+
+  vel += acc * uDt;
+  vel *= exp(-uDamp * uDt);                   // 黏滞：手停下后墨继续旋，慢慢停
+  p   += vel * uDt;
+
+  // 4. 轮回：寿命到了就重生；捏合/按住左键时从指尖注入新墨
+  life -= uDt;
+  if (life <= 0.0){
+    float seed = vUv.x * 7919.0 + vUv.y * 104729.0 + uTime * 131.0;
+    vec3 dir = normalize(hash31(seed) * 2.0 - 1.0 + vec3(1e-4));
+    float rr = pow(hash11(seed + 3.7), 0.3333);
+    if (uInjectN > 0.5) {
+      int wi = (uInjectN > 1.5 && hash11(seed + 21.3) > 0.5) ? 1 : 0;   // 两手时各分一半
+      p = uInjectPos[wi] + dir * rr * 0.035;
+    } else {
+      p = uCenter + dir * rr * uRadius * 0.62;
+    }
+    vel = vec3(0.0);
+    life = 7.0 + hash11(seed + 9.1) * 17.0;
+  }
+  outPos = vec4(p, life);
+  outVel = vec4(vel, 0.0);
+}`;
+
+// 把当前位置拷进历史环形缓冲的一个槽位；w 存速率，渲染层用它做飞白
+const FS_HIST = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 o;
+uniform sampler2D uPos, uVel;
+void main(){
+  o = vec4(texture(uPos, vUv).xyz, length(texture(uVel, vUv).xyz));
+}`;
+
+const VS_INK = `#version 300 es
+precision highp float;
+uniform sampler2D uHist;
+uniform mat4 uProj, uView;
+uniform int  uN, uRows, uHead, uSlots, uTail;
+uniform float uSize, uVpH, uDry;
+out float vFade, vSeed, vDry;
+
+float h11(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+
+void main(){
+  int id  = gl_VertexID;
+  int s   = id / uN;                        // 0 = 最新，越大越旧
+  int pid = id - s * uN;
+
+  if (s >= uTail){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+
+  int ring = uHead - s;  ring += (ring < 0) ? uSlots : 0;   // 环形缓冲回绕
+  ivec2 uv = ivec2(pid % ${TEX_W}, ring * uRows + pid / ${TEX_W});
+  vec4 d = texelFetch(uHist, uv, 0);
+
+  vSeed = h11(float(pid) * 0.73513);
+  vDry  = clamp(d.w * uDry, 0.0, 1.0);
+  float age = float(s) / float(max(uTail - 1, 1));
+  vFade = pow(1.0 - age, 1.35);             // 尾巴渐淡
+
+  vec4 vp = uView * vec4(d.xyz, 1.0);
+  gl_Position = uProj * vp;
+  float dist = max(-vp.z, 0.02);
+  float size = uSize * (0.65 + 0.7 * vSeed) * (1.0 - 0.35 * age);
+  gl_PointSize = clamp(size * uProj[1][1] * uVpH * 0.5 / dist, 1.0, 72.0);
+}`;
+
+// 乘法混合：dst *= src。越叠越暗 = 墨，且与绘制顺序无关 → 三维半透明免排序。
+// 不用 discard（一旦出现 discard，硬件的 Early-Z 就会被关掉，哪怕从未执行到）——
+// 圆外让 alpha 归零即可，乘以白色等于无操作。
+const FS_INK = `#version 300 es
+precision highp float;
+in float vFade, vSeed, vDry;
+out vec4 frag;
+uniform float uOpacity, uAdditive, uSharp;
+uniform vec3 uInkCool, uInkWarm;
+void main(){
+  vec2 c = gl_PointCoord * 2.0 - 1.0;
+  float r2 = dot(c, c);
+  float e = max(0.0, 1.0 - r2);
+  float core = pow(e, mix(1.2, 4.5, uSharp));       // 笔芯：锐度越高越紧
+  float halo = pow(e, 0.32);                        // 光晕：糊的主因，锐度高时几乎去掉
+  float a = (core * mix(0.70, 0.99, uSharp) + halo * mix(0.30, 0.01, uSharp)) * vFade * uOpacity;
+  vec3 tint = mix(uInkCool, uInkWarm, vSeed * vSeed);
+  if (uAdditive > 0.5) {
+    // 等离子：快 = 更亮更白（跟墨的飞白正好相反），芯部烧到白
+    a *= mix(0.55, 1.9, vDry);
+    tint = mix(tint, vec3(1.0), pow(core, 3.0) * 0.85);
+    frag = vec4(tint * a * 1.3, 1.0);               // 配 screen 混合，见 drawScene
+  } else {
+    a *= mix(1.0, 0.28, vDry);                      // 飞白：走得快的墨变淡
+    frag = vec4(mix(vec3(1.0), tint, clamp(a, 0.0, 1.0)), 1.0);
+  }
+}`;
+
+// 手：同样的点精灵，但写深度，让墨被手正确遮挡；视觉上是一双水墨画的手
+const VS_HAND = `#version 300 es
+precision highp float;
+layout(location = 0) in vec4 aJoint;       // xyz 位置, w 半径
+uniform mat4 uProj, uView;
+uniform float uVpH;
+out float vR;
+void main(){
+  vec4 vp = uView * vec4(aJoint.xyz, 1.0);
+  gl_Position = uProj * vp;
+  float dist = max(-vp.z, 0.02);
+  gl_PointSize = clamp(abs(aJoint.w) * 2.2 * uProj[1][1] * uVpH * 0.5 / dist, 2.0, 200.0);
+  vR = aJoint.w < 0.0 ? 1.0 : 0.0;              // 负半径 = 这只手攥紧了，画亮一点
+}`;
+const FS_HAND = `#version 300 es
+precision highp float;
+in float vR;
+out vec4 frag;
+uniform float uAdditive;
+void main(){
+  vec2 c = gl_PointCoord * 2.0 - 1.0;
+  float r2 = dot(c, c);
+  if (r2 > 1.0) discard;                              // 手要写深度，必须真的剔掉圆外
+  float a = pow(1.0 - r2, 0.9);
+  if (uAdditive > 0.5) frag = vec4(vec3(0.35, 0.80, 1.0) * a * mix(0.5, 1.4, vR), 1.0);  // 冷蓝的手，攥紧更亮
+  else                 frag = vec4(mix(vec3(1.0), vec3(0.30, 0.28, 0.27), a * 0.55), 1.0);
+}`;
+
+// 宣纸：纤维 + 颗粒 + 上下渐变 + 地面墨晕。
+// 关键：所有噪声都 hash 在「世界空间视线方向」上，不是屏幕坐标 ——
+// 否则双眼拿到不同的颗粒，在头显里会闪得眼睛疼。
+const FS_PAPER = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 frag;
+uniform mat4 uInvVP;
+uniform vec3 uCamPos, uCenter;
+uniform float uRadius, uFloorY, uDark;
+
+float h13(vec3 p){
+  p = fract(p * 0.1031);
+  p += dot(p, p.zyx + 31.32);
+  return fract((p.x + p.y) * p.z);
+}
+float fbm(vec3 p){
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 3; i++){ v += a * h13(floor(p)); p *= 2.03; a *= 0.5; }
+  return v;
+}
+
+void main(){
+  vec4 far = uInvVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
+  vec3 dir = normalize(far.xyz / far.w - uCamPos);
+
+  // 暗底：给加光显示的眼镜用 —— 黑 = 透明，辉光直接浮在真实房间里。
+  // 保持极暗但不是纯黑，纯黑在某些屏上会出色带。
+  if (uDark > 0.5) {
+    vec3 night = vec3(0.010, 0.014, 0.026);
+    night *= 1.0 + 0.8 * smoothstep(0.25, -0.9, dir.y);
+    night += 0.006 * fbm(dir * 260.0);
+    frag = vec4(night, 1.0);
+    return;
+  }
+
+  vec3 paper = vec3(0.945, 0.918, 0.866);
+  paper *= 1.0 - 0.10 * smoothstep(0.1, -0.85, dir.y);      // 下方微沉
+  paper *= 1.0 + 0.035 * smoothstep(0.0, 0.9, dir.y);       // 上方微亮
+
+  vec3 n = dir * 340.0;
+  paper *= 1.0 - 0.030 * fbm(n);                            // 颗粒
+  paper *= 1.0 - 0.022 * fbm(vec3(n.x * 0.12, n.y * 7.0, n.z * 0.12));  // 拉长的纤维
+
+  // 地面上的一团墨晕，把悬空的墨球锚在空间里
+  if (dir.y < -0.02){
+    float t = (uFloorY - uCamPos.y) / dir.y;
+    if (t > 0.0){
+      vec3 hit = uCamPos + dir * t;
+      vec2 d = (hit.xz - uCenter.xz) / (uRadius * 2.6);
+      float w = exp(-dot(d, d) * 2.2);
+      w *= 0.72 + 0.28 * fbm(hit * 26.0);                   // 边缘不规则,像洇开的水痕
+      paper *= 1.0 - 0.30 * w;
+    }
+  }
+  float vig = length(vUv - 0.5);
+  paper *= 1.0 - 0.13 * smoothstep(0.35, 0.95, vig);
+  frag = vec4(paper, 1.0);
+}`;
+
+// ── 程序 & 资源 ──────────────────────────────────────────────────────────────
+
+const OK = !!(gl && extCBF);
+let progUpdate, progHist, progInk, progHand, progPaper;
+try {
+  if (!OK) throw new Error('skip');
+  progUpdate = program(VS_QUAD, FS_UPDATE);
+  progHist   = program(VS_QUAD, FS_HIST);
+  progInk    = program(VS_INK,  FS_INK);
+  progHand   = program(VS_HAND, FS_HAND);
+  progPaper  = program(VS_QUAD, FS_PAPER);
+} catch (e) { if (OK) fatal("着色器编译失败：<br><pre style='text-align:left;font-size:11px'>" + e.message + "</pre>"); }
+
+const vaoEmpty = OK ? gl.createVertexArray() : null;
+
+let N, ROWS, SLOTS = MAX_SLOTS, head = 0;
+let posT = [], velT = [], simFbo = [], cur = 0, histT, histFbo;
+
+function seedData(n) {                       // 初始墨：几团悬浮的浓墨，第一下搅动才有戏
+  const a = new Float32Array(n * 4);
+  const blobs = [[-0.30, 0.18, 0.05], [0.28, -0.10, -0.12], [0.02, 0.34, 0.22], [-0.05, -0.30, -0.24]];
+  for (let i = 0; i < n; i++) {
+    const b = blobs[i % blobs.length];
+    let x, y, z, d;
+    do { x = Math.random() * 2 - 1; y = Math.random() * 2 - 1; z = Math.random() * 2 - 1; d = x * x + y * y + z * z; } while (d > 1);
+    const s = 0.34;
+    a[i * 4]     = C[0] + (b[0] + x * s) * P.radius;
+    a[i * 4 + 1] = C[1] + (b[1] + y * s) * P.radius;
+    a[i * 4 + 2] = C[2] + (b[2] + z * s) * P.radius;
+    a[i * 4 + 3] = 7 + Math.random() * 17;
+  }
+  return a;
+}
+
+function initParticles(count) {
+  [...posT, ...velT, histT].forEach(t => t && gl.deleteTexture(t));
+  [...simFbo, histFbo].forEach(f => f && gl.deleteFramebuffer(f));
+  N = count; ROWS = N / TEX_W;
+  const seed = seedData(N);
+  posT = [tex(TEX_W, ROWS, seed), tex(TEX_W, ROWS, seed)];
+  velT = [tex(TEX_W, ROWS, new Float32Array(N * 4)), tex(TEX_W, ROWS, new Float32Array(N * 4))];
+  simFbo = [fbo([posT[0], velT[0]]), fbo([posT[1], velT[1]])];
+  const hist = new Float32Array(TEX_W * ROWS * SLOTS * 4);
+  for (let s = 0; s < SLOTS; s++)
+    for (let i = 0; i < N; i++) {
+      hist[(s * N + i) * 4]     = seed[i * 4];
+      hist[(s * N + i) * 4 + 1] = seed[i * 4 + 1];
+      hist[(s * N + i) * 4 + 2] = seed[i * 4 + 2];
+    }
+  histT = tex(TEX_W, ROWS * SLOTS, hist);
+  histFbo = fbo([histT]);
+  cur = 0; head = 0;
+}
+
+const handBuf = OK ? gl.createBuffer() : null;
+const handVao = OK ? gl.createVertexArray() : null;
+if (OK) {
+gl.bindVertexArray(handVao);
+gl.bindBuffer(gl.ARRAY_BUFFER, handBuf);
+gl.bufferData(gl.ARRAY_BUFFER, 60 * 4 * 4, gl.DYNAMIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 0, 0);
+gl.bindVertexArray(null);
+}
+const handData = new Float32Array(60 * 4);
+let handCount = 0;
+
+// ── 搅动点 ───────────────────────────────────────────────────────────────────
+
+const C = [0, 1.25, -0.5];                 // 墨球中心（world / local-floor）
+let   floorY = 0;
+const stirPos = new Float32Array(MAX_STIR * 3);
+const stirVel = new Float32Array(MAX_STIR * 3);
+const stirW   = new Float32Array(MAX_STIR);
+const stirGrab = new Float32Array(MAX_STIR);   // 每个搅动点的「攥紧」程度 0..1
+function smooth01(x, a, b){ const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+const injectPos = new Float32Array(6);     // 最多两个注入点（左右手各一）
+let   injectN = 0;
+
+let idleT = 0;                             // 距上次真实输入的秒数
+function autoStir(dt) {                    // 无人时的「看不见的手」
+  const a = tSec * 0.5, R = P.radius;
+  pushStir(0, "auto",
+    C[0] + R * 0.58 * Math.sin(a),
+    C[1] + R * 0.42 * Math.sin(a * 0.73 + 1.3),
+    C[2] + R * 0.58 * Math.cos(a * 0.91), dt);
+}
+
+const prevJoint = new Map();               // key -> [x,y,z] 上一帧位置,用来差分出速度
+function pushStir(i, key, x, y, z, dt) {
+  const pv = prevJoint.get(key);
+  let vx = 0, vy = 0, vz = 0;
+  if (pv && dt > 0) {
+    vx = (x - pv[0]) / dt; vy = (y - pv[1]) / dt; vz = (z - pv[2]) / dt;
+    const sp = Math.hypot(vx, vy, vz), cap = 4.0;       // 掐掉追踪跳变导致的暴冲
+    if (sp > cap) { const k = cap / sp; vx *= k; vy *= k; vz *= k; }
+    prevJoint.set(key, [x, y, z]);
+  } else prevJoint.set(key, [x, y, z]);
+  stirPos[i * 3] = x; stirPos[i * 3 + 1] = y; stirPos[i * 3 + 2] = z;
+  stirVel[i * 3] = vx; stirVel[i * 3 + 1] = vy; stirVel[i * 3 + 2] = vz;
+  stirW[i] = 1;
+}
+
+// ── 桌面相机 & 鼠标 ──────────────────────────────────────────────────────────
+
+const camDesk = { yaw: 0, pitch: 0.12, dist: 0.8 };
+const mouse = { x: 0, y: 0, inside: false, orbit: false, inject: false, lx: 0, ly: 0 };
+const mProj = mat4(), mView = mat4(), mVP = mat4(), mInvVP = mat4();
+
+canvas.addEventListener("pointermove", e => {
+  const r = canvas.getBoundingClientRect();
+  const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+  const ny = 1 - ((e.clientY - r.top) / r.height) * 2;
+  if (mouse.orbit) {
+    camDesk.yaw   -= (nx - mouse.x) * 2.2;
+    camDesk.pitch = Math.max(-1.3, Math.min(1.3, camDesk.pitch + (ny - mouse.y) * 1.6));
+  }
+  mouse.x = nx; mouse.y = ny; mouse.inside = true;
+});
+canvas.addEventListener("pointerleave", () => { mouse.inside = false; });
+canvas.addEventListener("pointerdown", e => {
+  canvas.setPointerCapture(e.pointerId);
+  if (e.button === 0) mouse.inject = true; else mouse.orbit = true;
+});
+window.addEventListener("pointerup", e => { if (e.button === 0) mouse.inject = false; else mouse.orbit = false; });
+canvas.addEventListener("contextmenu", e => e.preventDefault());
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  camDesk.dist = Math.max(0.35, Math.min(3, camDesk.dist * Math.exp(e.deltaY * 0.0012)));
+}, { passive: false });
+
+function desktopCamera(aspect) {
+  const cp = Math.cos(camDesk.pitch), eye = [
+    C[0] + camDesk.dist * cp * Math.sin(camDesk.yaw),
+    C[1] + camDesk.dist * Math.sin(camDesk.pitch),
+    C[2] + camDesk.dist * cp * Math.cos(camDesk.yaw),
+  ];
+  perspective(mProj, 0.9, aspect, 0.02, 60);
+  lookAt(mView, eye, C, [0, 1, 0]);
+  mul(mVP, mProj, mView); invert(mInvVP, mVP);
+  return eye;
+}
+function desktopStir(eye, aspect, dt) {
+  stirW.fill(0); stirGrab.fill(0); handCount = 0; injectN = 0;
+  if (!mouse.inside) {
+    prevJoint.delete("m");
+    idleT += dt;
+    if (idleT > 6) autoStir(dt);
+    return;
+  }
+  idleT = 0; prevJoint.delete("auto");
+  const th = Math.tan(0.9 / 2);
+  const f = [C[0] - eye[0], C[1] - eye[1], C[2] - eye[2]];
+  let l = Math.hypot(...f); f[0] /= l; f[1] /= l; f[2] /= l;
+  const r = [-f[2], 0, f[0]]; l = Math.hypot(...r) || 1; r[0] /= l; r[2] /= l;
+  const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const d = [
+    f[0] + r[0] * mouse.x * th * aspect + u[0] * mouse.y * th,
+    f[1] + r[1] * mouse.x * th * aspect + u[1] * mouse.y * th,
+    f[2] + r[2] * mouse.x * th * aspect + u[2] * mouse.y * th,
+  ];
+  l = Math.hypot(...d); d[0] /= l; d[1] /= l; d[2] /= l;
+  const t = (C[0] - eye[0]) * d[0] + (C[1] - eye[1]) * d[1] + (C[2] - eye[2]) * d[2];
+  const px = eye[0] + d[0] * t, py = eye[1] + d[1] * t, pz = eye[2] + d[2] * t;
+  pushStir(0, "m", px, py, pz, dt);
+  injectN = mouse.inject ? 1 : 0;
+  injectPos[0] = px; injectPos[1] = py; injectPos[2] = pz;
+  handData[0] = px; handData[1] = py; handData[2] = pz; handData[3] = 0.012;
+  handCount = 1;
+}
+
+// ── 每帧 ─────────────────────────────────────────────────────────────────────
+
+let lastT = 0, tSec = 0, frames = 0, fpsAcc = 0, fps = 0;
+
+function simulate(dt) {
+  tSec += dt;
+  gl.bindVertexArray(vaoEmpty);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+
+  // 1) 更新位置 + 速度（MRT 一次写两张）
+  gl.bindFramebuffer(gl.FRAMEBUFFER, simFbo[1 - cur]);
+  gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+  gl.viewport(0, 0, TEX_W, ROWS);
+  const U = progUpdate.u;
+  gl.useProgram(progUpdate.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posT[cur]); gl.uniform1i(U.uPos, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velT[cur]); gl.uniform1i(U.uVel, 1);
+  gl.uniform1f(U.uDt, dt); gl.uniform1f(U.uTime, tSec);
+  gl.uniform3fv(U.uCenter, C);
+  gl.uniform1f(U.uRadius, P.radius);
+  gl.uniform1f(U.uDamp, P.damp);
+  gl.uniform1f(U.uTurb, P.turb);
+  gl.uniform3fv(U.uStirPos, stirPos);
+  gl.uniform3fv(U.uStirVel, stirVel);
+  gl.uniform1fv(U.uStirW, stirW);
+  gl.uniform1fv(U.uStirGrab, stirGrab);
+  gl.uniform1f(U.uStirRadius, P.srad);
+  gl.uniform1f(U.uStirStrength, P.stir * 0.2);
+  gl.uniform1f(U.uAttract, P.attract);
+  gl.uniform3fv(U.uInjectPos, injectPos);
+  gl.uniform1f(U.uInjectN, injectN);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  cur = 1 - cur;
+
+  // 2) 写进历史环形缓冲的下一个槽位
+  head = (head + 1) % SLOTS;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, histFbo);
+  gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+  gl.viewport(0, head * ROWS, TEX_W, ROWS);
+  gl.useProgram(progHist.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posT[cur]); gl.uniform1i(progHist.u.uPos, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, velT[cur]); gl.uniform1i(progHist.u.uVel, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+function drawScene(proj, view, camPos, vpH) {
+  mul(mVP, proj, view); invert(mInvVP, mVP);
+
+  // 宣纸（无深度）
+  gl.disable(gl.DEPTH_TEST); gl.depthMask(false); gl.disable(gl.BLEND);
+  gl.bindVertexArray(vaoEmpty);
+  gl.useProgram(progPaper.p);
+  gl.uniformMatrix4fv(progPaper.u.uInvVP, false, mInvVP);
+  gl.uniform3fv(progPaper.u.uCamPos, camPos);
+  gl.uniform3fv(progPaper.u.uCenter, C);
+  gl.uniform1f(progPaper.u.uRadius, P.radius);
+  gl.uniform1f(progPaper.u.uFloorY, floorY);
+  gl.uniform1f(progPaper.u.uDark, ST.dark);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  // 手。墨：写深度让墨被手遮挡。发光风格：不写深度，辉光该从手上漫过去，
+  //     否则手会变成一块死黑的剪影。
+  if (handCount) {
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+    gl.depthMask(ST.additive ? false : true);
+    gl.enable(gl.BLEND);
+    if (ST.additive) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR); else gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+    gl.useProgram(progHand.p);
+    gl.uniform1f(progHand.u.uAdditive, ST.additive);
+    gl.bindVertexArray(handVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, handBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, handData, 0, handCount * 4);
+    gl.useProgram(progHand.p);
+    gl.uniformMatrix4fv(progHand.u.uProj, false, proj);
+    gl.uniformMatrix4fv(progHand.u.uView, false, view);
+    gl.uniform1f(progHand.u.uVpH, vpH);
+    gl.drawArrays(gl.POINTS, 0, handCount);
+  }
+
+  // 粒子：测深度但不写深度。墨 = 乘法（越叠越暗），发光 = 加法（越叠越亮）。
+  // 两者都与绘制顺序无关，三维半透明的排序问题直接消失。
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(false);
+  gl.enable(gl.BLEND);
+  if (ST.additive) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR); else gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+  gl.bindVertexArray(vaoEmpty);
+  const K = progInk.u;
+  gl.useProgram(progInk.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, histT); gl.uniform1i(K.uHist, 0);
+  gl.uniformMatrix4fv(K.uProj, false, proj);
+  gl.uniformMatrix4fv(K.uView, false, view);
+  gl.uniform1i(K.uN, N); gl.uniform1i(K.uRows, ROWS);
+  gl.uniform1i(K.uHead, head); gl.uniform1i(K.uSlots, SLOTS);
+  gl.uniform1i(K.uTail, Math.round(P.tail));
+  gl.uniform1f(K.uSize, P.size);
+  gl.uniform1f(K.uVpH, vpH);
+  gl.uniform1f(K.uDry, P.dry);
+  gl.uniform1f(K.uOpacity, P.op);
+  gl.uniform1f(K.uAdditive, ST.additive);
+  gl.uniform1f(K.uSharp, P.sharp);
+  gl.uniform3fv(K.uInkCool, ST.cool);
+  gl.uniform3fv(K.uInkWarm, ST.warm);
+  gl.drawArrays(gl.POINTS, 0, N * Math.round(P.tail));
+
+  gl.depthMask(true); gl.disable(gl.BLEND);
+}
+
+// ── 桌面循环 ─────────────────────────────────────────────────────────────────
+
+let rafId = 0;
+function desktopFrame(t) {
+  rafId = requestAnimationFrame(desktopFrame);
+  const dt = Math.min((t - lastT) / 1000 || 0.016, 0.05);
+  lastT = t;
+  tickStats(dt);
+
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const aspect = w / h;
+
+  const eye = desktopCamera(aspect);
+  desktopStir(eye, aspect, dt);
+  simulate(dt);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, w, h);
+  gl.clearColor(ST.dark ? 0.010 : 0.945, ST.dark ? 0.014 : 0.918, ST.dark ? 0.026 : 0.866, 1); gl.clearDepth(1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  drawScene(mProj, mView, eye, h);
+}
+
+// ── WebXR ────────────────────────────────────────────────────────────────────
+
+const TIPS = ["thumb-tip", "index-finger-tip", "middle-finger-tip", "ring-finger-tip", "pinky-finger-tip", "wrist"];
+let xrSession = null, xrRefSpace = null, needPlace = false;
+
+let xrBusy = false;
+async function enterXR() {
+  // 防重入：requestSession 在飞行中时再点一次，Chrome 会直接抛 InvalidStateError
+  // （"已有活动会话"），把真正的错误盖掉。
+  if (xrBusy || xrSession) return;
+  xrBusy = true;
+  const btn = document.getElementById("xr");
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = "启动中…";
+  try { await enterXRInner(); }
+  finally { xrBusy = false; btn.disabled = false; btn.textContent = label; }
+}
+
+async function enterXRInner() {
+  // 逐级降级：有些 runtime 对 optionalFeatures 也会整个拒掉，退到最朴素的配置再试
+  const attempts = [
+    { optionalFeatures: ["hand-tracking", "local-floor", "bounded-floor"] },
+    { optionalFeatures: ["local-floor"] },
+    {},
+  ];
+  // 只有「配置不支持」才值得降级再试；其它错误立刻停 ——
+  // 否则后续尝试会撞上「已有活动会话」，把真正的根因盖掉。报第一个错，不是最后一个。
+  let firstErr = null;
+  for (const cfg of attempts) {
+    try { xrSession = await navigator.xr.requestSession("immersive-vr", cfg); break; }
+    catch (e) {
+      if (!firstErr) firstErr = e;
+      if (e.name !== "NotSupportedError") break;
+    }
+  }
+  if (!xrSession) {
+    const e = firstErr || { name: "?", message: "?" };
+    let msg = "进入 XR 失败：" + e.name + " — " + e.message + "\n\n";
+    if (e.name === "InvalidStateError") {
+      msg += "浏览器认为已经有一个沉浸式会话在跑，多半是上一次失败留下的残留。\n" +
+             "关掉这个标签页重开；还不行就结束 Chrome 的 XR 设备服务进程\n" +
+             "（任务管理器里的 “XR 设备服务” / xr_device_service），不必重启整个浏览器。";
+    } else {
+      msg += "runtime 能被看到，但开不出 session。常见原因：\n" +
+             "· runtime 服务是陈旧实例 —— 设备接入只在服务启动时判定一次，\n" +
+             "  眼镜是服务起来之后才插的就会报这个。杀掉服务让它重起。\n" +
+             "· 眼镜没进 XR / 3D 模式，当前只是普通扩展屏。\n" +
+             "· 另一个程序独占了 XR 设备。";
+    }
+    alert(msg);
+    return;
+  }
+
+  await gl.makeXRCompatible();
+  xrSession.updateRenderState({
+    baseLayer: new XRWebGLLayer(xrSession, gl, { antialias: false, framebufferScaleFactor: 0.85 }),
+    depthNear: 0.02, depthFar: 60,
+  });
+  // 不要硬写世界坐标。3DoF / 无地面追踪的 runtime 会把 local-floor 的原点报在头的位置，
+  // 于是 y=1.25 就跑到头顶一米多。改成：进去后按当前头姿把球摆在正前方。
+  try { xrRefSpace = await xrSession.requestReferenceSpace("local-floor"); }
+  catch { xrRefSpace = await xrSession.requestReferenceSpace("local"); }
+  needPlace = true;
+  xrSession.addEventListener("squeeze", () => { needPlace = true; });   // 手柄侧键 = 重新摆位（手部用双手捏合）
+
+  cancelAnimationFrame(rafId);
+  setPanel(false);
+  document.body.classList.add("xr-active");
+  xrSession.addEventListener("end", () => {
+    xrSession = null;
+    document.body.classList.remove("xr-active");
+    C[1] = 1.25; floorY = 0; prevJoint.clear();
+    lastT = performance.now(); rafId = requestAnimationFrame(desktopFrame);
+  });
+  lastT = performance.now();
+  xrSession.requestAnimationFrame(onXRFrame);
+}
+
+function updateHands(frame, dt) {
+  stirW.fill(0); stirGrab.fill(0); handCount = 0; injectN = 0;
+  let slot = 0;
+  for (const src of frame.session.inputSources) {
+    const hand = src.hand;
+    if (hand) {
+      const hc0 = handCount;
+      // 渲染用全部关节；物理只用指尖 + 腕
+      for (const joint of hand.values()) {
+        if (handCount >= 60) break;
+        const jp = frame.getJointPose(joint, xrRefSpace);
+        if (!jp) continue;
+        const p = jp.transform.position;
+        handData[handCount * 4] = p.x; handData[handCount * 4 + 1] = p.y;
+        handData[handCount * 4 + 2] = p.z; handData[handCount * 4 + 3] = jp.radius || 0.008;
+        handCount++;
+      }
+      const slot0 = slot;
+      let thumb = null, index = null, wrist = null, tipSum = 0, tipN = 0;
+      for (const name of TIPS) {
+        if (slot >= MAX_STIR) break;
+        const j = hand.get(name);
+        const jp = j && frame.getJointPose(j, xrRefSpace);
+        if (!jp) continue;
+        const p = jp.transform.position;
+        pushStir(slot++, src.handedness + name, p.x, p.y, p.z, dt);
+        if (name === "thumb-tip") thumb = p;
+        if (name === "index-finger-tip") index = p;
+        if (name === "wrist") wrist = p;
+      }
+      if (thumb && index) {
+        const d = Math.hypot(thumb.x - index.x, thumb.y - index.y, thumb.z - index.z);
+        if (d < 0.028 && injectN < 2) {                 // 两只手可以各注各的
+          injectPos[injectN * 3]     = (thumb.x + index.x) / 2;
+          injectPos[injectN * 3 + 1] = (thumb.y + index.y) / 2;
+          injectPos[injectN * 3 + 2] = (thumb.z + index.z) / 2;
+          injectN++;
+        }
+      }
+      // 握拳检测：指尖到腕的平均距离，用这只手自己的尺度归一化（手有大小之分）。
+      // 张开 ≈ 2.2 倍掌骨长，握紧 ≈ 1.1 倍。不依赖 runtime 是否支持 squeeze 手势。
+      if (wrist) {
+        for (const name of TIPS) {
+          if (name === "wrist") continue;
+          const j = hand.get(name);
+          const jp = j && frame.getJointPose(j, xrRefSpace);
+          if (!jp) continue;
+          const p = jp.transform.position;
+          tipSum += Math.hypot(p.x - wrist.x, p.y - wrist.y, p.z - wrist.z); tipN++;
+        }
+        const mc = hand.get("middle-finger-metacarpal");
+        const mcp = mc && frame.getJointPose(mc, xrRefSpace);
+        const scale = mcp
+          ? Math.hypot(mcp.transform.position.x - wrist.x,
+                       mcp.transform.position.y - wrist.y,
+                       mcp.transform.position.z - wrist.z)
+          : 0.075;
+        if (tipN && scale > 0.02) {
+          const ratio = (tipSum / tipN) / scale;
+          const g = 1.0 - smooth01(ratio, 1.35, 1.95);     // 1 = 攥紧, 0 = 张开
+          for (let k = slot0; k < slot; k++) stirGrab[k] = g;
+          if (g > 0.5) for (let k = hc0; k < handCount; k++)  // 攥紧的手画亮一点
+            if (handData[k * 4 + 3] > 0) handData[k * 4 + 3] = -handData[k * 4 + 3];
+        }
+      }
+    } else if (src.gripSpace && slot < MAX_STIR) {           // 手柄兜底
+      const gp = frame.getPose(src.gripSpace, xrRefSpace);
+      if (gp) {
+        const p = gp.transform.position;
+        pushStir(slot++, src.handedness + "grip", p.x, p.y, p.z, dt);
+        if (handCount < 60) {
+          handData[handCount * 4] = p.x; handData[handCount * 4 + 1] = p.y;
+          handData[handCount * 4 + 2] = p.z; handData[handCount * 4 + 3] = 0.02; handCount++;
+        }
+        const gamepad = src.gamepad;
+        if (gamepad && gamepad.buttons[0] && gamepad.buttons[0].pressed && injectN < 2) {
+          injectPos[injectN * 3] = p.x; injectPos[injectN * 3 + 1] = p.y; injectPos[injectN * 3 + 2] = p.z;
+          injectN++;
+        }
+      }
+    }
+  }
+  if (slot === 0) { idleT += dt; if (idleT > 6) autoStir(dt); }
+  else { idleT = 0; prevJoint.delete("auto"); }
+}
+
+function onXRFrame(t, frame) {
+  xrSession.requestAnimationFrame(onXRFrame);
+  const dt = Math.min((t - lastT) / 1000 || 0.011, 0.05);
+  lastT = t;
+  tickStats(dt);
+
+  const pose = frame.getViewerPose(xrRefSpace);
+  if (!pose) return;
+
+  // 把球摆到头正前方 0.55m。进入时做一次；握拳重摆；离得太远（走开了/参考系漂了）自动重摆。
+  const hm = pose.transform.matrix;
+  if (!needPlace) {
+    const dx = hm[12] - C[0], dy = hm[13] - C[1], dz = hm[14] - C[2];
+    if (dx * dx + dy * dy + dz * dz > 6.25) needPlace = true;          // >2.5m
+  }
+  if (needPlace) {
+    needPlace = false;
+    C[0] = hm[12] - hm[8] * 0.55;    // 头矩阵第三列取负 = 视线正前方
+    C[1] = hm[13] - hm[9] * 0.55;
+    C[2] = hm[14] - hm[10] * 0.55;
+    floorY = C[1] - 1.1;
+    initParticles(P.count);          // 粒子是绕旧中心播的，得重播
+  }
+
+  updateHands(frame, dt);
+  simulate(dt);                                   // 与视角无关，双眼只跑一次
+
+  const layer = xrSession.renderState.baseLayer;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+  gl.clearColor(ST.dark ? 0.010 : 0.945, ST.dark ? 0.014 : 0.918, ST.dark ? 0.026 : 0.866, 1); gl.clearDepth(1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  for (const view of pose.views) {
+    const vp = layer.getViewport(view);
+    gl.viewport(vp.x, vp.y, vp.width, vp.height);
+    const m = view.transform.matrix;              // 视图矩阵的逆 = 相机位置
+    drawScene(view.projectionMatrix, view.transform.inverse.matrix, [m[12], m[13], m[14]], vp.height);
+  }
+}
+
+// ── UI ───────────────────────────────────────────────────────────────────────
+
+function tickStats(dt) {
+  frames++; fpsAcc += dt;
+  if (fpsAcc > 0.5) { fps = frames / fpsAcc; frames = 0; fpsAcc = 0; }
+}
+const statEl = document.getElementById("stat");
+setInterval(() => {
+  if (!statEl) return;
+  statEl.textContent = `${fps.toFixed(0)} fps · ${(N / 1000).toFixed(0)}k 粒子 × ${Math.round(P.tail)} 段 = ${((N * P.tail) / 1000).toFixed(0)}k 点`;
+}, 400);
+
+const bind = (id, key, fmt) => {
+  const el = document.getElementById("p_" + id), out = document.getElementById("v_" + id);
+  if (!el) return;
+  const sync = () => { P[key] = parseFloat(el.value); if (out) out.textContent = fmt ? fmt(P[key]) : P[key].toFixed(2); };
+  el.addEventListener("input", sync); sync();
+};
+bind("sharp", "sharp");
+bind("attract", "attract");
+bind("stir", "stir"); bind("srad", "srad", v => v.toFixed(3) + "m"); bind("damp", "damp");
+bind("turb", "turb"); bind("size", "size", v => (v * 1000).toFixed(0) + "mm");
+bind("op", "op"); bind("tail", "tail", v => v.toFixed(0)); bind("dry", "dry");
+bind("rad", "radius", v => (v * 100).toFixed(0) + "cm");
+
+document.getElementById("p_count").addEventListener("change", e => {
+  P.count = parseInt(e.target.value, 10); initParticles(P.count);
+});
+
+// 切风格：把预设灌进 P，并把滑块拨到对应位置（之后仍可手调）
+function applyStyle(name) {
+  P.style = name; ST = STYLES[name];
+  for (const k of ["op", "size", "damp", "turb", "dry", "stir", "srad", "attract", "sharp"]) {
+    if (ST[k] === undefined) continue;
+    P[k] = ST[k];
+    const el = document.getElementById("p_" + (k === "srad" ? "srad" : k));
+    if (el) { el.value = ST[k]; el.dispatchEvent(new Event("input")); }
+  }
+  document.documentElement.toggleAttribute("data-dark", !!ST.dark);
+  document.documentElement.style.background = ST.dark ? "#05070C" : "#EFE9DC";
+  document.body.style.background = ST.dark ? "#05070C" : "#EFE9DC";
+  document.body.style.color = ST.dark ? "#C8D4E4" : "#2B2118";
+  document.getElementById("title").textContent = ST.label.replace(/（.*$/, "");
+}
+document.getElementById("p_style").addEventListener("change", e => applyStyle(e.target.value));
+function setPanel(open) {
+  document.getElementById("panel").classList.toggle("open", open);
+  document.getElementById("ui").classList.toggle("shift", open);
+}
+document.getElementById("toggle").addEventListener("click", () =>
+  setPanel(!document.getElementById("panel").classList.contains("open")));
+document.getElementById("close").addEventListener("click", () => setPanel(false));
+document.getElementById("exit").addEventListener("click", () => {
+  if (xrSession) xrSession.end();
+});
+document.getElementById("recenter").addEventListener("click", () => { needPlace = true; });
+canvas.addEventListener("pointerdown", () => setPanel(false));   // 点画布也关
+document.getElementById("reset").addEventListener("click", () => initParticles(P.count));
+window.addEventListener("keydown", e => {
+  if (e.key === "r" || e.key === "R") initParticles(P.count);
+  if (e.key === "h" || e.key === "H") setPanel(!document.getElementById("panel").classList.contains("open"));
+  if (e.key === "Escape") setPanel(false);
+});
+
+const xrBtn = document.getElementById("xr");
+if (navigator.xr) {
+  navigator.xr.isSessionSupported("immersive-vr").then(ok => {
+    xrBtn.disabled = !ok;
+    xrBtn.textContent = ok ? "进入 VR" : "此设备无 VR";
+    if (ok) xrBtn.addEventListener("click", enterXR);
+  }).catch(() => { xrBtn.textContent = "此设备无 VR"; });
+} else xrBtn.textContent = "浏览器无 WebXR";
+
+// ── 启动 ─────────────────────────────────────────────────────────────────────
+if (OK) {
+  applyStyle(P.style);
+  initParticles(P.count);
+  lastT = performance.now();
+  rafId = requestAnimationFrame(desktopFrame);
+}
+</script>
+</body>
+</html>
