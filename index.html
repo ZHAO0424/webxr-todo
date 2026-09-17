@@ -799,7 +799,7 @@ function seedData(n) {                       // 初始：整个球内均匀分�
     a[i * 4]     = C[0] + x * r;
     a[i * 4 + 1] = C[1] + y * r;
     a[i * 4 + 2] = C[2] + z * r;
-    a[i * 4 + 3] = 7 + Math.random() * 17;
+    a[i * 4 + 3] = Math.random() * 24;   // 铺开寿命,否则头几秒没有可回收的粒子,注入是哑的
   }
   return a;
 }
