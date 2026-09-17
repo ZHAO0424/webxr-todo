@@ -790,27 +790,41 @@ const vaoEmpty = OK ? gl.createVertexArray() : null;
 let N, ROWS, SLOTS = MAX_SLOTS, head = 0;
 let posT = [], velT = [], simFbo = [], cur = 0, histT, histFbo;
 
-function seedData(n) {                       // 初始：整个球内均匀分布（拒绝采样天然均匀）
+// 初始：球内分布，但密度带一点螺旋起伏。
+// 纯均匀的球是"看不出在动"的 —— 里面转得再厉害，各处密度一样，画面就是一个静止的圆。
+// 让密度有结构，暗流一剪切，头几秒就能看见它在活；结构被抹平后与均匀球等价。
+function seedData(n) {
   const a = new Float32Array(n * 4);
+  const v = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) {
     let x, y, z, d;
-    do { x = Math.random() * 2 - 1; y = Math.random() * 2 - 1; z = Math.random() * 2 - 1; d = x * x + y * y + z * z; } while (d > 1);
+    do {
+      do { x = Math.random() * 2 - 1; y = Math.random() * 2 - 1; z = Math.random() * 2 - 1; d = x * x + y * y + z * z; } while (d > 1);
+      // 螺旋密度：绕 y 轴三条臂，沿半径拧开
+      const s0 = 0.5 + 0.5 * Math.sin(3 * Math.atan2(z, x) + 7 * Math.sqrt(d) + y * 4);
+      const w = 0.06 + 0.94 * s0 * s0 * s0;          // 三次方压出臂间的空隙，不然看不出是螺旋
+      if (Math.random() < w) break;
+    } while (true);
     const r = P.radius * 0.88;
     a[i * 4]     = C[0] + x * r;
     a[i * 4 + 1] = C[1] + y * r;
     a[i * 4 + 2] = C[2] + z * r;
     a[i * 4 + 3] = Math.random() * 24;   // 铺开寿命,否则头几秒没有可回收的粒子,注入是哑的
+    // 初速：绕 y 轴的公转 + 一点竖直剪切。螺旋臂会被它拧开，而不是干等暗流爬起来。
+    v[i * 4]     = -z * r * 1.1;
+    v[i * 4 + 1] = (Math.random() - 0.5) * 0.05;
+    v[i * 4 + 2] =  x * r * 1.1;
   }
-  return a;
+  return { pos: a, vel: v };
 }
 
 function initParticles(count) {
   [...posT, ...velT, histT].forEach(t => t && gl.deleteTexture(t));
   [...simFbo, histFbo].forEach(f => f && gl.deleteFramebuffer(f));
   N = count; ROWS = N / TEX_W;
-  const seed = seedData(N);
+  const { pos: seed, vel: seedV } = seedData(N);
   posT = [tex(TEX_W, ROWS, seed), tex(TEX_W, ROWS, seed)];
-  velT = [tex(TEX_W, ROWS, new Float32Array(N * 4)), tex(TEX_W, ROWS, new Float32Array(N * 4))];
+  velT = [tex(TEX_W, ROWS, seedV), tex(TEX_W, ROWS, seedV)];
   simFbo = [fbo([posT[0], velT[0]]), fbo([posT[1], velT[1]])];
   const hist = new Float32Array(TEX_W * ROWS * SLOTS * 4);
   for (let s = 0; s < SLOTS; s++)
@@ -1070,19 +1084,26 @@ const camDesk = { yaw: 0, pitch: 0.12, dist: 0.8 };
 const mouse = { x: 0, y: 0, inside: false, orbit: false, inject: false, lx: 0, ly: 0 };
 const mProj = mat4(), mView = mat4(), mVP = mat4(), mInvVP = mat4();
 
-canvas.addEventListener("pointermove", e => {
+// 光标位置必须在 pointerdown / pointerenter 上也更新，不能只在 pointermove 上。
+// 只挂 move 的话，页面刚打开、指针恰好停在画布上时 inside 一直是 false ——
+// desktopStir() 会直接 return，于是搅动和点击注入全是哑的，
+// 直到你无意中动一下鼠标才"突然好了"。
+function trackPointer(e) {
   const r = canvas.getBoundingClientRect();
   const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
   const ny = 1 - ((e.clientY - r.top) / r.height) * 2;
-  if (mouse.orbit) {
+  if (mouse.orbit && mouse.inside) {
     camDesk.yaw   -= (nx - mouse.x) * 2.2;
     camDesk.pitch = Math.max(-1.3, Math.min(1.3, camDesk.pitch + (ny - mouse.y) * 1.6));
   }
   mouse.x = nx; mouse.y = ny; mouse.inside = true;
-});
+}
+canvas.addEventListener("pointermove", trackPointer);
+canvas.addEventListener("pointerenter", trackPointer);
 canvas.addEventListener("pointerleave", () => { mouse.inside = false; });
 canvas.addEventListener("pointerdown", e => {
   canvas.setPointerCapture(e.pointerId);
+  trackPointer(e);                       // 先定位再置位，否则这一帧注入点还是旧的
   if (e.button === 0) mouse.inject = true; else mouse.orbit = true;
 });
 window.addEventListener("pointerup", e => { if (e.button === 0) mouse.inject = false; else mouse.orbit = false; });
