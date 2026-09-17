@@ -968,22 +968,32 @@ function ringInvMats() {
 
 // 握拳时整个中心点跟着手走：粒子在世界空间不动，中心一移，软容器就把整团拽过去 ——
 // 于是「攥住 → 聚拢 → 拖着走」是一个连贯动作。
-let wasGrabbing = false;
+// 握拳拖动：位置锚定，不是速度积分。
+// 速度积分（C += handVel*dt）对追踪尖刺毫无抵抗力 —— 手追丢失后重现时差分出的速度是假的，
+// 整团会被瞬间甩走，表现成「球忽然闪到别处」。封顶只能减轻，治不了根。
+// 锚定的做法：攥住时记下「手到球心」的偏移，之后球心 = 当前手位 - 偏移，再用低通逼近。
+// 手位置跳变时，球心只是平滑地跟过去；追踪丢了又在原地回来，则完全不动。
+let grabN = 0;
+const grabAnchor = [0, 0, 0];
 function updateGrabDrag(dt) {
-  let n = 0, vx = 0, vy = 0, vz = 0;
+  let n = 0, px = 0, py = 0, pz = 0;
   for (let i = 0; i < MAX_STIR; i++) {
     if (stirW[i] <= 0 || stirGrab[i] < 0.5) continue;
-    vx += stirVel[i * 3]; vy += stirVel[i * 3 + 1]; vz += stirVel[i * 3 + 2]; n++;
+    px += stirPos[i * 3]; py += stirPos[i * 3 + 1]; pz += stirPos[i * 3 + 2]; n++;
   }
-  const grabbing = n > 0;
-  // 起手那一帧不拖：手追刚重新出现时 prevJoint 还是旧位置，差分出来的速度是假的暴冲，
-  // 整团会被瞬间甩走 —— 看起来就像「位置被重置」。
-  if (!grabbing || !wasGrabbing) { wasGrabbing = grabbing; return; }
-  const k = dt / n;
-  let dx = vx * k, dy = vy * k, dz = vz * k;
-  const step = Math.hypot(dx, dy, dz), cap = 0.04;      // 单帧位移上限 4cm，兜住残余跳变
-  if (step > cap) { const f = cap / step; dx *= f; dy *= f; dz *= f; }
-  C[0] += dx; C[1] += dy; C[2] += dz;
+  if (n === 0) { grabN = 0; return; }
+  const cx = px / n, cy = py / n, cz = pz / n;          // 攥紧关节的质心
+
+  // 参与的关节数变了（另一只手加入/退出、某些关节丢追踪）→ 质心会跳，重新取锚
+  if (n !== grabN) {
+    grabN = n;
+    grabAnchor[0] = cx - C[0]; grabAnchor[1] = cy - C[1]; grabAnchor[2] = cz - C[2];
+    return;
+  }
+  const k = Math.min(1, 10 * dt);                        // 低通：跟手但不跟抖
+  C[0] += (cx - grabAnchor[0] - C[0]) * k;
+  C[1] += (cy - grabAnchor[1] - C[1]) * k;
+  C[2] += (cz - grabAnchor[2] - C[2]) * k;
 }
 
 function updateRingSpin(dt) {
