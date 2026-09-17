@@ -936,6 +936,7 @@ gl.enableVertexAttribArray(0);
 gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 0, 0);
 gl.bindVertexArray(null);
 }
+const SHOW_HANDS = false;                  // 手部关节点是否画成亮点
 const handData = new Float32Array(60 * 4);
 let handCount = 0;
 
@@ -1212,9 +1213,10 @@ function drawScene(proj, view, camPos, vpH) {
   // 顺带省掉一整遍全屏，也彻底断了背景噪声这个伪影来源。
   // （加光显示的眼镜上，纯黑 = 完全透明，辉光直接浮在真实房间里。）
 
-  // 手。墨：写深度让墨被手遮挡。发光风格：不写深度，辉光该从手上漫过去，
-  //     否则手会变成一块死黑的剪影。
-  if (handCount) {
+  // 手。关节点照算（搅动、握拳、注入全靠它），只是不画出来 ——
+  // 画出来那 25 个亮点会盖住被吸拢的光丝，手本身在眼镜里是能直接看见的。
+  // 想看关节调试时把 SHOW_HANDS 改回 true。
+  if (SHOW_HANDS && handCount) {
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
     gl.depthMask(ST.additive ? false : true);
     gl.enable(gl.BLEND);
