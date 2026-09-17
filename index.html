@@ -117,7 +117,7 @@
   <div class="row"><label>曝光 <span id="v_exposure"></span></label><input type="range" id="p_exposure" min="0.2" max="6" step="0.05" value="1.6"></div>
   <div class="row"><label>辉光强度 <span id="v_bloom"></span></label><input type="range" id="p_bloom" min="0" max="3" step="0.05" value="1.0"></div>
   <div class="row"><label>辉光宽度 <span id="v_bloomR"></span></label><input type="range" id="p_bloomR" min="0" max="2" step="0.05" value="1.0"></div>
-  <div class="row"><label>锐度（糊就往右） <span id="v_sharp"></span></label><input type="range" id="p_sharp" min="0" max="1" step="0.02" value="0.8"></div>
+  <div class="row"><label>锐度（糊就往右） <span id="v_sharp"></span></label><input type="range" id="p_sharp" min="0" max="1" step="0.02" value="0.9"></div>
   <div class="row"><label>吸附强度（追手） <span id="v_attract"></span></label><input type="range" id="p_attract" min="0" max="3" step="0.02" value="0.5"></div>
   <div class="row"><label>搅动强度 <span id="v_stir"></span></label><input type="range" id="p_stir" min="0" max="3" step="0.02" value="1.1"></div>
   <div class="row"><label>手的影响半径 <span id="v_srad"></span></label><input type="range" id="p_srad" min="0.02" max="0.2" step="0.005" value="0.075"></div>
@@ -164,25 +164,25 @@ const STYLES = {
   plasma: {                                        // 等离子辉光球：电弧追着手走
     label: "等离子", additive: 1, dark: 1, attract: 0.5,
     cool: [0.16, 0.62, 1.00], warm: [0.72, 0.30, 1.00],
-    op: 0.075, size: 0.0062, damp: 0.34, turb: 0.26, dry: 1.5, stir: 1.5, srad: 0.09, sharp: 0.80,
+    op: 0.075, size: 0.0054, damp: 0.34, turb: 0.26, dry: 1.5, stir: 1.5, srad: 0.09, sharp: 0.92,
     tail: 6, exposure: 2.6, bloom: 0.28,
   },
   core: {                                          // 能量核心：冷白→琥珀，更"机械"
     label: "能量核心", additive: 1, dark: 1, attract: 0.25,
     cool: [0.55, 0.85, 1.00], warm: [1.00, 0.62, 0.22],
-    op: 0.070, size: 0.008, damp: 0.9, turb: 0.13, dry: 1.0, stir: 1.1, srad: 0.075, sharp: 0.72,
+    op: 0.070, size: 0.0068, damp: 0.9, turb: 0.13, dry: 1.0, stir: 1.1, srad: 0.075, sharp: 0.88,
     tail: 6, exposure: 2.5, bloom: 0.30,
   },
   ferro: {                                         // 磁流体：手是磁极，强吸附 + 低湍流
     label: "磁流体", additive: 1, dark: 1, attract: 1.1,
     cool: [0.40, 0.95, 0.85], warm: [0.20, 0.45, 0.95],
-    op: 0.082, size: 0.0055, damp: 1.6, turb: 0.05, dry: 1.2, stir: 2.0, srad: 0.11, sharp: 0.88,
+    op: 0.082, size: 0.0048, damp: 1.6, turb: 0.05, dry: 1.2, stir: 2.0, srad: 0.11, sharp: 0.94,
     tail: 5, exposure: 2.7, bloom: 0.26,
   },
   blackhole: {                                     // 吸积盘：开普勒自转 + 多普勒集束 + 事件视界
     label: "黑洞", additive: 1, dark: 1, attract: 0.35, bh: 1, doppler: 1.15, lens: 1, rings: 1,
     cool: [0.66, 0.82, 1.00], warm: [1.00, 0.52, 0.16],
-    op: 0.040, size: 0.0070, damp: 0.25, turb: 0.10, dry: 0.8, stir: 1.2, srad: 0.085, sharp: 0.78,
+    op: 0.040, size: 0.0060, damp: 0.25, turb: 0.10, dry: 0.8, stir: 1.2, srad: 0.085, sharp: 0.90,
     tail: 4, exposure: 0.95, bloom: 1.0,
   },
 };
@@ -576,9 +576,10 @@ void main(){
   vec2 c = gl_PointCoord * 2.0 - 1.0;
   float r2 = dot(c, c);
   float e = max(0.0, 1.0 - r2);
-  float core = pow(e, mix(1.2, 4.5, uSharp));       // 笔芯：锐度越高越紧
-  float halo = pow(e, 0.32);                        // 光晕：糊的主因，锐度高时几乎去掉
-  float a = (core * mix(0.70, 0.99, uSharp) + halo * mix(0.30, 0.01, uSharp)) * vFade * uOpacity;
+  float core = pow(e, mix(1.2, 9.0, uSharp));       // 笔芯：锐度越高越紧
+  float halo = pow(e, 0.32);                        // 光晕：糊的主因，锐度高时彻底去掉
+  // 指数拉高会把能量收进中心、整体变暗，所以同步补一点增益，锐度滑块才只改"锐"不改"亮"
+  float a = (core * mix(0.70, 1.45, uSharp) + halo * mix(0.30, 0.0, uSharp)) * vFade * uOpacity;
   vec3 tint = mix(uInkCool, uInkWarm, vSeed * vSeed);
   if (uDoppler > 0.0) {
     tint = mix(uInkWarm, uInkCool, clamp(vDop * 0.5 + 0.5, 0.0, 1.0));  // 迎面蓝移,背向红移
@@ -1405,7 +1406,13 @@ async function enterXRInner() {
 
   await gl.makeXRCompatible();
   xrSession.updateRenderState({
-    baseLayer: new XRWebGLLayer(xrSession, gl, { antialias: false, framebufferScaleFactor: 0.85 }),
+    // 分辨率直接影响锐度。0.85 是在给自己打折 —— 取 runtime 报的原生比例
+    // （1:1 对上显示面板的像素），上限 1.0 是给填充率留的余量。
+    baseLayer: new XRWebGLLayer(xrSession, gl, {
+      antialias: false,
+      framebufferScaleFactor: Math.min(1.0, (XRWebGLLayer.getNativeFramebufferScaleFactor
+                                             && XRWebGLLayer.getNativeFramebufferScaleFactor(xrSession)) || 1.0),
+    }),
     depthNear: 0.02, depthFar: 60,
   });
   // 不要硬写世界坐标。3DoF / 无地面追踪的 runtime 会把 local-floor 的原点报在头的位置，
