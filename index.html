@@ -968,15 +968,22 @@ function ringInvMats() {
 
 // 握拳时整个中心点跟着手走：粒子在世界空间不动，中心一移，软容器就把整团拽过去 ——
 // 于是「攥住 → 聚拢 → 拖着走」是一个连贯动作。
+let wasGrabbing = false;
 function updateGrabDrag(dt) {
   let n = 0, vx = 0, vy = 0, vz = 0;
   for (let i = 0; i < MAX_STIR; i++) {
     if (stirW[i] <= 0 || stirGrab[i] < 0.5) continue;
     vx += stirVel[i * 3]; vy += stirVel[i * 3 + 1]; vz += stirVel[i * 3 + 2]; n++;
   }
-  if (n === 0) return;
-  const k = dt / n;                       // 攥紧的那些关节的平均速度，1:1 跟随
-  C[0] += vx * k; C[1] += vy * k; C[2] += vz * k;
+  const grabbing = n > 0;
+  // 起手那一帧不拖：手追刚重新出现时 prevJoint 还是旧位置，差分出来的速度是假的暴冲，
+  // 整团会被瞬间甩走 —— 看起来就像「位置被重置」。
+  if (!grabbing || !wasGrabbing) { wasGrabbing = grabbing; return; }
+  const k = dt / n;
+  let dx = vx * k, dy = vy * k, dz = vz * k;
+  const step = Math.hypot(dx, dy, dz), cap = 0.04;      // 单帧位移上限 4cm，兜住残余跳变
+  if (step > cap) { const f = cap / step; dx *= f; dy *= f; dz *= f; }
+  C[0] += dx; C[1] += dy; C[2] += dz;
 }
 
 function updateRingSpin(dt) {
@@ -1383,7 +1390,7 @@ function updateHands(frame, dt) {
         handCount++;
       }
       const slot0 = slot;
-      let thumb = null, index = null, wrist = null, tipSum = 0, tipN = 0;
+      let thumb = null, index = null, wrist = null, tipSum = 0, tipN = 0, fist = 0;
       for (const name of TIPS) {
         if (slot >= MAX_STIR) break;
         const j = hand.get(name);
@@ -1394,15 +1401,6 @@ function updateHands(frame, dt) {
         if (name === "thumb-tip") thumb = p;
         if (name === "index-finger-tip") index = p;
         if (name === "wrist") wrist = p;
-      }
-      if (thumb && index) {
-        const d = Math.hypot(thumb.x - index.x, thumb.y - index.y, thumb.z - index.z);
-        if (d < 0.028 && injectN < 2) {                 // 两只手可以各注各的
-          injectPos[injectN * 3]     = (thumb.x + index.x) / 2;
-          injectPos[injectN * 3 + 1] = (thumb.y + index.y) / 2;
-          injectPos[injectN * 3 + 2] = (thumb.z + index.z) / 2;
-          injectN++;
-        }
       }
       // 握拳检测：指尖到腕的平均距离，用这只手自己的尺度归一化（手有大小之分）。
       // 张开 ≈ 2.2 倍掌骨长，握紧 ≈ 1.1 倍。不依赖 runtime 是否支持 squeeze 手势。
@@ -1424,10 +1422,22 @@ function updateHands(frame, dt) {
           : 0.075;
         if (tipN && scale > 0.02) {
           const ratio = (tipSum / tipN) / scale;
-          const g = 1.0 - smooth01(ratio, 1.35, 1.95);     // 1 = 攥紧, 0 = 张开
-          for (let k = slot0; k < slot; k++) stirGrab[k] = g;
-          if (g > 0.5) for (let k = hc0; k < handCount; k++)  // 攥紧的手画亮一点
+          fist = 1.0 - smooth01(ratio, 1.35, 1.95);        // 1 = 攥紧, 0 = 张开
+          for (let k = slot0; k < slot; k++) stirGrab[k] = fist;
+          if (fist > 0.5) for (let k = hc0; k < handCount; k++)  // 攥紧的手画亮一点
             if (handData[k * 4 + 3] > 0) handData[k * 4 + 3] = -handData[k * 4 + 3];
+        }
+      }
+
+      // 捏合注入。必须排在握拳之后并把握拳排除掉 —— 攥拳时拇指和食指本来就贴在一起，
+      // 不排除的话一握拳就在疯狂注入粒子。
+      if (thumb && index && fist < 0.35 && injectN < 2) {
+        const d = Math.hypot(thumb.x - index.x, thumb.y - index.y, thumb.z - index.z);
+        if (d < 0.028) {
+          injectPos[injectN * 3]     = (thumb.x + index.x) / 2;
+          injectPos[injectN * 3 + 1] = (thumb.y + index.y) / 2;
+          injectPos[injectN * 3 + 2] = (thumb.z + index.z) / 2;
+          injectN++;
         }
       }
     } else if (src.gripSpace && slot < MAX_STIR) {           // 手柄兜底
