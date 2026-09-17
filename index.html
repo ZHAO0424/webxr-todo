@@ -200,12 +200,14 @@ let autoUiT = 0;
 
 function updateAuto(dt) {
   if (P.style !== "auto") return;
-  const nS = CYCLE.length;
-  const u = (tSec % (CYCLE_SEC * nS)) / CYCLE_SEC;
+  const nS = CYCLE.length, span = CYCLE_SEC * nS;
+  const u = (((tSec % span) + span) % span) / CYCLE_SEC;   // 正模：tSec 万一为负也不越界
   const i = Math.floor(u) % nS, j = (i + 1) % nS;
+  const A0 = STYLES[CYCLE[i]], B0 = STYLES[CYCLE[j]];
+  if (!A0 || !B0) return;
   let f = u - Math.floor(u);
   f = f * f * (3.0 - 2.0 * f);                       // smoothstep，切换处没有折角
-  const A = STYLES[CYCLE[i]], B = STYLES[CYCLE[j]];
+  const A = A0, B = B0;
   for (const k of LERP_KEYS) P[k] = A[k] + (B[k] - A[k]) * f;
   for (let c = 0; c < 3; c++) {
     AUTO.cool[c] = A.cool[c] + (B.cool[c] - A.cool[c]) * f;
@@ -1301,9 +1303,29 @@ function drawScene(proj, view, camPos, vpH) {
 // ── 桌面循环 ─────────────────────────────────────────────────────────────────
 
 let rafId = 0;
-function desktopFrame(t) {
+
+// 帧里抛异常的后果特别隐蔽：rAF 在函数开头就续上了，循环照跑，但异常之后的
+// 绘制全被跳过 —— 画布停在最后一张成功的图上，看起来像"卡住"，控制台之外毫无线索。
+// 包一层，把第一个异常直接摆到屏幕上。
+let frameDead = false;
+function guardFrame(fn) {
+  return function (...args) {
+    if (frameDead) return;
+    try { fn(...args); }
+    catch (e) {
+      frameDead = true;
+      fatal("渲染循环出错：<br><pre style='text-align:left;font-size:11px'>" +
+            (e && e.stack ? e.stack : e) + "</pre>");
+      throw e;
+    }
+  };
+}
+
+const desktopFrame = guardFrame(function (t) {
   rafId = requestAnimationFrame(desktopFrame);
-  const dt = Math.min((t - lastT) / 1000 || 0.016, 0.05);
+  // 下限必须是 0：rAF 传的是「本帧开始时刻」，第一帧可能早于启动时取的 lastT，
+  // 于是 dt 为负 —— tSec 被推成负数，后面所有按时间取模的东西全部越界。
+  const dt = Math.max(0, Math.min((t - lastT) / 1000 || 0.016, 0.05));
   lastT = t;
   tickStats(dt);
 
@@ -1324,7 +1346,7 @@ function desktopFrame(t) {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   drawScene(mProj, mView, eye, h);
   postProcess(null, [[0, 0, w, h]]);
-}
+});
 
 // ── WebXR ────────────────────────────────────────────────────────────────────
 
@@ -1492,9 +1514,9 @@ function updateHands(frame, dt) {
   else { idleT = 0; autoActive = false; prevJoint.delete("auto"); }
 }
 
-function onXRFrame(t, frame) {
+const onXRFrame = guardFrame(function (t, frame) {
   xrSession.requestAnimationFrame(onXRFrame);
-  const dt = Math.min((t - lastT) / 1000 || 0.011, 0.05);
+  const dt = Math.max(0, Math.min((t - lastT) / 1000 || 0.011, 0.05));
   lastT = t;
   tickStats(dt);
 
@@ -1533,7 +1555,7 @@ function onXRFrame(t, frame) {
     rects.push([vp.x, vp.y, vp.width, vp.height]);
   }
   postProcess(layer.framebuffer, rects);
-}
+});
 
 // ── UI ───────────────────────────────────────────────────────────────────────
 
