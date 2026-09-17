@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>等离子 · Plasma</title>
+<title>渐变 · Flux</title>
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -79,13 +79,13 @@
 
 <div id="ui">
   <header>
-    <h1 id="title">等离子</h1>
+    <h1 id="title">渐变</h1>
     <span class="sub">伸手搅动 · WebXR</span>
   </header>
   <footer>
     <div class="hint">
       <b>桌面</b>：移动鼠标搅动 · 按住左键注入 · 右键拖拽转视角 · 滚轮远近 · <b>R</b> 重置 · <b>H</b> 面板<br>
-      <b>头显</b>：双手伸进去搅 · <b>握拳</b>吸拢光点 · 任一手捏合注入 · 摆位/退出用左边按钮
+      <b>头显</b>：双手伸进去搅 · <b>握拳</b>吸拢并拖动整团 · 任一手捏合注入 · 摆位/退出用左边按钮
     </div>
     <div class="btns">
       <button id="xr" disabled>检测 XR…</button>
@@ -102,10 +102,8 @@
   <div class="row">
     <label>风格 <span></span></label>
     <select id="p_style">
-      <option value="plasma" selected>等离子 · 电弧追手</option>
-      <option value="core">能量核心</option>
-      <option value="ferro">磁流体</option>
-      <option value="ink">水墨（仅桌面）</option>
+      <option value="auto" selected>渐变</option>
+      <option value="blackhole">黑洞 · 吸积盘</option>
     </select>
   </div>
   <div class="row">
@@ -116,6 +114,9 @@
       <option value="32768">浓 · 32k</option>
     </select>
   </div>
+  <div class="row"><label>曝光 <span id="v_exposure"></span></label><input type="range" id="p_exposure" min="0.2" max="6" step="0.05" value="1.6"></div>
+  <div class="row"><label>辉光强度 <span id="v_bloom"></span></label><input type="range" id="p_bloom" min="0" max="3" step="0.05" value="1.0"></div>
+  <div class="row"><label>辉光宽度 <span id="v_bloomR"></span></label><input type="range" id="p_bloomR" min="0" max="2" step="0.05" value="1.0"></div>
   <div class="row"><label>锐度（糊就往右） <span id="v_sharp"></span></label><input type="range" id="p_sharp" min="0" max="1" step="0.02" value="0.8"></div>
   <div class="row"><label>吸附强度（追手） <span id="v_attract"></span></label><input type="range" id="p_attract" min="0" max="3" step="0.02" value="0.5"></div>
   <div class="row"><label>搅动强度 <span id="v_stir"></span></label><input type="range" id="p_stir" min="0" max="3" step="0.02" value="1.1"></div>
@@ -152,7 +153,8 @@ const MAX_STIR  = 12;    // 最多 12 个搅动点（双手 × 6 关节）
 const P = {               // 可调参数，与面板绑定
   count: 16384, stir: 1.1, srad: 0.075, damp: 0.7, turb: 0.10,
   size: 0.012, op: 0.13, tail: 8, dry: 1.1, radius: 0.22,
-  style: "plasma", attract: 0, sharp: 0.72,
+  style: "auto", attract: 0, sharp: 0.72,
+  exposure: 1.6, bloom: 1.0, bloomR: 1.0,
 };
 
 // 风格预设。additive/dark 决定混合模式与底色；attract 是朝手的远程吸附。
@@ -162,25 +164,57 @@ const STYLES = {
   plasma: {                                        // 等离子辉光球：电弧追着手走
     label: "等离子", additive: 1, dark: 1, attract: 0.5,
     cool: [0.16, 0.62, 1.00], warm: [0.72, 0.30, 1.00],
-    op: 0.055, size: 0.0062, damp: 0.34, turb: 0.26, dry: 1.5, stir: 1.5, srad: 0.09, sharp: 0.80,
+    op: 0.075, size: 0.0062, damp: 0.34, turb: 0.26, dry: 1.5, stir: 1.5, srad: 0.09, sharp: 0.80,
+    tail: 6, exposure: 2.6, bloom: 0.28,
   },
   core: {                                          // 能量核心：冷白→琥珀，更"机械"
     label: "能量核心", additive: 1, dark: 1, attract: 0.25,
     cool: [0.55, 0.85, 1.00], warm: [1.00, 0.62, 0.22],
-    op: 0.05, size: 0.008, damp: 0.9, turb: 0.13, dry: 1.0, stir: 1.1, srad: 0.075, sharp: 0.72,
+    op: 0.070, size: 0.008, damp: 0.9, turb: 0.13, dry: 1.0, stir: 1.1, srad: 0.075, sharp: 0.72,
+    tail: 6, exposure: 2.5, bloom: 0.30,
   },
   ferro: {                                         // 磁流体：手是磁极，强吸附 + 低湍流
     label: "磁流体", additive: 1, dark: 1, attract: 1.1,
     cool: [0.40, 0.95, 0.85], warm: [0.20, 0.45, 0.95],
-    op: 0.06, size: 0.0055, damp: 1.6, turb: 0.05, dry: 1.2, stir: 2.0, srad: 0.11, sharp: 0.88,
+    op: 0.082, size: 0.0055, damp: 1.6, turb: 0.05, dry: 1.2, stir: 2.0, srad: 0.11, sharp: 0.88,
+    tail: 5, exposure: 2.7, bloom: 0.26,
   },
-  ink: {                                           // 水墨：只适合桌面 / 不透明屏
-    label: "水墨（仅桌面）", additive: 0, dark: 0, attract: 0,
-    cool: [0.102, 0.118, 0.157], warm: [0.169, 0.129, 0.098],
-    op: 0.13, size: 0.012, damp: 0.7, turb: 0.10, dry: 1.1, stir: 1.1, srad: 0.075, sharp: 0.35,
+  blackhole: {                                     // 吸积盘：开普勒自转 + 多普勒集束 + 事件视界
+    label: "黑洞", additive: 1, dark: 1, attract: 0.35, bh: 1, doppler: 1.15, lens: 1, rings: 1,
+    cool: [0.66, 0.82, 1.00], warm: [1.00, 0.52, 0.16],
+    op: 0.040, size: 0.0070, damp: 0.25, turb: 0.10, dry: 0.8, stir: 1.2, srad: 0.085, sharp: 0.78,
+    tail: 4, exposure: 0.95, bloom: 1.0,
   },
 };
 let ST = STYLES[P.style];
+
+// 自动渐变：在 plasma / core / ferro 之间连续插值。这三种不只是颜色不同 ——
+// 黏滞 0.34/0.9/1.6、湍动 0.26/0.13/0.05 差到五倍，所以数值全都一起插，
+// 形态是真的在变，不是换个色板。黑洞有结构性开关(bh/lens/rings)，不参与循环。
+const CYCLE = ["plasma", "core", "ferro"];
+const CYCLE_SEC = 20;
+const LERP_KEYS = ["op", "size", "damp", "turb", "dry", "stir", "srad", "attract", "sharp",
+                   "tail", "exposure", "bloom"];
+const AUTO = { label: "渐变", additive: 1, dark: 1, cool: [0, 0, 0], warm: [0, 0, 0] };
+let autoUiT = 0;
+
+function updateAuto(dt) {
+  if (P.style !== "auto") return;
+  const nS = CYCLE.length;
+  const u = (tSec % (CYCLE_SEC * nS)) / CYCLE_SEC;
+  const i = Math.floor(u) % nS, j = (i + 1) % nS;
+  let f = u - Math.floor(u);
+  f = f * f * (3.0 - 2.0 * f);                       // smoothstep，切换处没有折角
+  const A = STYLES[CYCLE[i]], B = STYLES[CYCLE[j]];
+  for (const k of LERP_KEYS) P[k] = A[k] + (B[k] - A[k]) * f;
+  for (let c = 0; c < 3; c++) {
+    AUTO.cool[c] = A.cool[c] + (B.cool[c] - A.cool[c]) * f;
+    AUTO.warm[c] = A.warm[c] + (B.warm[c] - A.warm[c]) * f;
+  }
+  ST = AUTO;
+  autoUiT += dt;                                     // 滑块跟着走，但不必每帧刷
+  if (autoUiT > 0.25) { autoUiT = 0; syncSliders(); }
+}
 
 const canvas = document.getElementById("c");
 const gl = canvas.getContext("webgl2", {
@@ -343,7 +377,8 @@ uniform vec3  uStirPos[${MAX_STIR}];
 uniform vec3  uStirVel[${MAX_STIR}];
 uniform float uStirW[${MAX_STIR}];
 uniform float uStirGrab[${MAX_STIR}];
-uniform float uStirRadius, uStirStrength, uAttract;
+uniform float uStirRadius, uStirStrength, uAttract, uBH, uRows;
+uniform mat3  uRingInv[3];      // 每个环变换的逆，用来把注入点搬到该环的局部坐标系
 uniform vec3  uInjectPos[2];
 uniform float uInjectN;      // 0/1/2 个注入点
 ${GLSL_NOISE}
@@ -376,11 +411,25 @@ void main(){
     acc -= r / (dist1 + 0.02) * wide * (uAttract + 1.6 * g) * near;
   }
 
-  // 3. 软容器：在球面之前就开始温和回收，避免粒子全堆在同一层壳上结出硬边
-  float dist = length(p - uCenter);
-  float push = smoothstep(0.78, 1.12, dist / uRadius);
-  acc -= (p - uCenter) / max(dist, 1e-4) * push * 3.2;
-  acc.y -= 0.012;                             // 极轻的下沉
+  // 3. 容器
+  vec3 rel = p - uCenter;
+  if (uBH > 0.5) {
+    // 吸积盘：压成薄盘 + 开普勒微分自转（越靠内转越快）+ 缓慢向内螺旋
+    vec2  q = rel.xz;
+    float r = max(length(q), 1e-4);
+    vec3  tang = vec3(-q.y, 0.0, q.x) / r;                    // 切向
+    float omega = 0.55 / pow(r / uRadius + 0.06, 1.5);        // ω ∝ r^-1.5
+    acc += (tang * omega * r * 3.0 - vel) * 2.2;
+    acc.y -= rel.y * 26.0;                                    // 压扁（留一点厚度）
+    acc -= vec3(q.x, 0.0, q.y) / r * 0.24;                    // 吸积：放缓,让环带更宽
+    float outward = smoothstep(1.02, 1.30, r / uRadius);
+    acc -= vec3(q.x, 0.0, q.y) / r * outward * 4.5;           // 只在盘外回收
+  } else {
+    float dist = length(rel);
+    float push = smoothstep(0.78, 1.12, dist / uRadius);
+    acc -= rel / max(dist, 1e-4) * push * 3.2;
+    acc.y -= 0.012;                           // 极轻的下沉
+  }
 
   vel += acc * uDt;
   vel *= exp(-uDamp * uDt);                   // 黏滞：手停下后墨继续旋，慢慢停
@@ -388,13 +437,26 @@ void main(){
 
   // 4. 轮回：寿命到了就重生；捏合/按住左键时从指尖注入新墨
   life -= uDt;
-  if (life <= 0.0){
+  bool eaten = uBH > 0.5 && length(rel.xz) < uRadius * 0.14;   // 掉进事件视界
+  if (life <= 0.0 || eaten){
     float seed = vUv.x * 7919.0 + vUv.y * 104729.0 + uTime * 131.0;
     vec3 dir = normalize(hash31(seed) * 2.0 - 1.0 + vec3(1e-4));
     float rr = pow(hash11(seed + 3.7), 0.3333);
     if (uInjectN > 0.5) {
       int wi = (uInjectN > 1.5 && hash11(seed + 21.3) > 0.5) ? 1 : 0;   // 两手时各分一半
-      p = uInjectPos[wi] + dir * rr * 0.035;
+      vec3 hp = uInjectPos[wi];
+      if (uBH > 0.5) {
+        // 环的旋转是在渲染时施加的，而这里是模拟空间 —— 不做逆变换的话，
+        // 注入在手上的粒子会被各自的环转走，既不在手上、又散成三股。
+        int pidx = int(floor(vUv.y * uRows)) * 256 + int(floor(vUv.x * 256.0));
+        int g = int(floor(hash11(float(pidx) * 0.37714) * 3.0));
+        hp = uCenter + uRingInv[g] * (hp - uCenter);
+      }
+      p = hp + dir * rr * 0.035;
+    } else if (uBH > 0.5) {
+      float a2 = hash11(seed + 5.1) * 6.2831853;               // 从外缘重新流入
+      float r2 = uRadius * (0.42 + 0.62 * hash11(seed + 7.7));   // 铺满整条环带
+      p = uCenter + vec3(cos(a2) * r2, (hash11(seed + 11.3) - 0.5) * uRadius * 0.05, sin(a2) * r2);
     } else {
       p = uCenter + dir * rr * uRadius * 0.62;
     }
@@ -420,10 +482,18 @@ precision highp float;
 uniform sampler2D uHist;
 uniform mat4 uProj, uView;
 uniform int  uN, uRows, uHead, uSlots, uTail;
-uniform float uSize, uVpH, uDry;
-out float vFade, vSeed, vDry;
+uniform float uSize, uVpH, uDry, uDoppler, uRadius, uLens, uPhotonAng, uPass, uTilt, uRingIdx;
+uniform mat3 uRingRot;
+uniform vec3 uCamPos, uCenter;
+out float vFade, vSeed, vDry, vDop, vRing;
 
 float h11(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+
+// 罗德里格旋转：绕单位轴 k 把 v 转 a 弧度
+vec3 rotAxis(vec3 v, vec3 k, float a){
+  float c = cos(a), s = sin(a);
+  return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c);
+}
 
 void main(){
   int id  = gl_VertexID;
@@ -431,6 +501,13 @@ void main(){
   int pid = id - s * uN;
 
   if (s >= uTail){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+
+  // 每个粒子按哈希固定归属一个环，而不是把同一批粒子画三遍。
+  // 这样注入的那一股只出现一次（不会变成三条），填充率也降到三分之一。
+  if (uRingIdx >= 0.0) {
+    float g = floor(h11(float(pid) * 0.37714) * 3.0);
+    if (abs(g - uRingIdx) > 0.5){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+  }
 
   int ring = uHead - s;  ring += (ring < 0) ? uSlots : 0;   // 环形缓冲回绕
   ivec2 uv = ivec2(pid % ${TEX_W}, ring * uRows + pid / ${TEX_W});
@@ -441,7 +518,43 @@ void main(){
   float age = float(s) / float(max(uTail - 1, 1));
   vFade = pow(1.0 - age, 1.35);             // 尾巴渐淡
 
-  vec4 vp = uView * vec4(d.xyz, 1.0);
+  // 三环：同一批粒子画三遍，分别绕 X 轴倾斜 0 / +60 / -60 度
+  vec3 rel0 = d.xyz - uCenter;
+  float ct = cos(uTilt), st = sin(uTilt);
+  vec3 rel = vec3(rel0.x, rel0.y * ct - rel0.z * st, rel0.y * st + rel0.z * ct);
+  // 整组环的姿态：一个自由翻滚的旋转矩阵，手可以往任意方向推。
+  // 只对分环的风格生效 —— 渐变不分环，转了只会让注入点跟着偏。
+  if (uRingIdx >= 0.0) rel = uRingRot * rel;
+  vec3 P = uCenter + rel;
+
+  // 引力透镜的次级像：光线绕过洞之后看起来来自哪个方向。
+  // 在 相机-洞-粒子 构成的平面内，把「看向洞」的方向朝粒子的反侧转到光子球角半径附近。
+  // 盘的远侧因此被拱到洞的上方/下方 —— 那条光弧才是「像黑洞」的来源。
+  if (uPass > 0.5) {
+    vec3 toC = uCenter - uCamPos;
+    vec3 toP = P - uCamPos;
+    float dC = length(toC);
+    vec3 uC = toC / max(dC, 1e-4);
+    vec3 axis = cross(uC, normalize(toP));
+    float al = length(axis);
+    if (al < 1e-4 || uLens < 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; return; }
+    P = uCamPos + rotAxis(uC, axis / al, -uPhotonAng * 1.06) * length(toP);
+  }
+
+  // 多普勒集束：吸积盘切向速度朝向观察者的一侧增亮。
+  // 原作只是个左右的 exp 渐变；这里用每个粒子真实的切向方向算，所以随视角自然变化。
+  vDop = 0.0; vRing = 0.0;
+  if (uDoppler > 0.0) {
+    float r0 = max(length(rel0.xz), 1e-4);
+    vec3 tang0 = vec3(-rel0.z, 0.0, rel0.x) / r0;              // 未倾斜时的切向
+    vec3 t1 = vec3(tang0.x, tang0.y * ct - tang0.z * st,       // 跟着环一起转
+                            tang0.y * st + tang0.z * ct);
+    vec3 tang = (uRingIdx >= 0.0) ? uRingRot * t1 : t1;
+    vDop = dot(tang, normalize(uCamPos - P));
+    vRing = exp(-pow((r0 / uRadius - 0.21) / 0.030, 2.0));
+  }
+
+  vec4 vp = uView * vec4(P, 1.0);
   gl_Position = uProj * vp;
   float dist = max(-vp.z, 0.02);
   float size = uSize * (0.65 + 0.7 * vSeed) * (1.0 - 0.35 * age);
@@ -453,9 +566,9 @@ void main(){
 // 圆外让 alpha 归零即可，乘以白色等于无操作。
 const FS_INK = `#version 300 es
 precision highp float;
-in float vFade, vSeed, vDry;
+in float vFade, vSeed, vDry, vDop, vRing;
 out vec4 frag;
-uniform float uOpacity, uAdditive, uSharp;
+uniform float uOpacity, uAdditive, uSharp, uDoppler;
 uniform vec3 uInkCool, uInkWarm;
 void main(){
   vec2 c = gl_PointCoord * 2.0 - 1.0;
@@ -465,6 +578,12 @@ void main(){
   float halo = pow(e, 0.32);                        // 光晕：糊的主因，锐度高时几乎去掉
   float a = (core * mix(0.70, 0.99, uSharp) + halo * mix(0.30, 0.01, uSharp)) * vFade * uOpacity;
   vec3 tint = mix(uInkCool, uInkWarm, vSeed * vSeed);
+  if (uDoppler > 0.0) {
+    tint = mix(uInkWarm, uInkCool, clamp(vDop * 0.5 + 0.5, 0.0, 1.0));  // 迎面蓝移,背向红移
+    // 变暗那侧只用一半强度 —— 全强度下 exp(-1.15)=0.32，背向侧注入的粒子直接看不见了
+    a *= exp(vDop * (vDop > 0.0 ? uDoppler : uDoppler * 0.45));
+    a *= 1.0 + vRing * 0.9;                                             // 光子环
+  }
   if (uAdditive > 0.5) {
     // 等离子：快 = 更亮更白（跟墨的飞白正好相反），芯部烧到白
     a *= mix(0.55, 1.9, vDry);
@@ -477,6 +596,44 @@ void main(){
 }`;
 
 // 手：同样的点精灵，但写深度，让墨被手正确遮挡；视觉上是一双水墨画的手
+// 洞的剪影与光子环。都是朝向相机的四边形（不用点精灵：凑近时会撞上 gl_PointSize 上限）。
+// 相机的 right/up 直接从视图矩阵的行里取。
+const VS_HALO = `#version 300 es
+precision highp float;
+uniform mat4 uProj, uView;
+uniform vec3 uCenter;
+uniform float uR;
+out vec2 vQ;
+const vec2 QUAD[6] = vec2[6](vec2(-1.0,-1.0), vec2(1.0,-1.0), vec2(-1.0,1.0),
+                             vec2(-1.0, 1.0), vec2(1.0,-1.0), vec2( 1.0,1.0));
+void main(){
+  vec2 q = QUAD[gl_VertexID];
+  vQ = q;
+  vec3 right = vec3(uView[0].x, uView[1].x, uView[2].x);
+  vec3 up    = vec3(uView[0].y, uView[1].y, uView[2].y);
+  gl_Position = uProj * uView * vec4(uCenter + (right * q.x + up * q.y) * uR, 1.0);
+}`;
+
+const FS_HALO = `#version 300 es
+precision highp float;
+in vec2 vQ;
+out vec4 frag;
+uniform vec3  uRingCol;
+uniform float uRingW, uSpread, uRingEps;
+void main(){
+  // 光子环：永远正对观察者（真实的光子环不在盘平面里）。
+  // 质感对齐吸积盘：窄亮芯 + 宽柔光晕，而不是一条干净的细线。
+  // 四边形画得比环大 uSpread 倍，这里换算回去，让光晕在四边形边界前衰减干净。
+  float r = length(vQ) * uSpread;
+  // 倒数衰减，对应原作的 1.0 / (0.03 + abs(length(p) - 0.7))。
+  // 高斯的尾巴掉得太快，看起来像"画出来的亮带"；倒数是极窄的炽白芯 + 拖很长的辉光尾，
+  // 数学上无上界 —— 那才是"光"的观感。
+  // 单独设计：不跟粒子带统一材质。单层倒数衰减，细而亮。
+  float a = uRingW / (uRingEps + abs(r - 1.0));
+  if (a < 0.003) discard;
+  frag = vec4(uRingCol * a, 1.0);
+}`;
+
 const VS_HAND = `#version 300 es
 precision highp float;
 layout(location = 0) in vec4 aJoint;       // xyz 位置, w 半径
@@ -504,6 +661,42 @@ void main(){
   else                 frag = vec4(mix(vec3(1.0), vec3(0.30, 0.28, 0.27), a * 0.55), 1.0);
 }`;
 
+// 辉光：逐级降采样。每级用 4 抽样盒式平均（配合 LINEAR 实际覆盖 4x4），
+// 是确定性的、天然平滑 —— 不像稀疏螺旋采样那样在稀疏光源上留下噪点，
+// 那种噪点在 1/4 分辨率上放大回来就是背景马赛克。
+const FS_DOWN = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 frag;
+uniform sampler2D uSrc;
+uniform vec4 uBounds;          // 这只眼睛在源纹理里的 uv 范围（立体时不能跨眼采样）
+uniform vec2 uTexel;
+void main(){
+  vec2 uv = mix(uBounds.xy, uBounds.zw, vUv);
+  vec2 o = uTexel;
+  vec4 c = texture(uSrc, clamp(uv + vec2(-o.x, -o.y), uBounds.xy, uBounds.zw))
+         + texture(uSrc, clamp(uv + vec2( o.x, -o.y), uBounds.xy, uBounds.zw))
+         + texture(uSrc, clamp(uv + vec2(-o.x,  o.y), uBounds.xy, uBounds.zw))
+         + texture(uSrc, clamp(uv + vec2( o.x,  o.y), uBounds.xy, uBounds.zw));
+  frag = c * 0.25;
+}`;
+
+// 合成：能量在 HDR 缓冲里自由累积（纯加法，无上界），到这里才压回 [0,1)。
+// 1 - exp(-x) 就是原作黑洞收尾那条曲线：高光渐近饱和，不会硬截断成死白。
+const FS_COMPOSITE = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 frag;
+uniform sampler2D uScene, uB0, uB1, uB2;
+uniform float uExposure, uBloomAmt, uWide;
+void main(){
+  vec3 g = texture(uB0, vUv).rgb * 0.50
+         + texture(uB1, vUv).rgb * 0.35 * uWide
+         + texture(uB2, vUv).rgb * 0.25 * uWide * uWide;
+  vec3 c = texture(uScene, vUv).rgb + g * uBloomAmt;
+  frag = vec4(1.0 - exp(-c * uExposure), 1.0);
+}`;
+
 // 宣纸：纤维 + 颗粒 + 上下渐变 + 地面墨晕。
 // 关键：所有噪声都 hash 在「世界空间视线方向」上，不是屏幕坐标 ——
 // 否则双眼拿到不同的颗粒，在头显里会闪得眼睛疼。
@@ -520,9 +713,21 @@ float h13(vec3 p){
   p += dot(p, p.zyx + 31.32);
   return fract((p.x + p.y) * p.z);
 }
+// 三线性插值的值噪声。之前直接 h13(floor(p)) 没有插值，本身就是一格一格的方块 ——
+// HDR + tonemap 把它抬出来就成了背景上的马赛克。
+float vnoise(vec3 p){
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = h13(i), n100 = h13(i + vec3(1,0,0));
+  float n010 = h13(i + vec3(0,1,0)), n110 = h13(i + vec3(1,1,0));
+  float n001 = h13(i + vec3(0,0,1)), n101 = h13(i + vec3(1,0,1));
+  float n011 = h13(i + vec3(0,1,1)), n111 = h13(i + vec3(1,1,1));
+  return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+             mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
+}
 float fbm(vec3 p){
   float v = 0.0, a = 0.5;
-  for (int i = 0; i < 3; i++){ v += a * h13(floor(p)); p *= 2.03; a *= 0.5; }
+  for (int i = 0; i < 3; i++){ v += a * vnoise(p); p *= 2.03; a *= 0.5; }
   return v;
 }
 
@@ -567,7 +772,7 @@ void main(){
 // ── 程序 & 资源 ──────────────────────────────────────────────────────────────
 
 const OK = !!(gl && extCBF);
-let progUpdate, progHist, progInk, progHand, progPaper;
+let progUpdate, progHist, progInk, progHand, progPaper, progHalo, progBloom, progComp;
 try {
   if (!OK) throw new Error('skip');
   progUpdate = program(VS_QUAD, FS_UPDATE);
@@ -575,6 +780,9 @@ try {
   progInk    = program(VS_INK,  FS_INK);
   progHand   = program(VS_HAND, FS_HAND);
   progPaper  = program(VS_QUAD, FS_PAPER);
+  progHalo   = program(VS_HALO,  FS_HALO);
+  progBloom  = program(VS_QUAD,  FS_DOWN);
+  progComp   = program(VS_QUAD,  FS_COMPOSITE);
 } catch (e) { if (OK) fatal("着色器编译失败：<br><pre style='text-align:left;font-size:11px'>" + e.message + "</pre>"); }
 
 const vaoEmpty = OK ? gl.createVertexArray() : null;
@@ -582,17 +790,15 @@ const vaoEmpty = OK ? gl.createVertexArray() : null;
 let N, ROWS, SLOTS = MAX_SLOTS, head = 0;
 let posT = [], velT = [], simFbo = [], cur = 0, histT, histFbo;
 
-function seedData(n) {                       // 初始墨：几团悬浮的浓墨，第一下搅动才有戏
+function seedData(n) {                       // 初始：整个球内均匀分布（拒绝采样天然均匀）
   const a = new Float32Array(n * 4);
-  const blobs = [[-0.30, 0.18, 0.05], [0.28, -0.10, -0.12], [0.02, 0.34, 0.22], [-0.05, -0.30, -0.24]];
   for (let i = 0; i < n; i++) {
-    const b = blobs[i % blobs.length];
     let x, y, z, d;
     do { x = Math.random() * 2 - 1; y = Math.random() * 2 - 1; z = Math.random() * 2 - 1; d = x * x + y * y + z * z; } while (d > 1);
-    const s = 0.34;
-    a[i * 4]     = C[0] + (b[0] + x * s) * P.radius;
-    a[i * 4 + 1] = C[1] + (b[1] + y * s) * P.radius;
-    a[i * 4 + 2] = C[2] + (b[2] + z * s) * P.radius;
+    const r = P.radius * 0.88;
+    a[i * 4]     = C[0] + x * r;
+    a[i * 4 + 1] = C[1] + y * r;
+    a[i * 4 + 2] = C[2] + z * r;
     a[i * 4 + 3] = 7 + Math.random() * 17;
   }
   return a;
@@ -616,6 +822,92 @@ function initParticles(count) {
   histT = tex(TEX_W, ROWS * SLOTS, hist);
   histFbo = fbo([histT]);
   cur = 0; head = 0;
+}
+
+// ── HDR 渲染目标 ─────────────────────────────────────────────────────────────
+// 所有东西先加法累积进 RGBA16F，最后统一 tonemap。这样"总能量"才存在，
+// 才压得出层次 —— 逐精灵自限的混合方程做不到这件事。
+let hdrTex = null, hdrFbo = null, hdrDepth = null, hdrW = 0, hdrH = 0;
+let bloomTex = [], bloomFbo = [];
+const BLOOM_LEVELS = 3;        // 1/4, 1/8, 1/16
+
+function texHDR(w, h) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+
+function ensureHDR(w, h) {
+  if (w === hdrW && h === hdrH) return;
+  [hdrTex, ...bloomTex].forEach(t => t && gl.deleteTexture(t));
+  [hdrFbo, ...bloomFbo].forEach(f => f && gl.deleteFramebuffer(f));
+  if (hdrDepth) gl.deleteRenderbuffer(hdrDepth);
+  hdrW = w; hdrH = h;
+  hdrTex = texHDR(w, h);
+  hdrFbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, hdrFbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, hdrTex, 0);
+  hdrDepth = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, hdrDepth);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, hdrDepth);
+  bloomTex = []; bloomFbo = [];
+  for (let i = 0; i < BLOOM_LEVELS; i++) {
+    const d = 4 << i;
+    const t = texHDR(Math.max(1, Math.floor(w / d)), Math.max(1, Math.floor(h / d)));
+    const f = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+    bloomTex.push(t); bloomFbo.push(f);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+// rects: 每只眼睛在 HDR 缓冲里的 [x,y,w,h]。辉光按眼分别做并夹住采样范围，
+// 否则左眼的光会漏进右眼（立体下极难受）。合成是逐像素的，整张一次过即可。
+function postProcess(target, rects) {
+  gl.disable(gl.DEPTH_TEST); gl.depthMask(false); gl.disable(gl.BLEND);
+  gl.bindVertexArray(vaoEmpty);
+  gl.useProgram(progBloom.p);
+  gl.uniform1i(progBloom.u.uSrc, 0);
+  gl.activeTexture(gl.TEXTURE0);
+
+  // 逐级降采样：hdr -> 1/4 -> 1/8 -> 1/16
+  for (let i = 0; i < BLOOM_LEVELS; i++) {
+    const src = i === 0 ? hdrTex : bloomTex[i - 1];
+    const srcDiv = i === 0 ? 1 : (4 << (i - 1));
+    const dstDiv = 4 << i;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, bloomFbo[i]);
+    gl.bindTexture(gl.TEXTURE_2D, src);
+    gl.uniform2f(progBloom.u.uTexel, srcDiv / hdrW, srcDiv / hdrH);
+    for (const r of rects) {
+      gl.viewport(Math.floor(r[0] / dstDiv), Math.floor(r[1] / dstDiv),
+                  Math.floor(r[2] / dstDiv), Math.floor(r[3] / dstDiv));
+      gl.uniform4f(progBloom.u.uBounds, r[0] / hdrW, r[1] / hdrH,
+                   (r[0] + r[2]) / hdrW, (r[1] + r[3]) / hdrH);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, target);
+  gl.viewport(0, 0, hdrW, hdrH);
+  gl.useProgram(progComp.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, hdrTex);
+  gl.uniform1i(progComp.u.uScene, 0);
+  for (let i = 0; i < BLOOM_LEVELS; i++) {
+    gl.activeTexture(gl.TEXTURE1 + i); gl.bindTexture(gl.TEXTURE_2D, bloomTex[i]);
+    gl.uniform1i(progComp.u["uB" + i], 1 + i);
+  }
+  gl.uniform1f(progComp.u.uExposure, P.exposure);
+  gl.uniform1f(progComp.u.uBloomAmt, P.bloom);
+  gl.uniform1f(progComp.u.uWide, P.bloomR);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
 }
 
 const handBuf = OK ? gl.createBuffer() : null;
@@ -643,8 +935,96 @@ function smooth01(x, a, b){ const t = Math.min(1, Math.max(0, (x - a) / (b - a))
 const injectPos = new Float32Array(6);     // 最多两个注入点（左右手各一）
 let   injectN = 0;
 
+// 三环整体的姿态：自由翻滚，不限定在某一个轴上。
+// 手的力矩取完整的 r × v（三个分量都要），所以往任意方向划都能推动它。
+// 力矩推完之后角速度慢慢回落到一个很缓的基础翻滚 —— 永远在动，但从不乱。
+let ringRot = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);   // 列主序 3x3
+const ringOmega = [0.03, 0.06, 0.09];
+const OMEGA_BASE = [0.03, 0.06, 0.09];
+
+function mul3(a, b) {                                  // 列主序 a*b
+  const o = new Float32Array(9);
+  for (let c = 0; c < 3; c++)
+    for (let r = 0; r < 3; r++)
+      o[c * 3 + r] = a[r] * b[c * 3] + a[3 + r] * b[c * 3 + 1] + a[6 + r] * b[c * 3 + 2];
+  return o;
+}
+
+// 三个环各自的完整变换 = ringRot × 绕X倾斜(θ)；它的逆 = 转置。
+// 注入点先过这个逆，渲染时再被正变换转回来，于是正好落在手上。
+const RING_TILTS = [0, Math.PI / 3, -Math.PI / 3];
+const _ringInv = new Float32Array(27);
+function ringInvMats() {
+  for (let k = 0; k < 3; k++) {
+    const c = Math.cos(RING_TILTS[k]), si = Math.sin(RING_TILTS[k]);
+    const T = new Float32Array([1, 0, 0, 0, c, si, 0, -si, c]);   // 绕 X，列主序
+    const R = mul3(ringRot, T);
+    for (let col = 0; col < 3; col++)
+      for (let row = 0; row < 3; row++)
+        _ringInv[k * 9 + col * 3 + row] = R[row * 3 + col];       // 转置 = 逆
+  }
+  return _ringInv;
+}
+
+// 握拳时整个中心点跟着手走：粒子在世界空间不动，中心一移，软容器就把整团拽过去 ——
+// 于是「攥住 → 聚拢 → 拖着走」是一个连贯动作。
+function updateGrabDrag(dt) {
+  let n = 0, vx = 0, vy = 0, vz = 0;
+  for (let i = 0; i < MAX_STIR; i++) {
+    if (stirW[i] <= 0 || stirGrab[i] < 0.5) continue;
+    vx += stirVel[i * 3]; vy += stirVel[i * 3 + 1]; vz += stirVel[i * 3 + 2]; n++;
+  }
+  if (n === 0) return;
+  const k = dt / n;                       // 攥紧的那些关节的平均速度，1:1 跟随
+  C[0] += vx * k; C[1] += vy * k; C[2] += vz * k;
+}
+
+function updateRingSpin(dt) {
+  let tx = 0, ty = 0, tz = 0;
+  for (let i = 0; i < MAX_STIR; i++) {
+    if (stirW[i] <= 0) continue;
+    const rx = stirPos[i * 3] - C[0], ry = stirPos[i * 3 + 1] - C[1], rz = stirPos[i * 3 + 2] - C[2];
+    const vx = stirVel[i * 3], vy = stirVel[i * 3 + 1], vz = stirVel[i * 3 + 2];
+    const r2 = rx * rx + ry * ry + rz * rz + 0.004;
+    tx += (ry * vz - rz * vy) / r2 * stirW[i];         // 完整的叉积，不再只取 Z
+    ty += (rz * vx - rx * vz) / r2 * stirW[i];
+    tz += (rx * vy - ry * vx) / r2 * stirW[i];
+  }
+  ringOmega[0] += tx * 0.10 * dt;
+  ringOmega[1] += ty * 0.10 * dt;
+  ringOmega[2] += tz * 0.10 * dt;
+  const back = Math.min(1, 0.22 * dt);                 // 慢慢回到基础翻滚
+  for (let i = 0; i < 3; i++) ringOmega[i] += (OMEGA_BASE[i] - ringOmega[i]) * back;
+
+  let sp = Math.hypot(ringOmega[0], ringOmega[1], ringOmega[2]);
+  if (sp > 3.0) { const k = 3.0 / sp; ringOmega[0] *= k; ringOmega[1] *= k; ringOmega[2] *= k; sp = 3.0; }
+
+  const ang = sp * dt;
+  if (ang > 1e-7) {                                    // 罗德里格：把姿态绕 ω 转 ω·dt
+    const x = ringOmega[0] / sp, y = ringOmega[1] / sp, z = ringOmega[2] / sp;
+    const c = Math.cos(ang), si = Math.sin(ang), t = 1 - c;
+    ringRot = mul3(new Float32Array([
+      t * x * x + c,      t * x * y + si * z, t * x * z - si * y,
+      t * x * y - si * z, t * y * y + c,      t * y * z + si * x,
+      t * x * z + si * y, t * y * z - si * x, t * z * z + c,
+    ]), ringRot);
+    // 每帧做一次 Gram-Schmidt，防止长时间累积的数值漂移把矩阵拉歪
+    let l = Math.hypot(ringRot[0], ringRot[1], ringRot[2]);
+    ringRot[0] /= l; ringRot[1] /= l; ringRot[2] /= l;
+    const d = ringRot[0] * ringRot[3] + ringRot[1] * ringRot[4] + ringRot[2] * ringRot[5];
+    ringRot[3] -= ringRot[0] * d; ringRot[4] -= ringRot[1] * d; ringRot[5] -= ringRot[2] * d;
+    l = Math.hypot(ringRot[3], ringRot[4], ringRot[5]);
+    ringRot[3] /= l; ringRot[4] /= l; ringRot[5] /= l;
+    ringRot[6] = ringRot[1] * ringRot[5] - ringRot[2] * ringRot[4];
+    ringRot[7] = ringRot[2] * ringRot[3] - ringRot[0] * ringRot[5];
+    ringRot[8] = ringRot[0] * ringRot[4] - ringRot[1] * ringRot[3];
+  }
+}
+
 let idleT = 0;                             // 距上次真实输入的秒数
+let autoActive = false;                    // 当前是不是「看不见的手」在搅
 function autoStir(dt) {                    // 无人时的「看不见的手」
+  autoActive = true;
   const a = tSec * 0.5, R = P.radius;
   pushStir(0, "auto",
     C[0] + R * 0.58 * Math.sin(a),
@@ -711,10 +1091,10 @@ function desktopStir(eye, aspect, dt) {
   if (!mouse.inside) {
     prevJoint.delete("m");
     idleT += dt;
-    if (idleT > 6) autoStir(dt);
+    if (idleT > 6) autoStir(dt); else autoActive = false;
     return;
   }
-  idleT = 0; prevJoint.delete("auto");
+  idleT = 0; autoActive = false; prevJoint.delete("auto");
   const th = Math.tan(0.9 / 2);
   const f = [C[0] - eye[0], C[1] - eye[1], C[2] - eye[2]];
   let l = Math.hypot(...f); f[0] /= l; f[1] /= l; f[2] /= l;
@@ -741,6 +1121,8 @@ let lastT = 0, tSec = 0, frames = 0, fpsAcc = 0, fps = 0;
 
 function simulate(dt) {
   tSec += dt;
+  updateGrabDrag(dt);
+  updateRingSpin(dt);
   gl.bindVertexArray(vaoEmpty);
   gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
 
@@ -763,7 +1145,10 @@ function simulate(dt) {
   gl.uniform1fv(U.uStirGrab, stirGrab);
   gl.uniform1f(U.uStirRadius, P.srad);
   gl.uniform1f(U.uStirStrength, P.stir * 0.2);
-  gl.uniform1f(U.uAttract, P.attract);
+  gl.uniform1f(U.uAttract, autoActive ? 0.0 : P.attract);   // 自动搅动不吸附
+  gl.uniform1f(U.uBH, ST.bh || 0);
+  gl.uniform1f(U.uRows, ROWS);
+  gl.uniformMatrix3fv(U.uRingInv, false, ringInvMats());
   gl.uniform3fv(U.uInjectPos, injectPos);
   gl.uniform1f(U.uInjectN, injectN);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -783,17 +1168,9 @@ function simulate(dt) {
 function drawScene(proj, view, camPos, vpH) {
   mul(mVP, proj, view); invert(mInvVP, mVP);
 
-  // 宣纸（无深度）
-  gl.disable(gl.DEPTH_TEST); gl.depthMask(false); gl.disable(gl.BLEND);
-  gl.bindVertexArray(vaoEmpty);
-  gl.useProgram(progPaper.p);
-  gl.uniformMatrix4fv(progPaper.u.uInvVP, false, mInvVP);
-  gl.uniform3fv(progPaper.u.uCamPos, camPos);
-  gl.uniform3fv(progPaper.u.uCenter, C);
-  gl.uniform1f(progPaper.u.uRadius, P.radius);
-  gl.uniform1f(progPaper.u.uFloorY, floorY);
-  gl.uniform1f(progPaper.u.uDark, ST.dark);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  // 背景纯黑：不画任何背景 —— 清屏已经是 0，tonemap 后仍是 0。
+  // 顺带省掉一整遍全屏，也彻底断了背景噪声这个伪影来源。
+  // （加光显示的眼镜上，纯黑 = 完全透明，辉光直接浮在真实房间里。）
 
   // 手。墨：写深度让墨被手遮挡。发光风格：不写深度，辉光该从手上漫过去，
   //     否则手会变成一块死黑的剪影。
@@ -801,7 +1178,7 @@ function drawScene(proj, view, camPos, vpH) {
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
     gl.depthMask(ST.additive ? false : true);
     gl.enable(gl.BLEND);
-    if (ST.additive) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR); else gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+    gl.blendFunc(gl.ONE, gl.ONE);   // HDR 里纯加法，压缩留给合成那一步
     gl.useProgram(progHand.p);
     gl.uniform1f(progHand.u.uAdditive, ST.additive);
     gl.bindVertexArray(handVao);
@@ -818,7 +1195,7 @@ function drawScene(proj, view, camPos, vpH) {
   // 两者都与绘制顺序无关，三维半透明的排序问题直接消失。
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(false);
   gl.enable(gl.BLEND);
-  if (ST.additive) gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR); else gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+  gl.blendFunc(gl.ONE, gl.ONE);   // HDR 里纯加法，压缩留给合成那一步
   gl.bindVertexArray(vaoEmpty);
   const K = progInk.u;
   gl.useProgram(progInk.p);
@@ -834,11 +1211,53 @@ function drawScene(proj, view, camPos, vpH) {
   gl.uniform1f(K.uOpacity, P.op);
   gl.uniform1f(K.uAdditive, ST.additive);
   gl.uniform1f(K.uSharp, P.sharp);
+  gl.uniform1f(K.uDoppler, ST.doppler || 0);
+  gl.uniform1f(K.uRadius, P.radius);
+  gl.uniform3fv(K.uCamPos, camPos);
+  gl.uniform3fv(K.uCenter, C);
+  gl.uniform1f(K.uLens, ST.lens || 0);
+  gl.uniformMatrix3fv(K.uRingRot, false, ringRot);
+  // 光子球的角半径：次级像全部落在这个角度的圆环上，构成拱过洞顶的那道光弧
+  const dCam = Math.hypot(camPos[0] - C[0], camPos[1] - C[1], camPos[2] - C[2]);
+  gl.uniform1f(K.uPhotonAng, Math.asin(Math.min(0.99, (P.radius * 0.26) / Math.max(dCam, 0.05))));
   gl.uniform3fv(K.uInkCool, ST.cool);
   gl.uniform3fv(K.uInkWarm, ST.warm);
-  gl.drawArrays(gl.POINTS, 0, N * Math.round(P.tail));
+  // 三环：同一批粒子，倾角 0 / +60 / -60 各画一遍
+  const TILTS = ST.rings ? RING_TILTS : [0];
+  const nPts = N * Math.round(P.tail);
+  for (let ti = 0; ti < TILTS.length; ti++) {
+    gl.uniform1f(K.uTilt, TILTS[ti]);
+    gl.uniform1f(K.uRingIdx, ST.rings ? ti : -1);
+    gl.enable(gl.DEPTH_TEST);
+    gl.uniform1f(K.uOpacity, P.op);
+    gl.uniform1f(K.uPass, 0);
+    gl.drawArrays(gl.POINTS, 0, nPts);
+    if (ST.lens) {                                 // 次级像：更暗，且不参与深度（它是绕过来的光）
+      gl.disable(gl.DEPTH_TEST);
+      gl.uniform1f(K.uOpacity, P.op * 0.45);
+      gl.uniform1f(K.uPass, 1);
+      gl.drawArrays(gl.POINTS, 0, nPts);
+    }
+  }
+  gl.uniform1f(K.uTilt, 0);
 
-  gl.depthMask(true); gl.disable(gl.BLEND);
+  // 光子环：环绕阴影的细亮圈，永远正对观察者（真实的光子环不在盘平面里）
+  if (ST.bh) {
+    gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    gl.useProgram(progHalo.p);
+    gl.uniformMatrix4fv(progHalo.u.uProj, false, proj);
+    gl.uniformMatrix4fv(progHalo.u.uView, false, view);
+    gl.uniform3fv(progHalo.u.uCenter, C);
+    gl.uniform1f(progHalo.u.uR, P.radius * 0.26 * 2.4);   // 四边形半宽 = 环半径 × uSpread
+    gl.uniform1f(progHalo.u.uRingW, 0.0045);     // 倒数的分子（压暗，别盖住细节）
+    gl.uniform1f(progHalo.u.uRingEps, 0.045);    // 细
+    gl.uniform1f(progHalo.u.uSpread, 2.4);
+    gl.uniform3f(progHalo.u.uRingCol, 1.0, 0.94, 0.86);   // 自己的暖白，不跟风格走
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
 }
 
 // ── 桌面循环 ─────────────────────────────────────────────────────────────────
@@ -855,15 +1274,18 @@ function desktopFrame(t) {
   if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   const aspect = w / h;
 
+  updateAuto(dt);
   const eye = desktopCamera(aspect);
   desktopStir(eye, aspect, dt);
   simulate(dt);
 
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  ensureHDR(w, h);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, hdrFbo);
   gl.viewport(0, 0, w, h);
-  gl.clearColor(ST.dark ? 0.010 : 0.945, ST.dark ? 0.014 : 0.918, ST.dark ? 0.026 : 0.866, 1); gl.clearDepth(1);
+  gl.clearColor(0, 0, 0, 1); gl.clearDepth(1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   drawScene(mProj, mView, eye, h);
+  postProcess(null, [[0, 0, w, h]]);
 }
 
 // ── WebXR ────────────────────────────────────────────────────────────────────
@@ -928,8 +1350,7 @@ async function enterXRInner() {
   // 于是 y=1.25 就跑到头顶一米多。改成：进去后按当前头姿把球摆在正前方。
   try { xrRefSpace = await xrSession.requestReferenceSpace("local-floor"); }
   catch { xrRefSpace = await xrSession.requestReferenceSpace("local"); }
-  needPlace = true;
-  xrSession.addEventListener("squeeze", () => { needPlace = true; });   // 手柄侧键 = 重新摆位（手部用双手捏合）
+  needPlace = true;          // 只在进入会话时摆一次；之后只认面板上的「重新摆位」按钮
 
   cancelAnimationFrame(rafId);
   setPanel(false);
@@ -1027,7 +1448,7 @@ function updateHands(frame, dt) {
     }
   }
   if (slot === 0) { idleT += dt; if (idleT > 6) autoStir(dt); }
-  else { idleT = 0; prevJoint.delete("auto"); }
+  else { idleT = 0; autoActive = false; prevJoint.delete("auto"); }
 }
 
 function onXRFrame(t, frame) {
@@ -1039,12 +1460,9 @@ function onXRFrame(t, frame) {
   const pose = frame.getViewerPose(xrRefSpace);
   if (!pose) return;
 
-  // 把球摆到头正前方 0.55m。进入时做一次；握拳重摆；离得太远（走开了/参考系漂了）自动重摆。
+  // 把球摆到头正前方 0.55m。只在进入会话时做一次，或按面板上的「重新摆位」。
+  // 不绑任何手势 —— 之前绑了 squeeze，而 runtime 对握拳也发 squeeze，于是吸附时球会突然重置。
   const hm = pose.transform.matrix;
-  if (!needPlace) {
-    const dx = hm[12] - C[0], dy = hm[13] - C[1], dz = hm[14] - C[2];
-    if (dx * dx + dy * dy + dz * dz > 6.25) needPlace = true;          // >2.5m
-  }
   if (needPlace) {
     needPlace = false;
     C[0] = hm[12] - hm[8] * 0.55;    // 头矩阵第三列取负 = 视线正前方
@@ -1054,20 +1472,26 @@ function onXRFrame(t, frame) {
     initParticles(P.count);          // 粒子是绕旧中心播的，得重播
   }
 
+  updateAuto(dt);
   updateHands(frame, dt);
   simulate(dt);                                   // 与视角无关，双眼只跑一次
 
   const layer = xrSession.renderState.baseLayer;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
-  gl.clearColor(ST.dark ? 0.010 : 0.945, ST.dark ? 0.014 : 0.918, ST.dark ? 0.026 : 0.866, 1); gl.clearDepth(1);
+  ensureHDR(layer.framebufferWidth, layer.framebufferHeight);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, hdrFbo);
+  gl.viewport(0, 0, hdrW, hdrH);
+  gl.clearColor(0, 0, 0, 1); gl.clearDepth(1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+  const rects = [];
   for (const view of pose.views) {
     const vp = layer.getViewport(view);
     gl.viewport(vp.x, vp.y, vp.width, vp.height);
     const m = view.transform.matrix;              // 视图矩阵的逆 = 相机位置
     drawScene(view.projectionMatrix, view.transform.inverse.matrix, [m[12], m[13], m[14]], vp.height);
+    rects.push([vp.x, vp.y, vp.width, vp.height]);
   }
+  postProcess(layer.framebuffer, rects);
 }
 
 // ── UI ───────────────────────────────────────────────────────────────────────
@@ -1088,6 +1512,7 @@ const bind = (id, key, fmt) => {
   const sync = () => { P[key] = parseFloat(el.value); if (out) out.textContent = fmt ? fmt(P[key]) : P[key].toFixed(2); };
   el.addEventListener("input", sync); sync();
 };
+bind("exposure", "exposure"); bind("bloom", "bloom"); bind("bloomR", "bloomR");
 bind("sharp", "sharp");
 bind("attract", "attract");
 bind("stir", "stir"); bind("srad", "srad", v => v.toFixed(3) + "m"); bind("damp", "damp");
@@ -1100,19 +1525,27 @@ document.getElementById("p_count").addEventListener("change", e => {
 });
 
 // 切风格：把预设灌进 P，并把滑块拨到对应位置（之后仍可手调）
+function syncSliders() {
+  for (const k of LERP_KEYS) {
+    const el = document.getElementById("p_" + k);
+    if (el) { el.value = P[k]; el.dispatchEvent(new Event("input")); }
+  }
+}
 function applyStyle(name) {
-  P.style = name; ST = STYLES[name];
-  for (const k of ["op", "size", "damp", "turb", "dry", "stir", "srad", "attract", "sharp"]) {
-    if (ST[k] === undefined) continue;
-    P[k] = ST[k];
-    const el = document.getElementById("p_" + (k === "srad" ? "srad" : k));
-    if (el) { el.value = ST[k]; el.dispatchEvent(new Event("input")); }
+  P.style = name;
+  ST = (name === "auto") ? AUTO : STYLES[name];
+  if (name !== "auto") {
+    for (const k of LERP_KEYS) {
+      if (ST[k] === undefined) continue;
+      P[k] = ST[k];
+    }
+    syncSliders();
   }
   document.documentElement.toggleAttribute("data-dark", !!ST.dark);
   document.documentElement.style.background = ST.dark ? "#05070C" : "#EFE9DC";
   document.body.style.background = ST.dark ? "#05070C" : "#EFE9DC";
   document.body.style.color = ST.dark ? "#C8D4E4" : "#2B2118";
-  document.getElementById("title").textContent = ST.label.replace(/（.*$/, "");
+  document.getElementById("title").textContent = (ST.label || "自动渐变").replace(/（.*$/, "");
 }
 document.getElementById("p_style").addEventListener("change", e => applyStyle(e.target.value));
 function setPanel(open) {
