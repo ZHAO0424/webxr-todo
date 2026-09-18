@@ -193,7 +193,7 @@ const STYLES = {
     cool: [0.10, 1.00, 0.42], warm: [0.45, 0.35, 1.00],
     // 线框全删之后水是画面里唯一的光源：既没有别的东西打底，也没有它们漏进
     // 辉光金字塔的那部分环境光，所以亮度要整体抬上来（0.085 → 0.24）。
-    op: 0.240, size: 0.0050, damp: 0.30, turb: 0.16, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
+    op: 0.200, size: 0.0050, damp: 0.30, turb: 0.16, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
     tail: 11, exposure: 1.45, bloom: 0.60,
   },
 };
@@ -400,13 +400,17 @@ ${GLSL_NOISE}
 
 // 丝带 c 在轨道位置 z 处的横截面中心。两个不同频率的正弦叠起来，
 // 于是每条带子都是一条不重复的长河道，而不是规则的螺旋。
-vec2 ribbonCenter(float c, float z){
+vec2 ribbonCenter(float c, float z, float tm){
   float ph = c * 2.399963;                                  // 黄金角：几条带子互相错开
   // 摆幅收小 = 河道大部分时间在视野中心附近穿行，而不是贴着两侧的壁走
   float ax = 0.7 + 0.9 * hash11(c * 3.17 + 0.31);
   float ay = 0.45 + 0.6 * hash11(c * 5.41 + 0.77);
-  return vec2(ax * sin(z * 0.075 + ph) + 0.45 * sin(z * 0.021 + ph * 2.1),
-              ay * sin(z * 0.048 + ph * 1.7));
+  // 三个尺度叠起来：长驻的大弯（不动相位）+ 中尺度的行进波 + 快的小褶皱。
+  // 真实极光的形态就是这样 —— 整条弧慢慢摆，同时有褶皱沿着它跑过去（surge）。
+  float fold = 0.85 * sin(z * 0.19 + tm * 1.15 + ph * 3.1)
+             + 0.40 * sin(z * 0.46 - tm * 1.9 + ph * 5.7);
+  return vec2(ax * sin(z * 0.075 + ph) + 0.45 * sin(z * 0.021 + ph * 2.1) + fold,
+              ay * sin(z * 0.048 + ph * 1.7) + 0.18 * sin(z * 0.31 + tm * 0.8 + ph));
 }
 
 void main(){
@@ -466,7 +470,7 @@ void main(){
     // 每个粒子按 vUv 哈希固定归属一道帘 —— 固定才有"这一道光"，每帧重抽就只是噪声
     float cid = floor(hash11(vUv.x * 127.1 + vUv.y * 311.7) * uRibbons);
     // 帘子本身也在往相机漂（比水稍慢），所以整道幕是流动的，不是钉在视线上的一片板
-    vec2 cen = ribbonCenter(cid, t + uTime * uRideFlow * 0.6);
+    vec2 cen = ribbonCenter(cid, t + uTime * uRideFlow * 0.6, uTime);
     // 极光帘的朝向：立着的薄片（法线水平）从管内看是「侧着」的，投影只有一条缝 ——
     // 试过，整道幕直接消失。人在管子里、水朝相机流，所以幕必须是「铺开的」那一种：
     // 横向几乎不约束（很宽），纵向中等约束（很薄），于是它横着铺满视野、
@@ -524,7 +528,7 @@ void main(){
       vec3 ub3 = cross(rt3, uRideFwd);
       float cid3 = floor(hash11(vUv.x * 127.1 + vUv.y * 311.7) * uRibbons);
       float tz3  = uRadius * (-14.0 + 74.0 * hash11(seed + 19.1));
-      vec2  cen3 = ribbonCenter(cid3, tz3 + uTime * uRideFlow * 0.6);
+      vec2  cen3 = ribbonCenter(cid3, tz3 + uTime * uRideFlow * 0.6, uTime);
       p = uCenter + uRideFwd * tz3
         + rt3 * (uRadius * 18.0 * (hash11(seed + 3.3) * 2.0 - 1.0))   // 宽，铺满整个横向
         + ub3 * (cen3.y + (hash11(seed + 4.4) - 0.5) * 0.14);          // 薄，贴在自己那道幕上
@@ -747,14 +751,22 @@ out vec4 frag;
 uniform sampler2D uSrc;
 uniform vec4 uBounds;          // 这只眼睛在源纹理里的 uv 范围（立体时不能跨眼采样）
 uniform vec2 uTexel;
+uniform float uStretch;        // 0 = 各向同性；>0 = 额外往两侧各取一个远点的采样
 void main(){
   vec2 uv = mix(uBounds.xy, uBounds.zw, vUv);
   vec2 o = uTexel;
+  // 四点盒式滤波的偏移量不能直接拉长 —— 一拉就采样不足，糊出一格格的方块
+  // （试过 ×2.6，画面上直接出现矩形色块）。盒子保持各向同性，
+  // 横向的拖开另外加两个远采样点、给一个小权重，这样既有变形镜头的味道又不失真。
   vec4 c = texture(uSrc, clamp(uv + vec2(-o.x, -o.y), uBounds.xy, uBounds.zw))
          + texture(uSrc, clamp(uv + vec2( o.x, -o.y), uBounds.xy, uBounds.zw))
          + texture(uSrc, clamp(uv + vec2(-o.x,  o.y), uBounds.xy, uBounds.zw))
          + texture(uSrc, clamp(uv + vec2( o.x,  o.y), uBounds.xy, uBounds.zw));
-  frag = c * 0.25;
+  vec4 box = c * 0.25;
+  if (uStretch <= 0.0) { frag = box; return; }
+  vec4 wide = texture(uSrc, clamp(uv + vec2(-o.x * 3.0, 0.0), uBounds.xy, uBounds.zw))
+            + texture(uSrc, clamp(uv + vec2( o.x * 3.0, 0.0), uBounds.xy, uBounds.zw));
+  frag = mix(box, wide * 0.5, uStretch);
 }`;
 
 // 合成：能量在 HDR 缓冲里自由累积（纯加法，无上界），到这里才压回 [0,1)。
@@ -858,7 +870,9 @@ uniform sampler2D uHist;
 uniform mat4 uProj, uView;
 uniform int   uN, uRows, uHead, uSlots, uTail;
 uniform float uSize, uVpH, uDry, uMinPx, uMaxJump, uAurBase, uAurSpan;
-out float vSide, vFade, vDry, vSeed, vDist, vH;
+uniform float uMirror, uMirrorY;        // 倒影：绕 y = uMirrorY 镜像
+uniform vec2  uRayDir;                  // 帘子的展开方向（水平），射线沿它排列
+out float vSide, vFade, vDry, vSeed, vDist, vH, vRay;
 float h11(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 vec4 fetch(int pid, int s){
   int ring = uHead - s;  ring += (ring < 0) ? uSlots : 0;
@@ -876,8 +890,16 @@ void main(){
   // 粒子重生那一帧会瞬移，两个槽之间连线就会横跨整个场景 —— 超过阈值直接丢掉
   if (distance(dA.xyz, dB.xyz) > uMaxJump) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 
-  vec3 Av = (uView * vec4(dA.xyz, 1.0)).xyz;
-  vec3 Bv = (uView * vec4(dB.xyz, 1.0)).xyz;
+  // 颜色按真实高度算（倒影里也要保持同一套配色），所以先把高度存下来
+  vH  = clamp((mix(dA.y, dB.y, 0.5) - uAurBase) / uAurSpan, 0.0, 1.0);
+  vRay = dot(mix(dA.xz, dB.xz, 0.5), uRayDir);
+  vec3 pA = dA.xyz, pB = dB.xyz;
+  if (uMirror > 0.5) {                          // 镜像到"冰面"下方
+    pA.y = 2.0 * uMirrorY - pA.y;
+    pB.y = 2.0 * uMirrorY - pB.y;
+  }
+  vec3 Av = (uView * vec4(pA, 1.0)).xyz;
+  vec3 Bv = (uView * vec4(pB, 1.0)).xyz;
   // 两个三角：(0,-1)(0,+1)(1,+1) 和 (0,-1)(1,+1)(1,-1)
   float t    = (corner == 2 || corner == 4 || corner == 5) ? 1.0 : 0.0;
   float side = (corner == 0 || corner == 3 || corner == 5) ? -1.0 : 1.0;
@@ -895,30 +917,42 @@ void main(){
   vDry  = clamp(mix(dA.w, dB.w, t) * uDry, 0.0, 1.0);
   vSeed = h11(float(pid) * 0.73513);
   vSide = side;
-  vH = clamp((mix(dA.y, dB.y, t) - uAurBase) / uAurSpan, 0.0, 1.0);
 }`;
 
 const FS_FLOW = `#version 300 es
 precision highp float;
-in float vSide, vFade, vDry, vSeed, vDist, vH;
-uniform float uOpacity, uFog;
-uniform vec3  uInkCool, uInkWarm;
+in float vSide, vFade, vDry, vSeed, vDist, vH, vRay;
+uniform float uOpacity, uFog, uMirror;
+uniform vec3  uHem, uBody, uCrown;
 out vec4 frag;
+
+// 配色照真实极光的发光高度分层来：
+//   ~100km 以下 N2 第一正带 → 粉红/洋红的帘脚（只有强极光才出现，最抓眼的一档）
+//   100~150km 原子氧 557.7nm → 主体的那个绿
+//   150km 以上 → 往蓝紫，而且越高越稀薄、越淡
+// 分三段手调而不是随机取色 —— 整道幕必须是一个连续的渐变，不能是杂色点。
+vec3 auroraTint(float h){
+  return (h < 0.30) ? mix(uHem, uBody, pow(h / 0.30, 0.75))
+                    : mix(uBody, uCrown, (h - 0.30) / 0.70);
+}
+
 void main(){
   float e = max(0.0, 1.0 - vSide * vSide);
   float core = e * e;                                  // 横截面
-  // 极光的配色是沿高度走的：底边偏绿、往上转青紫，而且越往上越淡。
-  // 用高度而不是随机种子来定色，整道幕才会是一个连续的渐变而不是杂色。
-  vec3 tint = mix(uInkCool, uInkWarm, pow(vH, 0.8));
-  tint = mix(tint, vec3(1.0), pow(core, 3.0) * 0.18);
+  vec3 tint = auroraTint(vH);
+  tint = mix(tint, vec3(1.0), pow(core, 3.0) * 0.16);  // 芯部略微发白
   // 必须按距离衰减：远处的流线在屏幕上全都汇到灭点那一个点上，密度暴涨，
   // 而线宽有像素下限撑着不会变细 —— 不衰减的话灭点会烧成一坨死白。
   float fog  = exp(-max(vDist - 0.8, 0.0) * uFog);
-  // 近处必须淡出：人就站在这根水管里，贴脸的那一圈在屏幕上会糊满整个视野。
-  // 淡掉之后看见的才是"前方和四周的壁上有水"，而不是"脸贴在水幕上"。
-  float near = smoothstep(0.9, 3.2, vDist);
-  float a = core * vFade * uOpacity * mix(0.6, 1.8, vDry) * fog * near
-          * mix(1.0, 0.22, pow(vH, 1.3));            // 底边最亮，往上化开
+  float near = smoothstep(0.9, 3.2, vDist);            // 贴脸的那一层淡掉
+  // 磁力线射线：真实极光是沿磁力线成束的，所以帘子上是一根根竖着的条纹，
+  // 不是均匀的一片。两个不通约的频率相乘 → 疏密不规则，不会像栅栏。
+  float ray = 0.55 + 0.45 * sin(vRay * 8.7) * sin(vRay * 2.13 + 1.7);
+  // 帘脚：锐利的亮边 + 往上拖很长的软尾。这条曲线是极光"像不像"的关键 ——
+  // 线性渐变会得到一块均匀的光幕，指数才有那种悬在半空、下缘齐整的形状。
+  float hem = 0.38 + 1.5 * exp(-vH * 2.6);
+  float a = core * vFade * uOpacity * mix(0.6, 1.8, vDry) * fog * near * ray * hem;
+  if (uMirror > 0.5) { a *= 0.30; tint = mix(tint, uCrown, 0.25); }   // 倒影：更暗更冷
   frag = vec4(tint * a, 1.0);
 }`;
 
@@ -1040,6 +1074,10 @@ function postProcess(target, rects) {
   gl.bindVertexArray(vaoEmpty);
   gl.useProgram(progBloom.p);
   gl.uniform1i(progBloom.u.uSrc, 0);
+  // 横向拉伸辉光（变形宽银幕那种味道）试过了：即使只给 0.30 的权重，最小那一级
+  // mip 上仍然会留下矩形色块 —— 那一级一个纹素已经覆盖十几个像素，任何非对称的
+  // 采样都会被放大成方块。收益不抵代价，关掉；代码留着，想试的人把 0 改成 0.25。
+  gl.uniform1f(progBloom.u.uStretch, 0.0);
   gl.activeTexture(gl.TEXTURE0);
 
   // 逐级降采样：hdr -> 1/4 -> 1/8 -> 1/16
@@ -1225,8 +1263,9 @@ function setRideAxis(yaw) {
 
 // 幕：每半分钟左右换一次顶部的颜色和速度。几何删掉之后，"不重复"全靠这个 ——
 // 底色恒定是极光绿，顶色在这一组里循环，所以整道幕的渐变会慢慢改变。
-const ACCENTS = [[0.45, 0.35, 1.00], [0.15, 0.95, 1.00], [1.00, 0.35, 0.75],
-                 [1.00, 0.72, 0.25], [0.75, 1.00, 0.35]];
+const AUR_HEM = new Float32Array([1.00, 0.16, 0.42]);   // 帘脚：N2 的洋红，恒定
+const ACCENTS = [[0.35, 0.45, 1.00], [0.15, 0.95, 1.00], [0.85, 0.35, 1.00],
+                 [0.55, 0.80, 1.00], [0.30, 1.00, 0.85]];
 const act = { accent: ACCENTS[0], speed: 1, t: 0, dur: 34 };
 function nextAct() {
   let a; do { a = ACCENTS[(Math.random() * ACCENTS.length) | 0]; } while (a === act.accent);
@@ -1485,12 +1524,26 @@ function drawScene(proj, view, camPos, vpH) {
     // 一段的长度 = 速度 × HIST_DT，约 0.2m；阈值要大于它、又远小于回绕的 30m
     gl.uniform1f(F.uMaxJump, 4.0);
     gl.uniform1f(F.uOpacity, P.op);
-    gl.uniform3fv(F.uInkCool, ST.cool);
-    gl.uniform3fv(F.uInkWarm, act.accent);      // 顶色跟着幕走
-    gl.uniform1f(F.uAurBase, C[1] - P.radius * 11.0);      // 帘底
-    gl.uniform1f(F.uAurSpan, P.radius * 24.0);             // 帘高
-    gl.drawArrays(gl.TRIANGLES, 0, N * Math.max(1, Math.round(P.tail) - 1) * 6);
-    return;                                       // 隧道不画点精灵，也没有环/黑洞那些东西
+    gl.uniform3fv(F.uHem, AUR_HEM);
+    gl.uniform3fv(F.uBody, ST.cool);
+    gl.uniform3fv(F.uCrown, act.accent);          // 冠的颜色跟着幕走
+    // 配色的映射区间必须贴着粒子真实占据的高度。之前按整根管子的口径来算（±2.4m），
+    // 而帘子实际只在 ±1.2m 里起伏 —— 结果所有粒子都落在渐变的中段，
+    // 帘脚那个洋红一次都没出现过。区间收到实际范围上，三段颜色才都能看见。
+    const base = C[1] - P.radius * 6.0;
+    gl.uniform1f(F.uAurBase, base);                        // 帘底
+    gl.uniform1f(F.uAurSpan, P.radius * 13.0);             // 帘高
+    gl.uniform1f(F.uMirrorY, base);
+    gl.uniform2f(F.uRayDir, rideM[0] * 1.9, rideM[2] * 1.9);   // 射线沿帘子展开的方向排
+    const segs = Math.max(1, Math.round(P.tail) - 1);
+    gl.uniform1f(F.uMirror, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, N * segs * 6);
+    // 倒影：把整道幕镜像到帘脚那个平面下面。极光照片里水面/冰面的倒影是构图的一半 ——
+    // 帘脚和它的倒影接在一起，等于凭空得到一条地平线。
+    // 只画一半的拖尾：倒影本来就该更短更散，顺带把这一遍的顶点数砍掉一半。
+    gl.uniform1f(F.uMirror, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, N * Math.max(1, (segs >> 1)) * 6);
+    return;                                       // 极光不画点精灵
   }
 
   // 粒子：测深度但不写深度。墨 = 乘法（越叠越暗），发光 = 加法（越叠越亮）。
