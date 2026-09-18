@@ -191,7 +191,7 @@ const STYLES = {
   tunnel: {                                        // 隧道：绿激光 + 线框走廊
     label: "隧道", additive: 1, dark: 1, ride: 1, attract: 0.2,
     cool: [0.16, 0.95, 0.55], warm: [0.72, 1.00, 0.92],
-    op: 0.055, size: 0.0030, damp: 0.35, turb: 0.08, dry: 1.4, stir: 1.4, srad: 0.09, sharp: 0.92,
+    op: 0.042, size: 0.0030, damp: 0.35, turb: 0.08, dry: 1.4, stir: 1.4, srad: 0.09, sharp: 0.92,
     tail: 11, exposure: 1.3, bloom: 0.5,
   },
 };
@@ -476,8 +476,10 @@ void main(){
   // 隧道：漂过观察者之后从前方绕回来，尘埃因此永远不会流干
   if (uRide > 0.5) {
     float tz = dot(p - uCenter, uRideFwd);
-    float halfL = uRadius * 20.0;
-    if (tz < -halfL) p += uRideFwd * (halfL * 2.0);
+    // 前方铺 26 米（雾正好在那里吃掉它），身后只留 4 米。
+    // 均匀体密度 + 透视 = 远处的管壁在屏幕上自然更密，所以不需要按距离配密度。
+    float zB = uRadius * 18.0, zF = uRadius * 120.0;
+    if (tz < -zB) p += uRideFwd * (zF + zB);
   }
 
   // 4. 轮回：寿命到了就重生；捏合/按住左键时从指尖注入新墨
@@ -505,7 +507,8 @@ void main(){
       float v3 = hash11(seed + 9.3) * 2.0 - 1.0;
       float a3 = -1.5708 + 3.1416 * sign(v3) * pow(abs(v3), 0.7);
       float k3 = 0.97 + 0.06 * hash11(seed + 13.7);
-      p = uCenter + uRideFwd * (uRadius * 20.0 * (0.6 + 0.4 * hash11(seed + 19.1)))
+      float tz3 = uRadius * (-18.0 + 138.0 * hash11(seed + 19.1));   // 沿整条走廊均匀
+      p = uCenter + uRideFwd * tz3
         + rt3 * (cos(a3) * uRadius * 16.0 * k3)
         + ub3 * (sin(a3) * uRadius * 11.0 * k3);
     } else if (uBH > 0.5) {
@@ -1632,7 +1635,10 @@ function desktopStir(eye, aspect, dt) {
 
 let lastT = 0, tSec = 0, frames = 0, fpsAcc = 0, fps = 0;
 let histAcc = 0;
-const HIST_DT = 1 / 42;      // 隧道模式下历史缓冲的写入频率
+// 拖尾长度 = 速度 × 槽数 × 这个间隔。槽数只有 12（MAX_SLOTS），要更长的流线，
+// 拉长采样间隔比加槽位便宜得多 —— 顶点数一点不涨。水是层流，2 米之内路径几乎是
+// 直的，所以采样粗一点也看不出折线。
+const HIST_DT = 1 / 18;      // 隧道模式下历史缓冲的写入频率
 
 function simulate(dt) {
   tSec += dt;
@@ -1759,8 +1765,11 @@ function drawScene(proj, view, camPos, vpH) {
     gl.uniform1f(F.uVpH, vpH);
     gl.uniform1f(F.uDry, P.dry);
     gl.uniform1f(F.uMinPx, 1.1);
-    gl.uniform1f(F.uFog, 0.19);
-    gl.uniform1f(F.uMaxJump, P.radius * 4.0);
+    // 水的雾必须和结构的雾同一个量级（0.062）。之前 0.19 意味着水在十米外就没了 ——
+    // 结构一直延伸到灭点，水只剩身边一圈，看起来就成了"一圈快速经过就消失"。
+    gl.uniform1f(F.uFog, 0.072);
+    // 一段的长度 = 速度 × HIST_DT，约 0.2m；阈值要大于它、又远小于回绕的 30m
+    gl.uniform1f(F.uMaxJump, 2.2);
     gl.uniform1f(F.uOpacity, P.op);
     gl.uniform3fv(F.uInkCool, ST.cool);
     gl.uniform3fv(F.uInkWarm, ST.warm);
