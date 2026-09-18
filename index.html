@@ -190,8 +190,8 @@ const STYLES = {
   },
   tunnel: {                                        // 隧道：绿激光 + 线框走廊
     label: "隧道", additive: 1, dark: 1, ride: 1, attract: 0.2,
-    cool: [0.16, 0.95, 0.55], warm: [0.72, 1.00, 0.92],
-    op: 0.042, size: 0.0030, damp: 0.35, turb: 0.08, dry: 1.4, stir: 1.4, srad: 0.09, sharp: 0.92,
+    cool: [0.10, 0.80, 0.62], warm: [0.30, 0.96, 0.98],
+    op: 0.022, size: 0.0030, damp: 0.35, turb: 0.10, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
     tail: 11, exposure: 1.3, bloom: 0.5,
   },
 };
@@ -389,12 +389,22 @@ uniform vec3  uStirVel[${MAX_STIR}];
 uniform float uStirW[${MAX_STIR}];
 uniform float uStirGrab[${MAX_STIR}];
 uniform float uStirRadius, uStirStrength, uAttract, uBH, uRows;
-uniform float uRide, uRideSpeed, uRideFlow;
+uniform float uRide, uRideSpeed, uRideFlow, uRibbons;
 uniform vec3  uRideFwd;
 uniform mat3  uRingInv[3];      // 每个环变换的逆，用来把注入点搬到该环的局部坐标系
 uniform vec3  uInjectPos[2];
 uniform float uInjectN;      // 0/1/2 个注入点
 ${GLSL_NOISE}
+
+// 丝带 c 在轨道位置 z 处的横截面中心。两个不同频率的正弦叠起来，
+// 于是每条带子都是一条不重复的长河道，而不是规则的螺旋。
+vec2 ribbonCenter(float c, float z){
+  float ph = c * 2.399963;                                  // 黄金角：几条带子互相错开
+  float ax = 1.5 + 1.2 * hash11(c * 3.17 + 0.31);
+  float ay = 0.7 + 0.8 * hash11(c * 5.41 + 0.77);
+  return vec2(ax * sin(z * 0.075 + ph) + 0.7 * sin(z * 0.021 + ph * 2.1),
+              ay * sin(z * 0.048 + ph * 1.7) + 0.25);
+}
 
 void main(){
   vec4 dp = texture(uPos, vUv);
@@ -442,26 +452,22 @@ void main(){
     float outward = smoothstep(1.02, 1.30, r / uRadius);
     acc -= vec3(q.x, 0.0, q.y) / r * outward * 4.5;           // 只在盘外回收
   } else if (uRide > 0.5) {
-    // 隧道里的水：贴在壁上流，不是穿过空气飞。手伸进去能把水膜搅开。
+    // 隧道里的水：管腔内几条朝相机流过来的丝带，不是贴在壁上的一层膜。
+    // 贴壁的版本永远只能是"一圈东西擦身而过"；成股的河道才有"持续流动"的读感。
     float t   = dot(rel, uRideFwd);
     vec3  lat = rel - uRideFwd * t;
     float lr  = length(lat);
-    // 水膜：把粒子约束在隧道壁那一层薄膜上，而不是让它们穿过空气。
-    // 壁是个扁椭圆截面（宽 > 高），粒子被拉到 e = 1 这一层，于是"水"自然覆盖隧道。
     vec3 Rv = normalize(cross(uRideFwd, vec3(0.0, 1.0, 0.0)));   // 右
     vec3 Uv = cross(Rv, uRideFwd);                               // 上
     float lx = dot(lat, Rv), ly = dot(lat, Uv);
-    // 范围要小：同样的粒子数摊在越大的面上越像零星的划痕，收到一根贴身的管子上才是水膜
-    float wa = uRadius * 16.0, wb = uRadius * 11.0;
-    float e = sqrt((lx/wa)*(lx/wa) + (ly/wb)*(ly/wb) + 1e-6);
-    vec3 nrm = normalize(Rv * (lx / (wa*wa)) + Uv * (ly / (wb*wb)) + uRideFwd * 1e-5);
-    acc -= nrm * (e - 1.0) * 60.0;                               // 贴壁
-    // 顺流很慢。之前直接用走廊速度，结果只是一片看不清的拉丝 —— 快没有信息量，
-    // 慢下来之后湍流才有时间在壁面上编出脉络，那才是"水"。
-    vec3 swirl = cross(uRideFwd, lat) / max(lr, 1e-4);
-    vec3 target = -uRideFwd * uRideFlow + swirl * 0.55;
-    acc += (target - vel) * 2.6;
-    acc -= Uv * 1.1;                                             // 往低处淌
+    // 每个粒子按 vUv 哈希固定归属一条带子 —— 固定才有"这一股水"，每帧重抽就是噪声
+    float cid = floor(hash11(vUv.x * 127.1 + vUv.y * 311.7) * uRibbons);
+    // 河道本身也在往相机漂（比水稍慢），所以带子整体是流动的，不是钉在视线上的一根管
+    vec2 cen = ribbonCenter(cid, t + uTime * uRideFlow * 0.6);
+    // 横向松、纵向紧 ⇒ 断面是扁的，看上去是"带子"而不是"绳子"
+    acc += Rv * (cen.x - lx) * 3.8 + Uv * (cen.y - ly) * 11.0;
+    if (lr > uRadius * 22.0) acc -= lat / max(lr, 1e-4) * (lr - uRadius * 22.0) * 20.0;
+    acc += uRideFwd * (-uRideFlow - dot(vel, uRideFwd)) * 2.4;
   } else {
     float dist = length(rel);
     float push = smoothstep(0.78, 1.12, dist / uRadius);
@@ -501,16 +507,15 @@ void main(){
       }
       p = hp + dir * rr * 0.035;
     } else if (uRide > 0.5) {
-      // 从前方的壁面重新流入，角度偏下 —— 水往低处积
+      // 直接生在自己那条河道上，沿整条走廊均匀分布
       vec3 rt3 = normalize(cross(uRideFwd, vec3(0.0, 1.0, 0.0)));
       vec3 ub3 = cross(rt3, uRideFwd);
-      float v3 = hash11(seed + 9.3) * 2.0 - 1.0;
-      float a3 = -1.5708 + 3.1416 * sign(v3) * pow(abs(v3), 0.7);
-      float k3 = 0.97 + 0.06 * hash11(seed + 13.7);
-      float tz3 = uRadius * (-18.0 + 138.0 * hash11(seed + 19.1));   // 沿整条走廊均匀
+      float cid3 = floor(hash11(vUv.x * 127.1 + vUv.y * 311.7) * uRibbons);
+      float tz3  = uRadius * (-18.0 + 138.0 * hash11(seed + 19.1));
+      vec2  cen3 = ribbonCenter(cid3, tz3 + uTime * uRideFlow * 0.6);
       p = uCenter + uRideFwd * tz3
-        + rt3 * (cos(a3) * uRadius * 16.0 * k3)
-        + ub3 * (sin(a3) * uRadius * 11.0 * k3);
+        + rt3 * (cen3.x + (hash11(seed + 3.3) - 0.5) * 0.55)
+        + ub3 * (cen3.y + (hash11(seed + 4.4) - 0.5) * 0.16);
     } else if (uBH > 0.5) {
       float a2 = hash11(seed + 5.1) * 6.2831853;               // 从外缘重新流入
       float r2 = uRadius * (0.42 + 0.62 * hash11(seed + 7.7));   // 铺满整条环带
@@ -950,13 +955,13 @@ void main(){
   float e = max(0.0, 1.0 - vSide * vSide);
   float core = e * e;                                  // 横截面
   vec3 tint = mix(uInkCool, uInkWarm, vSeed * vSeed);
-  tint = mix(tint, vec3(1.0), pow(core, 3.0) * 0.6);   // 芯部发白
+  tint = mix(tint, vec3(1.0), pow(core, 3.0) * 0.22);  // 芯部略微发白，不能推到纯白
   // 必须按距离衰减：远处的流线在屏幕上全都汇到灭点那一个点上，密度暴涨，
   // 而线宽有像素下限撑着不会变细 —— 不衰减的话灭点会烧成一坨死白。
   float fog  = exp(-max(vDist - 0.8, 0.0) * uFog);
   // 近处必须淡出：人就站在这根水管里，贴脸的那一圈在屏幕上会糊满整个视野。
   // 淡掉之后看见的才是"前方和四周的壁上有水"，而不是"脸贴在水幕上"。
-  float near = smoothstep(0.7, 2.4, vDist);
+  float near = smoothstep(0.9, 3.2, vDist);
   float a = core * vFade * uOpacity * mix(0.5, 2.2, vDry) * fog * near;
   frag = vec4(tint * a, 1.0);
 }`;
@@ -1255,9 +1260,9 @@ function updateRingSpin(dt) {
 // 除结构外全部不需要每帧更新任何数据：循环是在顶点着色器里对 z 取模做的。
 const RIDE_SPAN = 7.0, RIDE_STRIDE = 11;
 const RAIL_N = 7, RUNG_PER = 26, RUNG_N = RAIL_N * RUNG_PER;
-const STREAK_N = 280, RIDE_GROUPS = 14, RIDE_SEG = 150;
+const STREAK_N = 280, GRID_N = 70, RIDE_GROUPS = 14, RIDE_SEG = 150;
 const OFF_RAIL = 0, OFF_RUNG = OFF_RAIL + RAIL_N, OFF_STREAK = OFF_RUNG + RUNG_N;
-const OFF_GROUP = OFF_STREAK + STREAK_N;
+const OFF_GRID = OFF_STREAK + STREAK_N, OFF_GROUP = OFF_GRID + GRID_N;
 const RIDE_TOTAL = OFF_GROUP + RIDE_GROUPS * RIDE_SEG;
 const RAIL_FAR = 700, RUNG_PERIOD = RUNG_PER * 5.0, STREAK_PERIOD = 150;
 
@@ -1367,6 +1372,31 @@ function buildStreaks() {
 }
 
 const FLOOR = -1.9, CEIL = 2.9;
+// ── 网格层：整条都是一根到底的长线，不再是每 7 米一片。
+// 之前每组画一片 7×10 米的网格，看起来就是"地上贴了一块板"；
+// 纵向线拉到 700 米外、和贯穿轨一样吃弱雾，透视自然把它压成一个一直收到灭点的梯形。
+// 横向线按周期循环，负责"网格正在往你身上推"的速度感。
+const GRID_HALF = 5.5, GRID_XN = 9, GRID_ZN = 34, GRID_ZS = 3.5;
+function buildGrid() {
+  segW = OFF_GRID; segCap = OFF_GRID + GRID_N;
+  const stepX = (GRID_HALF * 2) / (GRID_XN - 1);
+  for (let i = 0; i < GRID_XN; i++) {                       // 地面纵向
+    const x = -GRID_HALF + i * stepX;
+    const k = 0.38 * (1.0 - 0.45 * Math.abs(x) / GRID_HALF);
+    seg(x, FLOOR, -RAIL_FAR, x, FLOOR, 60, cc(LASER, k), 0.007, -1);
+  }
+  for (let i = 0; i < 5; i++) {                             // 天花板纵向（更暗）
+    const x = -GRID_HALF + i * (GRID_HALF * 2 / 4);
+    seg(x, CEIL, -RAIL_FAR, x, CEIL, 60, cc(LASER, 0.15), 0.006, -1);
+  }
+  const perZ = GRID_ZN * GRID_ZS;
+  for (let k = 0; k < GRID_ZN; k++)                         // 地面横向，循环
+    seg(-GRID_HALF, FLOOR, -k * GRID_ZS, GRID_HALF, FLOOR, -k * GRID_ZS,
+        cc(LASER, 0.30), 0.007, perZ);
+  for (let k = 0; k < 17; k++)                              // 天花板横向，稀一半
+    seg(-GRID_HALF, CEIL, -k * GRID_ZS * 2, GRID_HALF, CEIL, -k * GRID_ZS * 2,
+        cc(LASER, 0.13), 0.006, perZ);
+}
 // ── 第四层：结构。刻意偏向曲线和留白 —— 盒子多了就变成杂物间，抢灭点。
 const ARCHES = [
   function gate(zA, zB) {                           // 门：多边形环 + 角标
@@ -1385,12 +1415,6 @@ const ARCHES = [
       arc(zA + t * RIDE_SPAN, 2.0 + t * 2.2, 0, 6.2831853, 40,
           cc(LASER, 0.8 + t * 1.6), 0.014);
     }
-  },
-  function floorGrid(zA, zB) {                      // 只做地板，天花板留空
-    const half = 5.0, step = 1.0 / Math.max(0.6, act.density);
-    const c = cc(LASER, 0.5);
-    for (let x = -half; x <= half + 1e-3; x += step) seg(x, FLOOR, zA, x, FLOOR, zB, c, 0.010);
-    for (let z = zA; z <= zB + 1e-3; z += step)      seg(-half, FLOOR, z, half, FLOOR, z, c, 0.010);
   },
   function ribs(zA, zB) {                           // 拱形肋骨
     const c = cc(LASER, rnd(1.0, 2.0)), k = Math.max(3, Math.round(4 * act.density));
@@ -1440,7 +1464,7 @@ const ARCHES = [
   function empty() {},                              // 纯留白：只剩轨和流线
   function empty2() {},
 ];
-const EMPTY_IDX = 8;
+const EMPTY_IDX = 7;      // gate/rings/ribs/arcs/hud/helix/pillars 之后是两个空
 
 function fillGroup(gi, zFar) {
   segW = OFF_GROUP + gi * RIDE_SEG; segCap = segW + RIDE_SEG;
@@ -1463,7 +1487,7 @@ function initRide() {
   act.t = 0; nextAct();
   rideOrigin[0] = C[0]; rideOrigin[1] = C[1]; rideOrigin[2] = C[2];
   setRideAxis(rideYaw);
-  buildRails(); buildRungs(); buildStreaks();
+  buildRails(); buildRungs(); buildStreaks(); buildGrid();
   for (let g = 0; g < RIDE_GROUPS; g++) {
     rideGroupZ[g] = -(g + 1) * RIDE_SPAN;
     segW = OFF_GROUP + g * RIDE_SEG; segCap = segW + RIDE_SEG;
@@ -1672,6 +1696,7 @@ function simulate(dt) {
   gl.uniform1f(U.uRideSpeed, rideSpeed);
   // 水比走廊慢一个档：结构呼啸而过，水只是在壁上缓缓淌 —— 层次就是这么来的
   gl.uniform1f(U.uRideFlow, Math.min(3.4, rideSpeed * 0.22 + 0.9));
+  gl.uniform1f(U.uRibbons, 5.0);      // 几条河道。多了就糊成一团，少了空
   gl.uniform3fv(U.uRideFwd, rideFwd);
   gl.uniform1f(U.uRows, ROWS);
   gl.uniformMatrix3fv(U.uRingInv, false, ringInvMats());
