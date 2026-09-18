@@ -191,8 +191,8 @@ const STYLES = {
   tunnel: {                                        // 隧道：绿激光 + 线框走廊
     label: "隧道", additive: 1, dark: 1, ride: 1, attract: 0.2,
     cool: [0.10, 0.80, 0.62], warm: [0.30, 0.96, 0.98],
-    op: 0.022, size: 0.0030, damp: 0.35, turb: 0.10, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
-    tail: 11, exposure: 1.3, bloom: 0.5,
+    op: 0.042, size: 0.0044, damp: 0.35, turb: 0.13, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
+    tail: 11, exposure: 1.35, bloom: 0.55,
   },
 };
 let ST = STYLES[P.style];
@@ -400,10 +400,11 @@ ${GLSL_NOISE}
 // 于是每条带子都是一条不重复的长河道，而不是规则的螺旋。
 vec2 ribbonCenter(float c, float z){
   float ph = c * 2.399963;                                  // 黄金角：几条带子互相错开
-  float ax = 1.5 + 1.2 * hash11(c * 3.17 + 0.31);
-  float ay = 0.7 + 0.8 * hash11(c * 5.41 + 0.77);
-  return vec2(ax * sin(z * 0.075 + ph) + 0.7 * sin(z * 0.021 + ph * 2.1),
-              ay * sin(z * 0.048 + ph * 1.7) + 0.25);
+  // 摆幅收小 = 河道大部分时间在视野中心附近穿行，而不是贴着两侧的壁走
+  float ax = 0.7 + 0.9 * hash11(c * 3.17 + 0.31);
+  float ay = 0.45 + 0.6 * hash11(c * 5.41 + 0.77);
+  return vec2(ax * sin(z * 0.075 + ph) + 0.45 * sin(z * 0.021 + ph * 2.1),
+              ay * sin(z * 0.048 + ph * 1.7));
 }
 
 void main(){
@@ -465,7 +466,8 @@ void main(){
     // 河道本身也在往相机漂（比水稍慢），所以带子整体是流动的，不是钉在视线上的一根管
     vec2 cen = ribbonCenter(cid, t + uTime * uRideFlow * 0.6);
     // 横向松、纵向紧 ⇒ 断面是扁的，看上去是"带子"而不是"绳子"
-    acc += Rv * (cen.x - lx) * 3.8 + Uv * (cen.y - ly) * 11.0;
+    // 刚度再软一档：平衡宽度 ∝ sqrt(湍流/刚度)，软 = 带子更宽更有体积
+    acc += Rv * (cen.x - lx) * 2.2 + Uv * (cen.y - ly) * 6.0;
     if (lr > uRadius * 22.0) acc -= lat / max(lr, 1e-4) * (lr - uRadius * 22.0) * 20.0;
     acc += uRideFwd * (-uRideFlow - dot(vel, uRideFwd)) * 2.4;
   } else {
@@ -1471,7 +1473,7 @@ function fillGroup(gi, zFar) {
   const base = segW;
   let a;
   // 节奏：连着两组有东西之后，大概率空一段。走廊要有呼吸，不然就是一堵均匀的墙。
-  if (denseRun >= 2 && Math.random() < 0.62) a = EMPTY_IDX;
+  if (denseRun >= 1 && Math.random() < 0.55) a = EMPTY_IDX;
   else do { a = (Math.random() * ARCHES.length) | 0; } while (a === lastArche);
   denseRun = (a >= EMPTY_IDX) ? 0 : denseRun + 1;
   lastArche = a;
@@ -1696,7 +1698,7 @@ function simulate(dt) {
   gl.uniform1f(U.uRideSpeed, rideSpeed);
   // 水比走廊慢一个档：结构呼啸而过，水只是在壁上缓缓淌 —— 层次就是这么来的
   gl.uniform1f(U.uRideFlow, Math.min(3.4, rideSpeed * 0.22 + 0.9));
-  gl.uniform1f(U.uRibbons, 5.0);      // 几条河道。多了就糊成一团，少了空
+  gl.uniform1f(U.uRibbons, 4.0);      // 条数少一点 = 每条更密更实
   gl.uniform3fv(U.uRideFwd, rideFwd);
   gl.uniform1f(U.uRows, ROWS);
   gl.uniformMatrix3fv(U.uRingInv, false, ringInvMats());
@@ -1768,7 +1770,9 @@ function drawScene(proj, view, camPos, vpH) {
     // 一百米外的东西也照样清楚，纵深和悬念全没了。
     // 贯穿轨自己亮度高（4~5），同样的雾下仍然能一直延伸到灭点，暗的结构先没入黑。
     gl.uniform1f(L.uFog, 0.062);
-    gl.uniform1f(L.uGain, 4.6);
+    // 一个增益管住所有线条（轨/横档/流线/网格/结构）。水走的是另一条管线，
+    // 所以这里压多少都不影响水 —— 主角换成水之后，这些只当环境。
+    gl.uniform1f(L.uGain, 1.5);
     gl.uniform1f(L.uMinPx, 1.7);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, RIDE_TOTAL);
   }
@@ -1789,7 +1793,7 @@ function drawScene(proj, view, camPos, vpH) {
     gl.uniform1f(F.uSize, P.size);
     gl.uniform1f(F.uVpH, vpH);
     gl.uniform1f(F.uDry, P.dry);
-    gl.uniform1f(F.uMinPx, 1.1);
+    gl.uniform1f(F.uMinPx, 1.4);
     // 水的雾必须和结构的雾同一个量级（0.062）。之前 0.19 意味着水在十米外就没了 ——
     // 结构一直延伸到灭点，水只剩身边一圈，看起来就成了"一圈快速经过就消失"。
     gl.uniform1f(F.uFog, 0.072);
