@@ -193,7 +193,7 @@ const STYLES = {
     cool: [0.10, 1.00, 0.42], warm: [0.45, 0.35, 1.00],
     // 线框全删之后水是画面里唯一的光源：既没有别的东西打底，也没有它们漏进
     // 辉光金字塔的那部分环境光，所以亮度要整体抬上来（0.085 → 0.24）。
-    op: 0.300, size: 0.0050, damp: 0.30, turb: 0.16, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
+    op: 0.260, size: 0.0050, damp: 0.30, turb: 0.10, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
     tail: 11, exposure: 1.45, bloom: 0.60,
   },
 };
@@ -494,7 +494,17 @@ void main(){
     acc += Uv * (cen.y + off - ly) * ky;
     // 顺流的增益也要高：末速 ≈ 增益×流速/(增益+暗流阻尼)，增益低的话暗流会把它拖住，
     // 1.3m/s 的末速只能拉出 1.4 米的尾巴。
-    acc += uRideFwd * (-uRideFlow - dot(vel, uRideFwd)) * 5.0;
+    // 流向沿河道的切线，而不是一律朝着相机。一律朝相机的话，投影出来就是从灭点
+    // 往外炸的一蓬放射线 —— 每一根都朝同一个方向，看着就是乱，不是流。
+    // 沿切线走，尾巴才会贴着帘子的走向铺开，不同位置、不同帘子的方向各不相同。
+    vec2 cN = ribbonCenter(cid, t + uTime * uRideFlow * 0.6 + 0.6, uTime);
+    vec2 dC = (cN - cen) / 0.6;                         // 中心线对 t 的导数
+    // 朝相机 = t 减小，所以方向取负
+    // 切向的横向分量要放大：中心线变化很慢（dx/dt≈0.1），照原样算出来的方向和
+    // "直冲相机"几乎没区别，投影仍然是一蓬放射线。×6 之后每道帘子、每个位置的
+    // 流向都明显不同，尾巴才是顺着帘子铺的，而不是齐刷刷朝一个方向。
+    vec3 flowDir = -normalize(uRideFwd + (Rv * dC.x + Uv * dC.y) * 6.0);
+    acc += (flowDir * uRideFlow - vel) * 4.0;
   } else {
     float dist = length(rel);
     float push = smoothstep(0.78, 1.12, dist / uRadius);
@@ -888,9 +898,12 @@ uniform mat3 uRideM;
 uniform vec3 uRideO;
 uniform float uRideZ, uVpH, uMinPx;
 out vec3 vCol, vTun;
-out float vSide, vDist, vFogK;
+out float vSide, vDist, vFogK, vBase;
 void main(){
-  if (aW <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vCol = vec3(0.0); vTun = vec3(0.0); vSide = 0.0; vDist = 0.0; vFogK = 1.0; return; }
+  if (aW <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vCol = vec3(0.0); vTun = vec3(0.0); vSide = 0.0; vDist = 0.0; vFogK = 1.0; vBase = 0.0; return; }
+  // 横向线是唯一能看出"网格在往你身上推"的东西（纵向线沿自身方向平移，看不出动），
+  // 所以给它一个不依赖照明的底亮度；纵向线保持几乎全黑，靠水点亮。
+  vBase = (aWrap > 0.0) ? 0.34 : 0.07;
   vec3 a = aA, b = aB;
   float dz = uRideZ;
   if (aWrap > 0.0) {                            // 横向线循环：无限长、零 CPU 开销
@@ -916,7 +929,7 @@ void main(){
 const FS_LINE = `#version 300 es
 precision highp float;
 in vec3 vCol, vTun;
-in float vSide, vDist, vFogK;
+in float vSide, vDist, vFogK, vBase;
 uniform float uFog, uGain, uRibN, uRibTime, uRibFlow, uLitAmt;
 ${GLSL_RIBBON}
 out vec4 frag;
@@ -936,7 +949,7 @@ void main(){
     float dx = vTun.x - cen.x;
     lit += exp(-dx * dx * 1.3);          // 收紧 → 亮的是一条跟着帘子走的光带，不是整片
   }
-  float amp = 0.05 + uLitAmt * min(lit, 2.4);
+  float amp = vBase + uLitAmt * min(lit, 2.4);
   frag = vec4(vCol * core * fog * near * uGain * amp, 1.0);
 }`;
 
@@ -1023,7 +1036,9 @@ void main(){
   // 必须按距离衰减：远处的流线在屏幕上全都汇到灭点那一个点上，密度暴涨，
   // 而线宽有像素下限撑着不会变细 —— 不衰减的话灭点会烧成一坨死白。
   float fog  = exp(-max(vDist - 0.8, 0.0) * uFog);
-  float near = smoothstep(0.9, 3.2, vDist);            // 贴脸的那一层淡掉
+  // 近处淡出的范围要拉大：人就站在水里，两三米内的粒子在屏幕上是几十度的长条，
+  // 糊满整个视野 —— 那正是"乱"的主要来源。推到四米半之后看见的是前方的帘子。
+  float near = smoothstep(1.4, 4.5, vDist);
   // 磁力线射线：真实极光是沿磁力线成束的，所以帘子上是一根根竖着的条纹，
   // 不是均匀的一片。两个不通约的频率相乘 → 疏密不规则，不会像栅栏。
   float ray = 0.55 + 0.45 * sin(vRay * 8.7) * sin(vRay * 2.13 + 1.7);
