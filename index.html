@@ -86,7 +86,7 @@
     <div class="hint">
       <b>桌面</b>：移动鼠标搅动 · 按住左键注入 · 右键拖拽转视角 · 滚轮远近 · <b>R</b> 重置 · <b>H</b> 面板<br>
       <b>头显</b>：双手伸进去搅 · <b>握拳</b>吸拢并拖动整团 · 任一手捏合注入 · 摆位/退出用左边按钮<br>
-      <b>隧道</b>：走廊自己压过来，人不动 · <b>握拳</b>=刹车 · 速度在面板里调
+      <b>极光</b>：水流朝你涌来，人不动 · <b>握拳</b>=减速 · 流速在面板里调
     </div>
     <div class="btns">
       <button id="xr" disabled>检测 XR…</button>
@@ -105,7 +105,7 @@
     <select id="p_style">
       <option value="auto" selected>渐变</option>
       <option value="blackhole">黑洞 · 吸积盘</option>
-      <option value="tunnel">隧道 · 绿激光</option>
+      <option value="tunnel">极光 · 水流</option>
     </select>
   </div>
   <div class="row">
@@ -129,7 +129,7 @@
   <div class="row"><label>亮度 / 浓度 <span id="v_op"></span></label><input type="range" id="p_op" min="0.02" max="0.6" step="0.01" value="0.13"></div>
   <div class="row"><label>拖尾长度 <span id="v_tail"></span></label><input type="range" id="p_tail" min="1" max="12" step="1" value="8"></div>
   <div class="row"><label>速度→亮度 <span id="v_dry"></span></label><input type="range" id="p_dry" min="0" max="3" step="0.05" value="1.1"></div>
-  <div class="row"><label>推进速度（隧道） <span id="v_speed"></span></label><input type="range" id="p_speed" min="0" max="20" step="0.5" value="8"></div>
+  <div class="row"><label>流速（极光） <span id="v_speed"></span></label><input type="range" id="p_speed" min="0" max="20" step="0.5" value="8"></div>
   <div class="row"><label>球体半径 <span id="v_rad"></span></label><input type="range" id="p_rad" min="0.1" max="0.45" step="0.005" value="0.22"></div>
   <div id="stat"></div>
 </div>
@@ -189,10 +189,12 @@ const STYLES = {
     tail: 4, exposure: 0.95, bloom: 1.0,
   },
   tunnel: {                                        // 隧道：绿激光 + 线框走廊
-    label: "隧道", additive: 1, dark: 1, ride: 1, attract: 0.2,
+    label: "极光", additive: 1, dark: 1, ride: 1, attract: 0.2,
     cool: [0.10, 1.00, 0.42], warm: [0.45, 0.35, 1.00],
-    op: 0.085, size: 0.0050, damp: 0.30, turb: 0.16, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
-    tail: 11, exposure: 1.35, bloom: 0.55,
+    // 线框全删之后水是画面里唯一的光源：既没有别的东西打底，也没有它们漏进
+    // 辉光金字塔的那部分环境光，所以亮度要整体抬上来（0.085 → 0.24）。
+    op: 0.240, size: 0.0050, damp: 0.30, turb: 0.16, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
+    tail: 11, exposure: 1.45, bloom: 0.60,
   },
 };
 let ST = STYLES[P.style];
@@ -847,66 +849,6 @@ void main(){
 
 const OK = !!(gl && extCBF);
 
-// ── 粗线段：屏幕对齐的四边形 ────────────────────────────────────────────────
-// gl.lineWidth 在 ANGLE 上恒为 1px —— 想要能控制粗细的激光/网格，只能自己把每段
-// 线扩成一个正对相机的四边形。扩张在视图空间做（不是裁剪空间）：法线取
-// cross(线方向, 到该点的视线)，天然垂直于视线，且不受 w<0 的近平面翻转影响。
-const VS_LINE = `#version 300 es
-precision highp float;
-layout(location = 0) in vec2 aCorner;   // x = ±1 侧向, y = 0/1 端点
-layout(location = 1) in vec3 aA;
-layout(location = 2) in vec3 aB;
-layout(location = 3) in vec3 aCol;
-layout(location = 4) in float aW;       // 线宽（米）
-layout(location = 5) in float aWrap;    // >0 = 沿 z 以这个周期循环；<0 = 贯穿轨（雾减弱）
-uniform mat4 uProj, uView;
-uniform mat3 uRideM;                    // 轨道空间 → 世界（绕 Y 的朝向）
-uniform vec3 uRideO;                    // 轨道原点 = 进场时头的位置
-uniform float uRideZ, uVpH, uMinPx;
-out vec3 vCol;
-out float vSide, vDist, vFogK;
-void main(){
-  if (aW <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vCol = vec3(0.0); vSide = 0.0; vDist = 0.0; return; }
-  vec3 a = aA, b = aB;
-  // 推进 = 把整条走廊往人身上推。贯穿轨不循环（它们是构图的骨架，本来就该静止）；
-  // 横档和流线按 aWrap 取模循环 —— 无限长、零 CPU 开销、且是在雾里出现，不会看见弹出。
-  float dz = uRideZ;
-  if (aWrap > 0.0) {
-    float zc = (a.z + b.z) * 0.5 + uRideZ;
-    dz += (zc - aWrap * floor(zc / aWrap + 1.0)) - zc;   // 折回 (-aWrap, 0]
-  }
-  a.z += dz; b.z += dz;
-  vec3 Av = (uView * vec4(uRideO + uRideM * a, 1.0)).xyz;
-  vec3 Bv = (uView * vec4(uRideO + uRideM * b, 1.0)).xyz;
-  vec3 Pv = mix(Av, Bv, aCorner.y);
-  vec3 n0 = cross(Bv - Av, Pv);
-  float nl = length(n0);
-  vec3 n = (nl > 1e-6) ? n0 / nl : vec3(1.0, 0.0, 0.0);
-  float dist = max(-Pv.z, 0.02);
-  // 世界宽度 + 一个像素下限：远处的线不至于细到闪烁消失
-  float wm = max(aW, uMinPx * dist / (uProj[1][1] * uVpH * 0.5));
-  gl_Position = uProj * vec4(Pv + n * wm * aCorner.x, 1.0);
-  vCol = aCol; vSide = aCorner.x; vDist = dist;
-  // 贯穿轨吃到的雾只有别人的三分之一 —— 要的就是它能一直延伸到灭点，
-  // 而暗的结构在四十米外就没入黑，于是走廊是一层一层显出来的。
-  vFogK = (aWrap < 0.0) ? 0.30 : 1.0;
-}`;
-
-const FS_LINE = `#version 300 es
-precision highp float;
-in vec3 vCol;
-in float vSide, vDist, vFogK;
-uniform float uFog, uGain;
-out vec4 frag;
-void main(){
-  float e = max(0.0, 1.0 - vSide * vSide);
-  float core = e * e;                               // 横截面：中间实，边缘化开
-  float fog  = exp(-max(vDist - 1.5, 0.0) * uFog * vFogK);  // 纵深靠雾，不靠几何
-  float near = smoothstep(0.10, 0.55, vDist);       // 穿过身体时不糊脸
-  frag = vec4(vCol * core * fog * near * uGain, 1.0);
-}`;
-
-
 // ── 流线缎带：把粒子的历史轨迹画成连续的带子，而不是一串点 ──────────────────
 // 点精灵在 90Hz 的头显里会散成虚线：11m/s × 1/90s = 12cm 的间距，而点只有几毫米。
 // 改成在相邻两个历史槽之间拉一条带子，速度再快也是连续的一条流线 —— 水感就来自这里。
@@ -980,7 +922,7 @@ void main(){
   frag = vec4(tint * a, 1.0);
 }`;
 
-let progUpdate, progHist, progInk, progHand, progPaper, progHalo, progBloom, progComp, progLine, progFlow;
+let progUpdate, progHist, progInk, progHand, progPaper, progHalo, progBloom, progComp, progFlow;
 try {
   if (!OK) throw new Error('skip');
   progUpdate = program(VS_QUAD, FS_UPDATE);
@@ -991,7 +933,6 @@ try {
   progHalo   = program(VS_HALO,  FS_HALO);
   progBloom  = program(VS_QUAD,  FS_DOWN);
   progComp   = program(VS_QUAD,  FS_COMPOSITE);
-  progLine   = program(VS_LINE,  FS_LINE);
   progFlow   = program(VS_FLOW,  FS_FLOW);
 } catch (e) { if (OK) fatal("着色器编译失败：<br><pre style='text-align:left;font-size:11px'>" + e.message + "</pre>"); }
 
@@ -1264,31 +1205,14 @@ function updateRingSpin(dt) {
 }
 
 
-// ── 隧道：贯穿轨 + 横档 + 流线 ──────────────────────────────────────────────
-// 构图抄的是 TRACK 那张图的骨架：几条极长的直线交汇在视野正中的一个点上，别的都让位。
-// 四层，各管一件事：
-//   贯穿轨 rails   —— 从 -700m 拉到身后，严格平行于轨道 ⇒ 精确汇聚到灭点。不循环、不动。
-//   横档 rungs     —— 挂在轨上的短横杠，按周期取模循环 ⇒ 速度感（轨本身是静止的）。
-//   流线 streaks   —— 长短不一的细线，同样取模循环 ⇒ 密度和"擦身而过"。
-//   结构 groups    —— 每 7 米一组的门/环/网格，唯一需要 CPU 回收的一层，留白占大头。
-// 除结构外全部不需要每帧更新任何数据：循环是在顶点着色器里对 z 取模做的。
-const RIDE_SPAN = 7.0, RIDE_STRIDE = 11;
-// 短激光线（流线层 + 轨上的横档）全部删掉：主角是水，那些碎线只会跟它抢。
-// 计数留 0，两层的生成函数一起去掉，缓冲和偏移量自动收缩。
-const RAIL_N = 7, RUNG_N = 0;
-const STREAK_N = 0, GRID_N = 70, RIDE_GROUPS = 14, RIDE_SEG = 150;
-const OFF_RAIL = 0, OFF_RUNG = OFF_RAIL + RAIL_N, OFF_STREAK = OFF_RUNG + RUNG_N;
-const OFF_GRID = OFF_STREAK + STREAK_N, OFF_GROUP = OFF_GRID + GRID_N;
-const RIDE_TOTAL = OFF_GROUP + RIDE_GROUPS * RIDE_SEG;
-const RAIL_FAR = 700;
-
-const segArr  = new Float32Array(RIDE_TOTAL * RIDE_STRIDE);
-const rideM   = new Float32Array(9);
+// ── 极光：只有水 ────────────────────────────────────────────────────────────
+// 线框走廊（贯穿轨/栅格/门/环/拱肋/立柱/横档/流线）整条管线已经删掉 ——
+// 连着色器、程序、实例缓冲和生成器一起。这里剩下的只是"推进"这个状态机：
+// 它不再驱动任何几何，只决定水流多快（uRideFlow）和河道往相机漂多快。
+const rideM   = new Float32Array(9);      // 轨道空间 → 世界；水的横竖基向量要用
 const rideFwd = new Float32Array(3);
 const rideOrigin = new Float32Array([0, 1.25, -0.5]);
-const rideGroupZ = new Float32Array(RIDE_GROUPS);
-let rideZ = 0, rideSpeed = 8, rideYaw = 0, lastArche = -1, denseRun = 0;
-let segW = 0, segCap = 0;
+let rideSpeed = 8, rideYaw = 0;
 
 function setRideAxis(yaw) {
   rideYaw = yaw;
@@ -1296,178 +1220,26 @@ function setRideAxis(yaw) {
   rideM[0] = c; rideM[1] = 0; rideM[2] = -s;      // 列主序：绕 Y 旋转
   rideM[3] = 0; rideM[4] = 1; rideM[5] = 0;
   rideM[6] = s; rideM[7] = 0; rideM[8] = c;
-  rideFwd[0] = -s; rideFwd[1] = 0; rideFwd[2] = -c;   // 轨道前方（局部 -Z）
+  rideFwd[0] = -s; rideFwd[1] = 0; rideFwd[2] = -c;   // 前方（局部 -Z）
 }
 
-// 幕：每半分钟左右换一次强调色 / 密度 / 速度，让长时间观看不至于变成循环
-const ACCENTS = [[0.15, 0.95, 1.00], [1.00, 0.72, 0.12], [1.00, 0.22, 0.55],
-                 [0.55, 0.35, 1.00], [0.90, 1.00, 0.25]];
-const LASER = [0.16, 1.00, 0.38];                   // 主色恒定：激光绿
-const act = { accent: ACCENTS[0], density: 1, speed: 1, t: 0, dur: 34 };
+// 幕：每半分钟左右换一次顶部的颜色和速度。几何删掉之后，"不重复"全靠这个 ——
+// 底色恒定是极光绿，顶色在这一组里循环，所以整道幕的渐变会慢慢改变。
+const ACCENTS = [[0.45, 0.35, 1.00], [0.15, 0.95, 1.00], [1.00, 0.35, 0.75],
+                 [1.00, 0.72, 0.25], [0.75, 1.00, 0.35]];
+const act = { accent: ACCENTS[0], speed: 1, t: 0, dur: 34 };
 function nextAct() {
   let a; do { a = ACCENTS[(Math.random() * ACCENTS.length) | 0]; } while (a === act.accent);
   act.accent = a;
-  act.density = 0.65 + Math.random() * 1.0;
-  act.speed   = 0.6 + Math.random() * 0.9;
-  act.dur     = 26 + Math.random() * 24;
+  act.speed = 0.6 + Math.random() * 0.9;
+  act.dur   = 26 + Math.random() * 24;
   act.t = 0;
 }
 
-const rnd = (a, b) => a + Math.random() * (b - a);
-const cc  = (b, k) => [b[0] * k, b[1] * k, b[2] * k];
-function seg(ax, ay, az, bx, by, bz, c, w, wrap) {
-  if (segW >= segCap) return;                       // 每层的段数是硬预算
-  const o = segW * RIDE_STRIDE; segW++;
-  segArr[o] = ax; segArr[o+1] = ay; segArr[o+2] = az;
-  segArr[o+3] = bx; segArr[o+4] = by; segArr[o+5] = bz;
-  segArr[o+6] = c[0]; segArr[o+7] = c[1]; segArr[o+8] = c[2];
-  segArr[o+9] = w;   segArr[o+10] = wrap || 0;
-}
-function arc(z, r, a0, sweep, n, c, w, yc) {
-  yc = yc || 0;
-  for (let i = 0; i < n; i++) {
-    const b0 = a0 + sweep * i / n, b1 = a0 + sweep * (i + 1) / n;
-    seg(Math.cos(b0) * r, yc + Math.sin(b0) * r, z,
-        Math.cos(b1) * r, yc + Math.sin(b1) * r, z, c, w);
-  }
-}
-function boxWire(cx, cy, cz, sx, sy, sz, yaw, c, w) {
-  const co = Math.cos(yaw), si = Math.sin(yaw);
-  const V = [];
-  for (let i = 0; i < 8; i++) {
-    const x = (i & 1 ? sx : -sx), y = (i & 2 ? sy : -sy), z = (i & 4 ? sz : -sz);
-    V.push([cx + x * co + z * si, cy + y, cz - x * si + z * co]);
-  }
-  const E = [0,1, 2,3, 4,5, 6,7, 0,2, 1,3, 4,6, 5,7, 0,4, 1,5, 2,6, 3,7];
-  for (let i = 0; i < E.length; i += 2)
-    seg(V[E[i]][0], V[E[i]][1], V[E[i]][2], V[E[i+1]][0], V[E[i+1]][1], V[E[i+1]][2], c, w);
-}
-
-// ── 第一层：贯穿轨。整条作品的构图就靠这几根线。
-const railPos = [];
-function buildRails() {
-  segW = OFF_RAIL; segCap = OFF_RAIL + RAIL_N;
-  railPos.length = 0;
-  const layout = [[0, -1.9], [-2.9, -1.9], [2.9, -1.9], [-3.4, 2.6], [3.4, 2.6], [-1.5, 3.1], [1.5, 3.1]];
-  for (let i = 0; i < RAIL_N; i++) {
-    const x = layout[i][0], y = layout[i][1];
-    railPos.push([x, y]);
-    // 亮度按到中轴的距离递减：底下那三根是主角，顶上的只是暗示空间
-    const k = i < 3 ? rnd(4.0, 5.2) : rnd(1.0, 1.8);
-    seg(x, y, -RAIL_FAR, x, y, 60, cc(LASER, k), i < 3 ? 0.013 : 0.008, -1);
-  }
-}
-const FLOOR = -1.9, CEIL = 2.9;
-// ── 网格层：整条都是一根到底的长线，不再是每 7 米一片。
-// 之前每组画一片 7×10 米的网格，看起来就是"地上贴了一块板"；
-// 纵向线拉到 700 米外、和贯穿轨一样吃弱雾，透视自然把它压成一个一直收到灭点的梯形。
-// 横向线按周期循环，负责"网格正在往你身上推"的速度感。
-const GRID_HALF = 5.5, GRID_XN = 9, GRID_ZN = 34, GRID_ZS = 3.5;
-function buildGrid() {
-  segW = OFF_GRID; segCap = OFF_GRID + GRID_N;
-  const stepX = (GRID_HALF * 2) / (GRID_XN - 1);
-  for (let i = 0; i < GRID_XN; i++) {                       // 地面纵向
-    const x = -GRID_HALF + i * stepX;
-    const k = 0.38 * (1.0 - 0.45 * Math.abs(x) / GRID_HALF);
-    seg(x, FLOOR, -RAIL_FAR, x, FLOOR, 60, cc(LASER, k), 0.007, -1);
-  }
-  for (let i = 0; i < 5; i++) {                             // 天花板纵向（更暗）
-    const x = -GRID_HALF + i * (GRID_HALF * 2 / 4);
-    seg(x, CEIL, -RAIL_FAR, x, CEIL, 60, cc(LASER, 0.15), 0.006, -1);
-  }
-  const perZ = GRID_ZN * GRID_ZS;
-  for (let k = 0; k < GRID_ZN; k++)                         // 地面横向，循环
-    seg(-GRID_HALF, FLOOR, -k * GRID_ZS, GRID_HALF, FLOOR, -k * GRID_ZS,
-        cc(LASER, 0.30), 0.007, perZ);
-  for (let k = 0; k < 17; k++)                              // 天花板横向，稀一半
-    seg(-GRID_HALF, CEIL, -k * GRID_ZS * 2, GRID_HALF, CEIL, -k * GRID_ZS * 2,
-        cc(LASER, 0.13), 0.006, perZ);
-}
-// ── 第四层：结构。刻意偏向曲线和留白 —— 盒子多了就变成杂物间，抢灭点。
-const ARCHES = [
-  function gate(zA, zB) {                           // 门：多边形环 + 角标
-    const z = rnd(zA + 1, zB - 1), r = rnd(2.2, 4.0);
-    const n = [8, 12, 48, 48][(Math.random() * 4) | 0];
-    arc(z, r, Math.random() * 6.283, 6.2831853, n, cc(LASER, rnd(2.2, 3.8)), 0.030);
-    for (let k = 0; k < 4; k++) {
-      const a = k * 1.5708 + 0.7854, c = cc(act.accent, 2.0);
-      seg(Math.cos(a)*r*1.04, Math.sin(a)*r*1.04, z, Math.cos(a)*r*1.26, Math.sin(a)*r*1.26, z, c, 0.026);
-    }
-  },
-  function rings(zA, zB) {                          // 一串同心环，越远越小 = 加强纵深
-    const n = 4 + ((Math.random() * 3) | 0);
-    for (let i = 0; i < n; i++) {
-      const t = i / n;
-      arc(zA + t * RIDE_SPAN, 2.0 + t * 2.2, 0, 6.2831853, 40,
-          cc(LASER, 0.8 + t * 1.6), 0.014);
-    }
-  },
-  function ribs(zA, zB) {                           // 拱形肋骨
-    const c = cc(LASER, rnd(1.0, 2.0)), k = Math.max(3, Math.round(4 * act.density));
-    for (let i = 0; i < k; i++)
-      arc(zA + i * RIDE_SPAN / k, rnd(3.0, 3.8), 0, 3.1416, 18, c, 0.018, 0);
-  },
-  function arcs(zA, zB) {                           // 随机翻滚的断弧
-    const k = Math.round(5 * act.density);
-    for (let i = 0; i < k; i++) {
-      const c = Math.random() < 0.3 ? cc(act.accent, 1.9) : cc(LASER, rnd(1.1, 2.6));
-      arc(rnd(zA, zB), rnd(2.2, 4.2), Math.random() * 6.283, rnd(0.6, 2.2), 16, c, 0.016);
-    }
-  },
-  function helix(zA, zB) {                          // 双螺旋
-    const n = 44, turns = rnd(0.6, 1.6), r = rnd(2.6, 4.0), ph = Math.random() * 6.283;
-    const c1 = cc(LASER, rnd(1.5, 2.8)), c2 = cc(act.accent, 1.7);
-    for (let i = 0; i < n; i++) {
-      const t0 = i / n, t1 = (i + 1) / n;
-      const a0 = ph + t0 * turns * 6.283, a1 = ph + t1 * turns * 6.283;
-      const z0 = zA + t0 * RIDE_SPAN, z1 = zA + t1 * RIDE_SPAN;
-      seg(Math.cos(a0)*r, Math.sin(a0)*r, z0, Math.cos(a1)*r, Math.sin(a1)*r, z1, c1, 0.014);
-      seg(-Math.cos(a0)*r, -Math.sin(a0)*r, z0, -Math.cos(a1)*r, -Math.sin(a1)*r, z1, c2, 0.014);
-    }
-  },
-  function pillars(zA, zB) {                        // 两侧的立方体柱（少用）
-    for (let sgn = -1; sgn <= 1; sgn += 2)
-      for (let k = 0; k < 2; k++)
-        boxWire(sgn * rnd(3.4, 4.6), rnd(-1.4, 0.6), zA + (k + 0.5) * RIDE_SPAN / 2,
-                rnd(0.25, 0.5), rnd(0.9, 2.2), rnd(0.25, 0.5),
-                rnd(0, 1.57), cc(LASER, rnd(0.7, 1.6)), 0.014);
-  },
-  function empty() {},                              // 纯留白：只剩轨和流线
-  function empty2() {},
-];
-const EMPTY_IDX = 6;      // gate/rings/ribs/arcs/helix/pillars 之后是两个空
-
-function fillGroup(gi, zFar) {
-  segW = OFF_GROUP + gi * RIDE_SEG; segCap = segW + RIDE_SEG;
-  const base = segW;
-  let a;
-  // 节奏：连着两组有东西之后，大概率空一段。走廊要有呼吸，不然就是一堵均匀的墙。
-  if (denseRun >= 1 && Math.random() < 0.55) a = EMPTY_IDX;
-  else do { a = (Math.random() * ARCHES.length) | 0; } while (a === lastArche);
-  denseRun = (a >= EMPTY_IDX) ? 0 : denseRun + 1;
-  lastArche = a;
-  ARCHES[a](zFar, zFar + RIDE_SPAN);
-  for (let i = segW; i < segCap; i++) segArr[i * RIDE_STRIDE + 9] = 0;   // 空槽：宽度 0 = 丢弃
-  gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
-  gl.bufferSubData(gl.ARRAY_BUFFER, base * RIDE_STRIDE * 4, segArr,
-                   base * RIDE_STRIDE, RIDE_SEG * RIDE_STRIDE);
-}
-
 function initRide() {
-  rideZ = 0; lastArche = -1; denseRun = 0;
   act.t = 0; nextAct();
   rideOrigin[0] = C[0]; rideOrigin[1] = C[1]; rideOrigin[2] = C[2];
   setRideAxis(rideYaw);
-  buildRails(); buildGrid();
-  for (let g = 0; g < RIDE_GROUPS; g++) {
-    rideGroupZ[g] = -(g + 1) * RIDE_SPAN;
-    segW = OFF_GROUP + g * RIDE_SEG; segCap = segW + RIDE_SEG;
-    const a = (g % 3 === 0) ? EMPTY_IDX : ((Math.random() * EMPTY_IDX) | 0);
-    ARCHES[a](rideGroupZ[g], rideGroupZ[g] + RIDE_SPAN);
-    for (let i = segW; i < segCap; i++) segArr[i * RIDE_STRIDE + 9] = 0;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, segArr, 0, RIDE_TOTAL * RIDE_STRIDE);
 }
 
 function updateRide(dt) {
@@ -1477,36 +1249,6 @@ function updateRide(dt) {
   for (let i = 0; i < MAX_STIR; i++) if (stirW[i] > 0) grab = Math.max(grab, stirGrab[i]);
   const target = P.speed * act.speed * (1 - 0.75 * grab);   // 握拳 = 刹车
   rideSpeed += (target - rideSpeed) * Math.min(1, dt * 1.6);
-  rideZ += rideSpeed * dt;
-  const cycle = RIDE_GROUPS * RIDE_SPAN;
-  for (let g = 0; g < RIDE_GROUPS; g++) {
-    if (rideGroupZ[g] + RIDE_SPAN + rideZ > 6.0) {        // 跑到身后 6 米
-      rideGroupZ[g] -= cycle;
-      fillGroup(g, rideGroupZ[g]);
-    }
-  }
-}
-
-// 线段渲染用的两个 buffer：一个是永远不变的 6 顶点四边形，一个是每组回收时才
-// 局部更新的实例数据（起点/终点/颜色/宽度/循环周期）。走廊的运动完全不碰这块数据。
-const quadBuf = OK ? gl.createBuffer() : null;
-const segBuf  = OK ? gl.createBuffer() : null;
-const lineVao = OK ? gl.createVertexArray() : null;
-if (OK) {
-  gl.bindVertexArray(lineVao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,0, 1,0, 1,1, -1,0, 1,1, -1,1]), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-  gl.bindBuffer(gl.ARRAY_BUFFER, segBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, RIDE_TOTAL * RIDE_STRIDE * 4, gl.DYNAMIC_DRAW);
-  const st = RIDE_STRIDE * 4;
-  const attr = (loc, n, off) => {
-    gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, n, gl.FLOAT, false, st, off * 4);
-    gl.vertexAttribDivisor(loc, 1);              // 每个实例一段线
-  };
-  attr(1, 3, 0); attr(2, 3, 3); attr(3, 3, 6); attr(4, 1, 9); attr(5, 1, 10);
-  gl.bindVertexArray(null);
 }
 
 let idleT = 0;                             // 距上次真实输入的秒数
@@ -1720,32 +1462,6 @@ function drawScene(proj, view, camPos, vpH) {
     gl.drawArrays(gl.POINTS, 0, handCount);
   }
 
-  // 走廊：纯加法、不测深度。加法混合下遮挡本来就没意义，省一遍深度。
-  if (ST.ride) {
-    gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
-    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
-    gl.useProgram(progLine.p);
-    gl.bindVertexArray(lineVao);
-    const L = progLine.u;
-    gl.uniformMatrix4fv(L.uProj, false, proj);
-    gl.uniformMatrix4fv(L.uView, false, view);
-    gl.uniformMatrix3fv(L.uRideM, false, rideM);
-    gl.uniform3fv(L.uRideO, rideOrigin);
-    gl.uniform1f(L.uRideZ, rideZ);
-    gl.uniform1f(L.uVpH, vpH);
-    // 雾要弱、增益要高：线是激光，本来就该是 HDR 里过曝的东西。
-    // 而且远处的线会被压到一两个像素宽，覆盖率一掉亮度就跟着塌 —— 靠增益补回来。
-    // 雾要够浓，结构才会"一层一层"从黑里显出来。之前 0.024 等于整条走廊一眼望穿，
-    // 一百米外的东西也照样清楚，纵深和悬念全没了。
-    // 贯穿轨自己亮度高（4~5），同样的雾下仍然能一直延伸到灭点，暗的结构先没入黑。
-    gl.uniform1f(L.uFog, 0.062);
-    // 一个增益管住所有线条（轨/横档/流线/网格/结构）。水走的是另一条管线，
-    // 所以这里压多少都不影响水 —— 主角换成水之后，这些只当环境。
-    gl.uniform1f(L.uGain, 1.5);
-    gl.uniform1f(L.uMinPx, 1.7);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, RIDE_TOTAL);
-  }
-
   // 隧道里的粒子走缎带管线：相邻两个历史槽之间拉一条带子，而不是画一串点。
   if (ST.ride) {
     gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
@@ -1770,7 +1486,7 @@ function drawScene(proj, view, camPos, vpH) {
     gl.uniform1f(F.uMaxJump, 4.0);
     gl.uniform1f(F.uOpacity, P.op);
     gl.uniform3fv(F.uInkCool, ST.cool);
-    gl.uniform3fv(F.uInkWarm, ST.warm);
+    gl.uniform3fv(F.uInkWarm, act.accent);      // 顶色跟着幕走
     gl.uniform1f(F.uAurBase, C[1] - P.radius * 11.0);      // 帘底
     gl.uniform1f(F.uAurSpan, P.radius * 24.0);             // 帘高
     gl.drawArrays(gl.TRIANGLES, 0, N * Math.max(1, Math.round(P.tail) - 1) * 6);
