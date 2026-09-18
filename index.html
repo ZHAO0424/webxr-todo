@@ -190,8 +190,8 @@ const STYLES = {
   },
   tunnel: {                                        // 隧道：绿激光 + 线框走廊
     label: "隧道", additive: 1, dark: 1, ride: 1, attract: 0.2,
-    cool: [0.10, 0.80, 0.62], warm: [0.30, 0.96, 0.98],
-    op: 0.042, size: 0.0044, damp: 0.35, turb: 0.13, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
+    cool: [0.10, 1.00, 0.42], warm: [0.45, 0.35, 1.00],
+    op: 0.085, size: 0.0050, damp: 0.30, turb: 0.16, dry: 1.0, stir: 1.4, srad: 0.09, sharp: 0.92,
     tail: 11, exposure: 1.35, bloom: 0.55,
   },
 };
@@ -461,15 +461,23 @@ void main(){
     vec3 Rv = normalize(cross(uRideFwd, vec3(0.0, 1.0, 0.0)));   // 右
     vec3 Uv = cross(Rv, uRideFwd);                               // 上
     float lx = dot(lat, Rv), ly = dot(lat, Uv);
-    // 每个粒子按 vUv 哈希固定归属一条带子 —— 固定才有"这一股水"，每帧重抽就是噪声
+    // 每个粒子按 vUv 哈希固定归属一道帘 —— 固定才有"这一道光"，每帧重抽就只是噪声
     float cid = floor(hash11(vUv.x * 127.1 + vUv.y * 311.7) * uRibbons);
-    // 河道本身也在往相机漂（比水稍慢），所以带子整体是流动的，不是钉在视线上的一根管
+    // 帘子本身也在往相机漂（比水稍慢），所以整道幕是流动的，不是钉在视线上的一片板
     vec2 cen = ribbonCenter(cid, t + uTime * uRideFlow * 0.6);
-    // 横向松、纵向紧 ⇒ 断面是扁的，看上去是"带子"而不是"绳子"
-    // 刚度再软一档：平衡宽度 ∝ sqrt(湍流/刚度)，软 = 带子更宽更有体积
-    acc += Rv * (cen.x - lx) * 2.2 + Uv * (cen.y - ly) * 6.0;
-    if (lr > uRadius * 22.0) acc -= lat / max(lr, 1e-4) * (lr - uRadius * 22.0) * 20.0;
-    acc += uRideFwd * (-uRideFlow - dot(vel, uRideFwd)) * 2.4;
+    // 极光帘的朝向：立着的薄片（法线水平）从管内看是「侧着」的，投影只有一条缝 ——
+    // 试过，整道幕直接消失。人在管子里、水朝相机流，所以幕必须是「铺开的」那一种：
+    // 横向几乎不约束（很宽），纵向中等约束（很薄），于是它横着铺满视野、
+    // 拖尾沿着视线方向拉出去，那才是极光。
+    acc += Rv * (cen.x * 0.6 - lx) * 0.5;               // 横向：只有很软的居中
+    float xM = uRadius * 18.0;
+    if (abs(lx) > xM) acc -= Rv * sign(lx) * (abs(lx) - xM) * 14.0;
+    // 纵向刚度必须大：横向铺开之后每像素的粒子数会掉一两个数量级，
+    // 唯一的补偿办法就是把它压成真正薄的一层 —— 薄 = 同样的粒子数堆在更少的像素上。
+    acc += Uv * (cen.y - ly) * 9.0;
+    // 顺流的增益也要高：末速 ≈ 增益×流速/(增益+暗流阻尼)，增益低的话暗流会把它拖住，
+    // 1.3m/s 的末速只能拉出 1.4 米的尾巴。
+    acc += uRideFwd * (-uRideFlow - dot(vel, uRideFwd)) * 5.0;
   } else {
     float dist = length(rel);
     float push = smoothstep(0.78, 1.12, dist / uRadius);
@@ -486,7 +494,7 @@ void main(){
     float tz = dot(p - uCenter, uRideFwd);
     // 前方铺 26 米（雾正好在那里吃掉它），身后只留 4 米。
     // 均匀体密度 + 透视 = 远处的管壁在屏幕上自然更密，所以不需要按距离配密度。
-    float zB = uRadius * 18.0, zF = uRadius * 120.0;
+    float zB = uRadius * 14.0, zF = uRadius * 60.0;
     if (tz < -zB) p += uRideFwd * (zF + zB);
   }
 
@@ -513,11 +521,11 @@ void main(){
       vec3 rt3 = normalize(cross(uRideFwd, vec3(0.0, 1.0, 0.0)));
       vec3 ub3 = cross(rt3, uRideFwd);
       float cid3 = floor(hash11(vUv.x * 127.1 + vUv.y * 311.7) * uRibbons);
-      float tz3  = uRadius * (-18.0 + 138.0 * hash11(seed + 19.1));
+      float tz3  = uRadius * (-14.0 + 74.0 * hash11(seed + 19.1));
       vec2  cen3 = ribbonCenter(cid3, tz3 + uTime * uRideFlow * 0.6);
       p = uCenter + uRideFwd * tz3
-        + rt3 * (cen3.x + (hash11(seed + 3.3) - 0.5) * 0.55)
-        + ub3 * (cen3.y + (hash11(seed + 4.4) - 0.5) * 0.16);
+        + rt3 * (uRadius * 18.0 * (hash11(seed + 3.3) * 2.0 - 1.0))   // 宽，铺满整个横向
+        + ub3 * (cen3.y + (hash11(seed + 4.4) - 0.5) * 0.14);          // 薄，贴在自己那道幕上
     } else if (uBH > 0.5) {
       float a2 = hash11(seed + 5.1) * 6.2831853;               // 从外缘重新流入
       float r2 = uRadius * (0.42 + 0.62 * hash11(seed + 7.7));   // 铺满整条环带
@@ -907,8 +915,8 @@ precision highp float;
 uniform sampler2D uHist;
 uniform mat4 uProj, uView;
 uniform int   uN, uRows, uHead, uSlots, uTail;
-uniform float uSize, uVpH, uDry, uMinPx, uMaxJump;
-out float vSide, vFade, vDry, vSeed, vDist;
+uniform float uSize, uVpH, uDry, uMinPx, uMaxJump, uAurBase, uAurSpan;
+out float vSide, vFade, vDry, vSeed, vDist, vH;
 float h11(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 vec4 fetch(int pid, int s){
   int ring = uHead - s;  ring += (ring < 0) ? uSlots : 0;
@@ -945,26 +953,30 @@ void main(){
   vDry  = clamp(mix(dA.w, dB.w, t) * uDry, 0.0, 1.0);
   vSeed = h11(float(pid) * 0.73513);
   vSide = side;
+  vH = clamp((mix(dA.y, dB.y, t) - uAurBase) / uAurSpan, 0.0, 1.0);
 }`;
 
 const FS_FLOW = `#version 300 es
 precision highp float;
-in float vSide, vFade, vDry, vSeed, vDist;
+in float vSide, vFade, vDry, vSeed, vDist, vH;
 uniform float uOpacity, uFog;
 uniform vec3  uInkCool, uInkWarm;
 out vec4 frag;
 void main(){
   float e = max(0.0, 1.0 - vSide * vSide);
   float core = e * e;                                  // 横截面
-  vec3 tint = mix(uInkCool, uInkWarm, vSeed * vSeed);
-  tint = mix(tint, vec3(1.0), pow(core, 3.0) * 0.22);  // 芯部略微发白，不能推到纯白
+  // 极光的配色是沿高度走的：底边偏绿、往上转青紫，而且越往上越淡。
+  // 用高度而不是随机种子来定色，整道幕才会是一个连续的渐变而不是杂色。
+  vec3 tint = mix(uInkCool, uInkWarm, pow(vH, 0.8));
+  tint = mix(tint, vec3(1.0), pow(core, 3.0) * 0.18);
   // 必须按距离衰减：远处的流线在屏幕上全都汇到灭点那一个点上，密度暴涨，
   // 而线宽有像素下限撑着不会变细 —— 不衰减的话灭点会烧成一坨死白。
   float fog  = exp(-max(vDist - 0.8, 0.0) * uFog);
   // 近处必须淡出：人就站在这根水管里，贴脸的那一圈在屏幕上会糊满整个视野。
   // 淡掉之后看见的才是"前方和四周的壁上有水"，而不是"脸贴在水幕上"。
   float near = smoothstep(0.9, 3.2, vDist);
-  float a = core * vFade * uOpacity * mix(0.5, 2.2, vDry) * fog * near;
+  float a = core * vFade * uOpacity * mix(0.6, 1.8, vDry) * fog * near
+          * mix(1.0, 0.22, pow(vH, 1.3));            // 底边最亮，往上化开
   frag = vec4(tint * a, 1.0);
 }`;
 
@@ -1261,12 +1273,14 @@ function updateRingSpin(dt) {
 //   结构 groups    —— 每 7 米一组的门/环/网格，唯一需要 CPU 回收的一层，留白占大头。
 // 除结构外全部不需要每帧更新任何数据：循环是在顶点着色器里对 z 取模做的。
 const RIDE_SPAN = 7.0, RIDE_STRIDE = 11;
-const RAIL_N = 7, RUNG_PER = 26, RUNG_N = RAIL_N * RUNG_PER;
-const STREAK_N = 280, GRID_N = 70, RIDE_GROUPS = 14, RIDE_SEG = 150;
+// 短激光线（流线层 + 轨上的横档）全部删掉：主角是水，那些碎线只会跟它抢。
+// 计数留 0，两层的生成函数一起去掉，缓冲和偏移量自动收缩。
+const RAIL_N = 7, RUNG_N = 0;
+const STREAK_N = 0, GRID_N = 70, RIDE_GROUPS = 14, RIDE_SEG = 150;
 const OFF_RAIL = 0, OFF_RUNG = OFF_RAIL + RAIL_N, OFF_STREAK = OFF_RUNG + RUNG_N;
 const OFF_GRID = OFF_STREAK + STREAK_N, OFF_GROUP = OFF_GRID + GRID_N;
 const RIDE_TOTAL = OFF_GROUP + RIDE_GROUPS * RIDE_SEG;
-const RAIL_FAR = 700, RUNG_PERIOD = RUNG_PER * 5.0, STREAK_PERIOD = 150;
+const RAIL_FAR = 700;
 
 const segArr  = new Float32Array(RIDE_TOTAL * RIDE_STRIDE);
 const rideM   = new Float32Array(9);
@@ -1343,36 +1357,6 @@ function buildRails() {
     seg(x, y, -RAIL_FAR, x, y, 60, cc(LASER, k), i < 3 ? 0.013 : 0.008, -1);
   }
 }
-// ── 第二层：横档。轨是静的，速度全靠它们。
-function buildRungs() {
-  segW = OFF_RUNG; segCap = OFF_RUNG + RUNG_N;
-  for (let i = 0; i < RAIL_N; i++) {
-    const [x, y] = railPos[i];
-    const out = Math.sign(x) || 1, up = y < 0 ? 1 : -1;
-    for (let k = 0; k < RUNG_PER; k++) {
-      const z = -k * 5.0, L = i < 3 ? 0.38 : 0.22;
-      const c = cc(LASER, i < 3 ? 2.6 : 0.8);
-      seg(x, y, z, x + out * L * 0.35, y + up * L, z, c, 0.016, RUNG_PERIOD);
-    }
-  }
-}
-// ── 第三层：流线。长短不一，越靠外越密，中心留空让灭点干净。
-function buildStreaks() {
-  segW = OFF_STREAK; segCap = OFF_STREAK + STREAK_N;
-  for (let i = 0; i < STREAK_N; i++) {
-    const a = Math.random() * 6.2831853;
-    const r = 1.1 + Math.pow(Math.random(), 0.55) * 7.5;    // 偏外侧
-    const x = Math.cos(a) * r, y = Math.sin(a) * r * 0.62 + 0.4;
-    const z = -Math.random() * STREAK_PERIOD;
-    const len = rnd(0.6, 5.0);
-    const bright = Math.random();
-    // 绝大多数要很暗：这一层是纹理，抢了主角整个画面就变成廉价的跃迁特效
-    const c = bright > 0.97 ? cc(act.accent, rnd(1.2, 2.2))
-            : cc(LASER, bright > 0.88 ? rnd(0.7, 1.4) : rnd(0.10, 0.34));
-    seg(x, y, z, x, y, z + len, c, rnd(0.003, 0.008), STREAK_PERIOD);
-  }
-}
-
 const FLOOR = -1.9, CEIL = 2.9;
 // ── 网格层：整条都是一根到底的长线，不再是每 7 米一片。
 // 之前每组画一片 7×10 米的网格，看起来就是"地上贴了一块板"；
@@ -1430,21 +1414,6 @@ const ARCHES = [
       arc(rnd(zA, zB), rnd(2.2, 4.2), Math.random() * 6.283, rnd(0.6, 2.2), 16, c, 0.016);
     }
   },
-  function hud(zA, zB) {                            // 准星 / 方括号，贴在轨的外侧
-    const z = rnd(zA + 1, zB - 1), R = rnd(2.4, 4.0);
-    const n = Math.round((3 + Math.random() * 3) * act.density);
-    for (let i = 0; i < n; i++) {
-      const a = i / n * 6.283 + rnd(-0.3, 0.3);
-      const x = Math.cos(a) * R, y = Math.sin(a) * R, sz = rnd(0.10, 0.20), b = sz * 1.9;
-      const c = cc(LASER, rnd(1.8, 3.2));
-      seg(x - sz, y, z, x + sz, y, z, c, 0.013);
-      seg(x, y - sz, z, x, y + sz, z, c, 0.013);
-      seg(x - b, y - b, z, x - b * 0.4, y - b, z, c, 0.011);
-      seg(x - b, y - b, z, x - b, y - b * 0.4, z, c, 0.011);
-      seg(x + b, y + b, z, x + b * 0.4, y + b, z, c, 0.011);
-      seg(x + b, y + b, z, x + b, y + b * 0.4, z, c, 0.011);
-    }
-  },
   function helix(zA, zB) {                          // 双螺旋
     const n = 44, turns = rnd(0.6, 1.6), r = rnd(2.6, 4.0), ph = Math.random() * 6.283;
     const c1 = cc(LASER, rnd(1.5, 2.8)), c2 = cc(act.accent, 1.7);
@@ -1466,7 +1435,7 @@ const ARCHES = [
   function empty() {},                              // 纯留白：只剩轨和流线
   function empty2() {},
 ];
-const EMPTY_IDX = 7;      // gate/rings/ribs/arcs/hud/helix/pillars 之后是两个空
+const EMPTY_IDX = 6;      // gate/rings/ribs/arcs/helix/pillars 之后是两个空
 
 function fillGroup(gi, zFar) {
   segW = OFF_GROUP + gi * RIDE_SEG; segCap = segW + RIDE_SEG;
@@ -1489,7 +1458,7 @@ function initRide() {
   act.t = 0; nextAct();
   rideOrigin[0] = C[0]; rideOrigin[1] = C[1]; rideOrigin[2] = C[2];
   setRideAxis(rideYaw);
-  buildRails(); buildRungs(); buildStreaks(); buildGrid();
+  buildRails(); buildGrid();
   for (let g = 0; g < RIDE_GROUPS; g++) {
     rideGroupZ[g] = -(g + 1) * RIDE_SPAN;
     segW = OFF_GROUP + g * RIDE_SEG; segCap = segW + RIDE_SEG;
@@ -1664,7 +1633,7 @@ let histAcc = 0;
 // 拖尾长度 = 速度 × 槽数 × 这个间隔。槽数只有 12（MAX_SLOTS），要更长的流线，
 // 拉长采样间隔比加槽位便宜得多 —— 顶点数一点不涨。水是层流，2 米之内路径几乎是
 // 直的，所以采样粗一点也看不出折线。
-const HIST_DT = 1 / 18;      // 隧道模式下历史缓冲的写入频率
+const HIST_DT = 1 / 10;      // 隧道模式下历史缓冲的写入频率
 
 function simulate(dt) {
   tSec += dt;
@@ -1698,7 +1667,7 @@ function simulate(dt) {
   gl.uniform1f(U.uRideSpeed, rideSpeed);
   // 水比走廊慢一个档：结构呼啸而过，水只是在壁上缓缓淌 —— 层次就是这么来的
   gl.uniform1f(U.uRideFlow, Math.min(3.4, rideSpeed * 0.22 + 0.9));
-  gl.uniform1f(U.uRibbons, 4.0);      // 条数少一点 = 每条更密更实
+  gl.uniform1f(U.uRibbons, 3.0);      // 三道幕：更少 = 每道更密更实
   gl.uniform3fv(U.uRideFwd, rideFwd);
   gl.uniform1f(U.uRows, ROWS);
   gl.uniformMatrix3fv(U.uRingInv, false, ringInvMats());
@@ -1798,10 +1767,12 @@ function drawScene(proj, view, camPos, vpH) {
     // 结构一直延伸到灭点，水只剩身边一圈，看起来就成了"一圈快速经过就消失"。
     gl.uniform1f(F.uFog, 0.072);
     // 一段的长度 = 速度 × HIST_DT，约 0.2m；阈值要大于它、又远小于回绕的 30m
-    gl.uniform1f(F.uMaxJump, 2.2);
+    gl.uniform1f(F.uMaxJump, 4.0);
     gl.uniform1f(F.uOpacity, P.op);
     gl.uniform3fv(F.uInkCool, ST.cool);
     gl.uniform3fv(F.uInkWarm, ST.warm);
+    gl.uniform1f(F.uAurBase, C[1] - P.radius * 11.0);      // 帘底
+    gl.uniform1f(F.uAurSpan, P.radius * 24.0);             // 帘高
     gl.drawArrays(gl.TRIANGLES, 0, N * Math.max(1, Math.round(P.tail) - 1) * 6);
     return;                                       // 隧道不画点精灵，也没有环/黑洞那些东西
   }
