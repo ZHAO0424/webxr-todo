@@ -190,9 +190,9 @@ const STYLES = {
   },
   tunnel: {                                        // 隧道：绿激光 + 线框走廊
     label: "隧道", additive: 1, dark: 1, ride: 1, attract: 0.2,
-    cool: [0.14, 1.00, 0.42], warm: [0.60, 1.00, 0.85],
-    op: 0.045, size: 0.0035, damp: 0.12, turb: 0.035, dry: 2.2, stir: 1.4, srad: 0.09, sharp: 0.92,
-    tail: 9, exposure: 1.3, bloom: 0.5,
+    cool: [0.16, 0.95, 0.55], warm: [0.72, 1.00, 0.92],
+    op: 0.055, size: 0.0030, damp: 0.35, turb: 0.08, dry: 1.4, stir: 1.4, srad: 0.09, sharp: 0.92,
+    tail: 11, exposure: 1.3, bloom: 0.5,
   },
 };
 let ST = STYLES[P.style];
@@ -389,7 +389,7 @@ uniform vec3  uStirVel[${MAX_STIR}];
 uniform float uStirW[${MAX_STIR}];
 uniform float uStirGrab[${MAX_STIR}];
 uniform float uStirRadius, uStirStrength, uAttract, uBH, uRows;
-uniform float uRide, uRideSpeed;
+uniform float uRide, uRideSpeed, uRideFlow;
 uniform vec3  uRideFwd;
 uniform mat3  uRingInv[3];      // 每个环变换的逆，用来把注入点搬到该环的局部坐标系
 uniform vec3  uInjectPos[2];
@@ -403,7 +403,11 @@ void main(){
   vec3 vel = texture(uVel, vUv).xyz;
 
   // 1. 暗流：水本身的湍动，让墨永远在缓慢自转，不会死寂
-  vec3 ambient = curlNoise((p - uCenter) / uRadius * 1.6 + 11.0, uTime * 0.12) * uTurb * uRadius;
+  // 噪声的空间尺度决定了"细碎的划痕"还是"成片的脉络"：邻近的粒子只有落在同一个
+  // 噪声特征里才会一起动。隧道里要的是水面上那种成股的纹路，所以频率降到四分之一。
+  float nF = (uRide > 0.5) ? 0.40 : 1.6;
+  float nA = (uRide > 0.5) ? 2.6 : 1.0;
+  vec3 ambient = curlNoise((p - uCenter) / uRadius * nF + 11.0, uTime * 0.12) * uTurb * uRadius * nA;
   vec3 acc = (ambient - vel) * 1.2;
 
   // 2. 手：cross(手速, 相对位置) = 绕着手的运动轴旋转 —— 这是「搅」而不是「吹」
@@ -438,19 +442,26 @@ void main(){
     float outward = smoothstep(1.02, 1.30, r / uRadius);
     acc -= vec3(q.x, 0.0, q.y) / r * outward * 4.5;           // 只在盘外回收
   } else if (uRide > 0.5) {
-    // 隧道里的尘埃：约束在一根沿轨道的圆柱里，整体朝观察者漂 —— 速度感来自它，
-    // 不是来自相机移动（XR 里移动相机会晕）。手照样能搅。
+    // 隧道里的水：贴在壁上流，不是穿过空气飞。手伸进去能把水膜搅开。
     float t   = dot(rel, uRideFwd);
     vec3  lat = rel - uRideFwd * t;
     float lr  = length(lat);
-    // 管道层流：中心快、贴壁慢（抛物线速度剖面），外加一点绕轴的螺旋。
-    // 这是"像水"的关键 —— 各向同性的湍流云怎么调都只是烟，有剪切的层流才是水。
-    float maxR = uRadius * 14.0;
-    if (lr > maxR) acc -= lat / max(lr, 1e-4) * (lr - maxR) * 26.0;
-    float prof = 1.0 - 0.45 * (lr / maxR) * (lr / maxR);      // 泊肃叶剖面
-    vec3 swirl = cross(uRideFwd, lat) / max(lr, 1e-4);        // 绕轴
-    vec3 target = -uRideFwd * (uRideSpeed * prof) + swirl * 0.45;
-    acc += (target - vel) * 3.2;
+    // 水膜：把粒子约束在隧道壁那一层薄膜上，而不是让它们穿过空气。
+    // 壁是个扁椭圆截面（宽 > 高），粒子被拉到 e = 1 这一层，于是"水"自然覆盖隧道。
+    vec3 Rv = normalize(cross(uRideFwd, vec3(0.0, 1.0, 0.0)));   // 右
+    vec3 Uv = cross(Rv, uRideFwd);                               // 上
+    float lx = dot(lat, Rv), ly = dot(lat, Uv);
+    // 范围要小：同样的粒子数摊在越大的面上越像零星的划痕，收到一根贴身的管子上才是水膜
+    float wa = uRadius * 16.0, wb = uRadius * 11.0;
+    float e = sqrt((lx/wa)*(lx/wa) + (ly/wb)*(ly/wb) + 1e-6);
+    vec3 nrm = normalize(Rv * (lx / (wa*wa)) + Uv * (ly / (wb*wb)) + uRideFwd * 1e-5);
+    acc -= nrm * (e - 1.0) * 60.0;                               // 贴壁
+    // 顺流很慢。之前直接用走廊速度，结果只是一片看不清的拉丝 —— 快没有信息量，
+    // 慢下来之后湍流才有时间在壁面上编出脉络，那才是"水"。
+    vec3 swirl = cross(uRideFwd, lat) / max(lr, 1e-4);
+    vec3 target = -uRideFwd * uRideFlow + swirl * 0.55;
+    acc += (target - vel) * 2.6;
+    acc -= Uv * 1.1;                                             // 往低处淌
   } else {
     float dist = length(rel);
     float push = smoothstep(0.78, 1.12, dist / uRadius);
@@ -465,7 +476,7 @@ void main(){
   // 隧道：漂过观察者之后从前方绕回来，尘埃因此永远不会流干
   if (uRide > 0.5) {
     float tz = dot(p - uCenter, uRideFwd);
-    float halfL = uRadius * 26.0;
+    float halfL = uRadius * 20.0;
     if (tz < -halfL) p += uRideFwd * (halfL * 2.0);
   }
 
@@ -488,14 +499,15 @@ void main(){
       }
       p = hp + dir * rr * 0.035;
     } else if (uRide > 0.5) {
-      // 从前方的截面重新流入
-      float a3 = hash11(seed + 9.3) * 6.2831853;
-      float r3 = uRadius * 13.0 * sqrt(hash11(seed + 13.7));
-      vec3 up3 = vec3(0.0, 1.0, 0.0);
-      vec3 rt3 = normalize(cross(uRideFwd, up3));
+      // 从前方的壁面重新流入，角度偏下 —— 水往低处积
+      vec3 rt3 = normalize(cross(uRideFwd, vec3(0.0, 1.0, 0.0)));
       vec3 ub3 = cross(rt3, uRideFwd);
-      p = uCenter + uRideFwd * (uRadius * 26.0)
-        + rt3 * (cos(a3) * r3) + ub3 * (sin(a3) * r3);
+      float v3 = hash11(seed + 9.3) * 2.0 - 1.0;
+      float a3 = -1.5708 + 3.1416 * sign(v3) * pow(abs(v3), 0.7);
+      float k3 = 0.97 + 0.06 * hash11(seed + 13.7);
+      p = uCenter + uRideFwd * (uRadius * 20.0 * (0.6 + 0.4 * hash11(seed + 19.1)))
+        + rt3 * (cos(a3) * uRadius * 16.0 * k3)
+        + ub3 * (sin(a3) * uRadius * 11.0 * k3);
     } else if (uBH > 0.5) {
       float a2 = hash11(seed + 5.1) * 6.2831853;               // 从外缘重新流入
       float r2 = uRadius * (0.42 + 0.62 * hash11(seed + 7.7));   // 铺满整条环带
@@ -828,13 +840,13 @@ layout(location = 1) in vec3 aA;
 layout(location = 2) in vec3 aB;
 layout(location = 3) in vec3 aCol;
 layout(location = 4) in float aW;       // 线宽（米）
-layout(location = 5) in float aWrap;    // >0 = 沿 z 以这个周期无限循环
+layout(location = 5) in float aWrap;    // >0 = 沿 z 以这个周期循环；<0 = 贯穿轨（雾减弱）
 uniform mat4 uProj, uView;
 uniform mat3 uRideM;                    // 轨道空间 → 世界（绕 Y 的朝向）
 uniform vec3 uRideO;                    // 轨道原点 = 进场时头的位置
 uniform float uRideZ, uVpH, uMinPx;
 out vec3 vCol;
-out float vSide, vDist;
+out float vSide, vDist, vFogK;
 void main(){
   if (aW <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vCol = vec3(0.0); vSide = 0.0; vDist = 0.0; return; }
   vec3 a = aA, b = aB;
@@ -857,18 +869,21 @@ void main(){
   float wm = max(aW, uMinPx * dist / (uProj[1][1] * uVpH * 0.5));
   gl_Position = uProj * vec4(Pv + n * wm * aCorner.x, 1.0);
   vCol = aCol; vSide = aCorner.x; vDist = dist;
+  // 贯穿轨吃到的雾只有别人的三分之一 —— 要的就是它能一直延伸到灭点，
+  // 而暗的结构在四十米外就没入黑，于是走廊是一层一层显出来的。
+  vFogK = (aWrap < 0.0) ? 0.30 : 1.0;
 }`;
 
 const FS_LINE = `#version 300 es
 precision highp float;
 in vec3 vCol;
-in float vSide, vDist;
+in float vSide, vDist, vFogK;
 uniform float uFog, uGain;
 out vec4 frag;
 void main(){
   float e = max(0.0, 1.0 - vSide * vSide);
   float core = e * e;                               // 横截面：中间实，边缘化开
-  float fog  = exp(-max(vDist - 1.5, 0.0) * uFog);  // 纵深靠雾，不靠几何
+  float fog  = exp(-max(vDist - 1.5, 0.0) * uFog * vFogK);  // 纵深靠雾，不靠几何
   float near = smoothstep(0.10, 0.55, vDist);       // 穿过身体时不糊脸
   frag = vec4(vCol * core * fog * near * uGain, 1.0);
 }`;
@@ -935,8 +950,11 @@ void main(){
   tint = mix(tint, vec3(1.0), pow(core, 3.0) * 0.6);   // 芯部发白
   // 必须按距离衰减：远处的流线在屏幕上全都汇到灭点那一个点上，密度暴涨，
   // 而线宽有像素下限撑着不会变细 —— 不衰减的话灭点会烧成一坨死白。
-  float fog = exp(-max(vDist - 0.8, 0.0) * uFog);
-  float a = core * vFade * uOpacity * mix(0.5, 2.2, vDry) * fog;
+  float fog  = exp(-max(vDist - 0.8, 0.0) * uFog);
+  // 近处必须淡出：人就站在这根水管里，贴脸的那一圈在屏幕上会糊满整个视野。
+  // 淡掉之后看见的才是"前方和四周的壁上有水"，而不是"脸贴在水幕上"。
+  float near = smoothstep(0.7, 2.4, vDist);
+  float a = core * vFade * uOpacity * mix(0.5, 2.2, vDry) * fog * near;
   frag = vec4(tint * a, 1.0);
 }`;
 
@@ -1312,7 +1330,7 @@ function buildRails() {
     railPos.push([x, y]);
     // 亮度按到中轴的距离递减：底下那三根是主角，顶上的只是暗示空间
     const k = i < 3 ? rnd(4.0, 5.2) : rnd(1.0, 1.8);
-    seg(x, y, -RAIL_FAR, x, y, 60, cc(LASER, k), i < 3 ? 0.028 : 0.014);
+    seg(x, y, -RAIL_FAR, x, y, 60, cc(LASER, k), i < 3 ? 0.013 : 0.008, -1);
   }
 }
 // ── 第二层：横档。轨是静的，速度全靠它们。
@@ -1613,6 +1631,8 @@ function desktopStir(eye, aspect, dt) {
 // ── 每帧 ─────────────────────────────────────────────────────────────────────
 
 let lastT = 0, tSec = 0, frames = 0, fpsAcc = 0, fps = 0;
+let histAcc = 0;
+const HIST_DT = 1 / 42;      // 隧道模式下历史缓冲的写入频率
 
 function simulate(dt) {
   tSec += dt;
@@ -1644,6 +1664,8 @@ function simulate(dt) {
   gl.uniform1f(U.uBH, ST.bh || 0);
   gl.uniform1f(U.uRide, ST.ride || 0);
   gl.uniform1f(U.uRideSpeed, rideSpeed);
+  // 水比走廊慢一个档：结构呼啸而过，水只是在壁上缓缓淌 —— 层次就是这么来的
+  gl.uniform1f(U.uRideFlow, Math.min(3.4, rideSpeed * 0.22 + 0.9));
   gl.uniform3fv(U.uRideFwd, rideFwd);
   gl.uniform1f(U.uRows, ROWS);
   gl.uniformMatrix3fv(U.uRingInv, false, ringInvMats());
@@ -1652,7 +1674,13 @@ function simulate(dt) {
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   cur = 1 - cur;
 
-  // 2) 写进历史环形缓冲的下一个槽位
+  // 2) 写进历史环形缓冲的下一个槽位。
+  // 隧道模式下按固定频率写，而不是每帧写：拖尾的长度 = 速度 × 槽数 × 两次写入的间隔，
+  // 每帧写就意味着 240fps 下的尾巴只有 72Hz 下的三分之一长 —— 桌面上是一地碎划痕，
+  // 头显里才是水。固定频率之后，尾巴长度和帧率无关。
+  histAcc += dt;
+  if (ST.ride && histAcc < HIST_DT) { return; }
+  histAcc = 0;
   head = (head + 1) % SLOTS;
   gl.bindFramebuffer(gl.FRAMEBUFFER, histFbo);
   gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
@@ -1705,8 +1733,11 @@ function drawScene(proj, view, camPos, vpH) {
     gl.uniform1f(L.uVpH, vpH);
     // 雾要弱、增益要高：线是激光，本来就该是 HDR 里过曝的东西。
     // 而且远处的线会被压到一两个像素宽，覆盖率一掉亮度就跟着塌 —— 靠增益补回来。
-    gl.uniform1f(L.uFog, 0.024);
-    gl.uniform1f(L.uGain, 4.0);
+    // 雾要够浓，结构才会"一层一层"从黑里显出来。之前 0.024 等于整条走廊一眼望穿，
+    // 一百米外的东西也照样清楚，纵深和悬念全没了。
+    // 贯穿轨自己亮度高（4~5），同样的雾下仍然能一直延伸到灭点，暗的结构先没入黑。
+    gl.uniform1f(L.uFog, 0.062);
+    gl.uniform1f(L.uGain, 4.6);
     gl.uniform1f(L.uMinPx, 1.7);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, RIDE_TOTAL);
   }
@@ -1727,8 +1758,8 @@ function drawScene(proj, view, camPos, vpH) {
     gl.uniform1f(F.uSize, P.size);
     gl.uniform1f(F.uVpH, vpH);
     gl.uniform1f(F.uDry, P.dry);
-    gl.uniform1f(F.uMinPx, 0.9);
-    gl.uniform1f(F.uFog, 0.42);
+    gl.uniform1f(F.uMinPx, 1.1);
+    gl.uniform1f(F.uFog, 0.19);
     gl.uniform1f(F.uMaxJump, P.radius * 4.0);
     gl.uniform1f(F.uOpacity, P.op);
     gl.uniform3fv(F.uInkCool, ST.cool);
