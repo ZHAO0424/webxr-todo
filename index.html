@@ -388,9 +388,12 @@ vec2 ribbonCenter(float c, float z, float tm){
   // 时间项必须很慢。之前给了 1.15 和 1.9 rad/s，两个频率互相打拍，整道幕会横着
   // 扫屏、还上下交替 —— 而且横向速度会把拖尾拽成斜划痕（拖尾是沿真实轨迹画的）。
   // 现在只留一个 0.16 rad/s 的慢褶皱：形态基本是空间里的，靠水流过去带出运动。
-  float fold = 0.55 * sin(z * 0.13 + tm * 0.16 + ph * 3.1);
-  return vec2(ax * sin(z * 0.075 + ph) + 0.40 * sin(z * 0.021 + ph * 2.1) + fold,
-              ay * sin(z * 0.048 + ph * 1.7) * 0.6);   // 竖向压扁 = 更水平规整
+  // 空间频率要够高，切线才有明显的横向分量。之前 0.075 rad/m 意味着中心线几乎是
+  // 一条直线，它的切线和"直冲相机"没区别 —— 我一度靠放大横向分量来补，但那样算出来的
+  // 方向不再是切线，粒子会顺着它一路滑到侧壁上，水整个跑出视野。让曲线自己弯急就没这问题。
+  float fold = 0.55 * sin(z * 0.30 + tm * 0.16 + ph * 3.1);
+  return vec2(ax * sin(z * 0.20 + ph) + 0.40 * sin(z * 0.06 + ph * 2.1) + fold,
+              ay * sin(z * 0.13 + ph * 1.7) * 0.6);    // 竖向压扁 = 更水平规整
 }`;
 
 const FS_UPDATE = `#version 300 es
@@ -484,7 +487,7 @@ void main(){
     float kx = mix(0.45, 5.0, uRibTight);
     float ky = mix(7.0, 18.0, uRibTight);
     acc += Rv * (cen.x * 0.6 - lx) * kx;
-    float xM = uRadius * 18.0;
+    float xM = uRadius * 14.0;
     if (abs(lx) > xM) acc -= Rv * sign(lx) * (abs(lx) - xM) * 14.0;
     // 每个粒子有自己的一点竖向偏移 —— 这是"不结成粗亮线"的正解。
     // 光把刚度放松只会把幕摊薄到看不见（试过，水直接消失）；给每个粒子一个固定的
@@ -497,13 +500,13 @@ void main(){
     // 流向沿河道的切线，而不是一律朝着相机。一律朝相机的话，投影出来就是从灭点
     // 往外炸的一蓬放射线 —— 每一根都朝同一个方向，看着就是乱，不是流。
     // 沿切线走，尾巴才会贴着帘子的走向铺开，不同位置、不同帘子的方向各不相同。
-    vec2 cN = ribbonCenter(cid, t + uTime * uRideFlow * 0.6 + 0.6, uTime);
-    vec2 dC = (cN - cen) / 0.6;                         // 中心线对 t 的导数
+    vec2 cN = ribbonCenter(cid, t + uTime * uRideFlow * 0.6 + 0.25, uTime);
+    vec2 dC = (cN - cen) / 0.25;                        // 中心线对 t 的导数（弯急了，步长要小）
     // 朝相机 = t 减小，所以方向取负
     // 切向的横向分量要放大：中心线变化很慢（dx/dt≈0.1），照原样算出来的方向和
     // "直冲相机"几乎没区别，投影仍然是一蓬放射线。×6 之后每道帘子、每个位置的
     // 流向都明显不同，尾巴才是顺着帘子铺的，而不是齐刷刷朝一个方向。
-    vec3 flowDir = -normalize(uRideFwd + (Rv * dC.x + Uv * dC.y) * 6.0);
+    vec3 flowDir = -normalize(uRideFwd + (Rv * dC.x + Uv * dC.y) * 2.0);
     acc += (flowDir * uRideFlow - vel) * 4.0;
   } else {
     float dist = length(rel);
@@ -903,7 +906,9 @@ void main(){
   if (aW <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vCol = vec3(0.0); vTun = vec3(0.0); vSide = 0.0; vDist = 0.0; vFogK = 1.0; vBase = 0.0; return; }
   // 横向线是唯一能看出"网格在往你身上推"的东西（纵向线沿自身方向平移，看不出动），
   // 所以给它一个不依赖照明的底亮度；纵向线保持几乎全黑，靠水点亮。
-  vBase = (aWrap > 0.0) ? 0.34 : 0.07;
+  // 纵向线之前底亮度只有 0.07，于是只有被水点亮的中间几根看得见，两边等于没有。
+  // 提到 0.20：整张网横向铺到看不见边，同时仍然明显暗于水。
+  vBase = (aWrap > 0.0) ? 0.34 : 0.20;
   vec3 a = aA, b = aB;
   float dz = uRideZ;
   if (aWrap > 0.0) {                            // 横向线循环：无限长、零 CPU 开销
@@ -1345,15 +1350,15 @@ function updateRingSpin(dt) {
 const rideM   = new Float32Array(9);      // 轨道空间 → 世界；水的横竖基向量要用
 const rideFwd = new Float32Array(3);
 const rideOrigin = new Float32Array([0, 1.25, -0.5]);
-let rideSpeed = 8, rideYaw = 0, rideZ = 0;
+let rideSpeed = 8, rideYaw = 0;
 
 // 网格：纵向线一口气拉到 700 米外（吃弱雾，透视把它压成一个收到灭点的梯形），
 // 横向线按周期循环（负责"网格正在往你身上推"）。一共 76 段，建一次就不再动。
 // 横向也要看不到边：纵向线的间距按几何级数往外排（1.5 / 2.25 / 3.4 … 57.7 米）。
 // 等间距做不到 —— 要铺到六十米外得上百根线；而透视本来就把远处的线挤到地平线附近，
 // 所以越往外就该越疏，几何级数正好和透视抵消，看上去是一张无限大的网。
-const GRID_LAT = [1.5, 2.25, 3.4, 5.1, 7.6, 11.4, 17.1, 25.6, 38.5, 57.7];
-const GRID_LON_F = 1 + 2 * GRID_LAT.length, GRID_LON_C = 1 + 2 * 7;
+const GRID_LAT = [0.9, 1.25, 1.7, 2.35, 3.2, 4.4, 6.1, 8.4, 11.6, 16.0, 22.0, 30.4, 42.0, 58.0];
+const GRID_LON_F = 1 + 2 * GRID_LAT.length, GRID_LON_C = 1 + 2 * 10;
 const GRID_TRA_F = 40, GRID_TRA_C = 20;
 const GRID_N = GRID_LON_F + GRID_LON_C + GRID_TRA_F + GRID_TRA_C;
 const GRID_STRIDE = 11, GRID_FAR = 700;
@@ -1375,7 +1380,7 @@ function buildGrid() {
   for (const d of GRID_LAT) for (const sgn of [-1, 1])        // 地面纵向
     gseg(sgn * d, GRID_FLOOR, -GRID_FAR, sgn * d, GRID_FLOOR, 60, 1.0, 0.010, -1);
   gseg(0, GRID_CEIL, -GRID_FAR, 0, GRID_CEIL, 60, 0.55, 0.008, -1);
-  for (let i = 0; i < 7; i++) for (const sgn of [-1, 1])      // 天花板纵向，稀一些
+  for (let i = 0; i < 10; i++) for (const sgn of [-1, 1])     // 天花板纵向，稀一些
     gseg(sgn * GRID_LAT[i], GRID_CEIL, -GRID_FAR, sgn * GRID_LAT[i], GRID_CEIL, 60, 0.55, 0.008, -1);
   for (let k = 0; k < GRID_TRA_F; k++)                        // 地面横向，循环
     gseg(-GRID_HALF, GRID_FLOOR, -k * GRID_TRA_S, GRID_HALF, GRID_FLOOR, -k * GRID_TRA_S,
@@ -1431,7 +1436,7 @@ function nextAct() {
 }
 
 function initRide() {
-  act.t = 0; rideZ = 0; nextAct();
+  act.t = 0; nextAct();
   buildGrid();
   rideOrigin[0] = C[0]; rideOrigin[1] = C[1]; rideOrigin[2] = C[2];
   setRideAxis(rideYaw);
@@ -1444,10 +1449,6 @@ function updateRide(dt) {
   for (let i = 0; i < MAX_STIR; i++) if (stirW[i] > 0) grab = Math.max(grab, stirGrab[i]);
   const target = P.speed * act.speed * (1 - 0.75 * grab);   // 握拳 = 刹车
   rideSpeed += (target - rideSpeed) * Math.min(1, dt * 1.6);
-  rideZ += rideSpeed * dt;
-  // rideZ 不能无限长：float32 到几千米之后开始丢精度，网格会抖。
-  // 越过一个完整周期就折回来，视觉上完全等价。
-  if (rideZ > GRID_PERIOD) rideZ -= GRID_PERIOD;
 }
 
 let idleT = 0;                             // 距上次真实输入的秒数
@@ -1676,7 +1677,9 @@ function drawScene(proj, view, camPos, vpH) {
     gl.uniformMatrix4fv(L.uView, false, view);
     gl.uniformMatrix3fv(L.uRideM, false, rideM);
     gl.uniform3fv(L.uRideO, rideOrigin);
-    gl.uniform1f(L.uRideZ, rideZ);
+    // 网格是固定的：不跟着推进走。照明用的是 uRibTime，光斑照样会沿着这张静止的
+    // 网扫过去 —— 静止的网 + 移动的光，比整张网一起平移更能看出"水在流"。
+    gl.uniform1f(L.uRideZ, 0.0);
     gl.uniform1f(L.uVpH, vpH);
     gl.uniform1f(L.uFog, 0.055);
     gl.uniform1f(L.uGain, 0.85);     // 网格是背景，必须明显暗于水
