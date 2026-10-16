@@ -200,17 +200,17 @@ const worldMat = new THREE.ShaderMaterial({
       bg = mix(bg, ridgeFar, smoothstep(r1 + 0.004, r1 - 0.004, el));
       bg = mix(bg, ridgeNear, smoothstep(r2 + 0.003, r2 - 0.003, el));
       if (u > 0.0 && u < 1.0 && v > -0.7 && v < 1.0) {
-        vec3 pc = texture2D(tPaint, vec2(u, max(v, 0.012))).rgb;
+        vec3 pc = texture2D(tPaint, vec2(u, max(v, 0.045))).rgb;   // 照片最下面 4% 是画框的暗边，不用
         // 画的下边以下：他站的那块岩石继续往下、往雾里去——用程序岩石接上画底那一行的颜色，剪影越往下越收
         float below = smoothstep(0.0, -0.7, v);
         vec3 rockP = vec3(0.085, 0.072, 0.06) * (0.6 + 0.8 * fbm(vec2(u * 90.0, v * 70.0))) * (0.8 + 0.4 * smoothstep(0.45, 0.55, vnoise(vec2(u * 14.0 + v * 3.0, v * 60.0))));
-        pc = mix(pc, rockP, smoothstep(0.004, -0.006, v));
+        pc = mix(pc, rockP, smoothstep(0.045, 0.035, v));
         // 雾的遮罩用模糊过的颜色（mip 3），边缘是羽化的，岩石不会被切出硬边
-        mask = fogMask(texture2D(tPaint, vec2(u, max(v, 0.012)), 3.0).rgb, max(v, 0.012)) * (1.0 - smoothstep(0.0, -0.06, v));
+        mask = fogMask(texture2D(tPaint, vec2(u, max(v, 0.045)), 3.0).rgb, max(v, 0.045)) * (1.0 - smoothstep(0.045, -0.02, v));
         // 画边融进画外（6° 内）；下边以下只有中间的岩石那一段延伸，宽度带噪声地收窄
         float edge = smoothstep(0.0, 0.1, u) * smoothstep(1.0, 0.9, u) * smoothstep(1.0, 0.96, v);
         float hw = mix(0.46, 0.16, below) + 0.05 * (vnoise(vec2(v * 9.0, 3.0)) - 0.5);
-        edge = mix(edge, smoothstep(hw, hw - 0.08, abs(u - 0.5)), smoothstep(0.0, -0.05, v));
+        edge = mix(edge, smoothstep(hw, hw - 0.08, abs(u - 0.5)), smoothstep(0.04, -0.02, v));
         inPic = edge;
         bg = mix(bg, pc, edge);
         // 画里不是雾的地方（岩石、人、山脊）：雾只能走到画幕为止
