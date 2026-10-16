@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lashed to the Mast</title>
+<style>
+  :root { --fog: #b9b3a3; --ink: #2a2620; --rust: #8a4a2a; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #3a3730; color: #f0ebdf; font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; }
+  canvas { display: block; }
+  #intro { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; transition: opacity 2s;
+    background: radial-gradient(ellipse at 60% 40%, rgba(235,228,210,.55), rgba(58,55,48,.97) 70%); }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  .card { max-width: 600px; background: rgba(40,37,32,.82); padding: 28px 32px; line-height: 1.85; font-size: 15px; border-left: 3px solid #d8d0bc; }
+  .kicker { font-family: system-ui, sans-serif; font-size: 12px; letter-spacing: .26em; color: #b9b2a0; }
+  h1 { font-size: 38px; margin: 6px 0 0; font-weight: 500; letter-spacing: .06em; }
+  h2 { font-size: 15px; margin: 0 0 18px; font-weight: 400; font-style: italic; color: #c9c1ad; }
+  p { margin: 0 0 12px; color: #e6e0d2; }
+  blockquote { margin: 18px 0; padding-left: 14px; border-left: 2px solid var(--rust); color: #f1e6cf; }
+  blockquote small { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: #a9a290; margin-top: 4px; }
+  #enter { margin-top: 6px; background: #e8e1cf; color: var(--ink); border: 0; padding: 10px 30px; font-size: 15px; letter-spacing: .3em; cursor: pointer; font-family: inherit; }
+  #enter:disabled { opacity: .5; cursor: default; }
+  .how { font-family: system-ui, sans-serif; font-size: 12px; color: #a9a290; margin-top: 14px; line-height: 1.7; }
+  #hud { position: fixed; left: 16px; bottom: 16px; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.7; color: #f0ebdf; background: rgba(40,37,32,.72); padding: 8px 12px; opacity: 0; transition: opacity 2s; width: 300px; max-width: calc(100% - 32px); box-sizing: border-box; border-left: 3px solid #d8d0bc; }
+  #hud.on { opacity: 1; }
+  #meter { height: 5px; background: rgba(255,255,255,.12); margin: 6px 0; }
+  #meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #d8d0bc, #8a4a2a); }
+  #hud button { background: none; border: 1px solid #8a8370; color: #f0ebdf; border-radius: 3px; cursor: pointer; font-size: 11px; padding: 1px 8px; margin-left: 6px; }
+  #quote { position: fixed; left: 50%; top: 8%; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); box-sizing: border-box; text-align: center; font-size: 18px; line-height: 1.7; background: rgba(40,37,32,.8); padding: 14px 20px; border-top: 3px solid var(--rust); opacity: 0; transition: opacity 3s; pointer-events: none; }
+  #quote.on { opacity: 1; }
+  #quote small { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: #a9a290; margin-top: 6px; }
+  #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
+  #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="intro">
+  <div class="card">
+    <div class="kicker">SPATIAL REINTERPRETATION · AFTER J. M. W. TURNER, SNOW STORM – STEAM-BOAT OFF A HARBOUR'S MOUTH (1842)</div>
+    <h1>被绑在桅杆上</h1>
+    <h2>Lashed to the Mast</h2>
+    <p>据说透纳为了画这场暴风雪，让水手把自己绑在桅杆上四个小时。这个故事多半是传说，但画是真的：船、海、雪、烟都被卷进同一个漩涡，没有一样东西轮廓清楚，只有光从风暴的中心透出来。</p>
+    <p>这里，整幅画是一片真正在流动的流体。它在你四周缓慢旋转，像风暴的眼。<b>伸出手去搅动它</b>：颜料会被拉成丝、卷成涡、和雪混在一起，船消失在风里。你一停手，风暴慢慢记起自己原来的样子，画又从漩涡里浮现出来。</p>
+    <blockquote>"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"<small>— 透纳谈《暴风雪》，据罗斯金记述（被绑桅杆的故事多被认为是传说）</small></blockquote>
+    <button id="enter" disabled>载入中…</button>
+    <div class="how">XR：在面前挥手、划圈，手掠过的地方就是风；手柄同样可以<br>桌面：按住鼠标拖动搅动<br>建议戴耳机</div>
+  </div>
+</div>
+<div id="hud">风暴强度<button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>挥手搅动风暴；停下来，画会慢慢浮现</div>
+<div id="quote">"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"<small>— 透纳，据罗斯金记述</small></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+THREE.ColorManagement.enabled = false;
+const $ = id => document.getElementById(id);
+const DEG = Math.PI / 180;
+const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+const clamp01 = x => Math.max(0, Math.min(1, x));
+
+// ---------- 场景尺寸：一面弧形的大幕，包住你前方 140°，上下约 ±42° ----------
+const EYE = new THREE.Vector3(0, 1.5, 0);
+// 一块球面：左右 200°、上下 ±75°（200:150 正好是画的 4:3），从里面看，前方整个半球都在画里
+const R = 3.2, ARC = 200 * DEG, VSPAN = 150 * DEG;
+const ASPECT = 1920 / 1443;
+const HGT = R * 2;                                   // 只给雪的高度范围用
+const VORTEX = new THREE.Vector2(0.62, 0.56);       // 风暴的眼：桅杆后面那团光
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.02, 100);
+camera.position.copy(EYE);
+renderer.setClearColor(0x3a3730, 1);
+
+// ---------- 流体（Stable Fluids）：速度场 + 压力投影 + 染料平流 ----------
+const SIM_W = 256, SIM_H = Math.round(256 / ASPECT);
+const DYE_W = 1280, DYE_H = Math.round(1280 / ASPECT);
+const rtOpts = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false, wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping };
+const mkRT = (w, h, filter = THREE.LinearFilter) => new THREE.WebGLRenderTarget(w, h, { ...rtOpts, minFilter: filter, magFilter: filter });
+const pair = (w, h, f) => ({ read: mkRT(w, h, f), write: mkRT(w, h, f), swap() { const t = this.read; this.read = this.write; this.write = t; } });
+const vel = pair(SIM_W, SIM_H), dye = pair(DYE_W, DYE_H), pres = pair(SIM_W, SIM_H, THREE.NearestFilter);
+const divRT = mkRT(SIM_W, SIM_H, THREE.NearestFilter), curlRT = mkRT(SIM_W, SIM_H, THREE.NearestFilter);
+
+const quadScene = new THREE.Scene(), quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+quadScene.add(quad);
+const VS = `varying vec2 vUv; varying vec2 vL, vR, vT, vB; uniform vec2 texel;
+  void main(){ vUv = uv; vL = uv - vec2(texel.x, 0.); vR = uv + vec2(texel.x, 0.); vT = uv + vec2(0., texel.y); vB = uv - vec2(0., texel.y); gl_Position = vec4(position.xy, 0., 1.); }`;
+const pass = (fs, uniforms) => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: fs, uniforms: { texel: { value: new THREE.Vector2(1 / SIM_W, 1 / SIM_H) }, ...uniforms }, depthTest: false, depthWrite: false });
+function run(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(quadScene, quadCam); }
+
+const M = {
+  copy: pass(`uniform sampler2D src; varying vec2 vUv; void main(){ gl_FragColor = texture2D(src, vUv); }`, { src: { value: null } }),
+  advect: pass(`uniform sampler2D vel, src; uniform float dt, diss; uniform vec2 velTexel; varying vec2 vUv;
+    void main(){ vec2 v = texture2D(vel, vUv).xy; vec2 p = vUv - dt * v * velTexel;   // 速度单位是"模拟格子/秒"
+      gl_FragColor = texture2D(src, p) * diss; }`, { vel: { value: null }, src: { value: null }, dt: { value: 0.016 }, diss: { value: 1 }, velTexel: { value: new THREE.Vector2(1 / SIM_W, 1 / SIM_H) } }),
+  curl: pass(`uniform sampler2D vel; varying vec2 vL, vR, vT, vB;
+    void main(){ float L = texture2D(vel, vL).y, R = texture2D(vel, vR).y, T = texture2D(vel, vT).x, B = texture2D(vel, vB).x; gl_FragColor = vec4(0.5 * (R - L - T + B), 0., 0., 1.); }`, { vel: { value: null } }),
+  vort: pass(`uniform sampler2D vel, curl; uniform float strength, dt; varying vec2 vUv, vL, vR, vT, vB;
+    void main(){ float L = texture2D(curl, vL).x, R = texture2D(curl, vR).x, T = texture2D(curl, vT).x, B = texture2D(curl, vB).x, C = texture2D(curl, vUv).x;
+      vec2 f = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L)); f /= length(f) + 1e-4; f *= strength * C; f.y *= -1.0;
+      vec2 v = texture2D(vel, vUv).xy + f * dt; gl_FragColor = vec4(clamp(v, -1000.0, 1000.0), 0., 1.); }`, { vel: { value: null }, curl: { value: null }, strength: { value: 22 }, dt: { value: 0.016 } }),
+  div: pass(`uniform sampler2D vel; varying vec2 vUv, vL, vR, vT, vB;
+    void main(){ float L = texture2D(vel, vL).x, R = texture2D(vel, vR).x, T = texture2D(vel, vT).y, B = texture2D(vel, vB).y; vec2 C = texture2D(vel, vUv).xy;
+      if (vL.x < 0.) L = -C.x; if (vR.x > 1.) R = -C.x; if (vT.y > 1.) T = -C.y; if (vB.y < 0.) B = -C.y;
+      gl_FragColor = vec4(0.5 * (R - L + T - B), 0., 0., 1.); }`, { vel: { value: null } }),
+  pres: pass(`uniform sampler2D p, d; varying vec2 vUv, vL, vR, vT, vB;
+    void main(){ float L = texture2D(p, vL).x, R = texture2D(p, vR).x, T = texture2D(p, vT).x, B = texture2D(p, vB).x, D = texture2D(d, vUv).x;
+      gl_FragColor = vec4((L + R + B + T - D) * 0.25, 0., 0., 1.); }`, { p: { value: null }, d: { value: null } }),
+  grad: pass(`uniform sampler2D p, vel; varying vec2 vUv, vL, vR, vT, vB;
+    void main(){ float L = texture2D(p, vL).x, R = texture2D(p, vR).x, T = texture2D(p, vT).x, B = texture2D(p, vB).x;
+      vec2 v = texture2D(vel, vUv).xy - vec2(R - L, T - B); gl_FragColor = vec4(v, 0., 1.); }`, { p: { value: null }, vel: { value: null } }),
+  scale: pass(`uniform sampler2D src; uniform float k; varying vec2 vUv; void main(){ gl_FragColor = texture2D(src, vUv) * k; }`, { src: { value: null }, k: { value: 0.8 } }),
+  // 风暴本身：绕着风暴的眼慢慢转，外圈快、眼里静；再加一点随时间漂移的阵风
+  storm: pass(`uniform sampler2D vel; uniform vec2 eye; uniform float t, dt, amp, aspect; varying vec2 vUv;
+    void main(){ vec2 d = (vUv - eye) * vec2(aspect, 1.0); float r = length(d) + 1e-4;
+      vec2 tang = vec2(-d.y, d.x) / r;
+      float prof = r / (0.12 + r * r * 3.0);                       // 眼里静，外圈转
+      vec2 gust = vec2(sin(vUv.y * 7.0 + t * 0.4), cos(vUv.x * 5.0 - t * 0.3)) * 0.35;
+      vec2 inward = -d / r * 0.15;                                  // 一点点往眼里收，像漩涡
+      vec2 v = texture2D(vel, vUv).xy + (tang * prof + gust + inward) * amp * dt;
+      gl_FragColor = vec4(v, 0., 1.); }`, { vel: { value: null }, eye: { value: VORTEX }, t: { value: 0 }, dt: { value: 0.016 }, amp: { value: 18 }, aspect: { value: ASPECT } }),
+  splat: pass(`uniform sampler2D src; uniform vec2 point; uniform vec3 val; uniform float radius, aspect; varying vec2 vUv;
+    void main(){ vec2 d = (vUv - point) * vec2(aspect, 1.0); float g = exp(-dot(d, d) / radius);
+      gl_FragColor = vec4(texture2D(src, vUv).xyz + val * g, 1.); }`, { src: { value: null }, point: { value: new THREE.Vector2() }, val: { value: new THREE.Vector3() }, radius: { value: 0.002 }, aspect: { value: ASPECT } }),
+  // 记忆：染料慢慢回到原画，被搅得越乱回得越慢一点
+  memory: pass(`uniform sampler2D src, paint, vel; uniform float k; varying vec2 vUv;
+    void main(){ vec4 c = texture2D(src, vUv), p = texture2D(paint, vUv); float sp = length(texture2D(vel, vUv).xy);
+      float kk = k / (1.0 + sp * 0.04); gl_FragColor = vec4(mix(c.rgb, p.rgb, kk), 1.); }`, { src: { value: null }, paint: { value: null }, vel: { value: null }, k: { value: 0.01 } }),
+};
+for (const m of Object.values(M)) m.uniforms.texel.value.set(1 / SIM_W, 1 / SIM_H);
+
+let paintTex = null;
+function stepFluid(dt, t) {
+  const rt = renderer.getRenderTarget(), xrOn = renderer.xr.enabled;
+  renderer.xr.enabled = false;
+  // 风暴持续地转
+  M.storm.uniforms.vel.value = vel.read.texture; M.storm.uniforms.t.value = t; M.storm.uniforms.dt.value = dt;
+  M.storm.uniforms.amp.value = 6 + 8 * storm;                     // 平静时只是缓慢地转
+  run(M.storm, vel.write); vel.swap();
+  // 手留下的风
+  for (const s of splats) {
+    M.splat.uniforms.src.value = vel.read.texture; M.splat.uniforms.point.value.copy(s.p);
+    M.splat.uniforms.val.value.set(s.v.x, s.v.y, 0); M.splat.uniforms.radius.value = s.r;
+    run(M.splat, vel.write); vel.swap();
+    // 雪：手掠过的地方带进一点白
+    M.splat.uniforms.src.value = dye.read.texture; M.splat.uniforms.val.value.set(0.012, 0.012, 0.011).multiplyScalar(Math.min(1, s.v.length() / 400));
+    M.splat.uniforms.radius.value = s.r * 0.6;
+    run(M.splat, dye.write); dye.swap();
+  }
+  splats.length = 0;
+  M.curl.uniforms.vel.value = vel.read.texture; run(M.curl, curlRT);
+  M.vort.uniforms.vel.value = vel.read.texture; M.vort.uniforms.curl.value = curlRT.texture; M.vort.uniforms.dt.value = dt;
+  M.vort.uniforms.strength.value = 4 + 14 * storm;                   // 涡度增强只在风大时开，平静时不起碎卷边
+  run(M.vort, vel.write); vel.swap();
+  M.div.uniforms.vel.value = vel.read.texture; run(M.div, divRT);
+  M.scale.uniforms.src.value = pres.read.texture; M.scale.uniforms.k.value = 0.8; run(M.scale, pres.write); pres.swap();
+  M.pres.uniforms.d.value = divRT.texture;
+  for (let i = 0; i < 20; i++) { M.pres.uniforms.p.value = pres.read.texture; run(M.pres, pres.write); pres.swap(); }
+  M.grad.uniforms.p.value = pres.read.texture; M.grad.uniforms.vel.value = vel.read.texture; run(M.grad, vel.write); vel.swap();
+  // 平流：速度、染料
+  M.advect.uniforms.dt.value = dt; M.advect.uniforms.vel.value = vel.read.texture;
+  M.advect.uniforms.src.value = vel.read.texture; M.advect.uniforms.diss.value = 1 / (1 + dt * (1.4 - 0.9 * storm)); run(M.advect, vel.write); vel.swap();
+  M.advect.uniforms.vel.value = vel.read.texture;
+  M.advect.uniforms.src.value = dye.read.texture; M.advect.uniforms.diss.value = 1; run(M.advect, dye.write); dye.swap();
+  // 记忆
+  M.memory.uniforms.src.value = dye.read.texture; M.memory.uniforms.paint.value = paintTex; M.memory.uniforms.vel.value = vel.read.texture;
+  M.memory.uniforms.k.value = 1 - Math.exp(-dt * (0.7 - 0.5 * storm));   // 风停了记得快，风大时几乎记不起来
+  run(M.memory, dye.write); dye.swap();
+  renderer.xr.enabled = xrOn;
+  renderer.setRenderTarget(rt);
+  screenMat.uniforms.dye.value = dye.read.texture;
+  screenMat.uniforms.vel.value = vel.read.texture;
+  snowMat.uniforms.vel.value = vel.read.texture;
+}
+
+// ---------- 大幕：弧面上画染料；油画颜料的厚度由亮度梯度给出浮雕光 ----------
+// SphereGeometry 的 phi 从 +x 起转；正前方（-z）是 phi = -90°。theta 从头顶量起
+const screenGeo = new THREE.SphereGeometry(R, 200, 120, -Math.PI / 2 - ARC / 2, ARC, Math.PI / 2 - VSPAN / 2, VSPAN);
+
+// 画面之外的颜色：把方向换算回画面坐标，夹在画面里取样、越往外取得越模糊，最后溶进整幅画的平均雾色。
+// 大幕边缘和外面的雾用的是同一个函数，所以交界处颜色完全连续，看不到分界。
+const SURROUND = `
+  uniform sampler2D dye;
+  vec3 surround(vec3 d) {
+    d = normalize(d);
+    float th = atan(d.x, -d.z), el = asin(clamp(d.y, -1.0, 1.0));
+    vec2 uv = vec2(0.5 + th / ${ARC.toFixed(5)}, 0.5 + el / ${VSPAN.toFixed(5)});
+    float outD = length(max(vec2(0.0), abs(uv - 0.5) - 0.5));
+    vec2 c = clamp(uv, 0.04, 0.96);
+    float r = 0.025 + outD * 0.35;
+    vec3 acc = texture2D(dye, c).rgb;
+    for (int i = 0; i < 8; i++) {
+      float a = float(i) * 0.785398;
+      acc += texture2D(dye, clamp(c + vec2(cos(a), sin(a)) * r * vec2(0.75, 1.0), 0.0, 1.0)).rgb;
+    }
+    acc /= 9.0;
+    vec3 fogC = vec3(0.56, 0.54, 0.49) * (0.92 + 0.12 * smoothstep(-0.5, 0.6, d.y));
+    // 头顶、脚下附近方位角收成一点，取样会拉出放射纹：越靠近两极越早溶进雾里
+    float pole = smoothstep(0.95, 1.3, abs(el));
+    return mix(acc, fogC, max(smoothstep(0.0, 0.7, outD), pole));
+  }`;
+const screenMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  uniforms: { dye: { value: null }, vel: { value: null }, texel: { value: new THREE.Vector2(1 / DYE_W, 1 / DYE_H) }, uT: { value: 0 }, storm: { value: 0 }, fog: { value: new THREE.Color(0.55, 0.53, 0.48) } },
+  vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = vec2(1.0 - uv.x, uv.y); vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: SURROUND + `uniform sampler2D vel; uniform vec2 texel; uniform float uT, storm; uniform vec3 fog; varying vec2 vUv; varying vec3 vW;
+    float lum(vec3 c){ return dot(c, vec3(0.3, 0.59, 0.11)); }
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main(){
+      vec3 c = texture2D(dye, vUv).rgb;
+      // 颜料厚度：亮的地方厚（透纳的白是厚涂的），用亮度梯度做浮雕
+      float hl = lum(texture2D(dye, vUv - vec2(texel.x * 1.5, 0.)).rgb), hr = lum(texture2D(dye, vUv + vec2(texel.x * 1.5, 0.)).rgb);
+      float hb = lum(texture2D(dye, vUv - vec2(0., texel.y * 1.5)).rgb), ht = lum(texture2D(dye, vUv + vec2(0., texel.y * 1.5)).rgb);
+      vec3 n = normalize(vec3((hl - hr) * 3.0, (hb - ht) * 3.0, 1.0));
+      float light = 0.86 + 0.3 * dot(n, normalize(vec3(-0.4, 0.6, 0.7)));
+      c *= light;
+      // 画布纹理
+      float weave = 0.97 + 0.03 * sin(vUv.x * 3200.0) * sin(vUv.y * 2400.0) + 0.02 * (hash(floor(vUv * vec2(1800., 1350.))) - 0.5);
+      c *= weave;
+      // 风越大越亮：风暴中心的光被搅出来
+      float sp = length(texture2D(vel, vUv).xy);
+      c += vec3(0.95, 0.92, 0.85) * smoothstep(60.0, 260.0, sp) * 0.12;
+      // 边缘溶进雾里
+      vec2 bd = min(vUv, 1.0 - vUv);
+      float elv = abs(asin(clamp(normalize(vW - vec3(${EYE.x.toFixed(3)}, ${EYE.y.toFixed(3)}, ${EYE.z.toFixed(3)})).y, -1.0, 1.0)));
+      float edge = smoothstep(0.0, 0.14, bd.x) * smoothstep(0.0, 0.16, bd.y) * (1.0 - smoothstep(0.9, 1.25, elv));   // 越靠近头顶脚下越早交给雾
+      c = mix(surround(vW - vec3(${EYE.x.toFixed(3)}, ${EYE.y.toFixed(3)}, ${EYE.z.toFixed(3)})), c, edge);   // 和外面的雾用同一个圆心算方向
+      gl_FragColor = vec4(c, 1.);
+    }`,
+});
+const screen = new THREE.Mesh(screenGeo, screenMat);
+screen.position.copy(EYE);
+scene.add(screen);
+// 四周的雾：从画面边缘的颜色往外渐变
+const dome = new THREE.Mesh(new THREE.SphereGeometry(30, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, uniforms: { dye: screenMat.uniforms.dye },
+  vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: SURROUND + `varying vec3 vP; void main(){ gl_FragColor = vec4(surround(vP), 1.); }`,
+}));
+dome.position.copy(EYE);
+scene.add(dome);
+
+// ---------- 雪：漂在你和画之间，被流体的速度场带着走 ----------
+const SNOW_N = 9000;
+const snowGeo = new THREE.BufferGeometry();
+const sp0 = new Float32Array(SNOW_N * 3), sSeed = new Float32Array(SNOW_N);
+for (let i = 0; i < SNOW_N; i++) {
+  const th = rand(-ARC / 2, ARC / 2), rr = rand(0.7, R - 0.15), y = Math.asin(rand(-0.92, 0.92));   // y 存的是仰角
+  sp0.set([th, y, rr], i * 3); sSeed[i] = Math.random();
+}
+snowGeo.setAttribute('position', new THREE.BufferAttribute(sp0, 3));
+snowGeo.setAttribute('aSeed', new THREE.BufferAttribute(sSeed, 1));
+const snowMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  uniforms: { vel: { value: null }, uT: { value: 0 }, uPx: { value: innerHeight }, eye: { value: EYE }, storm: { value: 0 } },
+  vertexShader: `attribute float aSeed; uniform sampler2D vel; uniform float uT, uPx, storm; uniform vec3 eye; varying float vA;
+    void main(){
+      // 雪片自己在环形的弧带里绕着风暴的眼飘（解析的，不用逐帧积分），再被画面的流速推一下
+      float th = position.x, y = position.y, rr = position.z;
+      float speed = 0.05 + 0.12 * aSeed;
+      float ph = uT * speed * (1.0 + 1.5 * storm) + aSeed * 40.0;
+      th = ${(-ARC / 2).toFixed(4)} + mod(th - ${(-ARC / 2).toFixed(4)} + ph * 0.6, ${ARC.toFixed(4)});
+      y += sin(ph * 2.0 + aSeed * 9.0) * 0.12 - mod(uT * (0.03 + 0.04 * aSeed) + aSeed * 7.0, 1.0) * 0.25 + 0.12;
+      y = clamp(y, -1.3, 1.3);
+      vec2 uv = vec2(0.5 + th / ${ARC.toFixed(4)}, 0.5 + y / ${VSPAN.toFixed(4)});
+      vec2 v = texture2D(vel, uv).xy;
+      th += v.x * 0.0007; y += v.y * 0.0007;
+      vec3 p = eye + rr * vec3(cos(y) * sin(th), sin(y), -cos(y) * cos(th));
+      vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
+      float size = 0.012 + 0.012 * fract(aSeed * 13.0);
+      gl_PointSize = clamp(size * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.0, 22.0);
+      vA = (0.12 + 0.38 * storm) * smoothstep(0.7, 1.2, rr) * (0.5 + 0.5 * fract(aSeed * 7.0)) * step(fract(aSeed * 3.3), 0.35 + 0.65 * storm);   // 平静时雪少而淡
+    }`,
+  fragmentShader: `varying float vA; void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard; gl_FragColor = vec4(vec3(0.95, 0.94, 0.9) * vA * smoothstep(0.5, 0.0, d), 1.); }`,
+});
+const snow = new THREE.Points(snowGeo, snowMat);
+snow.frustumCulled = false;
+scene.add(snow);
+
+// ---------- 输入：手 / 手柄 / 鼠标 → 画面上的风 ----------
+const splats = [];
+let storm = 0, stirEnergy = 0;
+function dirToUV(dir) {                  // 从眼睛出发的方向 → 球面上的 uv（方位角、仰角线性展开）
+  const d = dir.clone().normalize();
+  const th = Math.atan2(d.x, -d.z), el = Math.asin(Math.max(-1, Math.min(1, d.y)));
+  return new THREE.Vector2(0.5 + th / ARC, 0.5 + el / VSPAN);
+}
+const prevUV = [null, null, null];
+function addStir(slot, uv, dt) {
+  const prev = prevUV[slot];
+  prevUV[slot] = uv;
+  if (!prev || uv.x < -0.1 || uv.x > 1.1 || uv.y < -0.1 || uv.y > 1.1) return;
+  const dv = uv.clone().sub(prev).divideScalar(Math.max(dt, 1e-3));   // uv/s
+  const speed = dv.length();
+  if (speed < 0.03) return;
+  const v = new THREE.Vector2(dv.x * SIM_W, dv.y * SIM_H).multiplyScalar(0.5);   // 格子/s（调小过：手一挥不要整幅画都碎掉）
+  splats.push({ p: uv, v, r: 0.0009 + Math.min(0.0025, speed * 0.0012) });
+  stirEnergy += Math.min(3, speed) * dt * 0.8;
+}
+const hands = [0, 1].map(i => { const h = renderer.xr.getHand(i); scene.add(h); return h; });
+const ctrls = [0, 1].map(i => { const c = renderer.xr.getController(i); scene.add(c); return c; });
+const tmp = new THREE.Vector3(), eyeW = new THREE.Vector3();
+function xrInput(dt) {
+  renderer.xr.getCamera().getWorldPosition(eyeW);
+  for (let i = 0; i < 2; i++) {
+    const j = hands[i].joints, palm = j && j['middle-finger-metacarpal'];
+    let p = null;
+    if (palm && palm.visible) p = palm.getWorldPosition(tmp);
+    else if (ctrls[i].visible) p = ctrls[i].getWorldPosition(tmp);
+    if (!p) { prevUV[i] = null; continue; }
+    // 从头看出去穿过手的方向
+    addStir(i, dirToUV(p.clone().sub(eyeW).normalize()), dt);
+  }
+}
+let mouseDown = false;
+const mouseNDC = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+renderer.domElement.addEventListener('pointerdown', e => { mouseDown = true; prevUV[2] = null; });
+addEventListener('pointerup', () => { mouseDown = false; prevUV[2] = null; });
+addEventListener('pointermove', e => mouseNDC.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1));
+function mouseInput(dt) {
+  if (!mouseDown) return;
+  raycaster.setFromCamera(mouseNDC, camera);
+  addStir(2, dirToUV(raycaster.ray.direction), dt);
+}
+
+// ---------- 声音：风（滤波噪声）+ 低沉的海；搅得越猛，风声越尖、越大 ----------
+let audio = null, muted = false;
+function startAudio() {
+  if (audio) { audio.ctx.resume(); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+  master.gain.linearRampToValueAtTime(muted ? 0 : 0.6, ctx.currentTime + 4);
+  const buf = ctx.createBuffer(2, ctx.sampleRate * 4, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const mk = (type, f, q, g) => {
+    const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.start(0, Math.random() * 3);
+    const flt = ctx.createBiquadFilter(); flt.type = type; flt.frequency.value = f; flt.Q.value = q;
+    const gn = ctx.createGain(); gn.gain.value = g; s.connect(flt).connect(gn).connect(master); return { flt, gn };
+  };
+  const wind = mk('bandpass', 500, 1.2, 0.12), howl = mk('bandpass', 900, 8, 0.02), sea = mk('lowpass', 180, 0.7, 0.35);
+  audio = { ctx, master, wind, howl, sea };
+}
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.6, audio.ctx.currentTime, 0.3); };
+
+// ---------- XR 展签 ----------
+const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.height = 520;
+const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
+plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
+scene.add(plaque);
+(function () {
+  const g = plaqueC.getContext('2d');
+  g.fillStyle = '#2a2620'; g.fillRect(0, 0, 1024, 520);
+  g.fillStyle = '#d8d0bc'; g.fillRect(0, 0, 10, 520);
+  g.fillStyle = '#a9a290'; g.font = '22px system-ui'; g.fillText("AFTER TURNER · SNOW STORM – STEAM-BOAT OFF A HARBOUR'S MOUTH · 1842", 44, 66);
+  g.fillStyle = '#f0ebdf'; g.font = '54px serif'; g.fillText('被绑在桅杆上  Lashed to the Mast', 44, 140);
+  g.font = '30px serif'; g.fillStyle = '#e6e0d2';
+  ['整幅画是一片流体，在你四周缓慢旋转。', '伸出手搅动它，画被风暴卷走；', '停下来，风暴慢慢记起原来的样子。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  g.fillStyle = '#d8b48a'; g.font = 'italic 25px serif'; g.fillText('"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"', 44, 470);
+  plaque.material.map.needsUpdate = true;
+})();
+
+// ---------- 进入 ----------
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+vrBtn.style.display = arBtn.style.display = 'none';
+document.body.append(vrBtn, arBtn);
+for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
+let quoteShown = false;
+$('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
+renderer.xr.addEventListener('sessionstart', () => {
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  dome.visible = opaque; plaque.visible = true;
+  renderer.setClearColor(0x3a3730, opaque ? 1 : 0);
+});
+renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x3a3730, 1); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+// 载入画：同时作为染料的初始值和"记忆"
+new THREE.TextureLoader().loadAsync('data/snow-storm/color.jpg').then(t => {
+  t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  paintTex = t;
+  const rt = renderer.getRenderTarget();
+  M.copy.uniforms.src.value = t; run(M.copy, dye.read); run(M.copy, dye.write);
+  renderer.setRenderTarget(rt);
+  $('enter').disabled = false; $('enter').textContent = '进入';
+}).catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+
+window.__state = () => ({ storm, stirEnergy });
+window.__stir = (u, v, du, dv) => splats.push({ p: new THREE.Vector2(u, v), v: new THREE.Vector2(du, dv), r: 0.003 });
+
+function xrPixelHeight() {
+  const layer = renderer.xr.getBaseLayer && renderer.xr.getBaseLayer();
+  let h = layer && (layer.framebufferHeight || layer.textureHeight);
+  if (!h) { const cam = renderer.xr.getCamera(); h = cam.cameras && cam.cameras[0] && cam.cameras[0].viewport && cam.cameras[0].viewport.w; }
+  return h || renderer.domElement.height;
+}
+const clock = new THREE.Clock();
+let time = 0;
+const look = new THREE.Vector2();
+renderer.setAnimationLoop(() => {
+  const realDt = clock.getDelta(), dt = Math.min(realDt, 1 / 30);   // 手速用真实时间算，掉帧时不会被放大
+  time += dt;
+  if (renderer.xr.isPresenting) xrInput(realDt); else mouseInput(realDt);
+  // 风暴强度：搅动累积，慢慢平息
+  stirEnergy *= Math.exp(-dt * 0.5);
+  storm += (clamp01(stirEnergy) - storm) * Math.min(1, dt * 2);
+  $('lvl').style.width = `${storm * 100}%`;
+  if (storm > 0.7 && !quoteShown) { quoteShown = true; setTimeout(() => { $('quote').classList.add('on'); setTimeout(() => $('quote').classList.remove('on'), 10000); }, 4000); }
+  screenMat.uniforms.storm.value = storm; snowMat.uniforms.storm.value = storm;
+  snowMat.uniforms.uT.value = time; screenMat.uniforms.uT.value = time;
+  if (paintTex) stepFluid(dt, time);
+  if (audio) {
+    const at = audio.ctx.currentTime;
+    audio.wind.gn.gain.setTargetAtTime(0.08 + 0.35 * storm, at, 0.3);
+    audio.wind.flt.frequency.setTargetAtTime(380 + 900 * storm, at, 0.3);
+    audio.howl.gn.gain.setTargetAtTime(0.01 + 0.08 * storm * storm, at, 0.3);
+    audio.howl.flt.frequency.setTargetAtTime(700 + 600 * storm + 120 * Math.sin(time * 0.7), at, 0.2);
+  }
+  if (!renderer.xr.isPresenting) {
+    look.lerp(mouseDown ? look : mouseNDC, 0.02);
+    camera.rotation.set(look.y * 40 * DEG, -look.x * 80 * DEG, 0, 'YXZ');
+    if (window.__camOverride) camera.rotation.set(window.__camOverride.pitch * DEG, -window.__camOverride.yaw * DEG, 0, 'YXZ');   // 测试用
+  }
+  snowMat.uniforms.uPx.value = renderer.xr.isPresenting ? xrPixelHeight() : renderer.domElement.height;
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

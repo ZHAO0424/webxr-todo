@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To Reach a Star</title>
+<style>
+  :root { --ink: #0a1230; --gold: #f2c94c; --paper: #efe6cf; }
+  html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; color: var(--paper); font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; }
+  canvas { display: block; }
+  #intro { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 60% 30%, rgba(30,50,110,.55), rgba(5,8,22,.96) 70%); transition: opacity 1.6s; z-index: 5; padding: 16px; box-sizing: border-box; }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  .card { max-width: 620px; line-height: 1.85; font-size: 15px; }
+  .card .kicker { letter-spacing: .3em; font-size: 12px; color: #9fb0d8; font-family: system-ui, sans-serif; }
+  .card h1 { font-size: 40px; margin: 6px 0 2px; font-weight: 500; letter-spacing: .04em; }
+  .card h2 { font-size: 15px; margin: 0 0 22px; font-weight: 400; color: #b9c4e4; font-style: italic; }
+  .card p { margin: 0 0 14px; color: #dcd5c2; }
+  .card blockquote { margin: 22px 0; padding-left: 16px; border-left: 2px solid var(--gold); color: #f4e6b8; }
+  .card blockquote small { display: block; color: #9fb0d8; margin-top: 4px; font-size: 12px; font-family: system-ui, sans-serif; }
+  .card button { margin-top: 10px; background: transparent; color: var(--gold); border: 1px solid var(--gold); padding: 10px 28px; font-size: 15px; letter-spacing: .2em; cursor: pointer; font-family: inherit; }
+  .card button:hover { background: rgba(242,201,76,.12); }
+  .how { font-family: system-ui, sans-serif; font-size: 12px; color: #8d9ac0; margin-top: 18px; line-height: 1.7; }
+  #hud { position: fixed; left: 16px; bottom: 16px; font-family: system-ui, sans-serif; font-size: 12px; color: #aab6da; opacity: 0; transition: opacity 2s; line-height: 1.7; max-width: 360px; }
+  #hud.on { opacity: 1; }
+  #hud b { color: var(--gold); font-weight: 500; }
+  #hud button { background: none; border: 1px solid #556; color: #aab6da; border-radius: 4px; cursor: pointer; font-size: 11px; padding: 2px 8px; margin-left: 6px; }
+  #finale { position: fixed; left: 50%; top: 14%; transform: translateX(-50%); text-align: center; font-size: 20px; color: #f7e7b0; opacity: 0; transition: opacity 3s; pointer-events: none; text-shadow: 0 0 18px rgba(0,0,0,.8); padding: 0 16px; width: min(640px, calc(100% - 32px)); box-sizing: border-box; }
+  #finale.on { opacity: 1; }
+  #finale small { display: block; font-size: 12px; color: #9fb0d8; margin-top: 6px; font-family: system-ui, sans-serif; }
+  #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
+  #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="intro">
+  <div class="card">
+    <div class="kicker">SPATIAL REINTERPRETATION · AFTER VAN GOGH, THE STARRY NIGHT (1889)</div>
+    <h1>去往星星</h1>
+    <h2>To Reach a Star</h2>
+    <p>1889 年 6 月，梵高在圣雷米疗养院的窗前画下《星月夜》。天空在翻卷，村庄却安静地睡着；一株柏树像一团黑色的火焰，从大地伸向星辰。</p>
+    <p>这件作品不复制那张画。它把画里的三股力量拆开，放进你面前的空间：<b>动荡的天空</b>、<b>沉睡的村庄</b>、<b>向上燃烧的柏树</b>。天空由一万多道会流动的笔触构成——你的手势会搅动它，那是画家内心的风暴；当你指向一颗星并捏合，一束金色笔触会沿着柏树升起，去往那颗星，村里也会多亮起一盏灯。所有星星都被抵达之后，天空会慢慢平静下来。</p>
+    <blockquote>“就像我们乘火车去塔拉斯孔或鲁昂，我们乘死亡去往一颗星星。”<small>— 梵高致提奥，阿尔勒，1888 年 7 月（Letter 638）</small></blockquote>
+    <button id="enter">进入</button>
+    <div class="how">桌面：移动鼠标搅动天空 · 点击星星<br>XR：挥手搅动天空 · 用射线指向星星后扣扳机 / 捏合<br>建议戴耳机</div>
+  </div>
+</div>
+<div id="hud"><b id="count">0 / 11</b> 颗星已抵达<button id="mute">静音</button><br>移动 / 挥手搅动天空，指向星星并点击 / 捏合</div>
+<div id="finale">“我们乘死亡去往一颗星星。”<small>所有星星都已抵达。天空正在平静下来。</small></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+// 所有颜色按"画布上的颜料值"原样输出，不做线性/sRGB 换算
+THREE.ColorManagement.enabled = false;
+
+const DEG = Math.PI / 180;
+const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+const pick = arr => arr[(Math.random() * arr.length) | 0];
+const EYE = new THREE.Vector3(0, 1.5, 0);
+
+// ---------- 基础 ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.02, 100);
+camera.position.copy(EYE);
+
+// 整个作品挂在眼睛高度的原点上；天空里的东西用 (θ 方位, φ 仰角, r 距离) 摆放
+const world = new THREE.Group();
+world.position.copy(EYE);
+scene.add(world);
+function sph(th, ph, r, out = new THREE.Vector3()) {
+  const c = Math.cos(ph);
+  return out.set(r * c * Math.sin(th), r * Math.sin(ph), -r * c * Math.cos(th));
+}
+
+// ---------- 颜料 ----------
+const hex = h => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; };
+const PAL = {
+  sky:      ['#1b2a6b', '#22357e', '#2b4c9b', '#3a5fae', '#1f3f85', '#2f5596', '#4a74c4'].map(hex),
+  skyLight: ['#5d86c7', '#7fa6d6', '#6b9bc9', '#9dbbdc', '#4f7fb8'].map(hex),
+  spiral:   ['#c8d8e6', '#a9c4dd', '#7fa6d6', '#e3ead8', '#5f8f9a', '#8fb7c4', '#d6e2c8'].map(hex),
+  star:     ['#f4e04d', '#fff5b0', '#f7e98a', '#e8d84a', '#fdfbe0', '#cfe0a0'].map(hex),
+  starEdge: ['#9fc0b0', '#b9d39a', '#7fa6d6', '#c9d98a'].map(hex),
+  moon:     ['#f2b33d', '#f4d03f', '#e8962e', '#ffe680', '#f7c95a'].map(hex),
+  horizon:  ['#6f93c4', '#8fb0d6', '#5c86a8', '#9bb8c9'].map(hex),
+  hillDark: ['#1d3150', '#24405e', '#2d4a6b', '#1f3a4a', '#2c4f5c'].map(hex),
+  cypress:  ['#060b08', '#0a120d', '#102016', '#1a2e1f', '#23331d', '#2e2a18', '#0e1626'].map(hex),
+  cypEdge:  ['#3b4a2c', '#1d2c4c', '#4a5530', '#2c4a3c', '#5a4a26'].map(hex),
+  gold:     ['#f4d03f', '#ffe680', '#f2b33d', '#fff3c4', '#ffd75e'].map(hex),
+};
+
+// ---------- 笔触渲染：每道笔触是一个朝向相机的细长四边形，两端收尖、带鬃毛缝 ----------
+const strokeVS = /* glsl */`
+  attribute vec3 iPos, iDir, iColor;
+  attribute vec2 iSize;
+  attribute float iFade, iSeed;
+  varying vec2 vUv; varying vec3 vColor; varying float vSeed;
+  void main() {
+    vec3 wp = (modelMatrix * vec4(iPos, 1.0)).xyz;
+    vec3 wd = normalize(mat3(modelMatrix) * iDir);
+    vec3 side = normalize(cross(wd, normalize(cameraPosition - wp)) + 1e-5);
+    wp += wd * position.x * iSize.x * iFade + side * position.y * iSize.y * mix(0.5, 1.0, iFade);
+    gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+    vUv = uv; vColor = iColor; vSeed = iSeed;
+  }
+`;
+const strokeFS = /* glsl */`
+  varying vec2 vUv; varying vec3 vColor; varying float vSeed;
+  uniform float uGlow;
+  float hash(float n) { return fract(sin(n) * 43758.5453); }
+  void main() {
+    float x = vUv.x, y = vUv.y * 2.0 - 1.0;
+    float w = pow(sin(x * 3.14159), 0.55);              // 落笔、收笔两端收尖
+    if (abs(y) > w) discard;
+    float lane = floor(vUv.y * 7.0);
+    float bristle = hash(lane * 3.1 + vSeed * 91.7);    // 每一缕鬃毛的颜料浓淡
+    if (bristle < 0.14 && x > 0.35) discard;           // 笔尾干了，露出缝
+    vec3 c = vColor * (0.8 + 0.32 * bristle) * (1.05 - 0.15 * x);
+    gl_FragColor = vec4(c * (1.0 + uGlow), 1.0);
+  }
+`;
+class Strokes {
+  constructor(n, glow = 0) {
+    this.n = n;
+    const g = new THREE.InstancedBufferGeometry();
+    const quad = new THREE.PlaneGeometry(1, 1);
+    g.index = quad.index;
+    g.setAttribute('position', quad.attributes.position);
+    g.setAttribute('uv', quad.attributes.uv);
+    const A = (k, size) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(n * size), size); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(k, a); return a; };
+    this.aPos = A('iPos', 3); this.aDir = A('iDir', 3); this.aCol = A('iColor', 3);
+    this.aSize = A('iSize', 2); this.aFade = A('iFade', 1); this.aSeed = A('iSeed', 1);
+    for (let i = 0; i < n; i++) this.aSeed.array[i] = Math.random();
+    g.instanceCount = n;
+    this.mat = new THREE.ShaderMaterial({ vertexShader: strokeVS, fragmentShader: strokeFS, uniforms: { uGlow: { value: glow } }, side: THREE.DoubleSide });
+    this.mesh = new THREE.Mesh(g, this.mat);
+    this.mesh.frustumCulled = false;
+  }
+  set(i, p, d, fade) {
+    this.aPos.array.set([p.x, p.y, p.z], i * 3);
+    this.aDir.array.set([d.x, d.y, d.z], i * 3);
+    this.aFade.array[i] = fade;
+  }
+  color(i, c) { this.aCol.array.set(c, i * 3); }
+  size(i, len, wid) { this.aSize.array[i * 2] = len; this.aSize.array[i * 2 + 1] = wid; }
+  flush() { for (const a of [this.aPos, this.aDir, this.aCol, this.aSize, this.aFade]) a.needsUpdate = true; }
+}
+
+// ---------- 夜空背景（VR / 桌面；AR 时隐藏，笔触直接漂在真实房间里）----------
+const dome = new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false,
+  vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: `varying vec3 vP; void main(){
+    float h = vP.y;
+    vec3 top = vec3(0.04,0.07,0.19), hor = vec3(0.10,0.17,0.36), low = vec3(0.02,0.03,0.08);
+    vec3 c = h > 0.0 ? mix(hor, top, pow(h, 0.6)) : mix(hor, low, pow(-h, 0.4));
+    gl_FragColor = vec4(c, 1.0); }`,
+}));
+world.add(dome);
+
+// ---------- 星与月：画中的 11 颗星（按原作构图换算成方位/仰角）----------
+const STARS = [
+  [-19, 21, 1.6], [-14.5, 23, 1.4], [-8, 22, 1.6], [-11.5, 14.5, 2.0], [-3, 20, 1.5], [1.5, 23, 1.4],
+  [7, 20, 1.8], [10.5, 14.5, 2.2], [-6, 8.5, 2.8], [-17.5, 10.5, 2.0], [3.5, 12, 1.6],
+].map(([th, ph, ring], i) => ({ i, th: th * DEG, ph: ph * DEG, ring: ring * DEG, r: rand(5.2, 7.5), reached: false, flash: 0, hover: 0 }));
+const MOON = { th: 17 * DEG, ph: 19 * DEG, ring: 3.6 * DEG, r: 7 };
+
+function glowTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+function moonTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f6c443'; g.beginPath(); g.arc(128, 128, 70, 0, Math.PI * 2); g.fill();
+  g.globalCompositeOperation = 'destination-out';
+  g.beginPath(); g.arc(160, 108, 66, 0, Math.PI * 2); g.fill();
+  return new THREE.CanvasTexture(c);
+}
+const GLOW = glowTexture();
+const sprite = (color, scale, opacity = 1, map = GLOW) => {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
+  s.scale.setScalar(scale); return s;
+};
+for (const st of STARS) {
+  st.pos = sph(st.th, st.ph, st.r);
+  st.core = sprite(0xfff6c8, st.r * 0.022);
+  st.halo = sprite(0xe9d860, st.r * 0.075, 0.35);
+  st.core.position.copy(st.pos); st.halo.position.copy(st.pos);
+  world.add(st.halo, st.core);
+}
+MOON.pos = sph(MOON.th, MOON.ph, MOON.r);
+const moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonTexture(), transparent: true, depthWrite: false }));
+moonSprite.scale.setScalar(MOON.r * 0.075); moonSprite.position.copy(MOON.pos);
+const moonHalo = sprite(0xf2a83a, MOON.r * 0.16, 0.4); moonHalo.position.copy(MOON.pos);
+world.add(moonHalo, moonSprite);
+
+// ---------- 天空的流场：缓慢翻卷的风带 + 中央两个咬合的大漩涡 + 每颗星周围的同心环 ----------
+const VORT = [];
+const addV = (th, ph, R, s) => VORT.push({ th, ph, R, W: R * 0.7, s, reach2: (R * 2.6) ** 2 });
+addV(-2 * DEG, 15.5 * DEG, 5.5 * DEG, 0.032);
+addV(4.5 * DEG, 13 * DEG, 3.4 * DEG, -0.026);
+STARS.forEach((s, i) => addV(s.th, s.ph, s.ring, (i % 2 ? 1 : -1) * 0.016));
+addV(MOON.th, MOON.ph, MOON.ring, 0.02);
+
+const IMP = [];          // 手势留下的冲量：{th, ph, vth, vph, rad, life}
+let energy = 0;          // 搅动累积的"内心风暴"
+let calm = 1;            // 基线动荡，星星被抵达后逐步降低
+const F = [0, 0];
+function field(th, ph, t) {
+  let u = -0.011 + 0.004 * Math.sin(ph * 22 + t * 0.3);
+  let v = 0.007 * Math.sin(th * 9 - t * 0.45) * (ph > 0.06 ? 1 : 0.25);
+  for (const o of VORT) {
+    const dx = th - o.th, dy = ph - o.ph, d2 = dx * dx + dy * dy;
+    if (d2 > o.reach2) continue;
+    const d = Math.sqrt(d2) + 1e-6, q = (d - o.R) / o.W, g = Math.exp(-q * q);
+    const tang = o.s * (0.3 + g) * Math.min(1, d / (o.R * 0.5));
+    const pull = -(d - o.R) * 0.7 * g;
+    u += (-dy * tang + dx * pull) / d;
+    v += (dx * tang + dy * pull) / d;
+  }
+  for (const m of IMP) {
+    const dx = th - m.th, dy = ph - m.ph, w = Math.exp(-(dx * dx + dy * dy) / (m.rad * m.rad)) * m.life;
+    if (w < 0.01) continue;
+    u += m.vth * w - dy * m.spin * w; v += m.vph * w + dx * m.spin * w;
+  }
+  F[0] = u; F[1] = v;
+}
+
+// ---------- 天空笔触 ----------
+const SKY_N = 15000;
+const sky = new Strokes(SKY_N);
+world.add(sky.mesh);
+const S = { th: new Float32Array(SKY_N), ph: new Float32Array(SKY_N), r: new Float32Array(SKY_N), life: new Float32Array(SKY_N), max: new Float32Array(SKY_N) };
+const SPIRALS = [VORT[0], VORT[1]];
+function spawnSky(i, initial) {
+  const roll = Math.random();
+  let th, ph, r, col;
+  if (roll < 0.34) {                       // 星/月周围的同心环
+    const isMoon = Math.random() < 0.12;
+    const st = isMoon ? MOON : pick(STARS);
+    const a = rand(0, Math.PI * 2), k = rand(0.35, 1.7), rr = st.ring * k;
+    th = st.th + Math.cos(a) * rr; ph = st.ph + Math.sin(a) * rr;
+    r = st.r + rand(-0.5, 0.5);
+    col = isMoon ? pick(PAL.moon) : (k < 1.05 ? pick(PAL.star) : pick(PAL.starEdge));
+  } else if (roll < 0.52) {                // 中央大漩涡
+    const o = pick(SPIRALS), a = rand(0, Math.PI * 2), rr = o.R * rand(0.2, 1.5);
+    th = o.th + Math.cos(a) * rr; ph = o.ph + Math.sin(a) * rr;
+    r = rand(5.5, 8); col = pick(PAL.spiral);
+  } else {                                 // 大片夜空
+    th = rand(-40, 40) * DEG; ph = rand(-1, 36) * DEG; r = rand(4.5, 9.5);
+    col = ph < 5 * DEG ? pick(PAL.horizon) : (Math.random() < 0.18 ? pick(PAL.skyLight) : pick(PAL.sky));
+  }
+  S.th[i] = th; S.ph[i] = ph; S.r[i] = r;
+  S.max[i] = rand(2.5, 6); S.life[i] = initial ? rand(0, S.max[i]) : 0;
+  sky.color(i, col);
+  const k = rand(0.7, 1.3);
+  sky.size(i, r * 0.024 * k, r * 0.0058 * k);
+}
+for (let i = 0; i < SKY_N; i++) spawnSky(i, true);
+
+const tP = new THREE.Vector3(), tD = new THREE.Vector3(), eT = new THREE.Vector3(), eP = new THREE.Vector3();
+function updateSky(dt, t, turb) {
+  for (let i = 0; i < SKY_N; i++) {
+    let th = S.th[i], ph = S.ph[i];
+    field(th, ph, t);
+    const u = F[0] * turb + (Math.random() - 0.5) * 0.02 * energy, v = F[1] * turb + (Math.random() - 0.5) * 0.02 * energy;
+    th += u * dt; ph += v * dt;
+    S.th[i] = th; S.ph[i] = ph;
+    const life = (S.life[i] += dt);
+    if (life > S.max[i] || th < -44 * DEG || th > 44 * DEG || ph < -3 * DEG || ph > 40 * DEG) { spawnSky(i, false); continue; }
+    const r = S.r[i];
+    sph(th, ph, r, tP);
+    // 切向：沿流动方向摆放笔触
+    const cp = Math.cos(ph), sp = Math.sin(ph), ct = Math.cos(th), st = Math.sin(th);
+    eT.set(ct, 0, st); eP.set(-sp * st, cp, sp * ct);
+    tD.copy(eT).multiplyScalar(u * cp).addScaledVector(eP, v);
+    if (tD.lengthSq() < 1e-12) tD.copy(eT);
+    tD.normalize();
+    const f = Math.sin(Math.PI * life / S.max[i]);
+    // 边缘羽化：越靠外笔触越短越稀，天空没有一条硬边
+    const edge = Math.min(1, (44 * DEG - Math.abs(th)) / (16 * DEG), (40 * DEG - ph) / (14 * DEG));
+    sky.set(i, tP, tD, Math.min(1, f * 1.6) * Math.max(0, edge));
+  }
+  sky.flush();
+}
+
+// ---------- 远山 ----------
+const hill = thd => -1.2 + 1.7 * Math.sin(thd * 0.11 + 1.2) + 0.8 * Math.sin(thd * 0.29 + 0.4);
+const HILL_N = 3800;
+const hills = new Strokes(HILL_N);
+world.add(hills.mesh);
+const H = { th: new Float32Array(HILL_N), ph: new Float32Array(HILL_N), r: new Float32Array(HILL_N), life: new Float32Array(HILL_N), max: new Float32Array(HILL_N), sp: new Float32Array(HILL_N) };
+function spawnHill(i, initial) {
+  const thd = rand(-38, 38), top = hill(thd), depth = Math.pow(Math.random(), 0.7) * 9;
+  H.th[i] = thd * DEG; H.ph[i] = (top - depth) * DEG; H.r[i] = rand(8, 10);
+  H.sp[i] = (Math.random() < 0.5 ? -1 : 1) * rand(0.002, 0.006);
+  H.max[i] = rand(4, 9); H.life[i] = initial ? rand(0, H.max[i]) : 0;
+  hills.color(i, depth < 0.7 ? pick(PAL.horizon) : pick(PAL.hillDark));
+  hills.size(i, rand(0.16, 0.26), rand(0.04, 0.06));
+}
+for (let i = 0; i < HILL_N; i++) spawnHill(i, true);
+function updateHills(dt) {
+  for (let i = 0; i < HILL_N; i++) {
+    const life = (H.life[i] += dt);
+    if (life > H.max[i]) { spawnHill(i, false); continue; }
+    const th = (H.th[i] += H.sp[i] * dt), thd = th / DEG;
+    const slope = hill(thd + 0.5) - hill(thd - 0.5);        // 顺着山脊线的起伏摆笔
+    sph(th, H.ph[i], H.r[i], tP);
+    sph(th + 0.01, H.ph[i] + slope * 0.01, H.r[i], tD);
+    tD.sub(tP).normalize();
+    hills.set(i, tP, tD, Math.min(1, Math.sin(Math.PI * life / H.max[i]) * 1.8));
+  }
+  hills.flush();
+}
+
+// ---------- 村庄：低矮、安静；教堂尖顶是画里另一根竖线 ----------
+const village = new THREE.Group();
+world.add(village);
+const WINDOWS = [];
+const houseMats = ['#1f2b52', '#26345e', '#2c3a63', '#3a3a4a', '#4a4030'].map(c => new THREE.MeshBasicMaterial({ color: c }));
+const roofMats = ['#121a36', '#1a2446', '#3a2e22', '#2a3550'].map(c => new THREE.MeshBasicMaterial({ color: c }));
+function addHouse(thd, phd, r, w, h, church = false) {
+  const g = new THREE.Group();
+  sph(thd * DEG, phd * DEG, r, g.position);
+  g.rotation.y = -thd * DEG;   // 正面（+z）朝向观众
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.8), pick(houseMats));
+  body.position.y = h / 2; g.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.75, church ? h * 1.8 : h * 0.55, 4), pick(roofMats));
+  roof.rotation.y = Math.PI / 4; roof.position.y = h + (church ? h * 0.9 : h * 0.27); g.add(roof);
+  const nWin = church ? 2 : (Math.random() < 0.6 ? 1 : 2);
+  for (let k = 0; k < nWin; k++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.16, h * 0.22), new THREE.MeshBasicMaterial({ color: 0x2a2a20 }));
+    m.position.set((nWin === 1 ? 0 : (k - 0.5) * w * 0.45), h * 0.45, w * 0.401);
+    g.add(m);
+    const glow = sprite(0xffc95a, w * 0.9, 0); glow.position.copy(m.position).add(new THREE.Vector3(0, 0, 0.02)); g.add(glow);
+    WINDOWS.push({ m, glow, lit: false, level: 0 });
+  }
+  village.add(g);
+}
+for (let k = 0; k < 16; k++) addHouse(rand(-15, 22), rand(-5.2, -2.6), rand(5.6, 6.6), rand(0.22, 0.4), rand(0.14, 0.26));
+addHouse(3, -3.4, 6.0, 0.32, 0.5, true);
+WINDOWS.sort(() => Math.random() - 0.5);
+for (let k = 0; k < 3; k++) WINDOWS[k].lit = true;   // 夜里本来就亮着的几盏
+
+// ---------- 柏树：一团向上燃烧的暗色火焰，连接大地和星空 ----------
+const CYP = { x: -0.95, y: -1.45, z: -3.0, H: 2.55 };
+const CYP_N = 5200;
+const cyp = new Strokes(CYP_N);
+world.add(cyp.mesh);
+const C = { t: new Float32Array(CYP_N), a: new Float32Array(CYP_N), b: new Float32Array(CYP_N), top: new Float32Array(CYP_N), sp: new Float32Array(CYP_N), ph: new Float32Array(CYP_N) };
+const cypW = t => 0.4 * Math.pow(1 - t, 0.75) * (0.85 + 0.15 * Math.sin(t * 11)) + 0.015;
+function spawnCyp(i, initial) {
+  const a = rand(-1, 1), b = rand(-1, 1);
+  C.a[i] = a; C.b[i] = b;
+  C.top[i] = Math.min(1, (1 - 0.5 * Math.pow(Math.abs(a), 1.4)) * rand(0.85, 1.05));   // 中间的火舌最高
+  C.t[i] = initial ? rand(0, C.top[i]) : rand(0, 0.25);
+  C.sp[i] = rand(0.05, 0.11); C.ph[i] = rand(0, Math.PI * 2);
+  cyp.color(i, Math.abs(a) > 0.82 ? pick(PAL.cypEdge) : pick(PAL.cypress));
+  cyp.size(i, rand(0.08, 0.13), rand(0.022, 0.032));
+}
+for (let i = 0; i < CYP_N; i++) spawnCyp(i, true);
+function cypPoint(i, t, time, wob, out) {
+  const w = cypW(t);
+  return out.set(
+    CYP.x + w * C.a[i] + 0.075 * Math.sin(t * 8 + C.ph[i] + time * 1.1) * (0.35 + t) * wob,
+    CYP.y + t * CYP.H,
+    CYP.z + w * C.b[i] * 0.7 + 0.04 * Math.cos(t * 6 + C.ph[i] + time * 0.8) * wob,
+  );
+}
+const tQ = new THREE.Vector3();
+function updateCyp(dt, time, turb) {
+  const wob = 0.7 + 0.5 * turb;
+  for (let i = 0; i < CYP_N; i++) {
+    const t = (C.t[i] += C.sp[i] * dt * (0.6 + 0.4 * turb));
+    if (t > C.top[i]) { spawnCyp(i, false); continue; }
+    cypPoint(i, t, time, wob, tP);
+    cypPoint(i, t + 0.012, time, wob, tQ);
+    tD.copy(tQ).sub(tP).normalize();
+    const f = Math.min(1, Math.min(t / 0.05, (C.top[i] - t) / 0.08));
+    cyp.set(i, tP, tD, Math.max(0, f));
+  }
+  cyp.flush();
+}
+
+// ---------- 金色笔触流：从柏树顶端出发，去往被选中的星 ----------
+const GOLD_N = 1600;
+const gold = new Strokes(GOLD_N, 0.25);
+world.add(gold.mesh);
+const G = { on: new Uint8Array(GOLD_N), t: new Float32Array(GOLD_N), sp: new Float32Array(GOLD_N), star: new Int16Array(GOLD_N), ox: new Float32Array(GOLD_N), oy: new Float32Array(GOLD_N), oz: new Float32Array(GOLD_N) };
+const flights = [];   // {star, left, acc}
+const CYP_TOP = new THREE.Vector3(CYP.x, CYP.y + CYP.H * 0.97, CYP.z);
+const b0 = new THREE.Vector3(), b1 = new THREE.Vector3(), b2 = new THREE.Vector3(), b3 = new THREE.Vector3();
+function bezier(t, st, out) {
+  b0.copy(CYP_TOP); b3.copy(st.pos);
+  b1.copy(b0).add(new THREE.Vector3(0.15, 1.3, 0.1));
+  b2.copy(b3).add(new THREE.Vector3(0, -1.6, 1.2));
+  const s = 1 - t;
+  return out.set(0, 0, 0).addScaledVector(b0, s * s * s).addScaledVector(b1, 3 * s * s * t).addScaledVector(b2, 3 * s * t * t).addScaledVector(b3, t * t * t);
+}
+for (let i = 0; i < GOLD_N; i++) gold.set(i, tP.set(0, -99, 0), tD.set(1, 0, 0), 0);
+let goldCursor = 0;
+function updateGold(dt) {
+  for (const f of flights) {
+    f.acc += dt * 140;
+    while (f.acc > 1 && f.left > 0) {
+      f.acc -= 1; f.left--;
+      const i = goldCursor = (goldCursor + 1) % GOLD_N;
+      G.on[i] = 1; G.t[i] = 0; G.sp[i] = rand(0.28, 0.42); G.star[i] = f.star.i;
+      G.ox[i] = rand(-1, 1); G.oy[i] = rand(-1, 1); G.oz[i] = rand(-1, 1);
+      gold.color(i, pick(PAL.gold)); gold.size(i, rand(0.09, 0.15), rand(0.022, 0.032));
+    }
+  }
+  for (let k = flights.length - 1; k >= 0; k--) if (flights[k].left <= 0) flights.splice(k, 1);
+  for (let i = 0; i < GOLD_N; i++) {
+    if (!G.on[i]) continue;
+    const st = STARS[G.star[i]];
+    const t = (G.t[i] += G.sp[i] * dt);
+    if (t >= 1) { G.on[i] = 0; gold.set(i, tP.set(0, -99, 0), tD.set(1, 0, 0), 0); st.flash = Math.min(1.5, st.flash + 0.012); continue; }
+    bezier(t, st, tP); bezier(Math.min(1, t + 0.01), st, tQ);
+    tD.copy(tQ).sub(tP).normalize();
+    const spread = Math.sin(Math.PI * t) * 0.35;
+    tP.x += G.ox[i] * spread; tP.y += G.oy[i] * spread * 0.6; tP.z += G.oz[i] * spread;
+    gold.set(i, tP, tD, Math.min(1, Math.sin(Math.PI * t) * 2));
+  }
+  gold.flush();
+}
+
+// ---------- 声音：低沉的和弦铺底（随天空的动荡变亮），抵达一颗星时响一声 ----------
+let audio = null, muted = false;
+const PENTA = [622.25, 698.46, 783.99, 932.33, 1046.5, 1244.5, 1396.9, 1568, 1864.7, 2093, 2489];
+function startAudio() {
+  if (audio) { audio.ctx.resume(); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+  master.gain.linearRampToValueAtTime(muted ? 0 : 0.16, ctx.currentTime + 5);
+  const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 420; filter.connect(master);
+  [155.56, 233.08, 311.13, 392.0].forEach((f, i) => {
+    for (const det of [-7, 7]) {
+      const o = ctx.createOscillator(); o.type = i < 2 ? 'sawtooth' : 'triangle'; o.frequency.value = f; o.detune.value = det;
+      const g = ctx.createGain(); g.gain.value = i < 2 ? 0.045 : 0.07;
+      o.connect(g).connect(filter); o.start();
+    }
+  });
+  const delay = ctx.createDelay(); delay.delayTime.value = 0.42;
+  const fb = ctx.createGain(); fb.gain.value = 0.5;
+  delay.connect(fb).connect(delay); delay.connect(master);
+  audio = { ctx, master, filter, delay };
+}
+function chime(n, gain = 0.22) {
+  if (!audio || muted) return;
+  const { ctx } = audio, t = ctx.currentTime;
+  const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = PENTA[n % PENTA.length];
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0008, t + 3.5);
+  o.connect(g); g.connect(audio.master); g.connect(audio.delay);
+  o.start(t); o.stop(t + 3.6);
+}
+$('mute').onclick = () => {
+  muted = !muted; $('mute').textContent = muted ? '开声音' : '静音';
+  if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.16, audio.ctx.currentTime, 0.3);
+};
+function $(id) { return document.getElementById(id); }
+
+// ---------- 展签（XR 里放在左下方一臂内）----------
+const plaqueCanvas = document.createElement('canvas'); plaqueCanvas.width = 1024; plaqueCanvas.height = 600;
+const plaqueTex = new THREE.CanvasTexture(plaqueCanvas);
+const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.211), new THREE.MeshBasicMaterial({ map: plaqueTex, transparent: true }));
+sph(-17 * DEG, -15 * DEG, 0.95, plaque.position);
+plaque.lookAt(0, 0, 0);
+plaque.visible = false;   // 桌面有 HTML 导览卡，展签只在 XR 里出现
+world.add(plaque);
+function wrap(g, text, x, y, maxW, lh) {
+  let line = '';
+  for (const ch of text) {
+    if (g.measureText(line + ch).width > maxW) { g.fillText(line, x, y); line = ch; y += lh; } else line += ch;
+  }
+  g.fillText(line, x, y); return y + lh;
+}
+let reachedCount = 0;
+function drawPlaque() {
+  const g = plaqueCanvas.getContext('2d');
+  g.clearRect(0, 0, 1024, 600);
+  g.fillStyle = 'rgba(12,16,34,0.88)'; g.fillRect(0, 0, 1024, 600);
+  g.strokeStyle = 'rgba(242,201,76,0.6)'; g.lineWidth = 3; g.strokeRect(10, 10, 1004, 580);
+  g.fillStyle = '#9fb0d8'; g.font = '22px system-ui'; g.fillText('AFTER VAN GOGH · THE STARRY NIGHT · 1889', 44, 62);
+  g.fillStyle = '#efe6cf'; g.font = '56px serif'; g.fillText('去往星星  To Reach a Star', 44, 136);
+  g.fillStyle = '#d5cdb8'; g.font = '28px serif';
+  let y = wrap(g, '天空是画家内心的风暴，村庄是安静的人间，柏树是通往星辰的火焰。挥手搅动天空；用射线指向一颗星，扣扳机或捏合，送一束金色笔触去往那里。', 44, 196, 936, 42);
+  g.fillStyle = '#f4e6b8'; g.font = 'italic 30px serif';
+  y = wrap(g, '“我们乘死亡去往一颗星星。”—— 致提奥，1888（Letter 638）', 44, y + 18, 936, 42);
+  g.fillStyle = '#f2c94c'; g.font = '30px system-ui';
+  g.fillText(reachedCount === STARS.length ? '所有星星都已抵达 · 天空正在平静' : `已抵达 ${reachedCount} / ${STARS.length}`, 44, 560);
+  plaqueTex.needsUpdate = true;
+}
+drawPlaque();
+
+// ---------- 抵达一颗星 ----------
+function reach(st) {
+  if (st.reached) { st.flash = 1; chime(st.i + 2, 0.12); return; }
+  st.reached = true;
+  flights.push({ star: st, left: 260, acc: 0 });
+  chime(st.i); setTimeout(() => chime(st.i + 2, 0.15), 380);
+  reachedCount++;
+  const w = WINDOWS.find(w => !w.lit); if (w) setTimeout(() => { w.lit = true; }, 2600);
+  calm = Math.max(0.4, 1 - reachedCount * 0.055);
+  $('count').textContent = `${reachedCount} / ${STARS.length}`;
+  drawPlaque();
+  if (reachedCount === STARS.length) setTimeout(finale, 3200);
+}
+function finale() {
+  calm = 0.32;
+  WINDOWS.forEach((w, k) => setTimeout(() => { w.lit = true; }, k * 180));
+  [0, 2, 4, 7].forEach((n, k) => setTimeout(() => chime(n, 0.16), k * 260));
+  $('finale').classList.add('on');
+  setTimeout(() => $('finale').classList.remove('on'), 12000);
+}
+
+// ---------- 输入：桌面鼠标 / XR 射线 → 天空里的落点 (θ, φ) ----------
+const raycaster = new THREE.Raycaster();
+const aims = [];   // 每个输入源：{ th, ph, prev:{th,ph}|null }
+const tmpA = new THREE.Vector3(), tmpO = new THREE.Vector3(), tmpM = new THREE.Matrix4();
+function aimFromRay(origin, dir, slot) {
+  tmpA.copy(origin).addScaledVector(dir, 6);
+  world.worldToLocal(tmpA);
+  const th = Math.atan2(tmpA.x, -tmpA.z), ph = Math.atan2(tmpA.y, Math.hypot(tmpA.x, tmpA.z));
+  const a = aims[slot] || (aims[slot] = { th, ph, prev: null, origin: new THREE.Vector3(), dir: new THREE.Vector3() });
+  a.prev = a.prev ? { th: a.th, ph: a.ph } : { th, ph };
+  a.th = th; a.ph = ph; a.origin.copy(origin); a.dir.copy(dir);
+  return a;
+}
+function stir(a, dt) {
+  if (!a.prev || dt <= 0) return;
+  const vth = (a.th - a.prev.th) / dt, vph = (a.ph - a.prev.ph) / dt, sp = Math.hypot(vth, vph);
+  if (sp < 0.08 || sp > 20) return;
+  // 手势变成天空里的一道冲量 + 一点旋转（方向随手的走向）
+  IMP.push({ th: a.th, ph: a.ph, vth: vth * 0.35, vph: vph * 0.35, spin: Math.sign(vth || 1) * Math.min(sp, 3) * 0.6, rad: 4.5 * DEG, life: 1 });
+  if (IMP.length > 48) IMP.shift();
+  energy = Math.min(3, energy + sp * dt * 0.9);
+}
+function starUnder(a) {
+  let best = null, bestAng = 5 * DEG;
+  for (const st of STARS) {
+    tmpO.copy(st.pos); world.localToWorld(tmpO); tmpO.sub(a.origin).normalize();
+    const ang = Math.acos(Math.min(1, tmpO.dot(a.dir)));
+    if (ang < bestAng) { bestAng = ang; best = st; }
+  }
+  return best;
+}
+
+// 桌面：相机固定在眼睛位置，鼠标让视线轻微环顾（看出远近层次），移动即搅动
+const mouse = new THREE.Vector2(0, 0.2), look = new THREE.Vector2(0, 0.2);
+let mouseMoved = false;
+addEventListener('pointermove', e => { mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseMoved = true; });
+renderer.domElement.addEventListener('click', () => {
+  const a = aims[9]; if (!a) return;
+  const st = starUnder(a);
+  if (st) reach(st);
+  else { IMP.push({ th: a.th, ph: a.ph, vth: 0, vph: 0, spin: 2.2, rad: 5 * DEG, life: 1 }); energy = Math.min(3, energy + 0.6); }
+});
+
+// XR 控制器 / 手：射线 + 扳机或捏合
+const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]);
+const ctrls = [0, 1].map(i => {
+  const c = renderer.xr.getController(i);
+  const line = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: 0xf2c94c, transparent: true, opacity: 0.35 }));
+  line.scale.z = 1.2; c.add(line);
+  c.addEventListener('select', () => {
+    const a = aims[i]; if (!a) return;
+    const st = starUnder(a);
+    if (st) reach(st);
+    else { IMP.push({ th: a.th, ph: a.ph, vth: 0, vph: 0, spin: 2.2, rad: 5 * DEG, life: 1 }); energy = Math.min(3, energy + 0.6); }
+  });
+  scene.add(c);
+  return c;
+});
+[0, 1].forEach(i => scene.add(renderer.xr.getHand(i)));
+
+// ---------- XR 按钮与进入 ----------
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+vrBtn.style.display = arBtn.style.display = 'none';
+document.body.append(vrBtn, arBtn);
+for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
+$('enter').onclick = () => {
+  startAudio();
+  $('intro').classList.add('gone');
+  $('hud').classList.add('on');
+  vrBtn.style.display = arBtn.style.display = '';
+};
+renderer.xr.addEventListener('sessionstart', () => {
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  dome.visible = opaque;                       // AR：去掉夜空背景，笔触漂在真实房间里
+  plaque.visible = true;
+  renderer.setClearColor(0x0a1230, opaque ? 1 : 0);
+});
+renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x0a1230, 1); });
+renderer.setClearColor(0x0a1230, 1);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// 测试用：星星在屏幕上的坐标
+window.__starScreen = () => STARS.map(st => {
+  const v = world.localToWorld(st.pos.clone()).project(camera);
+  return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)];
+});
+
+// ---------- 主循环 ----------
+const clock = new THREE.Clock();
+let time = 0;
+const ndc = new THREE.Vector2();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  time += dt;
+
+  // 输入
+  const xr = renderer.xr.isPresenting;
+  let hoverStar = null;
+  if (xr) {
+    ctrls.forEach((c, i) => {
+      if (!c.visible) { aims[i] = null; return; }
+      tmpM.identity().extractRotation(c.matrixWorld);
+      const o = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld);
+      const d = new THREE.Vector3(0, 0, -1).applyMatrix4(tmpM);
+      const a = aimFromRay(o, d, i);
+      stir(a, dt);
+      hoverStar = hoverStar || starUnder(a);
+    });
+  } else {
+    look.lerp(mouse, 0.04);
+    camera.position.copy(EYE).add(new THREE.Vector3(look.x * 0.12, look.y * 0.05, 0));   // 一点点平移，看出前后层次
+    camera.rotation.set(9 * DEG + look.y * 6 * DEG, -look.x * 10 * DEG, 0, 'YXZ');
+    camera.updateMatrixWorld();
+    raycaster.setFromCamera(ndc.copy(mouse), camera);
+    const a = aimFromRay(raycaster.ray.origin, raycaster.ray.direction, 9);
+    if (mouseMoved) stir(a, dt);
+    mouseMoved = false;
+    hoverStar = starUnder(a);
+    renderer.domElement.style.cursor = hoverStar ? 'pointer' : 'default';
+  }
+
+  // 动荡：基线（随抵达逐渐平静）+ 搅动的能量
+  energy *= Math.exp(-dt * 0.55);
+  for (let k = IMP.length - 1; k >= 0; k--) { IMP[k].life -= dt * 0.55; if (IMP[k].life <= 0) IMP.splice(k, 1); }
+  const turb = calm + energy;
+
+  const simT0 = performance.now();
+  updateSky(dt, time, turb);
+  updateHills(dt);
+  updateCyp(dt, time, turb);
+  updateGold(dt);
+  window.__simMs = performance.now() - simT0;
+
+  // 星：呼吸、悬停、被抵达后的闪光；越平静越同步
+  for (const st of STARS) {
+    st.hover += ((st === hoverStar ? 1 : 0) - st.hover) * 0.15;
+    st.flash *= Math.exp(-dt * 0.8);
+    const phase = reachedCount === STARS.length ? time * 1.4 : time * 1.7 + st.i * 1.3;
+    const breathe = 1 + 0.1 * Math.sin(phase);
+    st.core.scale.setScalar(st.r * 0.022 * breathe * (1 + st.hover * 0.5 + st.flash * 0.9));
+    st.halo.scale.setScalar(st.r * 0.075 * breathe * (1 + st.hover * 0.25 + st.flash * 0.5));
+    st.halo.material.opacity = (st.reached ? 0.55 : 0.3) + st.hover * 0.25 + st.flash * 0.4;
+    st.halo.material.color.setHex(st.reached ? 0xf2b33d : 0xe9d860);
+  }
+  moonHalo.material.opacity = 0.35 + 0.06 * Math.sin(time * 0.9);
+
+  // 窗：点亮时缓慢升起
+  for (const w of WINDOWS) {
+    w.level += ((w.lit ? 1 : 0) - w.level) * Math.min(1, dt * 1.2);
+    w.m.material.color.setRGB(0.16 + 0.84 * w.level, 0.16 + 0.63 * w.level, 0.12 + 0.24 * w.level);
+    w.glow.material.opacity = 0.55 * w.level;
+  }
+
+  if (audio) audio.filter.frequency.setTargetAtTime(300 + turb * 650, audio.ctx.currentTime, 0.4);
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masterpieces in Space</title>
+<style>
+  :root { --bg: #f3efe6; --ink: #24222a; --mute: #6f6a78; --line: rgba(36,34,42,.14); --accent: #b8452a; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #16151a; --ink: #ece7dc; --mute: #9d97a8; --line: rgba(236,231,220,.14); --accent: #e0805e; } }
+  :root[data-theme="dark"] { --bg: #16151a; --ink: #ece7dc; --mute: #9d97a8; --line: rgba(236,231,220,.14); --accent: #e0805e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; line-height: 1.75; }
+  main { max-width: 920px; margin: 0 auto; padding: 48px 16px 64px; }
+  .kicker { font-family: system-ui, sans-serif; font-size: 12px; letter-spacing: .28em; color: var(--mute); }
+  h1 { font-size: 40px; font-weight: 500; margin: 6px 0 4px; letter-spacing: .04em; }
+  .lede { color: var(--mute); margin: 0 0 36px; max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+  a.card { display: block; text-decoration: none; color: inherit; border-top: 2px solid var(--ink); padding: 14px 2px 18px; transition: border-color .2s; }
+  a.card:hover { border-top-color: var(--accent); }
+  .card .after { font-family: system-ui, sans-serif; font-size: 11px; letter-spacing: .16em; color: var(--mute); text-transform: uppercase; }
+  .card h2 { font-size: 22px; font-weight: 500; margin: 4px 0 2px; }
+  .card .en { font-style: italic; color: var(--mute); font-size: 14px; }
+  .card p { font-size: 14px; margin: 8px 0 10px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; font-family: system-ui, sans-serif; font-size: 11px; }
+  .tags span { border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; color: var(--mute); }
+  h3 { font-size: 15px; font-weight: 500; margin: 48px 0 12px; font-family: system-ui, sans-serif; letter-spacing: .12em; color: var(--mute); }
+  .small { font-family: system-ui, sans-serif; font-size: 13px; color: var(--mute); }
+  .small a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">WEBXR · SPATIAL REINTERPRETATIONS OF PUBLIC-DOMAIN PAINTINGS</div>
+  <h1>名画入空间</h1>
+  <p class="lede">每一件都不复制原画，而是挑一种和那幅画精神相合的算法，把画放进你周围的空间里，再给它一个只属于它的交互。电脑上用鼠标，头显里用手、视线或声音。所有画作均为公有领域，图片来自 Wikimedia Commons。</p>
+
+  <div class="grid">
+    <a class="card" href="to-reach-a-star.html">
+      <div class="after">After van Gogh · 1889</div>
+      <h2>去往星星</h2><div class="en">To Reach a Star</div>
+      <p>一万五千道流动的笔触组成翻卷的天空。挥手搅动风暴，指向一颗星，一束金色笔触沿柏树升起去往那里。</p>
+      <div class="tags"><span>流场笔触</span><span>手</span></div>
+    </a>
+    <a class="card" href="seeing-takes-time.html">
+      <div class="after">After Seurat · 1884–86</div>
+      <h2>看见需要时间</h2><div class="en">Seeing Takes Time</div>
+      <p>十五万颗纯色点漂成一团色雾，只有你的目光停留之处，它们才聚成点彩画。</p>
+      <div class="tags"><span>视觉混合</span><span>视线</span></div>
+    </a>
+    <a class="card" href="scream-through-nature.html">
+      <div class="after">After Munch · 1892–96</div>
+      <h2>穿过自然的尖叫</h2><div class="en">A Scream Through Nature</div>
+      <p>几十万条笔触鱼群沿河道绕着你游。只有发出声音，它们才游回来，在你眼前聚成蒙克五幅画中的一幅。</p>
+      <div class="tags"><span>GPU 鱼群</span><span>声音</span></div>
+    </a>
+    <a class="card" href="lashed-to-the-mast.html">
+      <div class="after">After Turner · 1842</div>
+      <h2>被绑在桅杆上</h2><div class="en">Lashed to the Mast</div>
+      <p>整幅《暴风雪》是一片真正在流动的流体，包住你前方的半个球。伸手搅动，画被卷成漩涡；停手，它慢慢记起自己。</p>
+      <div class="tags"><span>Stable Fluids</span><span>手</span></div>
+    </a>
+    <a class="card" href="water-lilies.html">
+      <div class="after">After Monet · after 1916</div>
+      <h2>睡莲</h2><div class="en">Water Lilies</div>
+      <p>你站在池塘中央，整幅睡莲铺满一圈水面。点水起涟漪，折射、焦散和天光倒影都随波纹变化。</p>
+      <div class="tags"><span>波动方程</span><span>手 / 射线</span></div>
+    </a>
+    <a class="card" href="this-kiss.html">
+      <div class="after">After Klimt · 1907–08</div>
+      <h2>这一吻</h2><div class="en">This Kiss</div>
+      <p>十四万片金箔马赛克。双手分开，两人被分开；双手合拢，他们相拥，金光从那一吻漫过整幅画。</p>
+      <div class="tags"><span>马赛克</span><span>双手距离</span></div>
+    </a>
+  </div>
+
+  <h3>早期实验</h3>
+  <div class="grid">
+    <a class="card" href="depth-viewer.html">
+      <div class="after">Depth estimation · LDI</div>
+      <h2>名画入深</h2><div class="en">Masterpieces in Depth</div>
+      <p>八幅名画用单目深度估计和分层补全做成浮雕、分层、点云和视差四种 3D 呈现。</p>
+      <div class="tags"><span>Depth Anything V2</span><span>LaMa</span></div>
+    </a>
+    <a class="card" href="particles.html">
+      <div class="after">Warm-up</div>
+      <h2>螺旋粒子</h2><div class="en">Particles</div>
+      <p>第一个练手的单文件 WebXR 粒子效果：六万颗粒子的螺旋星团，手指靠近会被吸引，捏合爆散。</p>
+      <div class="tags"><span>粒子</span><span>手</span></div>
+    </a>
+  </div>
+
+  <p class="small" style="margin-top:48px">WebXR 需要 HTTPS 或 localhost。计划与技术笔记见 <a href="PLAN.md">PLAN.md</a>；离线烘焙脚本在 <code>bake/</code>。← <a href="../">悬浮体</a></p>
+</main>
+</body>
+</html>

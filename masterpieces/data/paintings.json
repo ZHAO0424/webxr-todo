@@ -1,0 +1,98 @@
+[
+ {
+  "slug": "starry-night",
+  "name": "星月夜",
+  "by": "Vincent van Gogh, 1889",
+  "width": 1280,
+  "height": 1014,
+  "layers": 4,
+  "scale": 0.22,
+  "mode": "ldi",
+  "credit": "星月夜 · Vincent van Gogh, 1889 · Public domain, via Wikimedia Commons",
+  "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg"
+ },
+ {
+  "slug": "great-wave",
+  "name": "神奈川冲浪里",
+  "by": "葛饰北斋, c.1831",
+  "width": 1280,
+  "height": 860,
+  "layers": 4,
+  "scale": 0.16,
+  "mode": "layers",
+  "credit": "神奈川冲浪里 · 葛饰北斋, c.1831 · Public domain, via Wikimedia Commons",
+  "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/1280px-Tsunami_by_hokusai_19th_century.jpg"
+ },
+ {
+  "slug": "wanderer",
+  "name": "雾海上的旅人",
+  "by": "Caspar David Friedrich, 1818",
+  "width": 1280,
+  "height": 1639,
+  "layers": 4,
+  "scale": 0.35,
+  "mode": "ldi",
+  "credit": "雾海上的旅人 · Caspar David Friedrich, 1818 · Public domain, via Wikimedia Commons",
+  "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Caspar_David_Friedrich_-_Wanderer_above_the_sea_of_fog.jpg/1280px-Caspar_David_Friedrich_-_Wanderer_above_the_sea_of_fog.jpg"
+ },
+ {
+  "slug": "pearl-earring",
+  "name": "戴珍珠耳环的少女",
+  "by": "Johannes Vermeer, c.1665",
+  "width": 1280,
+  "height": 1516,
+  "layers": 4,
+  "scale": 0.15,
+  "mode": "relief",
+  "credit": "戴珍珠耳环的少女 · Johannes Vermeer, c.1665 · Public domain, via Wikimedia Commons",
+  "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/1280px-1665_Girl_with_a_Pearl_Earring.jpg"
+ },
+ {
+  "slug": "grande-jatte",
+  "name": "大碗岛的星期天下午",
+  "by": "Georges Seurat, 1884",
+  "width": 1280,
+  "height": 852,
+  "layers": 4,
+  "scale": 0.3,
+  "mode": "ldi",
+  "credit": "大碗岛的星期天下午 · Georges Seurat, 1884 · Public domain, via Wikimedia Commons",
+  "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/A_Sunday_on_La_Grande_Jatte,_Georges_Seurat,_1884.jpg/1280px-A_Sunday_on_La_Grande_Jatte,_Georges_Seurat,_1884.jpg"
+ },
+ {
+  "slug": "impression-sunrise",
+  "name": "印象·日出",
+  "by": "Claude Monet, 1872",
+  "width": 1280,
+  "height": 993,
+  "layers": 4,
+  "scale": 0.2,
+  "mode": "points",
+  "credit": "印象·日出 · Claude Monet, 1872 · Public domain, via Wikimedia Commons",
+  "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Monet_-_Impression,_Sunrise.jpg/1280px-Monet_-_Impression,_Sunrise.jpg"
+ },
+ {
+  "slug": "mona-lisa",
+  "name": "蒙娜丽莎",
+  "by": "Leonardo da Vinci, c.1503",
+  "width": 1280,
+  "height": 1908,
+  "layers": 4,
+  "scale": 0.22,
+  "mode": "ldi",
+  "credit": "蒙娜丽莎 · Leonardo da Vinci, c.1503 · Public domain, via Wikimedia Commons",
+  "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg/1280px-Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg"
+ },
+ {
+  "slug": "scream",
+  "name": "呐喊",
+  "by": "Edvard Munch, 1893",
+  "width": 1280,
+  "height": 1631,
+  "layers": 4,
+  "scale": 0.18,
+  "mode": "layers",
+  "credit": "呐喊 · Edvard Munch, 1893 · Public domain, via Wikimedia Commons",
+  "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/The_Scream.jpg/1280px-The_Scream.jpg"
+ }
+]

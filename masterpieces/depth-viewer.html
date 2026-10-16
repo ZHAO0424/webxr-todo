@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masterpieces in Depth</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0b0d; overflow: hidden; font-family: system-ui, "Microsoft YaHei", sans-serif; color: #dde; }
+  #ui { position: fixed; left: 16px; top: 16px; width: 270px; background: rgba(20,20,26,.85); border: 1px solid #333; border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
+  #ui h1 { font-size: 15px; margin: 0 0 8px; font-weight: 600; }
+  #ui label { display: block; margin-top: 8px; color: #aab; }
+  #ui select, #ui input[type=range] { width: 100%; }
+  .modes { display: flex; gap: 5px; margin-top: 8px; }
+  .modes button { flex: 1; background: #222; color: #ccd; border: 1px solid #444; border-radius: 6px; padding: 5px 0; cursor: pointer; font-size: 12px; }
+  .modes button.on { background: #c8a05a; color: #111; border-color: #c8a05a; }
+  .modes button:disabled { opacity: .35; cursor: default; }
+  #status { margin-top: 10px; color: #c8a05a; min-height: 1.5em; }
+  #credit { margin-top: 4px; color: #889; font-size: 12px; }
+  .hint { margin-top: 8px; color: #778; font-size: 12px; }
+  /* three 的按钮在检测完支持情况后会重设 left，用 !important 把两个按钮错开 */
+  #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
+  #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="ui">
+  <h1>名画入深 · WebXR</h1>
+  <label>画作</label>
+  <select id="pick"></select>
+  <label>或上传自己的图片 <input type="file" id="file" accept="image/*"></label>
+  <div class="modes">
+    <button data-mode="ldi" title="离线烘焙的分层深度图，被挡住的地方已补全，挪动头部能看到背后">视差</button>
+    <button data-mode="relief">浮雕</button>
+    <button data-mode="layers">分层</button>
+    <button data-mode="points">点云</button>
+  </div>
+  <label>纵深 <span id="depthVal"></span></label>
+  <input type="range" id="depth" min="0" max="0.6" step="0.01" value="0.25">
+  <label><input type="checkbox" id="tear" checked> 在深度断层处撕开（去掉橡皮筋拉伸）</label>
+  <div id="status"></div>
+  <div id="credit"></div>
+  <div class="hint">桌面：拖动旋转 / 滚轮缩放<br>XR：画下方的缩略图和模式按钮可以用射线 + 扳机/捏合选，也可以用手指直接点；点云模式下用手指拨动颜料</div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// 画框中心：正前方一臂内，宽度控制在 ~40° 视锥里
+const CENTER = new THREE.Vector3(0, 1.42, -0.85);
+const MAX_W = 0.6, MAX_H = 0.6;
+const COLS = 360;   // 点云横向点数
+
+const $ = id => document.getElementById(id);
+const status = t => { $('status').textContent = t; };
+
+// ---------- three 基础 ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.01, 50);
+camera.position.set(0, 1.42, 0.2);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(CENTER).add(new THREE.Vector3(0, -0.07, 0));  // 略低，桌面上能同时看到画下方的面板
+controls.enableDamping = true;
+controls.update();
+
+const root = new THREE.Group();
+root.position.copy(CENTER);
+scene.add(root);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+const dl = new THREE.DirectionalLight(0xffffff, 1.0); dl.position.set(0.5, 3, 1); scene.add(dl);
+
+const texLoader = new THREE.TextureLoader();
+const loadTex = url => texLoader.loadAsync(url).then(t => { t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; });
+const blank = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); blank.needsUpdate = true;
+
+// ---------- 共享 uniforms ----------
+const U = {
+  uColor:  { value: blank },
+  uDepth:  { value: blank },
+  uScale:  { value: 0.25 },
+  uSize:   { value: new THREE.Vector2(0.5, 0.5) },
+  uLayers: { value: 0 },
+  uTear:   { value: 0.035 },
+  uTime:   { value: 0 },
+  uPx:     { value: innerHeight },
+  uHand:   { value: [new THREE.Vector3(0, -99, 0), new THREE.Vector3(0, -99, 0)] },
+};
+
+// 深度：亮 = 近。近处贴在画框平面，远处往画里退 → "透过窗户看进画里"
+const depthGLSL = /* glsl */`
+  uniform sampler2D uDepth;
+  uniform float uScale, uLayers;
+  float sampleDepth(vec2 uv) {
+    float d = texture2D(uDepth, uv).r;
+    if (uLayers > 0.5) d = (floor(d * uLayers) + 0.5) / uLayers;
+    return d;
+  }
+`;
+const meshVS = depthGLSL + /* glsl */`
+  uniform vec2 uSize;
+  varying vec2 vUv;
+  varying float vD;
+  void main() {
+    vUv = uv;
+    vD = sampleDepth(uv);
+    vec3 p = vec3((uv - 0.5) * uSize, (vD - 1.0) * uScale);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  }
+`;
+const meshFS = /* glsl */`
+  uniform sampler2D uColor;
+  uniform float uTear;
+  varying vec2 vUv;
+  varying float vD;
+  void main() {
+    // 深度在一个像素内突变 = 前后景交界的拉伸三角形，撕开
+    if (fwidth(vD) > uTear) discard;
+    vec4 c = texture2D(uColor, vUv);
+    if (c.a < 0.5) discard;   // 视差模式：层的透明区
+    gl_FragColor = vec4(c.rgb, 1.0);
+  }
+`;
+
+// 模式：浮雕 / 分层 —— 单张位移网格
+const meshMat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: meshVS, fragmentShader: meshFS, side: THREE.DoubleSide });
+let mesh = null;
+const planeGeo = (aspect, seg = 400) => new THREE.PlaneGeometry(1, 1, seg, Math.round(seg / aspect));
+
+// 模式：视差 —— 烘焙好的 K 层，每层自己的颜色/深度，最远层是补全过的完整背景板
+const ldiGroup = new THREE.Group();
+root.add(ldiGroup);
+
+// 模式：点云 —— 每个点是一粒颜料，可用手指拨动
+const pointMat = new THREE.ShaderMaterial({
+  uniforms: U,
+  vertexShader: depthGLSL + /* glsl */`
+    uniform sampler2D uColor;
+    uniform vec2 uSize;
+    uniform float uTime, uPx;
+    uniform vec3 uHand[2];
+    attribute float aRand;
+    varying vec3 vColor;
+    void main() {
+      vec2 st = mix(vec2(0.004), vec2(0.996), uv);               // 内缩一点，去掉画边缘的杂点
+      float d = sampleDepth(st);
+      vec3 p = vec3((st - 0.5) * uSize, (d - 1.0) * uScale);
+      p.z += sin(uTime * 1.5 + aRand * 6.283) * 0.004;           // 颜料轻微呼吸
+      vec3 world = (modelMatrix * vec4(p, 1.0)).xyz;
+      for (int i = 0; i < 2; i++) {                               // 手指附近推开
+        vec3 dv = world - uHand[i];
+        float k = smoothstep(0.09, 0.0, length(dv));
+        world += normalize(dv + 1e-5) * k * 0.06;
+      }
+      vec4 mv = viewMatrix * vec4(world, 1.0);
+      gl_Position = projectionMatrix * mv;
+      float cell = uSize.x / ${COLS}.0;                           // 一个点覆盖的世界宽度
+      gl_PointSize = clamp(cell * 1.8 * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.0, 40.0);
+      vColor = texture2D(uColor, st).rgb;
+    }
+  `,
+  fragmentShader: /* glsl */`
+    varying vec3 vColor;
+    void main() {
+      vec2 c = gl_PointCoord - 0.5;
+      if (dot(c, c) > 0.25) discard;
+      gl_FragColor = vec4(vColor, 1.0);
+    }
+  `,
+});
+let points = null;
+
+// 画框
+const frameMat = new THREE.MeshStandardMaterial({ color: 0x5a3d22, roughness: 0.6, metalness: 0.2 });
+const frame = new THREE.Group();
+root.add(frame);
+function buildFrame(w, h) {
+  frame.clear();
+  const t = 0.03, dz = 0.03;
+  const bars = [[w + 2 * t, t, 0, (h + t) / 2], [w + 2 * t, t, 0, -(h + t) / 2], [t, h, -(w + t) / 2, 0], [t, h, (w + t) / 2, 0]];
+  for (const [bw, bh, x, y] of bars) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, dz), frameMat);
+    m.position.set(x, y, 0);
+    frame.add(m);
+  }
+}
+
+function buildGeometry(aspect) {
+  const w = aspect >= 1 ? MAX_W : MAX_H * aspect;
+  const h = aspect >= 1 ? MAX_W / aspect : MAX_H;
+  U.uSize.value.set(w, h);
+  buildFrame(w, h);
+  placePanel(h);
+
+  if (mesh) { root.remove(mesh); mesh.geometry.dispose(); }
+  mesh = new THREE.Mesh(planeGeo(aspect), meshMat);  // 位置在 shader 里按 uv 算
+  mesh.frustumCulled = false;
+  root.add(mesh);
+
+  if (points) { root.remove(points); points.geometry.dispose(); }
+  const rows = Math.round(COLS / aspect), n = COLS * rows;
+  const uv = new Float32Array(n * 2), rnd = new Float32Array(n);
+  for (let y = 0, i = 0; y < rows; y++) for (let x = 0; x < COLS; x++, i++) {
+    uv[i * 2] = (x + 0.5) / COLS; uv[i * 2 + 1] = (y + 0.5) / rows; rnd[i] = Math.random();
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('aRand', new THREE.BufferAttribute(rnd, 1));
+  points = new THREE.Points(g, pointMat);
+  points.frustumCulled = false;
+  root.add(points);
+}
+
+function buildLDI(layers, aspect) {
+  for (const m of ldiGroup.children) { m.geometry.dispose(); m.material.dispose(); }
+  ldiGroup.clear();
+  layers.forEach(({ color, depth }, i) => {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { ...U, uColor: { value: color }, uDepth: { value: depth }, uLayers: { value: 0 }, uTear: U.uTear },
+      vertexShader: meshVS, fragmentShader: meshFS, side: THREE.DoubleSide,
+    });
+    const m = new THREE.Mesh(planeGeo(aspect, 300), mat);
+    m.frustumCulled = false;
+    m.renderOrder = i;
+    ldiGroup.add(m);
+  });
+}
+
+// ---------- 模式 ----------
+const MODES = ['ldi', 'relief', 'layers', 'points'];
+const MODE_NAMES = { ldi: '视差', relief: '浮雕', layers: '分层', points: '点云' };
+let mode = 'ldi';
+let hasLDI = false;
+function setMode(m) {
+  if (m === 'ldi' && !hasLDI) m = 'relief';
+  mode = m;
+  U.uLayers.value = mode === 'layers' ? 7 : 0;
+  if (mesh) mesh.visible = mode === 'relief' || mode === 'layers';
+  if (points) points.visible = mode === 'points';
+  ldiGroup.visible = mode === 'ldi';
+  document.querySelectorAll('.modes button').forEach(b => {
+    b.classList.toggle('on', b.dataset.mode === mode);
+    if (b.dataset.mode === 'ldi') b.disabled = !hasLDI;
+  });
+  refreshPanel();
+}
+document.querySelectorAll('.modes button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+
+function setScale(v) {
+  U.uScale.value = v;
+  $('depth').value = v;
+  $('depthVal').textContent = (v * 100).toFixed(0) + ' cm';
+}
+$('depth').oninput = e => setScale(+e.target.value);
+$('tear').onchange = e => { U.uTear.value = e.target.checked ? 0.035 : 10; };
+
+// ---------- 实时深度估计（只给上传的图用；预置画走离线烘焙的 Large 模型结果）----------
+let depthPipe = null;
+async function getPipe() {
+  if (depthPipe) return depthPipe;
+  const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2');
+  env.allowLocalModels = false;
+  const progress = p => { if (p.status === 'progress' && p.file?.endsWith('.onnx')) status(`下载深度模型 ${p.progress.toFixed(0)}%（首次约 25–100 MB，之后走缓存）`); };
+  // 先确认真有 GPU adapter 再选 webgpu：onnxruntime 一旦 webgpu 初始化失败，同页面再回退 wasm 也会报 no available backend
+  const adapter = navigator.gpu && await navigator.gpu.requestAdapter().catch(() => null);
+  const device = adapter ? 'webgpu' : 'wasm';
+  depthPipe = await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small', { device, progress_callback: progress });
+  return depthPipe;
+}
+
+function rawToTexture(raw) {
+  const { width, height, channels, data } = raw;
+  const out = new Uint8Array(width * height);
+  for (let i = 0; i < out.length; i++) out[i] = data[i * channels];
+  let lo = 255, hi = 0;
+  for (const v of out) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  const k = 255 / Math.max(1, hi - lo);
+  for (let i = 0; i < out.length; i++) out[i] = (out[i] - lo) * k;
+  const tex = new THREE.DataTexture(out, width, height, THREE.RedFormat, THREE.UnsignedByteType);
+  tex.flipY = true;            // RawImage 从上到下，GL 从下到上
+  tex.magFilter = tex.minFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// ---------- 加载 ----------
+let PAINTINGS = [];
+let current = -1;
+let loadToken = 0;
+
+async function loadBaked(i) {
+  const token = ++loadToken;
+  current = i;
+  const p = PAINTINGS[i];
+  $('pick').value = i;
+  $('credit').textContent = p.credit;
+  status('加载画作…');
+  const base = `data/${p.slug}/`;
+  try {
+    const [color, depth, ...layerTex] = await Promise.all([
+      loadTex(base + 'color.jpg'), loadTex(base + 'depth.png'),
+      ...Array.from({ length: p.layers }, (_, k) => [loadTex(`${base}l${k}.webp`), loadTex(`${base}l${k}d.png`)]).flat(),
+    ]);
+    if (token !== loadToken) return;
+    const aspect = p.width / p.height;
+    U.uColor.value = color;
+    U.uDepth.value = depth;
+    buildGeometry(aspect);
+    const layers = [];
+    for (let k = 0; k < p.layers; k++) layers.push({ color: layerTex[k * 2], depth: layerTex[k * 2 + 1] });
+    buildLDI(layers, aspect);
+    hasLDI = true;
+    setScale(p.scale);
+    setMode(p.mode);   // 每幅画的预设：纵深 + 最合适的模式
+    status('');
+  } catch (e) { console.error(e); status('出错：' + (e.message || e)); }
+}
+
+async function loadUpload(file) {
+  const token = ++loadToken;
+  current = -1;
+  const url = URL.createObjectURL(file);
+  $('credit').textContent = file.name;
+  status('加载图片…');
+  try {
+    const color = await loadTex(url);
+    if (token !== loadToken) return;
+    U.uColor.value = color;
+    U.uDepth.value = blank;   // 深度没算完前先平着显示
+    hasLDI = false;
+    buildGeometry(color.image.width / color.image.height);
+    setMode('relief');
+    const pipe = await getPipe();
+    status('估计深度中…');
+    const { depth } = await pipe(url);
+    if (token !== loadToken) return;
+    U.uDepth.value = rawToTexture(depth);
+    status('');
+  } catch (e) { console.error(e); status('出错：' + (e.message || e)); }
+}
+
+$('pick').onchange = e => loadBaked(+e.target.value);
+$('file').onchange = e => { const f = e.target.files[0]; if (f) loadUpload(f); };
+
+// ---------- XR 面板：画下方一排缩略图 + 一排模式按钮（射线或手指点）----------
+const panel = new THREE.Group();
+root.add(panel);
+const buttons = [];   // { mesh, action, isOn }
+const THUMB_W = 0.062, GAP = 0.008;
+
+function labelTexture(text) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+  const g = c.getContext('2d');
+  g.fillStyle = '#1a1a20'; g.fillRect(0, 0, 256, 96);
+  g.fillStyle = '#e8e2d4'; g.font = '600 48px system-ui, "Microsoft YaHei"'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 128, 50);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+function buildPanel() {
+  const n = PAINTINGS.length;
+  const total = n * THUMB_W + (n - 1) * GAP;
+  PAINTINGS.forEach((p, i) => {
+    const h = THUMB_W * p.height / p.width;
+    const mat = new THREE.MeshBasicMaterial({ map: texLoader.load(`data/${p.slug}/thumb.jpg`, t => { t.colorSpace = THREE.SRGBColorSpace; }) });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(THUMB_W, Math.min(h, THUMB_W * 1.3)), mat);
+    m.position.set(-total / 2 + THUMB_W / 2 + i * (THUMB_W + GAP), 0, 0);
+    panel.add(m);
+    buttons.push({ mesh: m, action: () => loadBaked(i), isOn: () => current === i });
+  });
+  const bw = 0.1;
+  MODES.forEach((md, i) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(bw, bw * 96 / 256), new THREE.MeshBasicMaterial({ map: labelTexture(MODE_NAMES[md]) }));
+    m.position.set((i - (MODES.length - 1) / 2) * (bw + GAP), -0.075, 0);
+    panel.add(m);
+    buttons.push({ mesh: m, action: () => setMode(md), isOn: () => mode === md, enabled: () => md !== 'ldi' || hasLDI });
+  });
+}
+function placePanel(paintingH) {
+  // 放在画框下沿往下一点、往前一点，并朝上倾斜，低头就能点到
+  panel.position.set(0, -paintingH / 2 - 0.09, 0.08);
+  panel.rotation.x = -0.35;
+}
+let hovered = null;
+function refreshPanel() {
+  for (const b of buttons) {
+    const on = b.isOn(), en = b.enabled ? b.enabled() : true, hv = b === hovered;
+    b.mesh.material.color.setScalar(!en ? 0.25 : on ? 1 : hv ? 0.9 : 0.55);
+    b.mesh.scale.setScalar(on || hv ? 1.12 : 1);
+  }
+}
+
+// ---------- XR 输入 ----------
+const raycaster = new THREE.Raycaster();
+const tmpM = new THREE.Matrix4();
+function rayHit(ctrl) {
+  tmpM.identity().extractRotation(ctrl.matrixWorld);
+  raycaster.ray.origin.setFromMatrixPosition(ctrl.matrixWorld);
+  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tmpM);
+  const hits = raycaster.intersectObjects(buttons.map(b => b.mesh), false);
+  return hits.length ? buttons.find(b => b.mesh === hits[0].object) : null;
+}
+const press = b => { if (!b.enabled || b.enabled()) b.action(); };
+
+const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
+const ctrls = [0, 1].map(i => {
+  const c = renderer.xr.getController(i);
+  c.addEventListener('select', () => {
+    const b = rayHit(c);
+    if (b) press(b);
+    else setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]);   // 没指着按钮 = 切下一个模式
+  });
+  c.addEventListener('squeeze', () => PAINTINGS.length && loadBaked((current + 1) % PAINTINGS.length));
+  const line = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: 0xc8a05a, transparent: true, opacity: 0.6 }));
+  line.scale.z = 0.6;
+  c.add(line);
+  scene.add(c);
+  return c;
+});
+const hands = [0, 1].map(i => { const h = renderer.xr.getHand(i); scene.add(h); return h; });
+
+const tmp = new THREE.Vector3(), local = new THREE.Vector3();
+const pokeCool = [0, 0];
+function handPos(i) {
+  const tip = hands[i].joints && hands[i].joints['index-finger-tip'];
+  if (tip && tip.visible) return tip.getWorldPosition(tmp);
+  if (renderer.xr.isPresenting && ctrls[i].visible) return ctrls[i].getWorldPosition(tmp);
+  return tmp.set(0, -99, 0);
+}
+// 手指直接戳按钮：指尖进入按钮平面 1.5cm 内且落在矩形里
+function poke(i, p, now) {
+  if (now < pokeCool[i]) return;
+  for (const b of buttons) {
+    local.copy(p); b.mesh.worldToLocal(local);
+    const g = b.mesh.geometry.parameters;
+    if (Math.abs(local.z) < 0.015 && Math.abs(local.x) < g.width / 2 && Math.abs(local.y) < g.height / 2) {
+      press(b); pokeCool[i] = now + 0.8; return;
+    }
+  }
+}
+
+// 桌面：鼠标点 3D 面板（拖动超过 4px 算旋转视角，不算点击）
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 4) return;
+  raycaster.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1), camera);
+  const hit = raycaster.intersectObjects(buttons.map(b => b.mesh), false)[0];
+  if (hit) press(buttons.find(b => b.mesh === hit.object));
+});
+
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+document.body.append(vrBtn, arBtn);
+
+renderer.xr.addEventListener('sessionstart', () => {
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  renderer.setClearColor(0x0b0b0d, opaque ? 1 : 0);
+});
+renderer.xr.addEventListener('sessionend', () => renderer.setClearColor(0x0b0b0d, 1));
+renderer.setClearColor(0x0b0b0d, 1);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const clock = new THREE.Clock();
+// 进 XR 后每只眼睛画面的像素高度：老接口是 framebufferHeight，新的投影图层是 textureHeight，都没有就取左眼视口
+function xrPixelHeight() {
+  const layer = renderer.xr.getBaseLayer && renderer.xr.getBaseLayer();
+  let h = layer && (layer.framebufferHeight || layer.textureHeight);
+  if (!h) { const cam = renderer.xr.getCamera(); h = cam.cameras && cam.cameras[0] && cam.cameras[0].viewport && cam.cameras[0].viewport.w; }
+  return h || renderer.domElement.height;
+}
+renderer.setAnimationLoop(() => {
+  U.uTime.value += Math.min(clock.getDelta(), 0.05);
+  const now = U.uTime.value;
+  U.uPx.value = renderer.xr.isPresenting ? xrPixelHeight() : renderer.domElement.height;
+  let hv = null;
+  for (let i = 0; i < 2; i++) {
+    const p = handPos(i);
+    U.uHand.value[i].copy(p);
+    if (renderer.xr.isPresenting) { poke(i, p, now); hv = hv || rayHit(ctrls[i]); }
+  }
+  if (hv !== hovered) { hovered = hv; refreshPanel(); }
+  if (!renderer.xr.isPresenting) controls.update();
+  renderer.render(scene, camera);
+});
+
+// ---------- 启动 ----------
+setScale(0.25);
+fetch('data/paintings.json').then(r => r.json()).then(list => {
+  PAINTINGS = list;
+  list.forEach((p, i) => $('pick').add(new Option(`${p.name} — ${p.by}`, i)));
+  buildPanel();
+  loadBaked(Math.max(0, list.findIndex(p => p.slug === 'wanderer')));
+}).catch(e => status('读不到 data/paintings.json —— 需要用本地服务器打开（见 PLAN.md）：' + e.message));
+</script>
+</body>
+</html>

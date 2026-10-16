@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scream Through Nature</title>
+<style>
+  :root { --blood: #c8402a; --ink: #1a1214; --paper: #efe2cf; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2a1410; color: var(--paper); font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; }
+  canvas { display: block; }
+  #intro { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; transition: opacity 2s;
+    background: linear-gradient(180deg, #8a2a18 0%, #c8582a 22%, #d9903a 34%, #6a2a1e 52%, #1c2236 70%, #0f1420 100%); }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  .card { max-width: 600px; background: rgba(20,12,12,.78); padding: 28px 32px; line-height: 1.85; font-size: 15px; border-left: 4px solid var(--blood); }
+  .kicker { font-family: system-ui, sans-serif; font-size: 12px; letter-spacing: .26em; color: #d8a88a; }
+  h1 { font-size: 38px; margin: 6px 0 0; font-weight: 500; letter-spacing: .06em; }
+  h2 { font-size: 15px; margin: 0 0 18px; font-weight: 400; font-style: italic; color: #d8a88a; }
+  p { margin: 0 0 12px; color: #ead8c4; }
+  blockquote { margin: 18px 0; padding-left: 14px; border-left: 2px solid #e2a03a; color: #f3d9b0; }
+  blockquote small { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: #c99a80; margin-top: 4px; }
+  #enter { margin-top: 6px; background: var(--blood); color: #fff3e6; border: 0; padding: 10px 30px; font-size: 15px; letter-spacing: .3em; cursor: pointer; font-family: inherit; }
+  .how { font-family: system-ui, sans-serif; font-size: 12px; color: #c99a80; margin-top: 14px; line-height: 1.7; }
+  #hud { position: fixed; left: 16px; bottom: 16px; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.7; color: #f0dccb; background: rgba(20,12,12,.7); padding: 8px 12px; opacity: 0; transition: opacity 2s; width: 300px; max-width: calc(100% - 32px); box-sizing: border-box; }
+  #hud.on { opacity: 1; }
+  #meter { height: 5px; background: rgba(255,255,255,.12); margin: 6px 0; }
+  #meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #e2b23a, #c8402a); }
+  #hud button { background: none; border: 1px solid #8a6a60; color: #f0dccb; border-radius: 3px; cursor: pointer; font-size: 11px; padding: 1px 8px; margin-left: 6px; }
+  #pname { position: fixed; left: 50%; bottom: 13%; transform: translateX(-50%); font-size: 22px; letter-spacing: .12em; color: #f3d9b0; text-shadow: 0 0 14px rgba(0,0,0,.9); opacity: 0; transition: opacity 1.5s; pointer-events: none; white-space: nowrap; }
+  #pname.on { opacity: 1; }
+  #quote { position: fixed; left: 50%; top: 9%; transform: translateX(-50%); width: min(620px, calc(100% - 32px)); box-sizing: border-box; text-align: center; font-size: 18px; line-height: 1.7; background: rgba(20,12,12,.78); padding: 14px 20px; border-top: 3px solid var(--blood); opacity: 0; transition: opacity 3s; pointer-events: none; }
+  #quote.on { opacity: 1; }
+  #quote small { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: #c99a80; margin-top: 6px; }
+  #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
+  #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="intro">
+  <div class="card">
+    <div class="kicker">SPATIAL REINTERPRETATION · AFTER MUNCH, THE SCREAM · ANXIETY · DESPAIR · EVENING ON KARL JOHAN · MELANCHOLY</div>
+    <h1>穿过自然的尖叫</h1>
+    <h2>A Scream Through Nature</h2>
+    <p>《呐喊》里尖叫的并不是那个人。蒙克写道，是他听见了一声穿过整个自然的尖叫——那个人只是捂住了耳朵。</p>
+    <p>蒙克在"生命的饰带"里反复画同一种不安：同一座桥、同一片血红的天空、同一群苍白的人——《绝望》《呐喊》《焦虑》《卡尔约翰街的夜晚》《忧郁》。这里，五幅画共用同一群几十万条"鱼"——每一笔顺着蒙克原本的线条游，成群地转向。每次聚拢，有三幅画绕着你拼成一整圈，天空一直延伸到头顶。</p>
+    <p>安静的时候，你只看得见一群游动的颜色。<b>只有当你发出声音</b>，它们才会游回来，聚成环绕你的画——声音越大，看得越清楚；你一停下，它们又慢慢散开。每一次聚拢，你眼前都会出现一幅之前没在眼前出现过的画——它会转到你正看着的方向。当你安静下来，过一会儿，自然会把那声尖叫<b>还给你</b>：画面会自己短暂地浮现出来。</p>
+    <p>焦虑并不只在人的心里。它在风景里回响。</p>
+    <blockquote>“我站在那里，因焦虑而颤抖——我感到一声巨大的、无尽的尖叫穿过了自然。”<small>— 蒙克的笔记，1892 年</small></blockquote>
+    <button id="enter" disabled>载入中…</button>
+    <div class="how">需要麦克风：哼、说话、喊都可以；声音只在本地用来测音量，不录音、不上传<br>没有麦克风：按住空格或鼠标 = 发声<br>建议戴耳机（避免扬声器的声音被麦克风收回去）</div>
+  </div>
+</div>
+<div id="hud"><span id="micState">麦克风：未开启</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>发出声音才看得见画；安静时它散成一群游动的颜色，过一会儿自然会回应</div>
+<div id="pname"></div>
+<div id="quote">“我感到一声巨大的、无尽的尖叫穿过了自然。”<small>— 蒙克的笔记，1892 年</small></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+
+THREE.ColorManagement.enabled = false;
+const $ = id => document.getElementById(id);
+const DEG = Math.PI / 180;
+const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+const pick = a => a[(Math.random() * a.length) | 0];
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const EYE = new THREE.Vector3(0, 1.5, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.02, 120);
+camera.position.copy(EYE);
+renderer.setClearColor(0x2a1410, 1);
+
+const world = new THREE.Group();
+world.position.copy(EYE);
+scene.add(world);
+
+// 黄昏的底色（AR 时隐藏）
+const dome = new THREE.Mesh(new THREE.SphereGeometry(60, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false,
+  uniforms: { uA: { value: 0 } },
+  vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: `uniform float uA; varying vec3 vP; void main(){
+    float h = vP.y;
+    vec3 top = vec3(0.30,0.10,0.07), hor = vec3(0.55,0.24,0.12), low = vec3(0.06,0.08,0.13);
+    vec3 c = mix(mix(vec3(0.2,0.14,0.16), low, smoothstep(0.0, 0.3, -h)), mix(hor, top, smoothstep(0.0, 0.6, h)), smoothstep(-0.06, 0.06, h));
+    c *= 1.0 + 0.35 * uA * smoothstep(-0.05, 0.3, h);
+    gl_FragColor = vec4(c, 1.); }`,
+}));
+world.add(dome);
+
+// ---------- 桥上三联，轮流现形：《呐喊》1893 /《焦虑》1894 /《绝望》1892 ----------
+// 五幅画轮流：每次三幅按 120° 绕你一圈拼成 360° 全景（之间延展、交界交错溶解），共用同一群"鱼"。
+// 安静时鱼群散在你周围；出声时聚成全景，正前方是其中一幅；散开后，下一次出声换一幅到正前方。
+const D = 3.4, SPAN = 48 * DEG;
+const DRAW = 56 * DEG, PWD = 2 * D * Math.tan(DRAW / 2);   // 画面约 56° 宽，两侧边缘交错溶解进天空与水面
+const PANELS = [
+  { slug: 'scream', name: '《呐喊》 The Scream · 1893', crop: [0, 0.955, 0, 1] },   // 右边缘是画框，裁掉
+  { slug: 'anxiety', name: '《焦虑》 Anxiety · 1894', crop: [0, 1, 0, 1] },
+  { slug: 'despair', name: '《绝望》 Despair · 1892', crop: [0, 1, 0, 1] },
+  { slug: 'karl-johan', name: '《卡尔约翰街的夜晚》 Evening on Karl Johan · 1892', crop: [0, 1, 0, 1] },
+  { slug: 'melancholy', name: '《忧郁》 Melancholy · 1894–96', crop: [0, 1, 0, 1] },
+];
+const NS = PANELS.length;           // 状态数：每个状态正前方是其中一幅，右后、左后是它在画单里的后一幅、前一幅
+const slotsOf = k => [[k, 0], [(k + 1) % NS, 120 * DEG], [(k + NS - 1) % NS, -120 * DEG]];
+const NP = 900000;                 // 鱼群数量：铺满 360° 的画面（五幅画共用）
+const V_LO = -40 * DEG, V_SPAN = 72 * DEG;       // 画的下沿在 -40°，画高 72°（画里的地平线大约落在眼睛高度）
+const PH_LO = -40 * DEG, PH_HI = 84 * DEG;       // 鱼群铺开的仰角范围
+// 所有笔触的大小按"角度"定义：不管离你多远，在眼里都一样大
+const angLen = coh => 0.0072 * rand(0.85, 1.15) * (0.85 + 0.3 * coh);
+const SWIM = 0.018;                // 所有笔触同一个游速（按角速度），只有小幅随机
+const RIPPLES = 24;
+const U = {
+  uTime: { value: 0 }, uA: { value: 0 }, uEcho: { value: 0 }, uC: { value: 0 }, uPx: { value: innerHeight },   // uC = 画面清晰度（出声才看得见）
+  uWa: { value: new THREE.Vector4(1, 0, 0, 0) }, uWb: { value: 0 },                                             // 五个状态的权重：当前聚成哪一幅
+  uYaw: { value: 0 },                                                                                           // 这一次聚成的画转到哪个方向（你看着的方向）
+  uRip: { value: Array.from({ length: RIPPLES }, () => new THREE.Vector3(-999, 0, 1)) },   // (出生时间, 强度, 方向 1 外扩 / -1 回涌)
+};
+let N = 0, gpu = null, posVar = null, velVar = null, strokeMat = null;
+
+async function loadPixels(url) {
+  const img = new Image(); img.src = url; await img.decode();
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0);
+  return { w: img.width, h: img.height, data: g.getImageData(0, 0, img.width, img.height).data };
+}
+const sample = (img, u, v, ch) => {
+  const x = Math.min(img.w - 1, Math.max(0, (u * img.w) | 0)), y = Math.min(img.h - 1, Math.max(0, ((1 - v) * img.h) | 0));
+  return img.data[(y * img.w + x) * 4 + ch];
+};
+// 原画某点的线条方向（转成"右、上"坐标）与一致度
+function orientAt(O, u, v) {
+  const coh = sample(O, u, v, 0) / 255;
+  let th = 0.5 * Math.atan2(sample(O, u, v, 2) / 127.5 - 1, sample(O, u, v, 1) / 127.5 - 1);
+  if (coh < 0.12) th += (Math.random() - 0.5) * 1.2;
+  return [Math.cos(th), -Math.sin(th), coh];
+}
+
+// ---------- GPU 上的鱼群 ----------
+const SIM_COMMON = /* glsl */`
+  uniform float uTime, uDt, uA, uEcho, uC;
+  uniform vec4 uDbg;
+  uniform vec4 uWa; uniform float uWb, uYaw;
+  uniform vec3 uRip[${RIPPLES}];
+  uniform sampler2D tH0, tH1, tH2, tH3, tH4, tD0, tD1, tD2, tD3, tD4, tS;
+  vec3 yawRot(vec3 v) { float c = cos(uYaw), s = sin(uYaw); return vec3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z); }
+  vec3 pot(vec3 p) {
+    return vec3(sin(p.y * 1.3 + cos(p.z * 0.9 + uTime * 0.21)),
+                sin(p.z * 1.1 + cos(p.x * 1.2 - uTime * 0.17)),
+                sin(p.x * 1.7 + cos(p.y * 0.8 + uTime * 0.23)));
+  }
+  // 无散度的涡流：一片区域里的鱼一起转向，像一群一群地游
+  vec3 curl(vec3 p) {
+    float e = 0.08;
+    vec3 dx = vec3(e, 0, 0), dy = vec3(0, e, 0), dz = vec3(0, 0, e);
+    vec3 a = pot(p + dx) - pot(p - dx), b = pot(p + dy) - pot(p - dy), c = pot(p + dz) - pot(p - dz);
+    return vec3(b.z - c.y, c.x - a.z, a.y - b.x) / (2.0 * e);
+  }
+  // ---- 有秩序的聚散 ----
+  // 安静时，每一笔都待在"离自己家最近的那条河"里：经度就在家的上下方，只沿河道前后漂一小段（±25°）；
+  // 河里按明暗排开（暗的在下、亮的在上），所以同一块画面、相近颜色的笔触本来就挨在一起。
+  // 出声时分两步：先沿河道滑回家正上方（同色的聚成一簇），再从河里竖着落进画里。散开时倒着走。
+  const float RIVER_W = 1.2;   // 沿河漂 ±34°
+  float riverRate(float seed) { return 0.012 + 0.01 * fract(seed * 3.7); }
+  float riverPhaseAt(float seed, float t) { return fract(t * riverRate(seed) + seed); }
+  float h1(float x) { return fract(sin(x * 127.1 + 31.7) * 43758.5453); }
+  vec3 gatherTarget(vec3 home, vec4 S, float seed) {
+    float r = length(home) + 1e-4;
+    vec3 hn = home / r;
+    float lat = asin(clamp(hn.y, -1.0, 1.0)), lon = atan(hn.x, -hn.z);
+    float n = clamp(floor((degrees(lat) - 5.6) / 11.25 + 0.5), -3.0, 6.0);
+    // 约两成的笔触不去最近的河，而是去隔壁一两条——不那么规整
+    float stray = fract(seed * 7.77);
+    if (stray < 0.22) n = clamp(n + (stray < 0.11 ? -1.0 : 1.0) * (stray < 0.04 || stray > 0.18 ? 2.0 : 1.0), -3.0, 6.0);
+    // 每条河是一个斜着的环：绕一圈时高低起伏 ±(8°~18°)，相位各不相同，所以环与环会交错
+    float tilt = radians(12.0 + 14.0 * h1(n)), tph = 6.2832 * h1(n + 11.0);
+    float bandLat = radians(5.6 + 11.25 * n) + tilt * sin(lon + tph) - (0.6 / 16.0) * sin(lon * 3.0);
+    float lum = S.x;
+    float dirS = h1(n + 5.0) > 0.5 ? 1.0 : -1.0;
+    float a = smoothstep(0.05, 0.5, uC), b = smoothstep(0.45, 0.95, uC);
+    float off = dirS * RIVER_W * (riverPhaseAt(seed, uTime) - 0.5) * (1.0 - a);
+    // 聚散途中各自绕一点弯路，不走直线
+    float detour = sin(3.1416 * a) * 0.6 + sin(3.1416 * b) * 0.4;
+    off += (fract(seed * 29.3) - 0.5) * 0.35 * detour;
+    float wid = radians(1.0 + 2.2 * h1(n + 3.0));                 // 有的河宽、有的窄
+    float jitLat = (fract(seed * 17.3) - 0.5) * 2.0 * wid + (lum - 0.4) * radians(2.0);   // 明暗排序只留一点
+    float tLat = mix(bandLat + jitLat + (fract(seed * 41.7) - 0.5) * radians(6.0) * detour, lat, b);
+    float tR = mix(6.0 + mod((n + 3.0) * 2.17, 5.0) + (fract(seed * 53.1) - 0.5) * 1.2, r, b);
+    float tLon = lon + off - uYaw * a;      // 第一步顺着河道流到转过去的方向（散开时 a=0，不动）
+    float c = cos(tLat);
+    return tR * vec3(c * sin(tLon), sin(tLat), -c * cos(tLon));
+  }`;
+const VEL_FS = SIM_COMMON + /* glsl */`
+  void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec3 p = texture2D(texturePosition, uv).xyz;
+    vec3 v = texture2D(textureVelocity, uv).xyz;
+    vec4 H = (texture2D(tH0, uv) * uWa.x + texture2D(tH1, uv) * uWa.y + texture2D(tH2, uv) * uWa.z + texture2D(tH3, uv) * uWa.w + texture2D(tH4, uv) * uWb);
+    vec4 Dr = (texture2D(tD0, uv) * uWa.x + texture2D(tD1, uv) * uWa.y + texture2D(tD2, uv) * uWa.z + texture2D(tD3, uv) * uWa.w + texture2D(tD4, uv) * uWb);
+    Dr.xyz = yawRot(Dr.xyz);
+    vec4 S = texture2D(tS, uv);
+    float seed = S.w, r = length(H.xyz) + 1e-3;
+    vec3 dir = normalize(Dr.xyz + 1e-5);
+    // 目标：安静时在河里，出声时回画里（见 gatherTarget）
+    vec3 target = gatherTarget(H.xyz, S, seed);
+    float excite = 1.0 + 1.2 * uA * (1.0 - uC);
+    float wander = r * 0.008 * (1.0 - uC);
+    // 1. 对齐：沿原画的线条游，按 seed 分成正反两群
+    vec3 swim = dir * (seed > 0.5 ? 1.0 : -1.0) * max(Dr.w, wander) * excite * (0.6 + 0.8 * fract(seed * 13.7)) * mix(0.35, 0.2, uC);
+    // 2. 成群转向
+    vec3 school = curl(H.xyz / r * 4.0 + p * 0.12 + seed * 0.6) * max(Dr.w * 0.6, wander) * excite * mix(0.45, 0.06, uC);
+    // 3. 凝聚：游远了被拉回目标
+    vec3 toT = target - p;
+    float dist = length(toT);
+    float leash = mix(r * 0.05, H.w, uC);                          // 散开时贴着河道走
+    vec3 pull = toT * (mix(0.9, 2.6, uC) + 5.0 * smoothstep(0.5 * leash, leash, dist) / max(1.0, leash / max(H.w, 1e-3)));
+    // 河流：绕着你流的水平水流，按仰角分成一条条带，相邻的带方向相反、快慢不同，带里还有缓慢的涡
+    vec3 pn = normalize(p);
+    vec3 east = normalize(cross(vec3(0.0, 1.0, 0.0), pn) + 1e-5);
+    float lat = asin(clamp(pn.y, -1.0, 1.0));
+    float lane = sin(lat * 16.0 + 0.6 * sin(atan(pn.x, -pn.z) * 3.0 + uTime * 0.15));
+    vec3 river = (east * lane * (0.7 + 0.3 * sin(lat * 7.0 + uTime * 0.2)) + curl(pn * 2.2 + uTime * 0.03) * 0.25) * r * 0.06;
+    // 安静时整群顺着河道流；聚拢时，离家还远的先顺流漂过去，快到了才落进画里
+    float flowW = mix(1.0, smoothstep(r * 0.04, r * 0.3, dist), uC);
+    vec3 desired = swim * uDbg.x + school * (1.0 - 0.5 * flowW) * uDbg.y + pull * mix(1.0, 0.55, flowW * uC) + river * flowW * 0.15 * uDbg.z;
+    v += (desired - v) * min(1.0, uDt * (1.2 + 2.0 * fract(seed * 7.3)));
+    // 对齐：横穿原画线条的分量被慢慢消掉（越清晰越明显）
+    vec3 along = dot(v, dir) * dir;
+    v -= (v - along) * min(1.0, uDt * 2.5) * 0.7 * uC;
+    // 4. 声波
+    for (int i = 0; i < ${RIPPLES}; i++) {
+      vec3 rp = uRip[i];
+      float age = uTime - rp.x;
+      if (age < 0.0 || age > 6.0) continue;
+      float rr = rp.z > 0.0 ? age * 4.5 : 14.0 - age * 4.5;
+      float pulse = rp.y * exp(-pow((length(p) - rr) / 0.9, 2.0)) * exp(-age * 0.35);
+      v += (normalize(p) * sign(rp.z) * 0.8 + curl(p * 0.5) * 0.5) * pulse * r * 0.06 * uDt * 12.0 * uDbg.w * (1.0 - 0.9 * smoothstep(0.3, 0.9, uC));   // 画面聚好之后，声波只轻轻推一下，不把它冲散
+    }
+    gl_FragColor = vec4(v, 1.0);
+  }`;
+const POS_FS = SIM_COMMON + /* glsl */`
+  void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec4 p = texture2D(texturePosition, uv);
+    vec3 v = texture2D(textureVelocity, uv).xyz;
+    vec3 np = p.xyz + v * uDt;
+    vec4 S = texture2D(tS, uv);
+    float seed = S.w;
+    if (uC < 0.05 && riverPhaseAt(seed, uTime) < riverPhaseAt(seed, uTime - uDt)) {
+      vec4 H = (texture2D(tH0, uv) * uWa.x + texture2D(tH1, uv) * uWa.y + texture2D(tH2, uv) * uWa.z + texture2D(tH3, uv) * uWa.w + texture2D(tH4, uv) * uWb);
+      np = gatherTarget(H.xyz, S, seed);
+    }
+    gl_FragColor = vec4(np, p.w);
+  }`;
+
+const STROKE_VS = /* glsl */`
+      attribute vec2 aRef; attribute vec3 aC0, aC1, aC2, aC3, aC4; attribute float aW, aLen, aAl;
+      uniform sampler2D tPos, tVel, tD0, tD1, tD2, tD3, tD4, tS;
+      uniform float uTime, uA, uEcho, uC, uPx;
+      uniform vec4 uWa; uniform float uWb, uYaw;
+      uniform vec3 uRip[${RIPPLES}];
+      varying vec3 vCol; varying float vAlpha, vAng, vW, vPx;
+      void main() {
+        vec3 p = texture2D(tPos, aRef).xyz, v = texture2D(tVel, aRef).xyz;
+        vec2 uv = aRef;
+        vec3 aDir = normalize((texture2D(tD0, uv) * uWa.x + texture2D(tD1, uv) * uWa.y + texture2D(tD2, uv) * uWa.z + texture2D(tD3, uv) * uWa.w + texture2D(tD4, uv) * uWb).xyz + 1e-5);
+        { float c = cos(uYaw), s = sin(uYaw); aDir = vec3(c * aDir.x + s * aDir.z, aDir.y, -s * aDir.x + c * aDir.z); }
+        float r = length(p) + 1e-3, sp = length(v);
+        float rel = sp / (0.02 * r);
+        vec3 ad = aDir * (dot(aDir, v) >= 0.0 ? 1.0 : -1.0);
+        // 清晰时笔触顺着原画线条；散开时顺着游动方向
+        vec3 dirW = sp > 1e-5 ? normalize(mix(ad, v / sp, mix(0.85, clamp(rel * 0.25, 0.0, 0.45), uC))) : aDir;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        vec4 c2 = projectionMatrix * modelViewMatrix * vec4(p + dirW * 0.05, 1.0);
+        vec2 d = c2.xy / c2.w - gl_Position.xy / gl_Position.w;
+        vAng = atan(d.y, d.x * projectionMatrix[1][1] / projectionMatrix[0][0]);
+        float L = aLen * length(p) * (0.85 + 0.2 * min(rel, 2.0));   // 角度 × 距离：远近一样大
+        float heat = 0.0;
+        for (int i = 0; i < ${RIPPLES}; i++) {
+          vec3 rp = uRip[i]; float age = uTime - rp.x;
+          if (age < 0.0 || age > 6.0) continue;
+          float rr = rp.z > 0.0 ? age * 4.5 : 14.0 - age * 4.5;
+          heat += rp.y * exp(-pow((r - rr) / 0.9, 2.0)) * exp(-age * 0.35);
+        }
+        gl_PointSize = clamp(L * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 2.0, 64.0);
+        vPx = gl_PointSize; vW = aW;
+        vec3 c = aC0 * uWa.x + aC1 * uWa.y + aC2 * uWa.z + aC3 * uWa.w + aC4 * uWb;
+        c = mix(c, vec3(1.0, 0.42, 0.14), clamp(heat * 0.12, 0.0, 0.22));   // 声波只带一点温度
+        c *= 1.0 + 0.12 * min(heat, 1.0);
+        float seed = texture2D(tS, aRef).w;
+        float rp = fract(uTime * (0.012 + 0.01 * fract(seed * 3.7)) + seed);
+        float drift = smoothstep(0.0, 0.08, rp) * smoothstep(1.0, 0.92, rp);
+        vCol = c; vAlpha = aAl * mix(0.7, 1.0, uC) * mix(drift, 1.0, smoothstep(0.0, 0.25, uC));
+      }`;
+const STROKE_FS = /* glsl */`
+      varying vec3 vCol; varying float vAlpha, vAng, vW, vPx;
+      void main() {
+        vec2 q = gl_PointCoord - 0.5; q.y = -q.y;
+        float cs = cos(vAng), sn = sin(vAng);
+        float u = cs * q.x + sn * q.y, v = -sn * q.x + cs * q.y;
+        float taper = 1.0 - pow(abs(u) * 2.0, 2.0);
+        if (taper <= 0.0) discard;
+        float head = 0.75 + 0.5 * (u + 0.5);                     // 头粗尾细：像一条鱼，也像一笔落下再收起
+        float px = 1.0 / vPx;
+        float w = max(vW * 0.5 * sqrt(taper) * head, 0.6 * px);
+        float a = vAlpha * (1.0 - smoothstep(-px, px, abs(v) - w));
+        if (a < 0.03) discard;
+        gl_FragColor = vec4(vCol, a);
+      }`;
+
+async function buildScene(onProgress) {
+  // ---- 360° 全景：三幅画按 120° 绕你一圈，画与画之间用镜像延展补满、交界处笔触交错溶解 ----
+  // 每个"状态"里，正前方是其中一幅（另外两幅在你的左后、右后）。同一条鱼在三个状态里占同一个方向，只是颜色、深度、走向不同。
+  const imgs = [];
+  for (const pnl of PANELS) {
+    onProgress(`读取${pnl.name.split(' ')[0]}…`);
+    const [C, Dp, O] = await Promise.all(['color.jpg', 'depth.png', 'orient.png'].map(f => loadPixels(`data/${pnl.slug}/${f}`)));
+    const [u0, u1, v0, v1] = pnl.crop;
+    const aspect = (C.w * (u1 - u0)) / (C.h * (v1 - v0));
+    imgs.push({ C, Dp, O, crop: pnl.crop, W: aspect * V_SPAN });   // 按原比例占多宽（角度）
+  }
+  onProgress('铺开 360° 的画…');
+  const tri = (x) => { const m = ((x % 2) + 2) % 2; return m < 1 ? m : 2 - m; };      // 镜像往返
+  // 三幅画的色调统一：每幅画的颜色均值/方差，往三幅的平均值上拉（越靠近交界拉得越多）
+  for (const img of imgs) {
+    const m = [0, 0, 0], q = [0, 0, 0]; let n = 0;
+    for (let t = 0; t < 30000; t++) {
+      const u = img.crop[0] + Math.random() * (img.crop[1] - img.crop[0]), v = Math.random();
+      for (let ch = 0; ch < 3; ch++) { const x = sample(img.C, u, v, ch) / 255; m[ch] += x; q[ch] += x * x; }
+      n++;
+    }
+    img.mean = m.map(x => x / n); img.std = q.map((x, ch) => Math.sqrt(Math.max(1e-4, x / n - img.mean[ch] ** 2)));
+  }
+  const gMean = [0, 1, 2].map(ch => imgs.reduce((a, im) => a + im.mean[ch], 0) / imgs.length);
+  const gStd = [0, 1, 2].map(ch => imgs.reduce((a, im) => a + im.std[ch], 0) / imgs.length);
+  const harmon = (img, rgb, amt) => rgb.map((x, ch) => {
+    const y = (x - img.mean[ch]) / img.std[ch] * gStd[ch] + gMean[ch];
+    return Math.min(1, Math.max(0, x + (y - x) * amt));
+  });
+  // 某幅画在方向 (local, ph) 上的取样
+  function samplePainting(img, local, ph) {
+    // 横向：画的中间 70% 保持原比例；两侧边缘那一条往外拉伸，一直铺到与邻画的交界（±60°）
+    const hw = img.W / 2, core = 0.7 * hw, aa = Math.abs(local);
+    const uOff = aa <= core ? aa / img.W : core / img.W + Math.min(1, (aa - core) / (60 * DEG - core)) * (0.5 - core / img.W);
+    const u01 = Math.min(1, Math.max(0, 0.5 + Math.sign(local) * uOff)), vRaw = (ph - V_LO) / V_SPAN;
+    // 画框以上：在画面顶部那段天空里镜像往返，天空一直延伸到头顶
+    let v01, flipV = false;
+    if (vRaw <= 1) v01 = Math.max(0, vRaw);
+    else { const t = (vRaw - 1) / 0.3; v01 = 1 - 0.3 * tri(t); flipV = Math.floor(t % 2) === 0; }
+    const u = img.crop[0] + u01 * (img.crop[1] - img.crop[0]), v = img.crop[2] + v01 * (img.crop[3] - img.crop[2]);
+    const d = vRaw > 1 ? 0 : sample(img.Dp, u, v, 0) / 255;
+    let [dx, dy, coh] = orientAt(img.O, u, v);
+    if (flipV) dy = -dy;
+    const rgb = [sample(img.C, u, v, 0) / 255, sample(img.C, u, v, 1) / 255, sample(img.C, u, v, 2) / 255];
+    return { d, dx, dy, coh, rgb, v01, vRaw, inCore: aa <= hw && vRaw <= 1 };
+  }
+  // 低频的"疏密 / 大小"起伏：不要处处一样
+  const lowNoise = (th, ph, s) => 0.5 + 0.25 * Math.sin(th * 3 + ph * 5 + s) + 0.25 * Math.sin(th * 7 - ph * 4 + s * 2.3);
+  const H = [], Dt = [], Cc = [], Ln = [], Al = [];
+  for (let k = 0; k < NS; k++) { H.push(new Float32Array(NP * 4)); Dt.push(new Float32Array(NP * 4)); Cc.push(new Float32Array(NP * 3)); Ln.push(new Float32Array(NP)); Al.push(new Float32Array(NP)); }
+  const S = new Float32Array(NP * 4);
+  const pt = new THREE.Vector3(), dv = new THREE.Vector3(), eT = new THREE.Vector3(), eP = new THREE.Vector3();
+  const sph = (th, ph, r, o) => o.set(r * Math.cos(ph) * Math.sin(th), r * Math.sin(ph), -r * Math.cos(ph) * Math.cos(th));
+  const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+  const sinLo = Math.sin(PH_LO), sinHi = Math.sin(PH_HI);
+  const coreW = Math.max(...imgs.map(im => im.W)) / 2;
+  for (let i = 0; i < NP; i++) {
+    if (i % 50000 === 0) await new Promise(r => setTimeout(r, 0));
+    // 方向：画的主体（三个 120° 的中心、画高范围内）更密；延展区更稀；再叠一层低频起伏
+    let th, ph, inCoreZone;
+    for (;;) {
+      th = rand(-Math.PI, Math.PI); ph = Math.asin(rand(sinLo, sinHi));
+      const dc = Math.abs(wrap(th - Math.round(th / (120 * DEG)) * 120 * DEG));
+      inCoreZone = dc < coreW && ph < V_LO + V_SPAN;
+      const w = (inCoreZone ? 1 : 0.32) * (0.55 + 0.45 * lowNoise(th, ph, 0.7));
+      if (Math.random() < w) break;
+    }
+    eT.set(Math.cos(th), 0, Math.sin(th)); eP.set(-Math.sin(ph) * Math.sin(th), Math.cos(ph), Math.sin(ph) * Math.cos(th));
+    const edgeFade = Math.min(1, (ph - PH_LO) / (6 * DEG), (PH_HI - ph) / (8 * DEG));
+    const rnd = Math.random(), jit = 0.94 + Math.random() * 0.12, ink = Math.random() < 0.05 ? 0.35 : 1;
+    // 笔触大小：主体细（看得清），延展区粗；再按低频起伏和随机变化
+    const lenBase = (inCoreZone ? 0.0042 : 0.0078) * (0.7 + 0.6 * lowNoise(th, ph, 2.1)) * rand(0.75, 1.3);
+    let lumSum = 0;
+    for (let k = 0; k < NS; k++) {
+      // 状态 k：画 k 在正前方，后一幅在右后（+120°），前一幅在左后（-120°）
+      const slots = slotsOf(k), center = {};
+      let best = 0, bestD = 9, second = 0, secondD = 9;
+      for (const [j, c] of slots) {
+        center[j] = c;
+        const d = Math.abs(wrap(th - c));
+        if (d < bestD) { second = best; secondD = bestD; best = j; bestD = d; } else if (d < secondD) { second = j; secondD = d; }
+      }
+      // 交界（中点附近 ±24°）：位置/走向按比例交错取样，颜色两边渐变混合
+      const gap = Math.min(1, (secondD - bestD) / (24 * DEG));
+      const mixW = 0.5 * (1 - gap) * (1 - gap) * (3 - 2 * (1 - gap)) / 1;   // 0 → 0.5
+      const j = Math.random() < mixW ? second : best;
+      const A = samplePainting(imgs[j], wrap(th - center[j]), ph);
+      const o = j === best ? second : best;
+      const Bc = samplePainting(imgs[o], wrap(th - center[o]), ph);
+      // 离自己中心越远，色调越往三幅的平均靠
+      const far = Math.min(1, Math.abs(wrap(th - center[j])) / (60 * DEG));
+      const amt = 0.2 + 0.6 * far * far;
+      const ca = harmon(imgs[j], A.rgb, amt), cb = harmon(imgs[o], Bc.rgb, amt);
+      const wB = j === best ? mixW : 1 - mixW;
+      const rgb = ca.map((x, ch) => (x * (1 - wB) + cb[ch] * wB) * jit * ink);
+      const r = 4.5 * (1 + Math.pow(1 - A.d, 1.3) * 1.6);           // 近处的人在 4.5 m，远处的天空在 ~12 m
+      sph(th, ph, r, pt);
+      dv.copy(eT).multiplyScalar(A.dx).addScaledVector(eP, A.dy).normalize();
+      const sky = Math.min(1, Math.max(0, (A.v01 - 0.62) / 0.12)) * (A.d < 0.35 ? 1 : 0.3);
+      const figure = A.d > 0.6 && A.vRaw <= 1;
+      H[k].set([pt.x, pt.y, pt.z, r * (figure ? 0.005 : 0.009 + 0.02 * sky) * rand(0.8, 1.2)], i * 4);
+      Dt[k].set([dv.x, dv.y, dv.z, r * SWIM * rand(0.6, 1.4)], i * 4);
+      Cc[k].set(rgb, i * 3);
+      lumSum += 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2];
+      Ln[k][i] = lenBase * (0.85 + 0.3 * A.coh);
+      Al[k][i] = 0.92 * edgeFade;
+    }
+    // 散开时的位置在着色器里算（gatherTarget）；这里只存这一笔在三幅画里的明暗，用来在河里按明暗排开
+    S.set([lumSum / NS, 0, 0, rnd], i * 4);
+  }
+
+  // ---- 打包成 GPU 纹理 ----
+  onProgress('唤醒鱼群…');
+  N = NP;
+  const TEX = Math.ceil(Math.sqrt(N));
+  const pad = a => { const b = new Float32Array(TEX * TEX * 4); b.set(a); return b; };
+  const dataTex = a => { const t = new THREE.DataTexture(pad(a), TEX, TEX, THREE.RGBAFormat, THREE.FloatType); t.needsUpdate = true; return t; };
+  const tH = H.map(dataTex), tD = Dt.map(dataTex), tS = dataTex(S);
+
+  gpu = new GPUComputationRenderer(TEX, TEX, renderer);
+  const p0 = gpu.createTexture(), v0 = gpu.createTexture();
+  p0.image.data.set(H[0]);                                        // 一开始在画里，载入后自己流散进河
+  posVar = gpu.addVariable('texturePosition', POS_FS, p0);
+  velVar = gpu.addVariable('textureVelocity', VEL_FS, v0);
+  gpu.setVariableDependencies(posVar, [posVar, velVar]);
+  gpu.setVariableDependencies(velVar, [posVar, velVar]);
+  Object.assign(velVar.material.uniforms, {
+    uTime: U.uTime, uA: U.uA, uEcho: U.uEcho, uC: U.uC, uWa: U.uWa, uWb: U.uWb, uYaw: U.uYaw, uRip: U.uRip, uDt: { value: 0.016 },
+    uDbg: { value: new THREE.Vector4(1, 1, 1, 1) }, tS: { value: tS },
+    ...Object.fromEntries(tH.map((t, k) => ['tH' + k, { value: t }])), ...Object.fromEntries(tD.map((t, k) => ['tD' + k, { value: t }])),
+  });
+  Object.assign(posVar.material.uniforms, velVar.material.uniforms);
+  window.__dbg = (a, b, c, d) => velVar.material.uniforms.uDbg.value.set(a, b, c, d);
+  window.__err = () => {   // 调试：抽样看画面鱼群离各自画中位置的角度误差（度）
+    const rt = gpu.getCurrentRenderTarget(posVar), buf = new Float32Array(TEX * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, TEX, 1, buf);
+    const k = curPainting, h = H[k], c = Math.cos(U.uYaw.value), sn = Math.sin(U.uYaw.value);
+    let s = 0, n = 0;
+    for (let i = 0; i < TEX; i++) { const a = new THREE.Vector3(buf[i*4], buf[i*4+1], buf[i*4+2]).normalize(), b = new THREE.Vector3(c * h[i*4] + sn * h[i*4+2], h[i*4+1], -sn * h[i*4] + c * h[i*4+2]).normalize(); s += a.angleTo(b) / DEG; n++; }
+    return s / n;
+  };
+  const err = gpu.init();
+  if (err) throw new Error('GPU 模拟初始化失败：' + err);
+
+  // ---- 渲染属性 ----
+  const ref = new Float32Array(N * 2), L1 = new Float32Array(N), A1 = new Float32Array(N), W1 = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    ref[i * 2] = (i % TEX + 0.5) / TEX; ref[i * 2 + 1] = (Math.floor(i / TEX) + 0.5) / TEX;
+    for (let k = 0; k < NS; k++) { L1[i] += Ln[k][i] / NS; A1[i] += Al[k][i] / NS; }
+    W1[i] = Math.random() < 0.05 ? 0.12 : 0.22 + Math.random() * 0.1;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(N * 3), 3));
+  geo.setAttribute('aRef', new THREE.Float32BufferAttribute(ref, 2));
+  geo.setAttribute('aC0', new THREE.Float32BufferAttribute(Cc[0], 3));
+  geo.setAttribute('aC1', new THREE.Float32BufferAttribute(Cc[1], 3));
+  geo.setAttribute('aC2', new THREE.Float32BufferAttribute(Cc[2], 3));
+  geo.setAttribute('aC3', new THREE.Float32BufferAttribute(Cc[3], 3));
+  geo.setAttribute('aC4', new THREE.Float32BufferAttribute(Cc[4], 3));
+  geo.setAttribute('aLen', new THREE.Float32BufferAttribute(L1, 1));
+  geo.setAttribute('aAl', new THREE.Float32BufferAttribute(A1, 1));
+  geo.setAttribute('aW', new THREE.Float32BufferAttribute(W1, 1));
+  strokeMat = new THREE.ShaderMaterial({
+    uniforms: { ...U, tS: { value: tS }, tPos: { value: null }, tVel: { value: null }, ...Object.fromEntries(tD.map((t, k) => ['tD' + k, { value: t }])) },
+    transparent: true, depthWrite: false,
+    vertexShader: STROKE_VS, fragmentShader: STROKE_FS,
+  });
+  const points = new THREE.Points(geo, strokeMat);
+  points.frustumCulled = false;
+  world.add(points);
+}
+
+// 每帧推进一次鱼群；XR 里要临时关掉 xr，并恢复 XR 的帧缓冲
+function stepFlock(dt) {
+  if (!gpu) return;
+  velVar.material.uniforms.uDt.value = Math.min(dt, 1 / 30);
+  const rt = renderer.getRenderTarget(), xrOn = renderer.xr.enabled;
+  renderer.xr.enabled = false;
+  gpu.compute();
+  renderer.xr.enabled = xrOn;
+  renderer.setRenderTarget(rt);
+  strokeMat.uniforms.tPos.value = gpu.getCurrentRenderTarget(posVar).texture;
+  strokeMat.uniforms.tVel.value = gpu.getCurrentRenderTarget(velVar).texture;
+}
+
+// 轮换：一次"聚拢 → 散开"之后，下一次聚成下一幅
+let curPainting = 0, cyclePeak = 0, nameShown = false;
+function stepRotation(dt, clarity) {
+  cyclePeak = Math.max(cyclePeak, clarity);
+  if (cyclePeak > 0.6 && clarity < 0.1) { cyclePeak = 0; curPainting = (curPainting + 1) % PANELS.length; nameShown = false; }
+  const k = Math.min(1, dt * 1.5), w = U.uWa.value;
+  const tgt = i => (curPainting === i ? 1 : 0);
+  w.x += (tgt(0) - w.x) * k; w.y += (tgt(1) - w.y) * k; w.z += (tgt(2) - w.z) * k; w.w += (tgt(3) - w.w) * k;
+  U.uWb.value += (tgt(4) - U.uWb.value) * k;
+  const sum = w.x + w.y + w.z + w.w + U.uWb.value; w.multiplyScalar(1 / sum); U.uWb.value /= sum;
+  // 散开的时候，下一幅画的朝向一直跟着你的视线；一开始聚拢就定住——新的画总是出现在你眼前
+  if (clarity < 0.04) U.uYaw.value = headYaw();
+  // 画面聚起来的时候，浮出画名
+  if (clarity > 0.55 && !nameShown) { nameShown = true; showName(PANELS[curPainting].name); }
+}
+const _f = new THREE.Vector3();
+function headYaw() {
+  (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldDirection(_f);
+  return Math.atan2(-_f.x, -_f.z);
+}
+let nameTimer = 0;
+function showName(t) {
+  const el = $('pname'); el.textContent = t; el.classList.add('on');
+  clearTimeout(nameTimer); nameTimer = setTimeout(() => el.classList.remove('on'), 3500);
+}
+
+// ---------- 声音输入：麦克风音量（不录音） ----------
+let audio = null, analyser = null, micBuf = null, micOn = false, muted = false;
+let keyVoice = false;
+addEventListener('keydown', e => { if (e.code === 'Space') { keyVoice = true; e.preventDefault(); } });
+addEventListener('keyup', e => { if (e.code === 'Space') keyVoice = false; });
+renderer.domElement.addEventListener('pointerdown', () => { keyVoice = true; });
+addEventListener('pointerup', () => { keyVoice = false; });
+
+function startAudio() {
+  if (audio) { audio.ctx.resume(); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+  master.gain.linearRampToValueAtTime(muted ? 0 : 0.5, ctx.currentTime + 4);
+  // 低频的两个音只差半音，互相拍打，像一直存在的不安
+  const drone = ctx.createGain(); drone.gain.value = 0.05; drone.connect(master);
+  [55, 58.27, 82.41].forEach(f => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(drone); o.start(); });
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const wind = ctx.createBufferSource(); wind.buffer = buf; wind.loop = true;
+  const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 500; wf.Q.value = 0.7;
+  const wg = ctx.createGain(); wg.gain.value = 0.02;
+  wind.connect(wf).connect(wg).connect(master); wind.start();
+  audio = { ctx, master, drone, wf, wg, buf };
+  navigator.mediaDevices?.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } }).then(stream => {
+    const src = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+    src.connect(analyser);                       // 只接分析器，不接扬声器
+    micBuf = new Float32Array(analyser.fftSize);
+    micOn = true; $('micState').textContent = '麦克风：已开启';
+  }).catch(() => { $('micState').textContent = '麦克风：未授权（按住空格或鼠标代替声音）'; });
+}
+// 自然的回应：一团不协和的锯齿和弦，带通扫上去
+function natureScream(strength) {
+  if (!audio || muted) return;
+  const { ctx } = audio, t = ctx.currentTime;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.5;
+  bp.frequency.setValueAtTime(500, t); bp.frequency.exponentialRampToValueAtTime(2600, t + 2.6);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.14 * strength, t + 1.2); g.gain.exponentialRampToValueAtTime(0.001, t + 4);
+  bp.connect(g).connect(audio.master);
+  [392, 415.3, 440, 466.16, 523.25].forEach((f, i) => {
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 0.5, t); o.frequency.exponentialRampToValueAtTime(f, t + 2.4);
+    o.detune.value = (i - 2) * 9; o.connect(bp); o.start(t); o.stop(t + 4.1);
+  });
+  const n = ctx.createBufferSource(); n.buffer = audio.buf;
+  const ng = ctx.createGain(); ng.gain.setValueAtTime(0, t); ng.gain.linearRampToValueAtTime(0.08 * strength, t + 1); ng.gain.exponentialRampToValueAtTime(0.001, t + 3.5);
+  n.connect(ng).connect(audio.master); n.start(t); n.stop(t + 3.6);
+}
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.5, audio.ctx.currentTime, 0.3); };
+
+function voiceLevel() {
+  let lvl = 0;
+  if (micOn) {
+    analyser.getFloatTimeDomainData(micBuf);
+    let sum = 0; for (let i = 0; i < micBuf.length; i++) sum += micBuf[i] * micBuf[i];
+    const rms = Math.sqrt(sum / micBuf.length);
+    lvl = clamp01((rms - 0.015) / 0.18);
+  }
+  if (keyVoice) lvl = Math.max(lvl, 0.65 + 0.2 * Math.sin(performance.now() * 0.02));
+  return lvl;
+}
+
+// ---------- 声波与回应 ----------
+let ripCursor = 0, lastEmit = 0, energy = 0, silentFor = 0, anxiety = 0, returns = 0, clarity = 0;
+const pending = [];
+function emitRipple(t, strength, dir) {
+  U.uRip.value[ripCursor].set(t, strength, dir);
+  ripCursor = (ripCursor + 1) % RIPPLES;
+}
+function stepVoice(dt, t) {
+  const lvl = voiceLevel();
+  $('lvl').style.width = `${lvl * 100}%`;
+  anxiety += (lvl - anxiety) * Math.min(1, dt * (lvl > anxiety ? 2.5 : 0.25));
+  if (lvl > 0.12) {
+    silentFor = 0;
+    energy = Math.min(4, energy + lvl * dt);
+    if (t - lastEmit > 0.16) { emitRipple(t, 0.35 + lvl, 1); lastEmit = t; }
+  } else {
+    silentFor += dt;
+    // 你安静下来 1.5 秒后，自然把尖叫推回来：三道从地平线回涌的波
+    if (energy > 0.6 && silentFor > 1.5) {
+      const k = Math.min(1.4, 0.5 + energy / 3);
+      for (let j = 0; j < 3; j++) pending.push({ at: t + j * 0.45, k });
+      natureScream(Math.min(1, k));
+      anxiety = Math.min(1, anxiety + 0.35 * k);
+      energy = 0; returns++;
+      U.uEcho.value = 1;
+      if (returns === 1) { $('quote').classList.add('on'); setTimeout(() => $('quote').classList.remove('on'), 10000); }
+    }
+  }
+  for (let j = pending.length - 1; j >= 0; j--) if (t >= pending[j].at) { emitRipple(t, pending[j].k, -1); pending.splice(j, 1); }
+  U.uA.value = anxiety;
+  const want = Math.min(1, Math.max(lvl * 1.6, U.uEcho.value * 0.7));
+  clarity += (want - clarity) * Math.min(1, dt * (want > clarity ? 2.5 : 0.5));
+  U.uC.value = clarity;
+  stepRotation(dt, clarity);
+  U.uEcho.value = Math.max(0, U.uEcho.value - dt * 0.2);
+  dome.material.uniforms.uA.value = anxiety;
+  if (audio) {
+    const at = audio.ctx.currentTime;
+    audio.drone.gain.setTargetAtTime(0.04 + anxiety * 0.1, at, 0.3);
+    audio.wg.gain.setTargetAtTime(0.015 + anxiety * 0.05, at, 0.3);
+    audio.wf.frequency.setTargetAtTime(400 + anxiety * 1400, at, 0.3);
+  }
+}
+
+// ---------- XR 展签 ----------
+const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.height = 520;
+const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
+plaque.position.set(0.3, -0.3, -0.85); plaque.lookAt(0, 0, 0); plaque.visible = false;
+world.add(plaque);
+(function () {
+  const g = plaqueC.getContext('2d');
+  g.fillStyle = '#1a1010'; g.fillRect(0, 0, 1024, 520);
+  g.fillStyle = '#c8402a'; g.fillRect(0, 0, 10, 520);
+  g.fillStyle = '#c99a80'; g.font = '22px system-ui'; g.fillText('AFTER MUNCH · THE SCREAM 1893 · ANXIETY 1894 · DESPAIR 1892', 44, 66);
+  g.fillStyle = '#efe2cf'; g.font = '54px serif'; g.fillText('穿过自然的尖叫', 44, 140);
+  g.font = '30px serif'; g.fillStyle = '#ead8c4';
+  ['安静时，只有一群游动的颜色；', '发出声音，它们在你眼前聚成五幅画中的一幅；', '散开之后，下一次出声会聚成另一幅。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  g.fillStyle = '#e2a03a'; g.font = 'italic 26px serif'; g.fillText('“一声巨大的、无尽的尖叫穿过了自然。”— 蒙克，1892', 44, 470);
+  plaque.material.map.needsUpdate = true;
+})();
+
+// ---------- 进入 ----------
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
+vrBtn.style.display = arBtn.style.display = 'none';
+document.body.append(vrBtn, arBtn);
+for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
+$('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
+renderer.xr.addEventListener('sessionstart', () => {
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  dome.visible = opaque; plaque.visible = true;
+  renderer.setClearColor(0x2a1410, opaque ? 1 : 0);
+});
+renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x2a1410, 1); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+window.__forceNext = () => { curPainting = (curPainting + 1) % PANELS.length; cyclePeak = 0; nameShown = false; };
+window.__state = () => ({ anxiety, energy, returns, n: N, clarity, painting: curPainting });
+window.__cam = (fov, pitch) => { window.__camOverride = { fov, pitch }; };
+buildScene(t => { $('enter').textContent = t; })
+  .then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
+  .catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+
+const clock = new THREE.Clock();
+let time = 0;
+const mouse = new THREE.Vector2(), look = new THREE.Vector2();
+addEventListener('pointermove', e => mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1));
+// 进 XR 后每只眼睛画面的像素高度：老接口是 framebufferHeight，新的投影图层是 textureHeight，都没有就取左眼视口
+function xrPixelHeight() {
+  const layer = renderer.xr.getBaseLayer && renderer.xr.getBaseLayer();
+  let h = layer && (layer.framebufferHeight || layer.textureHeight);
+  if (!h) { const cam = renderer.xr.getCamera(); h = cam.cameras && cam.cameras[0] && cam.cameras[0].viewport && cam.cameras[0].viewport.w; }
+  return h || renderer.domElement.height;
+}
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  time += dt;
+  U.uTime.value = time;
+  stepVoice(dt, time);
+  stepFlock(dt);
+  if (!renderer.xr.isPresenting) {
+    look.lerp(mouse, 0.04);
+    camera.position.copy(EYE).add(new THREE.Vector3(look.x * 0.08, Math.sin(time * 0.6) * 0.004 * (1 + anxiety * 6), 0));
+    camera.rotation.set((2 + look.y * 8) * DEG, -look.x * 110 * DEG, Math.sin(time * 1.7) * 0.004 * anxiety, 'YXZ');
+  }
+  if (window.__camOverride && !renderer.xr.isPresenting) { camera.fov = window.__camOverride.fov; camera.updateProjectionMatrix(); camera.rotation.set(window.__camOverride.pitch * DEG, -(window.__camOverride.yaw || 0) * DEG, 0, 'YXZ'); }
+  U.uPx.value = renderer.xr.isPresenting ? xrPixelHeight() : renderer.domElement.height;
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

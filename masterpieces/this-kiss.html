@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>This Kiss</title>
+<style>
+  :root { --gold: #d4a838; --ink: #1c1610; --paper: #f3ead2; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #120e08; color: var(--paper); font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; }
+  canvas { display: block; }
+  #intro { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; transition: opacity 2s;
+    background: radial-gradient(circle at 50% 40%, rgba(212,168,56,.28), rgba(18,14,8,.97) 65%); }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  .card { max-width: 600px; background: rgba(24,18,10,.82); padding: 28px 32px; line-height: 1.85; font-size: 15px; border-top: 3px solid var(--gold);
+    box-shadow: inset 0 0 0 1px rgba(212,168,56,.25); }
+  .kicker { font-family: system-ui, sans-serif; font-size: 12px; letter-spacing: .26em; color: #c9a868; }
+  h1 { font-size: 40px; margin: 6px 0 0; font-weight: 500; letter-spacing: .1em; color: #f0d27a; }
+  h2 { font-size: 15px; margin: 0 0 18px; font-weight: 400; font-style: italic; color: #c9b58a; }
+  p { margin: 0 0 12px; color: #e9dfc6; }
+  .glyphs { display: inline-flex; gap: 5px; vertical-align: middle; margin: 0 3px; }
+  .glyphs i { display: block; width: 8px; height: 8px; }
+  blockquote { margin: 18px 0; padding-left: 14px; border-left: 2px solid var(--gold); color: #f3dc98; }
+  blockquote small { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: #b49a6a; margin-top: 4px; }
+  #enter { margin-top: 6px; background: var(--gold); color: var(--ink); border: 0; padding: 10px 30px; font-size: 15px; letter-spacing: .3em; cursor: pointer; font-family: inherit; }
+  #enter:disabled { opacity: .5; cursor: default; }
+  .how { font-family: system-ui, sans-serif; font-size: 12px; color: #b49a6a; margin-top: 14px; line-height: 1.7; }
+  #hud { position: fixed; left: 16px; bottom: 16px; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.7; color: #e9dfc6; background: rgba(24,18,10,.75); padding: 8px 12px; opacity: 0; transition: opacity 2s; width: 300px; max-width: calc(100% - 32px); box-sizing: border-box; border-left: 3px solid var(--gold); }
+  #hud.on { opacity: 1; }
+  #meter { position: relative; height: 6px; background: rgba(255,255,255,.1); margin: 6px 0; }
+  #meter i { position: absolute; top: 0; bottom: 0; background: var(--gold); }
+  #hud button { background: none; border: 1px solid #7a6a4a; color: #e9dfc6; border-radius: 3px; cursor: pointer; font-size: 11px; padding: 1px 8px; margin-left: 6px; }
+  #quote { position: fixed; left: 50%; top: 8%; transform: translateX(-50%); width: min(620px, calc(100% - 32px)); box-sizing: border-box; text-align: center; font-size: 20px; line-height: 1.7; background: rgba(24,18,10,.8); padding: 14px 20px; border-top: 3px solid var(--gold); color: #f3dc98; opacity: 0; transition: opacity 3s; pointer-events: none; }
+  #quote.on { opacity: 1; }
+  #quote small { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: #b49a6a; margin-top: 6px; }
+  #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
+  #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="intro">
+  <div class="card">
+    <div class="kicker">SPATIAL REINTERPRETATION · AFTER KLIMT, THE KISS (1907–08)</div>
+    <h1>这一吻</h1>
+    <h2>This Kiss</h2>
+    <p>在克里姆特的《吻》里，男人的长袍是黑、白、金的矩形<span class="glyphs"><i style="background:#1c1610"></i><i style="background:#efe6d0;width:5px"></i><i style="background:#d4a838"></i></span>，女人的长袍是彩色的圆与花<span class="glyphs"><i style="background:#c0392b;border-radius:50%"></i><i style="background:#6b4fa0;border-radius:50%"></i><i style="background:#3c6eb4;border-radius:50%"></i></span>。两种图形本来对立，只有在拥吻里才合成一体，一起裹进同一片金色。</p>
+    <p>这里，整幅画被拆成两万多片金箔马赛克。<b>你的两只手</b>就是这对恋人：双手分开，他们被分开，各自漂在两侧；双手慢慢合拢，他们一点点靠近；当你的双手合上，他们相拥，金色从那一吻漫过整幅画，两个一直在靠近的音，最终合成同一个音。</p>
+    <blockquote>“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small></blockquote>
+    <button id="enter" disabled>载入中…</button>
+    <div class="how">XR：伸出双手，两手之间的距离就是两人之间的距离；手合上 = 相拥<br>桌面：鼠标离画面中线越远，两人分得越开；移到中线 = 相拥<br>建议戴耳机</div>
+  </div>
+</div>
+<div id="hud"><span id="state">双手合拢，让他们靠近</span><button id="mute">静音</button><div id="meter"><i id="ml"></i><i id="mr"></i></div>两手之间的距离 = 两人之间的距离</div>
+<div id="quote">“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章，1902</small></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+THREE.ColorManagement.enabled = false;
+const $ = id => document.getElementById(id);
+const DEG = Math.PI / 180;
+const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+
+const EYE = new THREE.Vector3(0, 1.5, 0);
+const SIDE = 1.7;                                    // 画面边长 1.7 m，距离 2.4 m：约 39°，正好在前方视锥里
+const CENTER = new THREE.Vector3(0, 1.45, -2.4);
+const KISS_UV = new THREE.Vector2(0.56, 0.83);       // 两张脸相贴的位置
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.02, 100);
+camera.position.copy(EYE);
+camera.lookAt(CENTER);
+renderer.setClearColor(0x120e08, 1);
+
+// 暗金色的空间（AR 时隐藏）
+const room = new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false,
+  uniforms: { uU: { value: 0 } },
+  vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: `uniform float uU; varying vec3 vP; void main(){
+    float f = smoothstep(-0.2, 1.0, -vP.z) * smoothstep(-0.6, 0.3, vP.y);
+    vec3 c = mix(vec3(0.05,0.04,0.025), vec3(0.16,0.11,0.04), f) * (1.0 + 0.5 * uU);
+    gl_FragColor = vec4(c, 1.); }`,
+}));
+room.position.copy(EYE);
+scene.add(room);
+
+// ---------- 金箔马赛克 ----------
+const U = {
+  uTime: { value: 0 }, uApart: { value: 1 }, uUnion: { value: 0 }, uWave: { value: -1 },
+  uLight: { value: new THREE.Vector3(-0.35, 0.85, 0.4).normalize() },
+};
+const TILE_VS = /* glsl */`
+  attribute vec3 aHome, aCol;
+  attribute vec2 aUV;
+  attribute float aSize, aShape, aGroup, aSeed;
+  uniform float uTime, uApart, uUnion, uWave;
+  varying vec2 vUv, vTex, vSz; varying vec3 vCol, vN, vW; varying float vShape, vSeed, vWaveHit, vApart, vTexS, vRot;
+  mat3 rotX(float a) { float c = cos(a), s = sin(a); return mat3(1,0,0, 0,c,s, 0,-s,c); }
+  mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c,0,-s, 0,1,0, s,0,c); }
+  mat3 rotZ(float a) { float c = cos(a), s = sin(a); return mat3(c,s,0, -s,c,0, 0,0,1); }
+  void main() {
+    float g = aGroup;
+    // 每片按自己的节奏跟上，两人是一层层分开、一层层合拢
+    // 先后顺序按离两张脸相贴处的远近：从那一吻开始一层层散开，也从外往里一层层合拢
+    float kd = length(aHome.xy - vec2(${((KISS_UV.x - 0.5) * SIDE).toFixed(3)}, ${((KISS_UV.y - 0.5) * SIDE).toFixed(3)} + ${CENTER.y.toFixed(3)}));
+    float lag = clamp(kd / 1.4, 0.0, 1.0) * 0.3 + fract(aSeed * 7.31) * 0.03;
+    float a = smoothstep(lag, lag + 0.65, uApart) * abs(g);
+    vec3 p = aHome;
+    // 往两侧、并往你这边浮出来；整个人一起移，只带一点各自的偏差，分开时仍看得出人形
+    // 整个人一起移、一起起伏（只按位置变化，不按单片随机），分开时人形和细节都保留
+    p.x += g * a * 0.5;
+    p.z += a * 0.28;
+    p.y += a * 0.04 * sin(uTime * 0.6 + aHome.y * 2.0 + g);
+    // 不同的片有不同的厚度：圆片和矩形凸出一点，背景金箔最平
+    p.z += aShape > 1.5 && aShape < 2.5 ? 0.004 : aShape > 0.5 && aShape < 1.5 ? 0.003 : 0.0;
+    // 金箔微微翻动
+    float flutter = 0.03 + 0.04 * a;
+    float ax = sin(uTime * (0.7 + aSeed) + aSeed * 40.0) * flutter;
+    float ay = cos(uTime * (0.6 + aSeed * 0.8) + aSeed * 23.0) * flutter;
+    // 背景金箔：像一片片手贴上去的箔，大小、角度、位置都不齐，互相叠压
+    bool leaf = abs(g) < 0.5 && aShape < 0.5;
+    float az = leaf ? (fract(aSeed * 11.0) - 0.5) * 0.7
+             : (aShape > 0.5 && aShape < 1.5) ? (fract(aSeed * 11.0) - 0.5) * 0.1 : (fract(aSeed * 11.0) - 0.5) * 0.08;
+    float scl = leaf ? 1.0 + 0.45 * fract(aSeed * 19.7) : 1.0;
+    vec2 off = leaf ? (vec2(fract(aSeed * 31.1), fract(aSeed * 47.3)) - 0.5) * 0.35 * aSize : vec2(0.0);
+    mat3 R = rotY(ay) * rotX(ax) * rotZ(az);
+    vec2 sz = aShape > 0.5 && aShape < 1.5 ? vec2(0.6, 1.0) : vec2(1.0);
+    vec3 local = R * vec3(position.xy * sz * aSize * scl, 0.0);
+    vec3 w = p + vec3(off, leaf ? fract(aSeed * 61.0) * 0.002 : 0.0) + local;
+    vN = normalize(R * vec3(0.0, 0.0, 1.0));
+    vW = w;
+    // 在原画上取样的位置：这一片覆盖的那一小块（跟着片的旋转一起转，所以图案是"贴"在片上的）
+    vec2 lp = vec2(cos(az) * position.x * sz.x - sin(az) * position.y * sz.y, sin(az) * position.x * sz.x + cos(az) * position.y * sz.y) * scl;
+    vTex = aUV + lp * aSize / ${SIDE.toFixed(3)} + off / ${SIDE.toFixed(3)};
+    vUv = uv; vSz = sz; vCol = aCol; vShape = aShape; vSeed = aSeed; vTexS = aSize; vRot = az;
+    vApart = abs(g) < 0.5 ? -uApart : a;   // 负数 = 背景片：两人分开时背景暗下去
+    float d = length(aHome.xy - vec2(${((KISS_UV.x - 0.5) * SIDE).toFixed(3)}, ${((KISS_UV.y - 0.5) * SIDE).toFixed(3)} + ${CENTER.y.toFixed(3)}));
+    vWaveHit = uWave < 0.0 ? 0.0 : exp(-pow((d - uWave * 2.4) / 0.12, 2.0)) * (1.0 - uWave * 0.6);
+    gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
+  }`;
+const TILE_FS = /* glsl */`
+  uniform vec3 uLight;
+  uniform float uTime, uUnion;
+  uniform sampler2D uMap;
+  varying vec2 vUv, vTex, vSz; varying vec3 vCol, vN, vW; varying float vShape, vSeed, vWaveHit, vApart, vTexS, vRot;
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+  // 箔面上的细裂纹：取最近两个格点的距离差
+  float crackle(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    float d1 = 9.0, d2 = 9.0;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      vec2 o = vec2(float(x), float(y));
+      vec2 c = o + vec2(hash(i + o), hash(i + o + 17.3)) - f;
+      float d = dot(c, c);
+      if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+    }
+    return sqrt(d2) - sqrt(d1);
+  }
+  void main() {
+    vec2 q = vUv - 0.5;
+    float r = length(q);
+    vec3 tex = texture2D(uMap, vTex).rgb;
+    vec3 c = mix(vCol, tex, 0.85);           // 主要用原画本身的细节，平均色只用来压掉噪点
+    float metal = 0.0, rough = 60.0;
+    vec3 gold = vec3(0.86, 0.66, 0.24);
+    // 片与片之间的灰缝 + 每片四边的斜面（左上亮、右下暗）
+    float e = min(0.5 - abs(q.x), 0.5 - abs(q.y));
+    float px = fwidth(vUv.x) + 1e-4;
+    // 片在屏幕上太小（< 约 12 像素）就不画缝，否则细碎的地方会整片发黑
+    float groutOn = 1.0 - smoothstep(0.04, 0.09, px);
+    float grout = mix(1.0, smoothstep(0.0, 1.5 * px, e - 0.025), groutOn);
+    float bevel = smoothstep(0.0, 0.12, e);
+    float lightEdge = (q.y > abs(q.x) || -q.x > abs(q.y)) ? 1.0 : -1.0;
+    if (vShape < 0.5) {                       // 金箔：锤打的颗粒 + 细裂纹 + 箔片边缘的毛边
+      metal = 0.95; rough = 90.0;
+      float grain = hash(floor(vTex * 2400.0));
+      float ck = crackle(vTex * 220.0 + vSeed * 13.0);
+      c = mix(c, gold * (0.85 + 0.3 * grain), 0.35);
+      c *= 0.88 + 0.22 * grain;
+      c *= mix(0.72, 1.0, smoothstep(0.0, 0.06, ck));
+      float ragged = 0.5 - 0.04 * hash(floor(vUv * 18.0) + vSeed);
+      if (groutOn > 0.5 && max(abs(q.x), abs(q.y)) > ragged) discard;       // 箔片边缘不齐（看得清的片才做）
+      grout = 1.0;
+    } else if (vShape < 1.5) {                // 黑白矩形：金边框住
+      float edgeX = 0.5 - abs(q.x), edgeY = 0.5 - abs(q.y);
+      if (edgeX < 0.09 || edgeY < 0.06) { c = gold * (0.95 + 0.1 * hash(floor(vTex * 1800.0))); metal = 0.95; }
+      else { c = mix(c, vec3(dot(c, vec3(0.33))), 0.35); metal = 0.1; }
+    } else if (vShape < 2.5) {                // 彩色圆片：大的做成同心圆，小的保持方块
+      if (vTexS > 0.009 && groutOn > 0.5) {
+        if (r > 0.5) discard;
+        if (r > 0.42) { c *= 0.35; }                        // 深色外环
+        else if (abs(r - 0.27) < 0.035) { c = mix(c, gold, 0.8); metal = 0.9; }   // 金色内环
+        else if (r < 0.09) { c = mix(c, vec3(1.0, 0.96, 0.85), 0.5); }
+        grout = 1.0;
+        bevel = smoothstep(0.5, 0.36, r);
+        lightEdge = q.y - q.x > 0.0 ? 1.0 : -1.0;
+      }
+      metal = max(metal, 0.2);
+    } else if (vShape < 3.5) {                // 螺旋：金底 + 深色涡线
+      metal = 0.95;
+      float ang = atan(q.y, q.x);
+      float sp = fract(r * 7.0 - ang / 6.2832 + vSeed);
+      c = mix(c, gold, 0.3);
+      if (r < 0.48 && sp < 0.18) c *= 0.4;
+    } else {                                  // 皮肤：哑光，几乎没有缝
+      metal = 0.0; grout = mix(1.0, grout, 0.3);
+      c = mix(c, tex, 0.15);
+    }
+    bevel = mix(1.0, bevel, groutOn);
+    c *= mix(1.0, 1.0 + 0.12 * lightEdge, 1.0 - bevel);   // 斜面
+    // 灯光
+    vec3 n = normalize(gl_FrontFacing ? vN : -vN);
+    // 斜面也让法线歪一点，片的边缘会各自反光
+    n = normalize(n + (1.0 - bevel) * 0.35 * vec3(sign(q.x) * step(abs(q.y), abs(q.x)), sign(q.y) * step(abs(q.x), abs(q.y)), 0.0));
+    vec3 v = normalize(cameraPosition - vW);
+    vec3 h = normalize(uLight + v);
+    float spec = pow(max(dot(n, h), 0.0), rough);
+    float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+    c = pow(c, vec3(1.1)) * 1.1;
+    float l = dot(c, vec3(0.3, 0.59, 0.11)); c = mix(vec3(l), c, 1.2);
+    vec3 lit = c * (0.72 + 0.38 * max(dot(n, uLight), 0.0));
+    // 金箔上偶尔一闪
+    float glint = metal * step(0.996, hash(floor(vTex * 900.0) + floor(uTime * 2.0 + vSeed * 7.0))) * 0.8;
+    lit += metal * (spec * vec3(1.0, 0.86, 0.5) * 1.8 + fres * gold * 0.35) + glint * vec3(1.0, 0.9, 0.6);
+    lit = mix(vec3(0.07, 0.05, 0.03), lit, grout);      // 灰缝
+    if (vApart < 0.0) lit *= 1.0 + 0.65 * vApart;
+    lit *= 1.0 + 0.18 * uUnion;
+    lit += vWaveHit * gold * (0.6 + 0.8 * metal);
+    gl_FragColor = vec4(lit, 1.0);
+  }`;
+
+let tileMesh = null;
+async function buildTiles() {
+  const [bin, depImg] = await Promise.all([
+    fetch('data/kiss/tiles.bin').then(r => { if (!r.ok) throw new Error('tiles.bin ' + r.status); return r.arrayBuffer(); }),
+    new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = 'data/kiss/depth.png'; }),
+  ]);
+  const dc = document.createElement('canvas'); dc.width = depImg.width; dc.height = depImg.height;
+  const dg = dc.getContext('2d'); dg.drawImage(depImg, 0, 0);
+  const dd = dg.getImageData(0, 0, dc.width, dc.height).data;
+  const depthAt = (u, v) => dd[(Math.min(dc.height - 1, ((1 - v) * dc.height) | 0) * dc.width + Math.min(dc.width - 1, (u * dc.width) | 0)) * 4] / 255;
+  const f = new Float32Array(bin), n = f.length / 8;
+  const tuv = new Float32Array(n * 2);
+  const home = new Float32Array(n * 3), col = new Float32Array(n * 3), size = new Float32Array(n), shape = new Float32Array(n), group = new Float32Array(n), seed = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const [u, v, s, r, g, b, sh, gr] = f.subarray(i * 8, i * 8 + 8);
+    const d = depthAt(u, v);
+    home.set([CENTER.x + (u - 0.5) * SIDE, CENTER.y + (v - 0.5) * SIDE, CENTER.z + (d - 1) * 0.35 + Math.random() * 0.004], i * 3);
+    col.set([r, g, b], i * 3);
+    tuv.set([u, v], i * 2);
+    size[i] = s * SIDE; shape[i] = sh; group[i] = gr; seed[i] = Math.random();
+  }
+  const quad = new THREE.PlaneGeometry(1, 1);
+  const geo = new THREE.InstancedBufferGeometry();
+  geo.index = quad.index;
+  geo.setAttribute('position', quad.attributes.position);
+  geo.setAttribute('uv', quad.attributes.uv);
+  geo.setAttribute('aHome', new THREE.InstancedBufferAttribute(home, 3));
+  geo.setAttribute('aCol', new THREE.InstancedBufferAttribute(col, 3));
+  geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(size, 1));
+  geo.setAttribute('aShape', new THREE.InstancedBufferAttribute(shape, 1));
+  geo.setAttribute('aGroup', new THREE.InstancedBufferAttribute(group, 1));
+  geo.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 1));
+  geo.setAttribute('aUV', new THREE.InstancedBufferAttribute(tuv, 2));
+  geo.instanceCount = n;
+  const map = await new THREE.TextureLoader().loadAsync('data/kiss/color_hi.jpg');
+  map.anisotropy = renderer.capabilities.getMaxAnisotropy(); map.minFilter = THREE.LinearMipmapLinearFilter;
+  tileMesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: { ...U, uMap: { value: map } }, vertexShader: TILE_VS, fragmentShader: TILE_FS, side: THREE.DoubleSide, extensions: { derivatives: true } }));
+  tileMesh.frustumCulled = false;
+  scene.add(tileMesh);
+  // 底板：原画本身，铺在所有金箔后面；相拥时从缝隙里透出来，分开时淡去，中间只剩空
+  const base = new THREE.Mesh(new THREE.PlaneGeometry(SIDE, SIDE), new THREE.ShaderMaterial({
+    uniforms: { map: { value: map }, uApart: U.uApart },
+    transparent: true, depthWrite: false,
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+    fragmentShader: `uniform sampler2D map; uniform float uApart; varying vec2 vUv;
+      void main(){ vec3 c = texture2D(map, vUv).rgb * 0.35; gl_FragColor = vec4(c, 1.0 - smoothstep(0.0, 0.4, uApart)); }`,
+  }));
+  base.position.set(CENTER.x, CENTER.y, CENTER.z - 0.37);
+  base.renderOrder = -1;
+  scene.add(base);
+  console.log('tiles', n);
+}
+
+// ---------- 画后面的金粉：很小、很淡，偶尔闪一下 ----------
+const DUST_N = 5000;
+const dustPos = new Float32Array(DUST_N * 3), dustSeed = new Float32Array(DUST_N);
+for (let i = 0; i < DUST_N; i++) {
+  const depth = 0.4 + Math.pow(Math.random(), 0.8) * 6;
+  const spread = 1 + depth / 2.4;
+  dustPos.set([rand(-1, 1) * (SIDE * 0.5 + 1.4) * spread, CENTER.y + rand(-1, 1) * (SIDE * 0.5 + 1.0) * spread, CENTER.z - depth], i * 3);
+  dustSeed[i] = Math.random();
+}
+const dustGeo = new THREE.BufferGeometry();
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+dustGeo.setAttribute('aSeed', new THREE.BufferAttribute(dustSeed, 1));
+const dustMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: U.uTime, uUnion: U.uUnion, uPx: { value: innerHeight } },
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: `attribute float aSeed; uniform float uTime, uUnion, uPx; varying float vA;
+    void main(){ vec3 p = position; p.y += sin(uTime * 0.2 + aSeed * 30.0) * 0.05;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
+      float tw = pow(0.5 + 0.5 * sin(uTime * (0.6 + aSeed) + aSeed * 50.0), 8.0);
+      vA = 0.25 + 0.75 * tw + 0.4 * uUnion;
+      gl_PointSize = clamp(0.0035 * length(mv.xyz) * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.0, 12.0); }`,
+  fragmentShader: `varying float vA; void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard;
+      gl_FragColor = vec4(vec3(0.9, 0.7, 0.3) * vA * smoothstep(0.5, 0.1, d), 1.0); }`,
+});
+const dust = new THREE.Points(dustGeo, dustMat);
+dust.frustumCulled = false;
+scene.add(dust);
+
+// ---------- 声音：两个声部，手越近音越近；相拥时合成同一个音 ----------
+let audio = null, muted = false;
+const BASE = 220;
+function startAudio() {
+  if (audio) { audio.ctx.resume(); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+  master.gain.linearRampToValueAtTime(muted ? 0 : 0.35, ctx.currentTime + 4);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400; lp.connect(master);
+  const delay = ctx.createDelay(); delay.delayTime.value = 0.37; const fb = ctx.createGain(); fb.gain.value = 0.42;
+  delay.connect(fb).connect(delay); delay.connect(master);
+  const voice = (type, gain) => {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = BASE;
+    const g = ctx.createGain(); g.gain.value = gain;
+    o.connect(g); g.connect(lp); g.connect(delay); o.start(); return o;
+  };
+  const a = voice('sine', 0.09), b = voice('triangle', 0.06);
+  const pad = ctx.createGain(); pad.gain.value = 0.025; pad.connect(lp);
+  [110, 165, 330].forEach(fq => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = fq; o.connect(pad); o.start(); });
+  audio = { ctx, master, a, b, lp, delay };
+}
+function bell(freqs, gain = 0.12) {
+  if (!audio || muted) return;
+  const { ctx } = audio, t = ctx.currentTime;
+  freqs.forEach((fq, i) => {
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = fq;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, t + i * 0.12); g.gain.linearRampToValueAtTime(gain, t + i * 0.12 + 0.01); g.gain.exponentialRampToValueAtTime(0.0005, t + i * 0.12 + 4);
+    o.connect(g); g.connect(audio.master); g.connect(audio.delay); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 4.1);
+  });
+}
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.35, audio.ctx.currentTime, 0.3); };
+
+// ---------- 输入：两只手的距离 ----------
+const hands = [0, 1].map(i => { const h = renderer.xr.getHand(i); scene.add(h); return h; });
+const ctrls = [0, 1].map(i => { const c = renderer.xr.getController(i); scene.add(c); return c; });
+const tA = new THREE.Vector3(), tB = new THREE.Vector3();
+function handPoint(i, out) {
+  const j = hands[i].joints;
+  const palm = j && (j['middle-finger-metacarpal'] || j['wrist']);
+  if (palm && palm.visible) return palm.getWorldPosition(out);
+  if (ctrls[i].visible) return ctrls[i].getWorldPosition(out);
+  return null;
+}
+const mouse = new THREE.Vector2(0.9, 0);
+let mouseSeen = false;
+addEventListener('pointermove', e => { mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseSeen = true; });
+function targetApart() {
+  if (renderer.xr.isPresenting) {
+    const a = handPoint(0, tA), b = handPoint(1, tB);
+    if (!a || !b) return null;                         // 看不到两只手：保持现状，慢慢分开
+    return smooth(0.1, 0.55, a.distanceTo(b));         // 10 cm 以内 = 合上；55 cm 以外 = 完全分开
+  }
+  return mouseSeen ? smooth(0.04, 0.75, Math.abs(mouse.x)) : 1;
+}
+
+// ---------- 状态 ----------
+let apart = 1, union = 0, unionHold = 0, unions = 0, waveT = -1, quoteShown = false;
+function step(dt, t) {
+  const ta = targetApart();
+  const goal = ta === null ? Math.min(1, apart + dt * 0.08) : ta;
+  apart += (goal - apart) * Math.min(1, dt * 1.6);
+  U.uApart.value = apart;
+  // 合上并保持半秒 = 相拥
+  if (apart < 0.06) {
+    unionHold += dt;
+    if (unionHold > 0.5 && union < 0.5) {
+      union = 1; unions++; waveT = 0;
+      bell([BASE * 2, BASE * 3, BASE * 4, BASE * 5]);
+      $('state').textContent = '相拥';
+      if (!quoteShown) { quoteShown = true; $('quote').classList.add('on'); setTimeout(() => $('quote').classList.remove('on'), 11000); }
+    }
+  } else {
+    unionHold = 0;
+    if (apart > 0.15 && union > 0.5) { union = 0; $('state').textContent = '双手合拢，让他们靠近'; }
+  }
+  U.uUnion.value += (union - U.uUnion.value) * Math.min(1, dt * 1.2);
+  room.material.uniforms.uU.value = U.uUnion.value;
+  if (waveT >= 0) { waveT += dt * 0.45; if (waveT > 1.3) waveT = -1; }
+  U.uWave.value = waveT;
+  // 声音：第二个声部从五度（分开）滑到同度（相拥），中间的拍音越来越慢
+  if (audio) {
+    const at = audio.ctx.currentTime;
+    const interval = apart * 7 + (apart < 0.06 ? 0 : 0.18);   // 半音数；快合上时还差一点点 → 慢慢的拍音
+    audio.b.frequency.setTargetAtTime(BASE * Math.pow(2, interval / 12), at, 0.15);
+    audio.lp.frequency.setTargetAtTime(900 + 1400 * (1 - apart) + 900 * U.uUnion.value, at, 0.3);
+  }
+  // 提示条：两边的金条随距离张开
+  const w = 50 * apart;
+  $('ml').style.left = `${50 - w}%`; $('ml').style.width = `${Math.max(1, w * 0.15)}%`;
+  $('mr').style.left = `${50 + w - Math.max(1, w * 0.15)}%`; $('mr').style.width = `${Math.max(1, w * 0.15)}%`;
+}
+
+// ---------- XR 展签 ----------
+const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.height = 520;
+const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
+plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
+scene.add(plaque);
+(function () {
+  const g = plaqueC.getContext('2d');
+  g.fillStyle = '#18120a'; g.fillRect(0, 0, 1024, 520);
+  g.fillStyle = '#d4a838'; g.fillRect(0, 0, 1024, 8);
+  g.fillStyle = '#b49a6a'; g.font = '22px system-ui'; g.fillText('AFTER KLIMT · THE KISS · 1907–08', 44, 66);
+  g.fillStyle = '#f0d27a'; g.font = '56px serif'; g.fillText('这一吻  This Kiss', 44, 142);
+  g.font = '30px serif'; g.fillStyle = '#e9dfc6';
+  ['伸出双手，两手之间的距离就是两人之间的距离；', '慢慢合拢，他们一点点靠近；', '双手合上，他们相拥。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  g.fillStyle = '#f3dc98'; g.font = 'italic 26px serif'; g.fillText('“这一吻，献给全世界！”— 席勒 / 克里姆特《贝多芬横饰带》', 44, 470);
+  plaque.material.map.needsUpdate = true;
+})();
+
+// ---------- 进入 ----------
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+vrBtn.style.display = arBtn.style.display = 'none';
+document.body.append(vrBtn, arBtn);
+for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
+$('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
+renderer.xr.addEventListener('sessionstart', () => {
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  room.visible = opaque; plaque.visible = true;
+  renderer.setClearColor(0x120e08, opaque ? 1 : 0);
+});
+renderer.xr.addEventListener('sessionend', () => { room.visible = true; plaque.visible = false; renderer.setClearColor(0x120e08, 1); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+window.__state = () => ({ apart, union, unions });
+buildTiles().then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
+  .catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+
+// 进 XR 后每只眼睛画面的像素高度：老接口是 framebufferHeight，新的投影图层是 textureHeight，都没有就取左眼视口
+function xrPixelHeight() {
+  const layer = renderer.xr.getBaseLayer && renderer.xr.getBaseLayer();
+  let h = layer && (layer.framebufferHeight || layer.textureHeight);
+  if (!h) { const cam = renderer.xr.getCamera(); h = cam.cameras && cam.cameras[0] && cam.cameras[0].viewport && cam.cameras[0].viewport.w; }
+  return h || renderer.domElement.height;
+}
+const clock = new THREE.Clock();
+let time = 0;
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  time += dt;
+  U.uTime.value = time;
+  step(dt, time);
+  if (!renderer.xr.isPresenting) {
+    // 桌面：视点随鼠标上下、随时间轻轻漂，让金箔的反光动起来
+    camera.position.set(EYE.x + Math.sin(time * 0.21) * 0.05, EYE.y + mouse.y * 0.08, EYE.z);
+    camera.lookAt(CENTER);
+  }
+  dustMat.uniforms.uPx.value = renderer.xr.isPresenting ? xrPixelHeight() : renderer.domElement.height;
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

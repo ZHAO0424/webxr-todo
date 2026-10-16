@@ -4,6 +4,8 @@
 
 **▶ [打开](https://zhao0424.github.io/webxr-todo/)** — 电脑上用鼠标，头显里用手。
 
+**▶ [名画入空间](https://zhao0424.github.io/webxr-todo/masterpieces/)** — 另一组作品：把凡·高、修拉、蒙克、透纳、莫奈、克里姆特的名画放进空间，各用一种算法和一种交互（见 `masterpieces/`）。
+
 零依赖：一个 HTML 文件，原生 WebGL2 + WebXR Device API，没有任何框架或 CDN。
 
 ## 操作

@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seeing Takes Time</title>
+<style>
+  :root { --bg: #f4f0e6; --ink: #2d3142; --accent: #d9643a; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; }
+  canvas { display: block; }
+  #intro { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; transition: opacity 2s;
+    background:
+      radial-gradient(circle, rgba(217,100,58,.18) 2px, transparent 2.5px) 0 0 / 13px 13px,
+      radial-gradient(circle, rgba(60,110,180,.16) 2px, transparent 2.5px) 6px 7px / 13px 13px,
+      radial-gradient(circle, rgba(90,150,80,.14) 2px, transparent 2.5px) 3px 10px / 17px 17px,
+      var(--bg); }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  .card { max-width: 600px; background: rgba(244,240,230,.94); padding: 28px 32px; line-height: 1.85; font-size: 15px; box-shadow: 0 0 0 1px rgba(45,49,66,.12); }
+  .kicker { font-family: system-ui, sans-serif; font-size: 12px; letter-spacing: .26em; color: #7a7f93; }
+  h1 { font-size: 38px; margin: 6px 0 0; font-weight: 500; letter-spacing: .06em; }
+  h2 { font-size: 15px; margin: 0 0 18px; font-weight: 400; font-style: italic; color: #6a6f84; }
+  p { margin: 0 0 12px; }
+  .dots { display: inline-flex; gap: 4px; vertical-align: middle; margin-left: 4px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+  blockquote { margin: 18px 0; padding-left: 14px; border-left: 3px solid var(--accent); }
+  blockquote small { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: #7a7f93; margin-top: 4px; }
+  #enter { margin-top: 6px; background: var(--ink); color: var(--bg); border: 0; padding: 10px 30px; font-size: 15px; letter-spacing: .3em; cursor: pointer; font-family: inherit; }
+  .how { font-family: system-ui, sans-serif; font-size: 12px; color: #7a7f93; margin-top: 14px; line-height: 1.7; }
+  #status { font-family: system-ui, sans-serif; font-size: 12px; color: var(--accent); margin-top: 8px; min-height: 1.4em; }
+  #hud { position: fixed; left: 16px; bottom: 16px; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.7; color: var(--ink); background: rgba(244,240,230,.85); padding: 8px 12px; opacity: 0; transition: opacity 2s; max-width: 340px; }
+  #hud.on { opacity: 1; }
+  #prog { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin: 8px 0 6px; border-radius: 3px; cursor: pointer;
+    background: linear-gradient(90deg, #3c6eb4, #5a9650, #e2b23a, #d9643a) 0 0 / var(--p, 0%) 100% no-repeat, rgba(45,49,66,.14); }
+  #prog::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #2d3142; border: 2px solid #f4f0e6; }
+  #prog::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #2d3142; border: 2px solid #f4f0e6; }
+  #hud button { background: none; border: 1px solid #9a9fb2; color: var(--ink); border-radius: 3px; cursor: pointer; font-size: 11px; padding: 1px 8px; margin-left: 6px; }
+  #finale { position: fixed; left: 50%; top: 9%; transform: translateX(-50%); width: min(600px, calc(100% - 32px)); box-sizing: border-box; text-align: center; font-size: 19px; background: rgba(244,240,230,.9); padding: 12px 18px; border-top: 3px solid var(--accent); opacity: 0; transition: opacity 3s; pointer-events: none; }
+  #finale.on { opacity: 1; }
+  #finale small { display: block; font-family: system-ui, sans-serif; font-size: 12px; color: #7a7f93; margin-top: 6px; }
+  #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
+  #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="intro">
+  <div class="card">
+    <div class="kicker">SPATIAL REINTERPRETATION · AFTER SEURAT, A SUNDAY ON LA GRANDE JATTE (1884–86)</div>
+    <h1>看见需要时间</h1>
+    <h2>Seeing Takes Time</h2>
+    <p>修拉用了两年，一点一点地点出《大碗岛的星期天下午》。点彩画的颜色从不在画布上调和——纯色的点并排放着<span class="dots"><i style="background:#3c6eb4"></i><i style="background:#e2b23a"></i><i style="background:#5a9650"></i><i style="background:#d9643a"></i></span>，是<b>看的人的眼睛</b>把它们混成了草地、阳光和人。</p>
+    <p>这件作品把这句话当真：画面只在你注视的地方聚拢；还没看过的地方，是一团漂浮的纯色。看过的会留下来，一点点拼成整幅画；当你看见了它的全部，它才开始慢慢退回成颜色——等你再看一遍。</p>
+    <p>在一个什么都在加速的时代，这是一个只奖励慢下来的星期天下午。</p>
+    <blockquote>点彩的颜色在观者的视网膜上混合，而不是在调色板上。<small>— 新印象派"视觉混合"的核心主张（修拉、西涅克）</small></blockquote>
+    <button id="enter" disabled>载入中…</button>
+    <div id="status"></div>
+    <div class="how">XR：慢慢地看——视线停在哪里，哪里就聚拢；尽量站稳<br>桌面：鼠标就是你的目光，在画面上停留；鼠标甩得太快不会聚拢；拖动左下进度条可直接看到最终效果<br>建议戴耳机</div>
+  </div>
+</div>
+<div id="hud"><span id="pct">已看见 0%</span><button id="mute">静音</button><input type="range" id="prog" min="0" max="100" step="1" value="0" title="拖动直接设定整幅画的聚拢程度">目光停留之处聚拢，看过的会留下；看到 80% 后才慢慢散去；看过 60% 后视线离开画面会飞速散去。拖动进度条可直接看到最终效果</div>
+<div id="finale">你用目光完成了这幅画。<small>它会在你移开视线后，慢慢退回成颜色。</small></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+THREE.ColorManagement.enabled = false;
+const $ = id => document.getElementById(id);
+const DEG = Math.PI / 180;
+const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+const clamp01 = x => Math.max(0, Math.min(1, x));
+
+// 画面平面：正前方 3.2 m，宽 3.0 m（约 50° 视角，正中 40° 是主体）
+const EYE = new THREE.Vector3(0, 1.5, 0);
+const PLANE_Z = -3.2, PIC_W = 3.0;
+let PIC_H = 2.0, PIC_Y0 = 0.5;   // 载入后按画幅比例更新
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.02, 100);
+camera.position.copy(EYE);
+renderer.setClearColor(0xf4f0e6, 1);
+
+// 明亮的空间：暖白的展厅感，不是夜
+const room = new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false,
+  vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: `varying vec3 vP; void main(){ float h = vP.y; vec3 c = mix(vec3(0.93,0.91,0.86), vec3(0.97,0.95,0.9), smoothstep(-0.3, 0.6, h)); gl_FragColor = vec4(c, 1.); }`,
+}));
+scene.add(room);
+
+// ---------- 修拉的调色：有限的几种纯色颜料 ----------
+const PIGMENTS = ['#f6f1e2', '#e2b23a', '#f0d45a', '#d9643a', '#c0392b', '#b0507a', '#6b4fa0', '#3c6eb4', '#2c4f8c', '#3a8a8c', '#5a9650', '#2f6b3a', '#a8b84a', '#8a5a34', '#1f2a3a']
+  .map(h => { const c = new THREE.Color(h); return [c.r, c.g, c.b]; });
+
+// 把一个颜色拆成两种颜料按比例并置：找到 w·A + (1-w)·B 最接近目标色的那一对
+function decompose(r, g, b) {
+  let best = 1e9, A = 0, B = 0, W = 1;
+  for (let i = 0; i < PIGMENTS.length; i++) for (let j = i; j < PIGMENTS.length; j++) {
+    const a = PIGMENTS[i], c = PIGMENTS[j];
+    const dx = a[0] - c[0], dy = a[1] - c[1], dz = a[2] - c[2];
+    const den = dx * dx + dy * dy + dz * dz;
+    let w = den < 1e-6 ? 1 : ((r - c[0]) * dx + (g - c[1]) * dy + (b - c[2]) * dz) / den;
+    w = clamp01(w);
+    const er = w * a[0] + (1 - w) * c[0] - r, eg = w * a[1] + (1 - w) * c[1] - g, eb = w * a[2] + (1 - w) * c[2] - b;
+    const e = er * er + eg * eg + eb * eb;
+    if (e < best) { best = e; A = i; B = j; W = w; }
+  }
+  return [A, B, W];
+}
+
+async function loadPixels(url) {
+  const img = new Image(); img.src = url; await img.decode();
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  return { w: img.width, h: img.height, data: g.getImageData(0, 0, img.width, img.height).data };
+}
+
+// ---------- 注意力图：低分辨率网格，记录每块被看了多久 ----------
+const CW = 64; let CH = 43;
+let coh, cohTex, cellHue, cellWasOn;
+
+// ---------- 点 ----------
+const pointVS = /* glsl */`
+  attribute vec3 aHome, aScatter, aColor;
+  attribute vec2 aUv;
+  attribute float aSeed, aSize;
+  uniform sampler2D uCoh;
+  uniform float uTime, uPx;
+  varying vec3 vColor; varying float vC;
+  void main() {
+    float c = texture2D(uCoh, aUv).r;
+    c = smoothstep(0.05, 0.95, c);
+    // 未被看见：漂浮的纯色雾；被看见：落回画中的位置
+    vec3 drift = vec3(sin(uTime * 0.45 + aSeed * 40.0), cos(uTime * 0.38 + aSeed * 31.0), sin(uTime * 0.31 + aSeed * 17.0));
+    vec3 loose = aHome + aScatter + drift * (0.04 + 0.12 * length(aScatter));
+    vec3 settle = aHome + drift * 0.002;
+    vec3 p = mix(loose, settle, c);
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    gl_Position = projectionMatrix * mv;
+    float s = aSize * mix(1.35, 1.0, c);
+    gl_PointSize = clamp(s * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.0, 48.0);
+    vColor = aColor; vC = c;
+  }`;
+const pointFS = /* glsl */`
+  varying vec3 vColor; varying float vC;
+  void main() {
+    vec2 q = gl_PointCoord - 0.5;
+    float d = length(q);
+    if (d > 0.5) discard;
+    // 点的边缘略淡，像颜料在画布纹理上的落点
+    float edge = smoothstep(0.5, 0.32, d);
+    gl_FragColor = vec4(mix(vec3(0.95,0.93,0.88), vColor, 0.75 + 0.25 * edge), 1.0);
+  }`;
+let points, pointMat;
+
+// 把像素放进空间：沿"眼睛 → 画面"的射线推到它的深度，正面看对得上，侧面看有层次而不会撕裂
+const tmp = new THREE.Vector3();
+function placeAlongRay(u, v, dist, out) {
+  const x = (u - 0.5) * PIC_W, y = PIC_Y0 + v * PIC_H;
+  out.set(x, y, PLANE_Z).sub(EYE).multiplyScalar(dist / -PLANE_Z).add(EYE);
+  return out;
+}
+
+async function build() {
+  $('status').textContent = '读取画面与深度…';
+  const [col, dep] = await Promise.all([loadPixels('data/grande-jatte/color.jpg'), loadPixels('data/grande-jatte/depth.png')]);
+  const aspect = col.w / col.h;
+  PIC_H = PIC_W / aspect;
+  PIC_Y0 = EYE.y - PIC_H * 0.45;
+  CH = Math.round(CW / aspect);
+  coh = new Float32Array(CW * CH);
+  cohTex = new THREE.DataTexture(new Uint8Array(CW * CH), CW, CH, THREE.RedFormat, THREE.UnsignedByteType);
+  cohTex.magFilter = cohTex.minFilter = THREE.LinearFilter; cohTex.needsUpdate = true;
+  cellHue = new Float32Array(CW * CH); cellWasOn = new Uint8Array(CW * CH);
+
+  $('status').textContent = '把每个颜色拆成并置的纯色点…';
+  await new Promise(r => setTimeout(r, 30));
+  const GW = 340, GH = Math.round(GW / aspect), PER = 2;
+  const N = GW * GH * PER;
+  const home = new Float32Array(N * 3), scat = new Float32Array(N * 3), color = new Float32Array(N * 3), uv = new Float32Array(N * 2), seed = new Float32Array(N), size = new Float32Array(N);
+  const cellAcc = new Float32Array(CW * CH * 4);
+  const cache = new Map();
+  let n = 0;
+  for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+    for (let k = 0; k < PER; k++) {
+      // 抖动采样：点不排成网格
+      const u = (gx + Math.random()) / GW, v = (gy + Math.random()) / GH;
+      const px = Math.min(col.w - 1, (u * col.w) | 0), py = Math.min(col.h - 1, ((1 - v) * col.h) | 0);
+      const ci = (py * col.w + px) * 4;
+      const r = col.data[ci] / 255, g = col.data[ci + 1] / 255, b = col.data[ci + 2] / 255;
+      const key = ((r * 31) | 0) << 10 | ((g * 31) | 0) << 5 | ((b * 31) | 0);
+      let dec = cache.get(key); if (!dec) { dec = decompose(r, g, b); cache.set(key, dec); }
+      const pig = PIGMENTS[Math.random() < dec[2] ? dec[0] : dec[1]];
+      const dpx = Math.min(dep.w - 1, (u * dep.w) | 0), dpy = Math.min(dep.h - 1, ((1 - v) * dep.h) | 0);
+      const d = dep.data[(dpy * dep.w + dpx) * 4] / 255;
+      const dist = -PLANE_Z + Math.pow(1 - d, 1.3) * 6.5;          // 近处贴着画面，远处退到 ~10 m
+      placeAlongRay(u, v, dist, tmp);
+      home.set([tmp.x, tmp.y, tmp.z], n * 3);
+      // 散开的位置：向四周和朝你飘出，远处的散得更开
+      const spread = 0.1 + 0.28 * Math.random() + (dist - 3.2) * 0.04;   // 像余光：只剩颜色和大致的位置
+      const th = rand(0, Math.PI * 2), ph = Math.acos(rand(-1, 1));
+      scat.set([Math.sin(ph) * Math.cos(th) * spread, Math.cos(ph) * spread * 0.7, Math.sin(ph) * Math.sin(th) * spread + rand(0, 0.5)], n * 3);
+      color.set(pig, n * 3);
+      uv.set([u, v], n * 2);
+      seed[n] = Math.random();
+      size[n] = (PIC_W / GW) * 1.25 * (dist / -PLANE_Z) * rand(0.85, 1.2);
+      const cx = Math.min(CW - 1, (u * CW) | 0), cy = Math.min(CH - 1, (v * CH) | 0), cc = (cy * CW + cx) * 4;
+      cellAcc[cc] += r; cellAcc[cc + 1] += g; cellAcc[cc + 2] += b; cellAcc[cc + 3]++;
+      n++;
+    }
+  }
+  // 每格的平均色相：聚拢时响一声，音高跟着颜色走
+  const hsl = {}, tc = new THREE.Color();
+  for (let i = 0; i < CW * CH; i++) { const k = cellAcc[i * 4 + 3] || 1; tc.setRGB(cellAcc[i * 4] / k, cellAcc[i * 4 + 1] / k, cellAcc[i * 4 + 2] / k).getHSL(hsl); cellHue[i] = hsl.h; }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(home, 3));
+  geo.setAttribute('aHome', new THREE.BufferAttribute(home, 3));
+  geo.setAttribute('aScatter', new THREE.BufferAttribute(scat, 3));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(color, 3));
+  geo.setAttribute('aUv', new THREE.BufferAttribute(uv, 2));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+  pointMat = new THREE.ShaderMaterial({ uniforms: { uCoh: { value: cohTex }, uTime: { value: 0 }, uPx: { value: innerHeight } }, vertexShader: pointVS, fragmentShader: pointFS });
+  points = new THREE.Points(geo, pointMat);
+  points.frustumCulled = false;
+  scene.add(points);
+  buildBorder();
+  buildAmbient();
+  console.log('dots', N);
+}
+
+// 修拉后来给这幅画补画了一圈点彩边框（用与画面边缘互补的颜色）；这里是一圈永远清晰的点
+function buildBorder() {
+  const pts = [], cols = [];
+  const bw = 0.07, x0 = -PIC_W / 2 - bw, x1 = PIC_W / 2 + bw, y0 = PIC_Y0 - bw, y1 = PIC_Y0 + PIC_H + bw;
+  const ring = [PIGMENTS[7], PIGMENTS[3], PIGMENTS[8], PIGMENTS[1], PIGMENTS[6]];
+  for (let i = 0; i < 9000; i++) {
+    let x = rand(x0, x1), y = rand(y0, y1);
+    if (x > -PIC_W / 2 && x < PIC_W / 2 && y > PIC_Y0 && y < PIC_Y0 + PIC_H) { i--; continue; }
+    pts.push(x, y, PLANE_Z + rand(-0.01, 0.01));
+    cols.push(...ring[(Math.random() * ring.length) | 0]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uPx: pointMat.uniforms.uPx },
+    vertexShader: `attribute vec3 color; uniform float uPx; varying vec3 vC; void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position,1.); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(0.012 * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1., 30.); }`,
+    fragmentShader: `varying vec3 vC; void main(){ if (length(gl_PointCoord - .5) > .5) discard; gl_FragColor = vec4(vC, 1.); }`,
+  });
+  scene.add(new THREE.Points(g, m));
+}
+
+
+// ---------- 画框外：空间里零散漂浮的纯色点，被视线扫到时轻轻、短暂地聚拢 ----------
+const AMB_N = 9000;
+let amb = null;
+function buildAmbient() {
+  const base = new Float32Array(AMB_N * 3), cols = new Float32Array(AMB_N * 3), sizes = new Float32Array(AMB_N), ph = new Float32Array(AMB_N * 3);
+  const dir = new THREE.Vector3();
+  for (let i = 0; i < AMB_N; i++) {
+    // 只放在画的后面：画面平面之后 0.5–7 m，左右上下比画面略宽，从正面看是画后面一层淡淡的"颜料尘"
+    const depth = 0.5 + Math.pow(Math.random(), 0.8) * 6.5;
+    const spread = 1 + depth / -PLANE_Z;                          // 越远铺得越开，保证都在画框周围的视野里
+    const p = new THREE.Vector3(rand(-1, 1) * (PIC_W * 0.5 + 1.6) * spread, PIC_Y0 + PIC_H * 0.5 + rand(-1, 1) * (PIC_H * 0.5 + 1.0) * spread, PLANE_Z - depth);
+    base.set([p.x, p.y, p.z], i * 3);
+    cols.set(PIGMENTS[(Math.random() * PIGMENTS.length) | 0], i * 3);
+    sizes[i] = 0.0024 * p.distanceTo(EYE) * rand(0.85, 1.15);   // 看上去约是画里色点的七成大
+    ph.set([rand(0, 6.28), rand(0, 6.28), rand(0.2, 0.6)], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(base.slice(), 3).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  g.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uPx: pointMat.uniforms.uPx },
+    vertexShader: `attribute vec3 color; attribute float aSize; uniform float uPx; varying vec3 vC;
+      void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position,1.); gl_Position = projectionMatrix * mv;
+        gl_PointSize = clamp(aSize * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.5, 40.); }`,
+    fragmentShader: `varying vec3 vC; void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard;
+      gl_FragColor = vec4(mix(vec3(0.95,0.93,0.88), vC, 0.4), 1.); }`,   // 颜色压淡，靠近背景色，不抢画面
+  });
+  const pts = new THREE.Points(g, m);
+  pts.frustumCulled = false;
+  scene.add(pts);
+  amb = { g, base, ph, att: new Float32Array(AMB_N), tire: new Float32Array(AMB_N) };
+  window.__amb = () => ({ gathering: amb.att.filter(a => a > 0.3).length, tired: amb.tire.filter(a => a > 0.6).length });
+}
+const gazeO = new THREE.Vector3(), gazeD = new THREE.Vector3(0, 0, -1);
+function updateAmbient(dt, t) {
+  if (!amb) return;
+  const pos = amb.g.attributes.position.array;
+  for (let i = 0; i < AMB_N; i++) {
+    const k = i * 3;
+    // 自己慢慢漂
+    const a = amb.ph[k + 2];
+    let x = amb.base[k] + Math.sin(t * 0.21 * a + amb.ph[k]) * 0.18 * a;
+    let y = amb.base[k + 1] + Math.sin(t * 0.17 * a + amb.ph[k + 1]) * 0.12 * a;
+    let z = amb.base[k + 2] + Math.cos(t * 0.19 * a + amb.ph[k]) * 0.18 * a;
+    // 是否在视线锥里
+    const dx = x - gazeO.x, dy = y - gazeO.y, dz = z - gazeO.z;
+    const along = dx * gazeD.x + dy * gazeD.y + dz * gazeD.z;
+    const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    // 只影响视线正落处附近的点：到视线这根线的垂直距离 < 12 cm（不再按角度锥，免得远处一大片都被带动）
+    const perp2 = len * len - along * along;
+    const inCone = along > 0 && perp2 < 0.12 * 0.12;
+    // 注意力会累积，也会"看腻"：盯久了自己散开 —— 所以只是短暂地聚拢
+    amb.tire[i] = clamp01(amb.tire[i] + (inCone ? dt * 0.45 : -dt * 0.25));
+    const target = inCone ? 1 - amb.tire[i] : 0;
+    amb.att[i] += (target - amb.att[i]) * Math.min(1, dt * (target > amb.att[i] ? 3 : 0.8));
+    const w = 0.08 * amb.att[i];                                   // 只是轻轻偏一下
+    if (w > 0.001) {
+      // 向视线这根轴靠拢
+      const qx = gazeO.x + gazeD.x * along, qy = gazeO.y + gazeD.y * along, qz = gazeO.z + gazeD.z * along;
+      x += (qx - x) * w; y += (qy - y) * w; z += (qz - z) * w;
+    }
+    pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;
+  }
+  amb.g.attributes.position.needsUpdate = true;
+}
+
+// ---------- 声音：柔和的和弦铺底；某块画面聚拢时，响一颗"声音的点" ----------
+let audio = null, muted = false;
+const SCALE = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99, 880.0];
+function startAudio() {
+  if (audio) { audio.ctx.resume(); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+  master.gain.linearRampToValueAtTime(muted ? 0 : 0.35, ctx.currentTime + 4);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(master);
+  const pad = ctx.createGain(); pad.gain.value = 0.05; pad.connect(lp);
+  [130.81, 196.0, 246.94, 329.63].forEach(f => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(pad); o.start(); });
+  const delay = ctx.createDelay(); delay.delayTime.value = 0.31; const fb = ctx.createGain(); fb.gain.value = 0.35;
+  delay.connect(fb).connect(delay); delay.connect(master);
+  audio = { ctx, master, pad, delay };
+}
+let lastPluck = 0;
+function pluck(hue) {
+  if (!audio || muted) return;
+  const { ctx } = audio, t = ctx.currentTime;
+  if (t - lastPluck < 0.11) return;
+  lastPluck = t;
+  // 暖色低、冷色高
+  const idx = Math.min(SCALE.length - 1, Math.floor(((hue + 0.92) % 1) * SCALE.length));
+  const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = SCALE[idx];
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.09, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.9);
+  o.connect(g); g.connect(audio.master); g.connect(audio.delay);
+  o.start(t); o.stop(t + 1);
+}
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.35, audio.ctx.currentTime, 0.3); };
+
+// ---------- 目光与"躁动" ----------
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2(0, 0), lastMouse = new THREE.Vector2();
+let mouseSpeed = 0;
+addEventListener('pointermove', e => mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1));
+const gazeUV = new THREE.Vector2(-9, -9);
+let restless = 0;
+const prevHead = new THREE.Vector3(), prevFwd = new THREE.Vector3(0, 0, -1), fwd = new THREE.Vector3(), headPos = new THREE.Vector3();
+function rayToUV(origin, dir) {
+  if (dir.z > -1e-4) return false;
+  const t = (PLANE_Z - origin.z) / dir.z;
+  const x = origin.x + dir.x * t, y = origin.y + dir.y * t;
+  gazeUV.set(x / PIC_W + 0.5, (y - PIC_Y0) / PIC_H);
+  return true;
+}
+function updateGaze(dt) {
+  let agitation = 0;
+  if (renderer.xr.isPresenting) {
+    const xrCam = renderer.xr.getCamera();
+    headPos.setFromMatrixPosition(xrCam.matrixWorld);
+    xrCam.getWorldDirection(fwd);
+    const move = headPos.distanceTo(prevHead) / Math.max(dt, 1e-3);           // 身体平移速度
+    const turn = Math.acos(Math.min(1, fwd.dot(prevFwd))) / Math.max(dt, 1e-3);  // 转头角速度
+    agitation = clamp01((move - 0.12) / 0.5) + clamp01((turn - 1.6) / 3);
+    prevHead.copy(headPos); prevFwd.copy(fwd);
+    gazeO.copy(headPos); gazeD.copy(fwd);
+    if (!rayToUV(headPos, fwd)) gazeUV.set(-9, -9);
+  } else {
+    const d = mouse.distanceTo(lastMouse) / Math.max(dt, 1e-3); lastMouse.copy(mouse);
+    mouseSpeed += (d - mouseSpeed) * Math.min(1, dt * 6);
+    agitation = dragging ? 0 : clamp01((mouseSpeed - 1.6) / 3);
+    raycaster.setFromCamera(mouse, camera);
+    gazeO.copy(raycaster.ray.origin); gazeD.copy(raycaster.ray.direction);
+    if (!rayToUV(raycaster.ray.origin, raycaster.ray.direction)) gazeUV.set(-9, -9);
+  }
+  restless += (Math.min(1, agitation) - restless) * Math.min(1, dt * (agitation > restless ? 4 : 1.2));
+}
+
+// 注意力：注视处累积（约 1 秒聚拢）。看的过程中只聚不散；整幅看到 80% 之后才开始缓慢遗忘（约 3 分钟散完），
+// 躁动时散得略快；散到 5% 以下又回到只聚不散的阶段
+// 另外：看到过 60% 以后，视线一离开画面就飞速消散（约 3 秒散完）
+let finaleShown = false, fading = false, armed = false;
+// 进度条：拖动时整幅画统一设到这个聚拢程度
+let dragging = false;
+const prog = $('prog');
+prog.addEventListener('pointerdown', e => { dragging = true; e.stopPropagation(); });
+addEventListener('pointerup', () => { if (dragging) { mouseSpeed = 0; restless = 0; lastMouse.copy(mouse); } dragging = false; });   // 拖完不算"甩鼠标"
+prog.addEventListener('input', () => {
+  const v = prog.value / 100;
+  coh.fill(v);
+  prog.style.setProperty('--p', `${prog.value}%`);
+});
+const fovealR = 0.18;
+function updateCoherence(dt) {
+  const data = cohTex.image.data, aspect = PIC_W / PIC_H;
+  const offPic = gazeUV.x < 0 || gazeUV.x > 1 || gazeUV.y < 0 || gazeUV.y > 1;
+  const rush = armed && offPic;
+  let sum = 0;
+  for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+    const i = y * CW + x;
+    const u = (x + 0.5) / CW, v = (y + 0.5) / CH;
+    const du = (u - gazeUV.x) * aspect, dv = v - gazeUV.y;
+    const f = Math.exp(-(du * du + dv * dv) / (fovealR * fovealR));
+    let c = coh[i];
+    c += f * dt * 1.1 * (1 - restless);                     // 约 1 秒聚拢
+    if (rush) c -= dt * 0.35;
+    else if (fading) c -= dt * (0.0055 + restless * 0.06 * (1 - f * 0.5));
+    c = clamp01(c);
+    coh[i] = c; sum += c;
+    data[i] = c * 255;
+    if (c > 0.7 && !cellWasOn[i]) { cellWasOn[i] = 1; pluck(cellHue[i]); }
+    else if (c < 0.3) cellWasOn[i] = 0;
+  }
+  cohTex.needsUpdate = true;
+  const pct = sum / (CW * CH);
+  $('pct').textContent = `已看见 ${Math.round(pct * 100)}%`;
+  if (!dragging) { $('prog').value = pct * 100; $('prog').style.setProperty('--p', `${pct * 100}%`); }
+  if (pct > 0.8 && !finaleShown) {
+    finaleShown = true;
+    $('finale').classList.add('on'); setTimeout(() => $('finale').classList.remove('on'), 10000);
+    [0, 2, 4, 7, 9].forEach((k, j) => setTimeout(() => pluck(k / 10), j * 220));
+  }
+  if (pct >= 0.8) fading = true;
+  if (pct >= 0.6) armed = true;
+  if (pct < 0.05) { fading = false; armed = false; finaleShown = false; }
+  return pct;
+}
+
+// ---------- XR 展签 ----------
+const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.height = 520;
+const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
+plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
+scene.add(plaque);
+(function drawPlaque() {
+  const g = plaqueC.getContext('2d');
+  g.fillStyle = '#f4f0e6'; g.fillRect(0, 0, 1024, 520);
+  const dots = ['#3c6eb4', '#e2b23a', '#5a9650', '#d9643a', '#6b4fa0'];
+  for (let i = 0; i < 260; i++) { g.fillStyle = dots[i % 5]; g.beginPath(); g.arc(Math.random() * 1024, Math.random() < 0.5 ? Math.random() * 14 : 506 + Math.random() * 14, 4, 0, 7); g.fill(); }
+  g.fillStyle = '#7a7f93'; g.font = '22px system-ui'; g.fillText('AFTER SEURAT · A SUNDAY ON LA GRANDE JATTE · 1884–86', 44, 70);
+  g.fillStyle = '#2d3142'; g.font = '56px serif'; g.fillText('看见需要时间  Seeing Takes Time', 44, 148);
+  g.font = '30px serif';
+  ['视线停在哪里，哪里的色点就慢慢聚成画面；', '看过的会留下来；整幅看见之后，', '它才慢慢退回成颜色，等你再看一遍。'].forEach((s, k) => g.fillText(s, 44, 220 + k * 48));
+  plaque.material.map.needsUpdate = true;
+})();
+
+// ---------- 进入 ----------
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
+vrBtn.style.display = arBtn.style.display = 'none';
+document.body.append(vrBtn, arBtn);
+for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
+$('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
+renderer.xr.addEventListener('sessionstart', () => {
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  room.visible = opaque; plaque.visible = true;
+  renderer.setClearColor(0xf4f0e6, opaque ? 1 : 0);
+});
+renderer.xr.addEventListener('sessionend', () => { room.visible = true; plaque.visible = false; renderer.setClearColor(0xf4f0e6, 1); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+// 测试钩子
+window.__fill = v => { coh.fill(v); };
+window.__pct = () => coh.reduce((a, b) => a + b, 0) / coh.length;
+window.__dbg = () => ({ gaze: gazeUV.toArray(), restless, max: Math.max(...coh), argmax: coh.indexOf(Math.max(...coh)) });
+
+build().then(() => {
+  $('status').textContent = '';
+  $('enter').disabled = false; $('enter').textContent = '进入';
+}).catch(e => { console.error(e); $('status').textContent = '载入失败（需要用本地服务器打开，并且 data/grande-jatte 已烘焙）：' + e.message; });
+
+const clock = new THREE.Clock();
+let time = 0;
+// 进 XR 后每只眼睛画面的像素高度：老接口是 framebufferHeight，新的投影图层是 textureHeight，都没有就取左眼视口
+function xrPixelHeight() {
+  const layer = renderer.xr.getBaseLayer && renderer.xr.getBaseLayer();
+  let h = layer && (layer.framebufferHeight || layer.textureHeight);
+  if (!h) { const cam = renderer.xr.getCamera(); h = cam.cameras && cam.cameras[0] && cam.cameras[0].viewport && cam.cameras[0].viewport.w; }
+  return h || renderer.domElement.height;
+}
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  time += dt;
+  if (!renderer.xr.isPresenting) {
+    // 桌面：视点随时间极轻地漂移，让人感到远近层次
+    camera.position.set(EYE.x + Math.sin(time * 0.23) * 0.06, EYE.y + Math.sin(time * 0.17) * 0.02, EYE.z);
+    camera.lookAt(0, EYE.y - 0.05, PLANE_Z);
+  }
+  if (points) {
+    updateGaze(dt);
+    updateCoherence(dt);
+    updateAmbient(dt, time);
+    pointMat.uniforms.uTime.value = time;
+    pointMat.uniforms.uPx.value = renderer.xr.isPresenting ? xrPixelHeight() : renderer.domElement.height;
+  }
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
