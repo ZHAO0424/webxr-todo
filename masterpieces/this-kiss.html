@@ -49,7 +49,7 @@
     <h1>这一吻</h1>
     <h2>This Kiss</h2>
     <p>克里姆特的《吻》里有一处常被忽略的细节：这对恋人不是悬在金色的虚空里，而是跪在一片开满花的草地上，而草地在他们脚边<b>戛然而止</b>——那是一道悬崖的边缘，她的脚趾和金色的藤蔓垂在崖外。整个世界只剩这一小块花地和无边的金。</p>
-    <p>这里，我们把那道崖边补全成一个可以俯瞰的地方：一座伸进金色虚空的花甸岬角，草在风里摇，紫、蓝、黄的小花<span class="glyphs"><i style="background:#8e5bbf;border-radius:50%"></i><i style="background:#3c6eb4;border-radius:50%"></i><i style="background:#e8c84a;border-radius:50%"></i></span>一直铺到崖口，藤蔓从崖口垂进深渊；两人以金底浮雕的样子立在崖边，男人的黑白矩形<span class="glyphs"><i style="background:#1c1610"></i><i style="background:#efe6d0;width:5px"></i></span>与女人的彩色圆花，隔着一道空气。<b>你的两只手</b>仍是这对恋人：双手分开，他们在崖边分开；双手合拢，他们相拥，金色从那一吻漫过整片花甸。</p>
+    <p>这里，我们把那道崖边补全成一个可以俯瞰的地方：一座浮在金色虚空里的花甸岛，风一阵一阵掠过草地、压出一道道波浪，紫、蓝、黄的小花<span class="glyphs"><i style="background:#8e5bbf;border-radius:50%"></i><i style="background:#3c6eb4;border-radius:50%"></i><i style="background:#e8c84a;border-radius:50%"></i></span>一直铺到崖口，藤蔓从崖口垂进深渊；两人以前后左右都完整的立体像立在崖边——男人的黑白矩形<span class="glyphs"><i style="background:#1c1610"></i><i style="background:#efe6d0;width:5px"></i></span>与女人的彩色圆花，隔着一道空气，背面是镀了金的同一幅画。<b>你的两只手</b>仍是这对恋人：双手分开，他们在崖边分开、背过身去；双手合拢，他们相拥，金色从那一吻漫过整座岛。</p>
     <blockquote>“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small></blockquote>
     <button id="enter" disabled>载入中…</button>
     <div class="how">XR：花甸是一座放在你面前的小岛，低头俯瞰；伸出双手，两手之间的距离就是两人之间的距离；手合上 = 相拥<br>桌面：视角缓缓绕着岬角飞；拖动可以转、滚轮可以远近；鼠标离画面中线越远，两人分得越开，移到中线 = 相拥<br>建议戴耳机</div>
@@ -75,7 +75,7 @@ const SIDE = 2.0;                                   // 画幅在世界里的边�
 const FIG = new THREE.Vector3(0, 0, 0);             // 恋人站的位置：岬角的崖口
 const KISS_UV = new THREE.Vector2(0.56, 0.83);      // 两张脸相贴的位置（画上 uv）
 const EYE_XR = new THREE.Vector3(0, 1.5, 0);
-const XR_SCALE = 1 / 9, XR_POS = new THREE.Vector3(0, 0.78, -0.85);
+const XR_SCALE = 1 / 14, XR_POS = new THREE.Vector3(0, 0.75, -1.0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -93,6 +93,7 @@ scene.add(world);
 const U = {
   uTime: { value: 0 }, uApart: { value: 1 }, uUnion: { value: 0 }, uWave: { value: -1 },
   uLight: { value: new THREE.Vector3(-0.45, 0.8, 0.4).normalize() },
+  uWind: { value: new THREE.Vector2(0.8, 0.6).normalize() },   // 风向（xz），慢慢转
   uFig: { value: FIG },
   uFogC: { value: new THREE.Color(0.62, 0.47, 0.18) },
 };
@@ -139,22 +140,36 @@ const voidMat = new THREE.ShaderMaterial({
 const voidSphere = new THREE.Mesh(new THREE.SphereGeometry(120, 48, 24), voidMat);
 scene.add(voidSphere);
 
-// ---------- 岬角：一座伸进虚空的花甸，前沿是悬崖 ----------
-// 崖口的曲线：恋人站在 (0,0)，崖边从他们脚前方约 0.7 m 处开始，左右蜿蜒
-const n1 = (x) => Math.sin(x * 0.53 + 1.1) * 0.5 + Math.sin(x * 1.37 + 0.3) * 0.25 + Math.sin(x * 2.9) * 0.12;
-function edgeZ(x) { return -0.7 + 0.9 * n1(x) - 0.012 * x * x; }   // 两侧往后收，岬角是个舌头
-function plateau(x, z) { const sd = z - edgeZ(x); return smooth(-1.1, 0.25, sd); }   // 1 = 台地，0 = 崖下
+// ---------- 花甸岛：一座浮在虚空里的椭圆形岛，四面都是悬崖；恋人站在它前沿的崖口 ----------
+// 岛心在恋人身后 5.2 m，横向半径 10.5 m、纵向 5.9 m，岸线用几个正弦揉出凹凸；恋人脚前约 0.9 m 就是崖口
+const ISLE_C = [0, 5.2], ISLE_A = 10.5, ISLE_B = 5.9;
+function islandSd(x, z) {   // 正 = 岛内（约等于离岸多少米），负 = 崖下
+  const dx = x - ISLE_C[0], dz = z - ISLE_C[1], th = Math.atan2(dz, dx);
+  const er = 1 + 0.14 * Math.sin(th * 3 + 1) + 0.08 * Math.sin(th * 7 + 2) + 0.05 * Math.sin(th * 13);
+  return (1 - Math.hypot(dx / ISLE_A, dz / ISLE_B) / er) * ISLE_B;
+}
+function plateau(x, z) { return smooth(-1.1, 0.25, islandSd(x, z)); }   // 1 = 台地，0 = 崖下
 function groundY(x, z) {
-  const P = plateau(x, z);
-  const sd = z - edgeZ(x);
-  const fall = (1 - P);
-  // 崖面：陡降 8 m，带层理和凸出的岩块；台地：轻微起伏，往后缓缓抬高
+  const sd = islandSd(x, z), P = plateau(x, z), fall = 1 - P;
+  // 崖面：陡降 8 m，带层理和凸出的岩块；台地：轻微起伏，往岛心缓缓隆起
   let y = -fall * fall * 8.5 - fall * (0.5 + 0.5 * Math.sin(x * 2.3 + z * 1.7)) * 0.9;
-  y += P * (0.05 * Math.sin(x * 1.3) * Math.cos(z * 0.9) + 0.012 * z * z);
+  y += P * (0.05 * Math.sin(x * 1.3) * Math.cos(z * 0.9) + 0.004 * Math.max(0, sd - 1) ** 2);
   if (sd < -2.6) y -= (-2.6 - sd) * 0.5;            // 崖下继续往深渊里掉
   return y;
 }
-const TERR = 26, TN = 180;
+const ISLAND_GLSL = /* glsl */`
+  float islandSd(vec2 xz) {
+    vec2 d = xz - vec2(${ISLE_C[0].toFixed(1)}, ${ISLE_C[1].toFixed(1)}); float th = atan(d.y, d.x);
+    float er = 1.0 + 0.14 * sin(th * 3.0 + 1.0) + 0.08 * sin(th * 7.0 + 2.0) + 0.05 * sin(th * 13.0);
+    return (1.0 - length(vec2(d.x / ${ISLE_A.toFixed(1)}, d.y / ${ISLE_B.toFixed(1)})) / er) * ${ISLE_B.toFixed(1)};
+  }
+  // 风掠过草地的波：大块的阵风顺风漂移 + 一道道波前。返回 0..1 的"被吹弯的程度"
+  float windWave(vec2 xz, vec2 wind, float t) {
+    float gust = fbm((xz - wind * t * 2.4) * 0.11 + 7.0);
+    float front = 0.5 + 0.5 * sin(dot(xz, wind) * 1.1 - t * 3.2 + gust * 3.0);
+    return (0.12 + 1.0 * smoothstep(0.35, 0.75, gust)) * (0.4 + 0.6 * front);
+  }`;
+const TERR = 30, TN = 200;
 const terrGeo = new THREE.PlaneGeometry(TERR, TERR, TN, TN);
 terrGeo.rotateX(-Math.PI / 2);
 {
@@ -163,10 +178,10 @@ terrGeo.rotateX(-Math.PI / 2);
   terrGeo.computeVertexNormals();
 }
 const terrMat = new THREE.ShaderMaterial({
-  uniforms: { uTime: U.uTime, uLight: U.uLight, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart },
+  uniforms: { uTime: U.uTime, uLight: U.uLight, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart, uWind: U.uWind },
   vertexShader: `varying vec3 vW, vN; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
-  fragmentShader: NOISE + FOG + /* glsl */`
-    uniform float uTime, uWave, uApart; uniform vec3 uLight, uFig;
+  fragmentShader: NOISE + FOG + ISLAND_GLSL + /* glsl */`
+    uniform float uTime, uWave, uApart; uniform vec3 uLight, uFig; uniform vec2 uWind;
     varying vec3 vW, vN;
     void main() {
       vec3 n = normalize(vN);
@@ -184,8 +199,10 @@ const terrMat = new THREE.ShaderMaterial({
       rock = mix(rock, vec3(0.9, 0.7, 0.3), vein * 0.8);
       vec3 c = mix(rock, meadow, flat_);
       // 崖口一圈：草被风压低、泛黄，像真的崖边
-      float edgeBand = (1.0 - smoothstep(0.0, 1.4, abs(vW.z - (-0.7 + 0.9 * (sin(vW.x * 0.53 + 1.1) * 0.5 + sin(vW.x * 1.37 + 0.3) * 0.25 + sin(vW.x * 2.9) * 0.12) - 0.012 * vW.x * vW.x)))) * flat_;
+      float edgeBand = (1.0 - smoothstep(0.0, 1.4, abs(islandSd(vW.xz)))) * flat_;
       c = mix(c, vec3(0.62, 0.58, 0.26), edgeBand * 0.35);
+      // 风掠过的地方地面略亮（草被吹倒露出叶背），和草叶上的波同步
+      c *= 1.0 + 0.10 * windWave(vW.xz, uWind, uTime) * flat_;
       // 相拥：金色从恋人脚下漫出去
       float dF = length(vW.xz - uFig.xz);
       float gold = uWave < 0.0 ? 0.0 : smoothstep(uWave * 14.0 + 0.6, uWave * 14.0 - 1.4, dF) * (1.0 - uWave * 0.45);
@@ -206,33 +223,35 @@ const terrain = new THREE.Mesh(terrGeo, terrMat);
 world.add(terrain);
 
 // ---------- 草：几万片在风里摇的叶片 ----------
-const GRASS_N = 45000;
+const GRASS_N = 70000;
 {
   const blade = new THREE.BufferGeometry();
-  blade.setAttribute('position', new THREE.Float32BufferAttribute([-0.018, 0, 0, 0.018, 0, 0, 0, 0.22, 0], 3));
+  blade.setAttribute('position', new THREE.Float32BufferAttribute([-0.018, 0, 0, 0.018, 0, 0, 0, 0.24, 0], 3));
   blade.setAttribute('aH', new THREE.Float32BufferAttribute([0, 0, 1], 1));
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uTime: U.uTime, uLight: U.uLight, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart },
+    uniforms: { uTime: U.uTime, uLight: U.uLight, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart, uWind: U.uWind },
     side: THREE.DoubleSide,
-    vertexShader: NOISE + /* glsl */`
-      attribute float aH; uniform float uTime;
-      varying float vH; varying vec3 vW, vC;
+    vertexShader: NOISE + ISLAND_GLSL + /* glsl */`
+      attribute float aH; uniform float uTime; uniform vec2 uWind;
+      varying float vH, vBend; varying vec3 vW, vC;
       void main() {
         vec4 base = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
         vec3 p = position;
-        // 风：一阵阵掠过草地的波，叶尖摆得多，叶根不动
-        float w = sin(uTime * 1.6 + base.x * 0.7 + base.z * 0.9) * 0.5 + sin(uTime * 2.7 + base.z * 1.9 - base.x * 0.4) * 0.3
-                + (fbm(base.xz * 0.35 + vec2(uTime * 0.45, uTime * 0.2)) - 0.5) * 2.0;
-        p.x += w * 0.09 * aH * aH; p.z += w * 0.05 * aH * aH;
+        // 风：一阵阵掠过草地的波（整片草一起顺风倒下去再立起来）+ 每片叶子自己的一点抖动；叶尖摆得多，叶根不动
+        float bend = windWave(base.xz, uWind, uTime);
+        vec2 dir = uWind + 0.35 * vec2(sin(uTime * 2.7 + base.z * 1.9), cos(uTime * 2.1 + base.x * 1.3));
+        p.xz += dir * bend * 0.22 * aH * aH;
+        p.y -= bend * 0.07 * aH * aH;
         vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
-        vW = wp.xyz; vH = aH; vC = instanceColor;
+        vW = wp.xyz; vH = aH; vC = instanceColor; vBend = bend;
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
     fragmentShader: NOISE + FOG + /* glsl */`
       uniform float uWave, uApart; uniform vec3 uLight, uFig;
-      varying float vH; varying vec3 vW, vC;
+      varying float vH, vBend; varying vec3 vW, vC;
       void main() {
         vec3 c = vC * (0.55 + 0.6 * vH);              // 叶根暗、叶尖亮
+        c *= 1.0 + 0.45 * vBend * vH;                 // 被吹倒的叶子亮一些：风的波就是这样被看见的
         float dF = length(vW.xz - uFig.xz);
         float gold = uWave < 0.0 ? 0.0 : smoothstep(uWave * 14.0 + 0.6, uWave * 14.0 - 1.4, dF) * (1.0 - uWave * 0.45);
         c = mix(c, vec3(0.92, 0.72, 0.28), gold * 0.8);
@@ -247,10 +266,9 @@ const GRASS_N = 45000;
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler(), col = new THREE.Color();
   let k = 0, guard = 0;
   while (k < GRASS_N && guard++ < GRASS_N * 6) {
-    const x = rand(-11.5, 11.5), z = rand(-3.5, 11.5);
+    const x = rand(-12.5, 12.5), z = rand(-1.5, 12.5);
     const P = plateau(x, z);
     if (P < 0.55 || Math.random() > P) continue;
-    if (Math.hypot(x, z) > 11.5 + rand(-1, 1)) continue;
     p.set(x, groundY(x, z) - 0.01, z);
     e.set(rand(-0.25, 0.25), rand(0, Math.PI * 2), rand(-0.25, 0.25)); q.setFromEuler(e);
     const sc = rand(0.6, 1.5); s.set(sc * rand(0.8, 1.2), sc, sc);
@@ -264,21 +282,23 @@ const GRASS_N = 45000;
 }
 
 // ---------- 花：克里姆特的调色盘——紫、蓝、黄、白、一点红——铺满台地，一直到崖口 ----------
-const FLOWER_N = 14000;
+const FLOWER_N = 22000;
 const PALETTE = [[0.56, 0.36, 0.75], [0.44, 0.30, 0.68], [0.24, 0.43, 0.71], [0.91, 0.78, 0.29], [0.95, 0.90, 0.72], [0.80, 0.26, 0.20], [0.62, 0.52, 0.80], [0.98, 0.84, 0.36]];
 {
   const disc = new THREE.CircleGeometry(0.05, 7);
   disc.rotateX(-Math.PI / 2);
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uTime: U.uTime, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart },
+    uniforms: { uTime: U.uTime, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart, uWind: U.uWind },
     side: THREE.DoubleSide,
-    vertexShader: /* glsl */`
-      uniform float uTime; varying vec3 vW, vC; varying vec2 vUv;
+    vertexShader: NOISE + ISLAND_GLSL + /* glsl */`
+      uniform float uTime; uniform vec2 uWind; varying vec3 vW, vC; varying vec2 vUv;
       void main() {
         vec4 base = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
         vec3 p = position;
-        float w = sin(uTime * 1.6 + base.x * 0.7 + base.z * 0.9) * 0.5 + sin(uTime * 2.7 + base.z * 1.9 - base.x * 0.4) * 0.3;
-        p.x += w * 0.04; p.z += w * 0.02;
+        // 花跟着草一起被风压过去
+        float bend = windWave(base.xz, uWind, uTime);
+        p.xz += uWind * bend * 0.07; p.y -= bend * 0.03;
+        p.x += sin(uTime * 2.7 + base.z * 1.9) * 0.01;
         vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
         vW = wp.xyz; vC = instanceColor; vUv = uv;
         gl_Position = projectionMatrix * viewMatrix * wp;
@@ -305,12 +325,11 @@ const PALETTE = [[0.56, 0.36, 0.75], [0.44, 0.30, 0.68], [0.24, 0.43, 0.71], [0.
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler(), col = new THREE.Color();
   let k = 0, guard = 0;
   while (k < FLOWER_N && guard++ < FLOWER_N * 8) {
-    const x = rand(-11.5, 11.5), z = rand(-3.5, 11.5);
+    const x = rand(-12.5, 12.5), z = rand(-1.5, 12.5);
     const P = plateau(x, z);
     if (P < 0.5 || Math.random() > P) continue;
-    if (Math.hypot(x, z) > 11.5 + rand(-1, 1)) continue;
     // 花丛：成簇地长（噪声决定密度），崖口附近更密（画里就是这样）
-    const cl = 0.5 + 0.5 * Math.sin(x * 1.7 + 0.4) * Math.sin(z * 1.3 + 2.0) + 0.5 * (1 - smooth(0, 2.5, z - edgeZ(x)));
+    const cl = 0.5 + 0.5 * Math.sin(x * 1.7 + 0.4) * Math.sin(z * 1.3 + 2.0) + 0.5 * (1 - smooth(0, 2.5, islandSd(x, z)));
     if (Math.random() > cl) continue;
     p.set(x, groundY(x, z) + rand(0.05, 0.2), z);
     e.set(rand(-0.4, 0.4), rand(0, Math.PI * 2), rand(-0.4, 0.4)); q.setFromEuler(e);
@@ -329,7 +348,10 @@ const PALETTE = [[0.56, 0.36, 0.75], [0.44, 0.30, 0.68], [0.24, 0.43, 0.71], [0.
   const pts = [], cols = [];
   const gold = new THREE.Color(0.88, 0.70, 0.30), dark = new THREE.Color(0.45, 0.36, 0.14);
   for (let v = 0; v < 90; v++) {
-    const x0 = rand(-5.5, 5.5), z0 = edgeZ(x0) + rand(-0.15, 0.25);
+    // 沿着前沿岸线（恋人两侧各 6 m）找崖口：沿 z 往前走到 islandSd 过零
+    const x0 = rand(-6, 6);
+    let z0 = 4; for (let zz = 4; zz > -4; zz -= 0.05) { if (islandSd(x0, zz) < 0.05) { z0 = zz; break; } }
+    z0 += rand(-0.1, 0.25);
     const y0 = groundY(x0, z0) + 0.05, len = rand(1.5, 6.5), sway = rand(-0.4, 0.4), segs = 14;
     const c = Math.random() < 0.5 ? gold : dark;
     for (let i = 0; i < segs; i++) {
@@ -349,10 +371,11 @@ const PALETTE = [[0.56, 0.36, 0.75], [0.44, 0.30, 0.68], [0.24, 0.43, 0.71], [0.
   world.add(vines);
 }
 
-// ---------- 恋人：以画作本身做成的金底浮雕，立在崖口；按深度图凸起，背面是锤打的金 ----------
+// ---------- 恋人：以画作本身做成的立体像，立在崖口。前后两片壳：前壳按深度图向前凸，后壳向后凸，
+// 在人形的轮廓处合拢成一个封闭的体——从前后左右看都是完整的一座像；后壳贴的是同一幅画，镀一层金 ----------
 let relief = null, depthThr = 0.5;
 const RELIEF_VS = /* glsl */`
-  uniform sampler2D uDepth; uniform float uApart, uThr, uTime;
+  uniform sampler2D uDepth; uniform float uApart, uThr, uTime, uSide;
   varying vec2 vUv; varying vec3 vW; varying float vFg, vG, vAng; varying mat3 vNM;
   // 男人在左、女人在右；分界线从两人头部之间斜着往下到袍子底部（与烘焙脚本一致）
   float boundary(float v) { return v > 0.87 ? 0.62 : v > 0.68 ? 0.5 : 0.55 - 0.08 * (0.68 - v) / 0.46; }
@@ -364,7 +387,12 @@ const RELIEF_VS = /* glsl */`
     float g = uv.x < boundary(uv.y) ? -1.0 : 1.0;
     vG = g;
     vec3 p = position;
-    p.z += fg * clamp((d - uThr) / (1.0 - uThr), 0.0, 1.0) * 0.30;     // 近处（脸、手、袍子）往前凸
+    // 厚度：按深度图鼓起来，前壳向前、后壳向后；轮廓处（fg → 0）两壳合拢
+    // 鼓起量：过了阈值就基本鼓满（像一块有厚度的剪影），深度细节只占小份——
+    // 否则男人（深度 1.0）和女人（0.85）之间会鼓出一道朝侧面的台阶，从侧面看是一条被拉长的花纹
+    float inner = clamp((d - uThr) / (1.0 - uThr), 0.0, 1.0);
+    float bulge = fg * (0.78 * smoothstep(0.0, 0.3, inner) + 0.22 * inner) * 0.34;
+    p.z += uSide * bulge;
     // 分开：两人沿崖边各自退开，并微微背过身去；只有前景（人）动，脚下那块花地不动
     float moving = fg * smoothstep(0.14, 0.3, uv.y);
     float a = uApart * moving;
@@ -380,12 +408,12 @@ const RELIEF_VS = /* glsl */`
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 const RELIEF_FS = NOISE + FOG + /* glsl */`
-  uniform sampler2D uMap, uDepth; uniform float uThr, uTime, uApart, uWave; uniform vec3 uLight; uniform vec2 uPx;
+  uniform sampler2D uMap, uDepth; uniform float uThr, uTime, uApart, uWave, uSide; uniform vec3 uLight; uniform vec2 uPx;
   varying vec2 vUv; varying vec3 vW; varying float vFg, vG, vAng; varying mat3 vNM;
   void main() {
     if (vFg < 0.5) discard;
     // 两人分开时，横跨分界线的三角形会被拉成长条：vG 在 ±1 之间插值的就是它们，丢掉
-    if (uApart > 0.002 && abs(vG) < 0.98) discard;
+    if (uApart > 0.05 && abs(vG) < 0.98) discard;
     // 底边：画里的花地淡入三维的花甸，两人像站在齐膝的花里
     float alpha = smoothstep(0.08, 0.24, vUv.y);
     if (alpha < hash(floor(vUv * 900.0)) ) discard;   // 用抖动当渐隐：不透明物体，不走半透明排序
@@ -393,17 +421,25 @@ const RELIEF_FS = NOISE + FOG + /* glsl */`
     // 由深度图的梯度算法线：浮雕的明暗
     float dL = texture2D(uDepth, vUv - vec2(uPx.x, 0.0)).r, dR = texture2D(uDepth, vUv + vec2(uPx.x, 0.0)).r;
     float dD = texture2D(uDepth, vUv - vec2(0.0, uPx.y)).r, dU = texture2D(uDepth, vUv + vec2(0.0, uPx.y)).r;
-    vec3 nl = normalize(vec3(-(dR - dL) * 9.0, -(dU - dD) * 9.0, 1.0));
+    // 前壳法线朝 +z，后壳朝 -z（表面是 z = -h，向外的法线是 (-h_u, -h_v, -1)）
+    vec3 nl = normalize(vec3(-(dR - dL) * 9.0, -(dU - dD) * 9.0, uSide));
     nl = vec3(nl.x * cos(vAng) - nl.z * sin(vAng), nl.y, nl.x * sin(vAng) + nl.z * cos(vAng));   // 跟着人转过去的角度
     vec3 n = normalize(vNM * nl);
-    if (!gl_FrontFacing) {
-      // 背面：锤打的金箔，带一点原画的明暗
-      float grain = hash(floor(vUv * 1400.0));
-      vec3 gold = vec3(0.84, 0.64, 0.24) * (0.8 + 0.35 * grain) * (0.7 + 0.5 * dot(tex, vec3(0.3, 0.59, 0.11)));
-      gold *= 0.6 + 0.6 * max(dot(-n, uLight), 0.0);
-      gl_FragColor = vec4(applyFog(gold, length(vW - cameraPosition), vW.y), 1.0);
-      return;
-    }
+    // "侧面"：轮廓附近深度刚过阈值、两壳正从合拢处鼓起来的那一圈。这里面的画是被拉长的，
+    // 下面会换成金。按深度值判断（平滑、稳定），不用屏幕导数（在皱褶的轮廓上会一片噪点）
+    // 用粗一级（6 个纹素）的深度梯度量"面有多陡"：轮廓附近深度从阈值猛升到前景，就是侧面；正面深度平缓
+    float e6 = 6.0;
+    float gL = texture2D(uDepth, vUv - vec2(uPx.x * e6, 0.0)).r, gR = texture2D(uDepth, vUv + vec2(uPx.x * e6, 0.0)).r;
+    float gD = texture2D(uDepth, vUv - vec2(0.0, uPx.y * e6)).r, gU = texture2D(uDepth, vUv + vec2(0.0, uPx.y * e6)).r;
+    float slopeMag = length(vec2(gR - gL, gU - gD)) / (2.0 * e6 * uPx.x);
+    float sideness = max(smoothstep(9.0, 22.0, slopeMag), 1.0 - smoothstep(uThr + 0.02, uThr + 0.12, texture2D(uDepth, vUv).r));
+    // 后壳：同一幅画，但镀上一层金——像一座金背的像；轮廓附近两壳颜色一致，接缝看不出来
+    float lum = dot(tex, vec3(0.3, 0.59, 0.11));
+    vec3 gilt = vec3(0.86, 0.66, 0.26) * (0.6 + 0.7 * lum);
+    if (uSide < 0.0) tex = mix(tex, gilt, 0.45 * smoothstep(0.0, 0.25, vFg - 0.5));
+    // 侧面（面几乎侧着的地方）：画面在这里被拉长了，换成金——像的侧边是鎏金的
+    vec3 sideGold = vec3(0.86, 0.66, 0.26) * (0.72 + 0.3 * hash(floor(vUv * 900.0)) + 0.15 * vnoise(vUv * 40.0));   // 不带原画明暗，拉长的纹样就不会透出来
+    tex = mix(tex, sideGold, smoothstep(0.15, 0.7, sideness));
     // 金的地方更金：按颜色判断（黄且亮），给金属高光与颗粒
     float goldness = smoothstep(0.08, 0.3, tex.r - tex.b) * smoothstep(0.35, 0.6, tex.r);
     float grain = hash(floor(vUv * 1800.0));
@@ -436,14 +472,17 @@ async function buildRelief() {
   for (let i = 0; i < 128 * 128; i++) vals.push(dd[i * 4] / 255);
   vals.sort((a, b) => a - b); depthThr = vals[Math.floor(vals.length * 0.55)];
   const geo = new THREE.PlaneGeometry(SIDE, SIDE, 300, 300);
-  const mat = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: map }, uDepth: { value: depth }, uThr: { value: depthThr }, uTime: U.uTime, uApart: U.uApart, uWave: U.uWave, uLight: U.uLight, uFogC: U.uFogC, uUnion: U.uUnion,
-                uPx: { value: new THREE.Vector2(1 / depth.image.width, 1 / depth.image.height) } },
-    vertexShader: RELIEF_VS, fragmentShader: RELIEF_FS, side: THREE.DoubleSide,
-  });
-  relief = new THREE.Mesh(geo, mat);
+  relief = new THREE.Group();
+  for (const side of [1, -1]) {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uMap: { value: map }, uDepth: { value: depth }, uThr: { value: depthThr }, uTime: U.uTime, uApart: U.uApart, uWave: U.uWave, uLight: U.uLight, uFogC: U.uFogC, uUnion: U.uUnion,
+                  uSide: { value: side }, uPx: { value: new THREE.Vector2(1 / depth.image.width, 1 / depth.image.height) } },
+      vertexShader: RELIEF_VS, fragmentShader: RELIEF_FS, side: THREE.DoubleSide,
+    });
+    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false;
+    relief.add(m);
+  }
   relief.position.set(FIG.x, FIG.y + SIDE / 2 - 0.22, FIG.z + 0.05);   // 画的下沿略埋进花里
-  relief.frustumCulled = false;
   world.add(relief);
 }
 
@@ -526,7 +565,7 @@ function handPoint(i, out) {
 }
 const mouse = new THREE.Vector2(0.9, 0);
 let mouseSeen = false, dragging = false, dragStart = null;
-const orbit = { az: 0.45, el: 40 * DEG, r: 7.5, azV: 0.045 };
+const orbit = { az: 0.45, el: 36 * DEG, r: 7.0, azV: 0.045 };
 addEventListener('pointermove', e => {
   mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseSeen = true;
   if (dragging) {
@@ -658,6 +697,9 @@ renderer.setAnimationLoop(() => {
   step(dt, time);
   if (!renderer.xr.isPresenting) updateCamera(dt);
   else world.rotation.y += dt * 0.03;              // XR：小岛在面前缓缓自转
+  // 风向慢慢转
+  const wa = 0.6 + 0.5 * Math.sin(time * 0.03) + 0.2 * Math.sin(time * 0.11 + 1.0);
+  U.uWind.value.set(Math.cos(wa), Math.sin(wa));
   world.userData.dustMat.uniforms.uPx.value = renderer.xr.isPresenting ? xrPixelHeight() : renderer.domElement.height;
   renderer.render(scene, camera);
 });
