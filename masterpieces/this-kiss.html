@@ -49,7 +49,7 @@
     <h1>这一吻</h1>
     <h2>This Kiss</h2>
     <p>克里姆特的《吻》里有一处常被忽略的细节：这对恋人不是悬在金色的虚空里，而是跪在一片开满花的草地上，而草地在他们脚边<b>戛然而止</b>——那是一道悬崖的边缘，她的脚趾和金色的藤蔓垂在崖外。整个世界只剩这一小块花地和无边的金。</p>
-    <p>这里，我们把那道崖边补全成一个可以俯瞰的地方：一座浮在金色虚空里的花甸岛，风一阵一阵掠过草地、压出一道道波浪，紫、蓝、黄的小花<span class="glyphs"><i style="background:#8e5bbf;border-radius:50%"></i><i style="background:#3c6eb4;border-radius:50%"></i><i style="background:#e8c84a;border-radius:50%"></i></span>一直铺到崖口，藤蔓从崖口垂进深渊，风撞上崖壁翻上来，把花瓣卷过崖口。两人立在崖边：分开时是两尊鎏金的人像——他披着黑白金矩形<span class="glyphs"><i style="background:#1c1610"></i><i style="background:#efe6d0;width:5px"></i></span>的长袍，她披着彩色圆花的长袍，隔着一道空气相望；<b>你的两只手</b>就是他们：双手慢慢合拢，他们向彼此倾身、靠近；合上的那一刻，两尊像化回画中相拥的姿势，金色从那一吻漫过整座岛。</p>
+    <p>这里，我们把那道崖边补全成一个可以俯瞰的地方：一座浮在金色虚空里的花甸岛，风一阵一阵掠过草地、压出一道道波浪，紫、蓝、黄的小花<span class="glyphs"><i style="background:#8e5bbf;border-radius:50%"></i><i style="background:#3c6eb4;border-radius:50%"></i><i style="background:#e8c84a;border-radius:50%"></i></span>一直铺到崖口，藤蔓从崖口垂进深渊，风撞上崖壁翻上来，把花瓣卷过崖口。两人立在崖边：分开时是两尊方块叠成的鎏金人像——像他袍子上那些矩形<span class="glyphs"><i style="background:#1c1610"></i><i style="background:#efe6d0;width:5px"></i><i style="background:#d4a838"></i></span>长成了人；他披黑白金的矩形，她披彩色的圆花，隔着几米的空气相望。<b>你的两只手</b>就是他们：双手慢慢合拢，他们向彼此走近、倾身；合到一半，方块开始溶解、拉长、转向正面，渐渐化成画中相拥的姿势；合上的那一刻，金色从那一吻漫过整座岛。</p>
     <blockquote>“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small></blockquote>
     <button id="enter" disabled>载入中…</button>
     <div class="how">XR：花甸是一座放在你面前的小岛，低头俯瞰；伸出双手，两手之间的距离就是两人之间的距离；手合上 = 相拥<br>桌面：视角缓缓绕着岬角飞；拖动可以转、滚轮可以远近；鼠标离画面中线越远，两人分得越开，移到中线 = 相拥<br>建议戴耳机</div>
@@ -380,8 +380,8 @@ const FIG_FS = NOISE + FOG + /* glsl */`
   uniform sampler2D uMap; uniform vec4 uRegion; uniform float uShow, uTime, uApart, uIsHead; uniform vec3 uLight;
   varying vec2 vUv; varying vec3 vW, vN;
   void main() {
-    // 屏幕空间抖动淡入淡出：不透明物体不走半透明排序
-    if (uShow < hash(floor(gl_FragCoord.xy * 0.5) + 0.37)) discard;
+    // 屏幕空间抖动淡入淡出（细到单像素、随时间轻微换位，看起来像一层溶解的雾而不是棋盘格）；不透明物体不走半透明排序
+    if (uShow < hash(floor(gl_FragCoord.xy) + floor(uTime * 8.0) * 0.731)) discard;
     // 把画里的一块纹样绕着身体贴一圈（镜像平铺，接缝处不跳）
     float tu = vUv.x * 2.0; tu = 1.0 - abs(1.0 - fract(tu) * 2.0);
     vec2 puv = vec2(mix(uRegion.x, uRegion.y, tu), mix(uRegion.z, uRegion.w, vUv.y));
@@ -400,27 +400,34 @@ const FIG_FS = NOISE + FOG + /* glsl */`
     gl_FragColor = vec4(applyFog(lit, length(vW - cameraPosition), vW.y), 1.0);
   }`;
 const figures = { man: null, woman: null, mats: [] };
+// 立像由方块叠成（像他袍子上的矩形）：底座、下摆、腰身、胸、肩、颈、头，每一块略转一点角度，叠得不齐
 function makeFigure(map, isMan) {
   const g = new THREE.Group();
   const s = isMan ? 1.0 : 0.9;
-  // 长袍：旋成的侧影——下摆宽、腰略收、肩头圆、领口收进去
-  const prof = [[0.0, 0.0], [0.40, 0.0], [0.42, 0.10], [0.39, 0.45], [0.34, 0.85], [0.31, 1.15], [0.32, 1.38], [0.27, 1.47], [0.15, 1.53], [0.10, 1.57], [0.0, 1.58]].map(([r, y]) => new THREE.Vector2(r * s, y * s));
-  const robeGeo = new THREE.LatheGeometry(prof, 48);
   const mk = (region, isHead) => {
     const m = new THREE.ShaderMaterial({ uniforms: { uMap: { value: map }, uRegion: { value: new THREE.Vector4(...region) }, uShow: { value: 1 }, uTime: U.uTime, uApart: U.uApart, uLight: U.uLight, uFogC: U.uFogC, uUnion: U.uUnion, uIsHead: { value: isHead ? 1 : 0 } }, vertexShader: FIG_VS, fragmentShader: FIG_FS });
     figures.mats.push(m); return m;
   };
-  const robe = new THREE.Mesh(robeGeo, mk(isMan ? [0.30, 0.47, 0.18, 0.80] : [0.52, 0.70, 0.18, 0.75], false));
-  g.add(robe);
-  // 头：球；纹样取画里各自的头部（他：深色卷发与常春藤；她：红发与小花、脸）
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13 * s, 32, 24), mk(isMan ? [0.44, 0.60, 0.86, 0.99] : [0.55, 0.68, 0.80, 0.92], true));
-  head.position.y = 1.70 * s;
+  const robeMat = mk(isMan ? [0.30, 0.47, 0.18, 0.80] : [0.52, 0.70, 0.18, 0.75], false);
+  const headMat = mk(isMan ? [0.44, 0.60, 0.86, 0.99] : [0.55, 0.68, 0.80, 0.92], true);
+  // [宽, 高, 厚, 中心高度, 绕 y 的偏转]
+  const blocks = isMan
+    ? [[0.78, 0.16, 0.60, 0.08, 0.00], [0.66, 0.48, 0.50, 0.40, 0.06], [0.54, 0.42, 0.42, 0.85, -0.05], [0.58, 0.40, 0.44, 1.26, 0.04], [0.70, 0.14, 0.46, 1.53, 0.00], [0.20, 0.10, 0.20, 1.65, 0.0]]
+    : [[0.70, 0.14, 0.54, 0.07, 0.00], [0.60, 0.46, 0.46, 0.37, -0.05], [0.46, 0.40, 0.38, 0.80, 0.06], [0.50, 0.38, 0.40, 1.19, -0.04], [0.58, 0.12, 0.40, 1.44, 0.00], [0.17, 0.09, 0.17, 1.54, 0.0]];
+  for (const [w, h, d, y, ry] of blocks) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w * s, h * s, d * s), robeMat);
+    b.position.y = y * s; b.rotation.y = ry; g.add(b);
+  }
+  // 头：一个方块，纹样取画里各自的头部（他：深色卷发与常春藤；她：红发与小花、脸）
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.26 * s, 0.30 * s, 0.26 * s), headMat);
+  head.position.y = (isMan ? 1.86 : 1.74) * s; head.rotation.y = isMan ? 0.08 : -0.08;
   g.add(head);
-  // 肩：两个压扁的球，让轮廓不是一根柱子
-  for (const sx of [-1, 1]) {
-    const sh = new THREE.Mesh(new THREE.SphereGeometry(0.11 * s, 20, 14), robe.material);
-    sh.scale.set(1.0, 0.7, 0.8); sh.position.set(sx * 0.27 * s, 1.44 * s, 0);
-    g.add(sh);
+  // 几个小方块点缀在袍子上，像贴上去的金箔片
+  for (let i = 0; i < 5; i++) {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.08 * s, 0.08 * s, 0.08 * s), robeMat);
+    const ang = i * 1.3 + (isMan ? 0 : 0.6), r = 0.30 * s;
+    c.position.set(Math.cos(ang) * r, (0.5 + i * 0.22) * s, Math.sin(ang) * r); c.rotation.set(0.3, ang, 0.2);
+    g.add(c);
   }
   g.frustumCulled = false;
   return g;
@@ -467,9 +474,9 @@ const RELIEF_FS = NOISE + FOG + /* glsl */`
   varying vec2 vUv; varying vec3 vW; varying float vFg, vG, vAng; varying mat3 vNM;
   void main() {
     if (vFg < 0.5) discard;
-    if (uShow < hash(floor(gl_FragCoord.xy * 0.5) + 0.37)) discard;   // 与两尊立像抖动交叉淡变
+    if (uShow < hash(floor(gl_FragCoord.xy) + floor(uTime * 8.0) * 0.731)) discard;   // 与两尊立像抖动交叉淡变（同一套抖动，互补）
     // 两人分开时，横跨分界线的三角形会被拉成长条：vG 在 ±1 之间插值的就是它们，丢掉
-    if (uApart > 0.05 && abs(vG) < 0.98) discard;
+    if (uApart > 0.03 && abs(vG) < 0.98) discard;
     // 底边：画里的花地淡入三维的花甸，两人像站在齐膝的花里
     float alpha = smoothstep(0.08, 0.24, vUv.y);
     if (alpha < hash(floor(vUv * 900.0)) ) discard;   // 用抖动当渐隐：不透明物体，不走半透明排序
@@ -543,17 +550,22 @@ async function buildRelief() {
   figures.man = makeFigure(map, true); figures.woman = makeFigure(map, false);
   world.add(figures.man, figures.woman);
 }
-// 两尊立像的位置与姿态：分得越开站得越远；靠近时微微向对方倾身
+// 两尊立像的位置与姿态：分得越开站得越远（完全分开时相距约 3.6 m）；靠近时向对方倾身。
+// 变回画中姿势是连续的：手合到一半起，两尊方块像一边继续走近、一边收窄拉高、转向正面，
+// 同时溶进画中姿势的立体像（它的两半此时也正在合拢）——没有一个"切换"的瞬间
 function updateFigures(apart, t) {
   if (!figures.man) return;
-  const human = smooth(0.30, 0.55, apart);          // 1 = 两尊人像，0 = 画中姿势的立体像
+  const human = smooth(0.12, 0.58, apart);          // 1 = 两尊人像，0 = 画中姿势的立体像（宽范围、平滑的交叉）
+  const melt = 1 - human;                           // 立像向浮雕"融"过去的程度
   for (const m of figures.mats) m.uniforms.uShow.value = human;
   if (relief) for (const m of relief.children) m.material.uniforms.uShow.value = 1 - human;
-  const dx = 0.30 + 0.55 * apart, lean = (1 - apart) * 0.16;
-  figures.man.position.set(FIG.x - dx, FIG.y - 0.06, FIG.z + 0.05);
-  figures.woman.position.set(FIG.x + dx, FIG.y - 0.06, FIG.z + 0.05);
-  figures.man.rotation.set(0, 0.35 - 0.2 * apart, -lean);
-  figures.woman.rotation.set(0, -0.35 + 0.2 * apart, lean);
+  const dx = (0.26 + 1.55 * apart) * (1 - 0.15 * melt), lean = smooth(1.0, 0.3, apart) * 0.14;
+  figures.man.position.set(FIG.x - dx, FIG.y - 0.06 + 0.02 * melt, FIG.z + 0.05 + 0.08 * melt);
+  figures.woman.position.set(FIG.x + dx, FIG.y - 0.06 + 0.02 * melt, FIG.z + 0.05 + 0.08 * melt);
+  figures.man.rotation.set(0, (0.4 - 0.25 * apart) * (1 - melt), -lean * (1 - 0.5 * melt));
+  figures.woman.rotation.set(0, (-0.4 + 0.25 * apart) * (1 - melt), lean * (1 - 0.5 * melt));
+  const sx = 1 - 0.35 * melt, sy = 1 + 0.12 * melt;
+  figures.man.scale.set(sx, sy, sx); figures.woman.scale.set(sx, sy, sx);
   figures.man.position.y += 0.01 * Math.sin(t * 0.8);
   figures.woman.position.y += 0.01 * Math.sin(t * 0.8 + 1.5);
   figures.man.visible = figures.woman.visible = human > 0.001;

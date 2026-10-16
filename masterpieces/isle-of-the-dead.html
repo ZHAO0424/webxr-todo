@@ -71,15 +71,45 @@ const ASPECT = 1920 / 1369;
 const HM = R * PIC_ARC / ASPECT;           // 画面高度（米）
 const HOR_V = 0.235;                        // 画里地平线的 v（自下而上）
 // 画幕 uv → 画上 uv，以及两侧延展区的取样
+// 画幕在竖直方向也延展：画的下边再往下铺成脚下的海面（EXT_LO），上边再往上合成头顶的天穹（EXT_HI）
+const EXT_LO = 0.55, EXT_HI = 0.6, VRANGE = 1 + EXT_LO + EXT_HI;   // 画幕 uv.y 0..1 对应画上 v 从 -EXT_LO 到 1+EXT_HI
 const PIC_GLSL = /* glsl */`
   const float ARCR = ${(ARC / PIC_ARC).toFixed(5)};
+  const float EXT_LO = ${EXT_LO.toFixed(3)}, EXT_HI = ${EXT_HI.toFixed(3)}, VRANGE = ${VRANGE.toFixed(3)};
+  const float R0 = ${R.toFixed(3)}, EYE_Y = ${EYE.y.toFixed(3)}, HM0 = ${HM.toFixed(4)}, HORV = ${HOR_V.toFixed(3)};
   float picU(vec2 uv) { return (uv.x - 0.5) * ARCR + 0.5; }
-  // 出画多远算"延展区"：画边外约 1° 内就切到延展（边界用噪声揉成参差的，不是一条直线）
+  float picV(vec2 uv) { return uv.y * VRANGE - EXT_LO; }
+  // 出画多远算"延展区"：画边外约 1° 内就切到延展（边界用噪声揉成参差的，不是一条直线）；上下出画也一样
   float flankAmt(vec2 uv) {
-    float u = picU(uv) + 0.02 * (fbm(vec2(uv.x * 80.0, uv.y * 24.0)) - 0.5);
-    return smoothstep(0.0, -0.025, u) + smoothstep(1.0, 1.025, u);
+    float n = fbm(vec2(uv.x * 80.0, uv.y * 24.0)) - 0.5;
+    float u = picU(uv) + 0.02 * n, v = picV(uv) + 0.02 * n;
+    // 上下：画的最外几行是画框 / 照片的边，不能用——在 3% 处就切到延展，延展从 3.5% 起取样，颜色接得上
+    return clamp(smoothstep(0.0, -0.025, u) + smoothstep(1.0, 1.025, u) + smoothstep(0.03, 0.015, v) + smoothstep(0.97, 0.985, v), 0.0, 1.0);
   }
-  vec2 picUV(vec2 uv) { return vec2(clamp(picU(uv), 0.01, 0.99), uv.y); }
+  vec2 picUV(vec2 uv) { return vec2(clamp(picU(uv), 0.01, 0.99), clamp(picV(uv), 0.03, 0.97)); }
+  // 画幕上一点的空间位置：中间是圆柱（画 + 左右延展），下面收成脚下的海面，上面收成天穹
+  vec3 curtainPos(vec2 uv, float d, float E) {
+    float th = (uv.x - 0.5) * ${ARC.toFixed(5)};
+    float pv = picV(uv);
+    // 画的上下边附近深度凸起要收回去，不然在画幕与脚下 / 天穹相接处会凸出一道台阶（看起来是一圈拉丝）
+    d *= smoothstep(0.0, 0.14, pv) * smoothstep(1.0, 0.88, pv);
+    float recess = smoothstep(0.3, 0.8, E) * 0.045;          // 烧穿的地方往后凹
+    float yBot = EYE_Y - HORV * HM0, yTop = EYE_Y + (1.0 - HORV) * HM0;
+    if (pv < 0.0) {
+      float k = clamp(-pv / EXT_LO, 0.0, 1.0);                 // 0 = 画幕底边，1 = 脚下正中
+      float r = R0 * (1.0 - k);
+      return vec3(r * sin(th), yBot - recess - 0.15 * k * k, -r * cos(th));
+    }
+    if (pv > 1.0) {
+      float k = clamp((pv - 1.0) / EXT_HI, 0.0, 1.0);
+      float r = R0 * (1.0 - k);
+      float dome = sqrt(max(R0 * R0 - r * r, 0.0)) * 0.6;
+      return vec3(r * sin(th), yTop + dome + recess, -r * cos(th));
+    }
+    float r = R0 * (1.0 - 0.42 * pow(d, 1.3)) + recess;        // 近处（岛、水面）往你这边凸
+    float y = EYE_Y + (pv - HORV) * HM0 * (r / R0);
+    return vec3(r * sin(th), y, -r * cos(th));
+  }
   // 绕一圈无缝的 3D 值噪声（坐标取在圆环上，身后不会有接缝）
   float hash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
   float vnoise3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -89,16 +119,27 @@ const PIC_GLSL = /* glsl */`
   // 铺出来的就是这幅画自己的笔触，接着画边继续往左右延伸；两条源带在身后对半混，看不出哪里是接头
   vec3 extNoise(vec2 uv, float seed) {
     float th = (uv.x - 0.5) * 6.2831853;
-    vec3 ring = vec3(cos(th), sin(th), 0.0);
-    float n1 = vnoise3(ring * 9.0 + vec3(0.0, 0.0, uv.y * 40.0 + seed));
-    float n2 = vnoise3(ring * 23.0 + vec3(0.0, 0.0, uv.y * 90.0 + seed * 3.0));
-    float n3 = vnoise3(ring * 4.0 + vec3(0.0, 0.0, uv.y * 12.0 + seed * 7.0));
+    float pv = picV(uv);
+    // 脚下 / 头顶：越靠中心周长越短，噪声的环半径也跟着收，纹理才不会在中心挤成一点
+    float shrink = pv < 0.0 ? 1.0 - clamp(-pv / EXT_LO, 0.0, 1.0) : pv > 1.0 ? 1.0 - clamp((pv - 1.0) / EXT_HI, 0.0, 1.0) : 1.0;
+    vec3 ring = vec3(cos(th), sin(th), 0.0) * (0.15 + 0.85 * shrink);
+    float n1 = vnoise3(ring * 9.0 + vec3(0.0, 0.0, pv * 40.0 + seed));
+    float n2 = vnoise3(ring * 23.0 + vec3(0.0, 0.0, pv * 90.0 + seed * 3.0));
+    float n3 = vnoise3(ring * 4.0 + vec3(0.0, 0.0, pv * 12.0 + seed * 7.0));
     return vec3(n1, n2, n3);
+  }
+  // 竖向取样位置：画幕中段跟着 v 走；脚下只从画底部的海（v 2%–19%）里取，头顶只从画顶部的天（78%–98%）里取
+  // 靠近画幕的接缝处只取紧挨画边的那几行，往脚下 / 头顶走再逐渐放开到整条带，接缝才看不出来
+  float extV(float pv, vec3 n) {
+    float w = n.z * 0.7 + n.y * 0.3;
+    if (pv < 0.03) { float k = clamp(-pv / EXT_LO, 0.0, 1.0); return mix(0.035, mix(0.07, 0.19, k), w); }
+    if (pv > 0.97) { float k = clamp((pv - 1.0) / EXT_HI, 0.0, 1.0); return mix(mix(0.93, 0.78, k), 0.965, w); }
+    return clamp(pv + 0.03 * (n.z - 0.5) + 0.012 * (n.y - 0.5), 0.035, 0.965);
   }
   vec3 extSample(sampler2D t, vec2 uv) {
     vec3 a = extNoise(uv, 0.0), b = extNoise(uv, 11.0);
-    float vA = clamp(uv.y + 0.03 * (a.z - 0.5) + 0.012 * (a.y - 0.5), 0.002, 0.998);
-    float vB = clamp(uv.y + 0.03 * (b.z - 0.5) + 0.012 * (b.y - 0.5), 0.002, 0.998);
+    float pv = picV(uv);
+    float vA = extV(pv, a), vB = extV(pv, b);
     float wA = a.x * 0.6 + a.y * 0.4, wB = b.x * 0.6 + b.y * 0.4;
     vec3 cL = 0.5 * (texture2D(t, vec2(0.0325 + 0.0225 * (wA - 0.5) * 2.0, vA)).rgb + texture2D(t, vec2(0.0325 + 0.0225 * (wB - 0.5) * 2.0, vB)).rgb);
     vec3 cR = 0.5 * (texture2D(t, vec2(0.9825 + 0.0125 * (wA - 0.5) * 2.0, vA)).rgb + texture2D(t, vec2(0.9825 + 0.0125 * (wB - 0.5) * 2.0, vB)).rgb);
@@ -109,7 +150,7 @@ const PIC_GLSL = /* glsl */`
 
 // 腐蚀场网格：默认 1024 宽（每格约 6 mm；边缘的毛边由着色器里的噪声给，不靠网格分辨率）
 // 画幕是一整圈（周长约 20 m）× 5 m 高：模拟网格按画幕的真实长宽比建，火才会各个方向等速蔓延
-const CURT_ASP = (ARC / PIC_ARC) * ASPECT;   // 画幕宽高比 ≈ 3.9
+const CURT_ASP = (2 * Math.PI * R) / (HM * VRANGE);   // 画幕宽高比：周长 ÷（画高 × 竖向延展倍数）≈ 1.8
 const SIM_W = +(params.get('sim') || 2048), SIM_H = Math.round(SIM_W / CURT_ASP);
 const STEPS = +(params.get('steps') || 1);
 
@@ -253,10 +294,7 @@ const paintMat = new THREE.ShaderMaterial({
       vUv = uv;
       float d = texture2D(tDepth, picUV(uv)).r * (1.0 - flankAmt(uv));
       float E = texture2D(tSim, uv).r;
-      float th = (uv.x - 0.5) * ${ARC.toFixed(5)};
-      float r = ${R.toFixed(3)} * (1.0 - 0.42 * pow(d, 1.3)) + smoothstep(0.3, 0.8, E) * 0.045;   // 近处（岛、水面）往你这边凸；烧穿的地方明显往后凹进去
-      float y = ${EYE.y.toFixed(3)} + (uv.y - ${HOR_V}) * ${HM.toFixed(4)} * (r / ${R.toFixed(3)});
-      vec3 p = vec3(r * sin(th), y, -r * cos(th));
+      vec3 p = curtainPos(uv, d, E);
       vW = p; vDir = normalize(p - vec3(0.0, ${EYE.y.toFixed(3)}, 0.0));
       gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
     }`,
@@ -314,7 +352,7 @@ const paintMat = new THREE.ShaderMaterial({
       front = mix(front, charC, charB * 0.92);
       // 炭上的裂纹：发红的缝（里面还在烧）
       float crack = 1.0 - smoothstep(0.0, 0.012, abs(fract(nBig * 9.0 + nFine * 0.6) - 0.5) - 0.47);
-      front += vec3(0.9, 0.25, 0.04) * crack * charB * (1.0 - reveal) * flick * 0.8;
+      front += vec3(0.8, 0.18, 0.03) * crack * charB * (1.0 - reveal) * flick * 0.45;
       front += emberC * ember * 1.7;                      // 火线本身：高亮，当作自发光
 
       // ---- 后层：烧焦的腐蚀底图。刚烧穿是一片炭黑、余烬在炭缝里闪；几秒后余烬熄灭；
@@ -327,10 +365,9 @@ const paintMat = new THREE.ShaderMaterial({
       vec3 back = mix(charred, corr * 0.9, age * 0.85);               // 新烧的是炭，冷透了露出腐蚀的画
       back *= 1.0 - 0.45 * soot;
       back = mix(back, vec3(0.70, 0.68, 0.64) * (0.6 + 0.6 * nFine), clamp(ash, 0.0, 1.0) * 0.6);
-      // 余烬：炭缝里一格一格明灭的红
-      float emberCells = smoothstep(0.58, 0.85, vnoise(vUv * vec2(420.0 * ASP, 420.0) + vec2(0.0, 0.2 * sin(uTime * 3.0 + nBig * 20.0))));
-      back += emberC * emberCells * hot * 1.5;
-      back += emberC * exp(-max(x, 0.0) / 0.035) * 0.45;   // 火光照进洞里
+      // 余热：刚烧穿的炭面只透出一层暗红的微光（没有明火），几秒内暗下去
+      back += vec3(0.55, 0.09, 0.02) * hot * (0.25 + 0.25 * nBig) * (0.85 + 0.15 * sin(uTime * 2.0 + nBig * 30.0));
+      back += emberC * exp(-max(x, 0.0) / 0.03) * 0.3;    // 火线的红光映进洞口一圈
       // 水面那一层烧出后还带一点湿光
       float wet = texture2D(tRegion, puv).g;
       vec3 h = normalize(uLight + vec3(0.0, 0.0, 1.0));
@@ -339,10 +376,11 @@ const paintMat = new THREE.ShaderMaterial({
       vec3 c = mix(front, back, reveal);
       // 火线两侧的光晕（没有 bloom，用一圈软光代替）
       c += emberC * exp(-abs(x + 0.015) / 0.06) * 0.22;
-      // 延展区往身后略融进雾里（画是正前方的，身后的天和海暗一点）；画幕上下边缘也融进雾里
+      // 延展区往身后略融进雾里（画是正前方的，身后的天和海暗一点）；脚下正中和天穹顶点（所有经线汇聚处）融进雾色
       c = mix(c, fog, fl * smoothstep(0.2, 0.5, abs(vUv.x - 0.5)) * 0.35);
-      float edge = smoothstep(1.0, 0.9, vUv.y) * smoothstep(0.0, 0.04, vUv.y);
-      c = mix(fog, c, edge);
+      float pv = picV(vUv);
+      float apex = pv < 0.0 ? smoothstep(0.8, 1.0, -pv / EXT_LO) : pv > 1.0 ? smoothstep(0.8, 1.0, (pv - 1.0) / EXT_HI) : 0.0;
+      c = mix(c, fog, apex);
       gl_FragColor = vec4(c, 1.0);
     }`,
 });
@@ -369,10 +407,8 @@ const emberMat = new THREE.ShaderMaterial({
       float alive = (x > -0.08 && x < 0.03) ? 1.0 : 0.0;
       float life = fract(uTime * (0.45 + 0.4 * aSeed) + aSeed * 7.0);
       float d = texture2D(tDepth, picUV(aUv)).r * (1.0 - flankAmt(aUv));
-      float ang = (aUv.x - 0.5) * ${ARC.toFixed(5)};
-      float r = ${R.toFixed(3)} * (1.0 - 0.42 * pow(d, 1.3)) - 0.02;
-      float y = ${EYE.y.toFixed(3)} + (aUv.y - ${HOR_V}) * ${HM.toFixed(4)} * (r / ${R.toFixed(3)});
-      vec3 p = vec3(r * sin(ang), y, -r * cos(ang));
+      vec3 p = curtainPos(aUv, d, 0.0);
+      p -= normalize(p - vec3(0.0, ${EYE.y.toFixed(3)}, 0.0)) * 0.02;
       // 往上飘、左右摇、略向你这边来
       p.y += life * (0.25 + 0.3 * aSeed);
       p.x += sin(uTime * 2.0 + aSeed * 40.0) * 0.03 * life;
@@ -405,19 +441,33 @@ const emberMat = new THREE.ShaderMaterial({
 
 // ---------- 注视 → 画上的 (u, v) ----------
 const tmpO = new THREE.Vector3(), tmpD = new THREE.Vector3(), tmpM = new THREE.Matrix4();
+const Y_BOT = EYE.y - HOR_V * HM, Y_TOP = EYE.y + (1 - HOR_V) * HM;
 function rayToUV(o, d) {
-  // 与半径 0.82R 的竖直圆柱求交（画幕的平均位置）
+  // 先与半径 0.82R 的竖直圆柱求交（画幕中段的平均位置）；打在中段之外就看脚下的海面 / 头顶的天穹
   const rc = R * 0.82;
   const a = d.x * d.x + d.z * d.z, b = 2 * (o.x * d.x + o.z * d.z), c = o.x * o.x + o.z * o.z - rc * rc;
   const disc = b * b - 4 * a * c;
-  if (a < 1e-6 || disc < 0) return null;
-  const t = (-b + Math.sqrt(disc)) / (2 * a);
-  if (t <= 0) return null;
-  const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
-  const u = Math.atan2(x, -z) / ARC + 0.5;
-  const v = (y - EYE.y) / (HM * 0.82) + HOR_V;
-  if (u < 0 || u > 1 || v < 0 || v > 1) return null;
-  return [u, v];
+  let pv = null, u = null;
+  if (a > 1e-6 && disc >= 0) {
+    const t = (-b + Math.sqrt(disc)) / (2 * a);
+    if (t > 0) {
+      const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
+      const v = (y - EYE.y) / (HM * 0.82) + HOR_V;
+      if (v >= 0 && v <= 1) { u = Math.atan2(x, -z) / ARC + 0.5; pv = v; }
+    }
+  }
+  if (pv === null) {
+    const floor = d.y < 0;
+    const yPlane = floor ? Y_BOT : Y_TOP + 0.6;
+    if (Math.abs(d.y) < 1e-6) return null;
+    const t = (yPlane - o.y) / d.y;
+    if (t <= 0) return null;
+    const x = o.x + d.x * t, z = o.z + d.z * t;
+    const k = Math.max(0, Math.min(1, 1 - Math.hypot(x, z) / R));
+    u = Math.atan2(x, -z) / ARC + 0.5;
+    pv = floor ? -k * EXT_LO : 1 + k * EXT_HI;
+  }
+  return [Math.max(0, Math.min(1, u)), (pv + EXT_LO) / VRANGE];
 }
 const mouse = new THREE.Vector2(0, 0);
 let mouseIn = false, dragging = false, dragStart = null, yaw = 0, pitch = 0, yaw0 = 0, pitch0 = 0;
