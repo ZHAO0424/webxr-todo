@@ -385,9 +385,9 @@ const VOX_VS = NOISE + /* glsl */`
   mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0, -s, 0, 1, 0, s, 0, c); }
   mat3 rotX(float a) { float c = cos(a), s = sin(a); return mat3(1, 0, 0, 0, c, s, 0, -s, c); }
   void main() {
-    // 每块按自己的节奏起飞：按高度（低的先走）加一点随机，整个过程里总有块在路上
-    float lag = clamp(aA.y / 1.9, 0.0, 1.0) * 0.45 + aSeed * 0.15;
-    float t = smoothstep(lag, lag + 0.4, uMorph);
+    // 所有立方体同步、平滑地水平滑到各自的位置（只有一点点随机的先后，让边缘不那么整齐）
+    float lag = aSeed * 0.08;
+    float t = smoothstep(lag, lag + 0.92, uMorph);
     t = t * t * (3.0 - 2.0 * t);
     // 起态：方块人；站位随双手距离移动，并微微向对方倾身
     vec3 a = aA;
@@ -396,16 +396,12 @@ const VOX_VS = NOISE + /* glsl */`
     a.x += aG * uDx;
     a.x -= aG * lean * a.y * 0.5;
     a.y += 0.01 * sin(uTime * 0.8 + aG);
-    // 飞行路径：中点抬高、略向外鼓，像一群蜂飞过去；路上自转
+    // 直线平移到位：先水平走到目标的 xz，再把高度对上（两者都平滑），不抬高、不自转
     vec3 p = mix(a, aB, t);
-    float arc = sin(3.14159 * t);
-    p.y += arc * (0.25 + 0.35 * aSeed);
-    p.x += arc * aG * 0.15 * (0.5 + aSeed);
-    p.z += arc * 0.2 * (aSeed - 0.5);
-    float spin = arc * (3.0 + 4.0 * aSeed);
-    mat3 R = rotY(spin) * rotX(spin * 0.7);
-    vec3 local = R * (position * uSize);
-    vec3 n = R * normal;
+    p.y = mix(a.y, aB.y, smoothstep(0.25, 1.0, t));
+    float arc = sin(3.14159 * t) * 0.6;
+    vec3 local = position * uSize;
+    vec3 n = normal;
     vec4 w = modelMatrix * vec4(p + local, 1.0);
     vW = w.xyz; vN = normalize(mat3(modelMatrix) * n);
     vC = mix(aCA, aCB, t);
@@ -541,7 +537,7 @@ async function buildVoxels() {
 // 变形进度与站位：手合到一半开始飞，合上时全部到位；分开时各自站在崖口两侧（完全分开相距约 3.6 m）
 function updateFigures(apart, t) {
   if (!voxMesh) return;
-  const morph = smooth(0.55, 0.08, apart);
+  const morph = smooth(0.6, 0.05, apart);
   voxMesh.material.uniforms.uMorph.value = morph;
   voxMesh.material.uniforms.uDx.value = 0.26 + 1.55 * apart;
 }
