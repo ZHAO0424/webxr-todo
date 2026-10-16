@@ -53,7 +53,7 @@ def main():
 
     # ---- 1. 底色：褪色、发灰、发冷，像在潮湿的墙上挂了一百年 ----
     grey = lum[..., None] * np.array([0.92, 0.90, 0.86], np.float32)
-    base = lerp(col, grey, 0.62) * 0.74
+    base = lerp(col, grey, 0.78) * 0.58
     # 大块的水渍：低频噪声，偏暖的茶色和偏冷的灰绿交替
     stain = fbm(H, W, 3, 4, aspect=asp)
     warm = np.array([0.42, 0.33, 0.20], np.float32)
@@ -65,7 +65,7 @@ def main():
     drip = fbm(H, W, 2, 5, aspect=asp * 14)        # 横向细、纵向长
     breakup = smoothstep(0.3, 0.65, fbm(H, W, 4, 3, aspect=asp))   # 不是每一道都贯穿到底
     dripMask = smoothstep(0.6, 0.85, drip) * (1 - yy) ** 0.8 * breakup
-    base = lerp(base, base * np.array([0.80, 0.77, 0.70], np.float32), (0.4 * dripMask)[..., None])
+    base = lerp(base, base * np.array([0.74, 0.70, 0.62], np.float32), (0.55 * dripMask)[..., None])
     # 水痕边上一道很淡的亮边（矿物析出）
     rim = smoothstep(0.56, 0.6, drip) * (1 - smoothstep(0.6, 0.65, drip)) * (1 - yy) ** 0.8 * breakup
     base = lerp(base, np.array([0.62, 0.60, 0.54], np.float32)[None, None], (0.18 * rim)[..., None])
@@ -81,7 +81,7 @@ def main():
     lichenMask = smoothstep(0.54, 0.64, patch + 0.25 * (fine - 0.5)) * rock * (0.25 + 0.75 * smoothstep(0.42, 0.7, speck))
     crust = 0.7 + 0.6 * fine
     lichenTip = lerp(lichenTip, lum[..., None] * np.ones(3, np.float32), 0.3)   # 带一点原画的明暗，别太"贴纸"
-    base = lerp(base, lichenTip * crust[..., None], (0.62 * lichenMask)[..., None])
+    base = lerp(base, lichenTip * crust[..., None], (0.72 * lichenMask)[..., None])
     # 地衣边一圈深色
     edge = smoothstep(0.46, 0.52, patch + 0.25 * (fine - 0.5)) * (1 - smoothstep(0.52, 0.56, patch + 0.25 * (fine - 0.5))) * rock
     base *= (1 - 0.35 * edge)[..., None]
@@ -106,12 +106,12 @@ def main():
             lv = k / levels
             crack = np.maximum(crack, 1 - smoothstep(0, wdt, np.abs(n - lv)))
     crack *= 0.5 + 0.5 * smoothstep(0.3, 0.7, fbm(H, W, 5, 3, aspect=asp))   # 不是处处都裂
-    base *= (1 - 0.4 * crack)[..., None]
+    base *= (1 - 0.55 * crack)[..., None]
 
     # ---- 5. 剥落：成片的颜料掉了，露出底下深色的底子 ----
     cellN = fbm(H, W, 90, 2, aspect=asp)
     flakeN = cellN + 0.2 * (fbm(H, W, 260, 2, aspect=asp) - 0.5)
-    flake = smoothstep(0.70, 0.75, flakeN) * smoothstep(0.45, 0.7, patch)
+    flake = smoothstep(0.63, 0.69, flakeN) * smoothstep(0.4, 0.7, patch)
     ground = np.array([0.16, 0.13, 0.10], np.float32) * (0.7 + 0.6 * fine)[..., None]
     base = lerp(base, ground, (0.85 * flake)[..., None])
     # 剥落边缘：颜料断口的一道暗影

@@ -44,14 +44,14 @@
     <h1>目光停留之处</h1>
     <h2>Where the Gaze Rests</h2>
     <p>1880 年，勃克林在佛罗伦萨画下第一版《死之岛》：暮色里一座岩岛，高耸的柏树，凿进岩壁的墓室，一只小船载着白衣人和棺木缓缓驶近。他后来又画了四个版本；拉赫玛尼诺夫看过它的黑白复制品后，写出了同名交响诗，用 5/8 拍模仿划桨。</p>
-    <p>这件作品让"看"本身成为火。画铺成一面环绕你 200° 的弧幕，有两层：前面是你熟悉的《死之岛》，后面垫着同一幅画在一百年的潮湿里腐蚀之后的样子——水痕、龟裂、剥落，岩石上的地衣与锈<span class="swatch"><i style="background:#c49a4a"></i><i style="background:#8a4a24"></i><i style="background:#e6dcc6"></i></span>，柏树间的苔藓<span class="swatch"><i style="background:#3a4a2a"></i><i style="background:#6b7a4a"></i></span>，水面上盐与骨色的斑。你的目光停在哪里，哪里就烧起来：前层像一张纸从目光处燃开，火线<span class="swatch"><i style="background:#ff4a0a"></i><i style="background:#ffd860"></i><i style="background:#1a0e08"></i></span>向四周蔓延、飘起火星，烧出后面那一层。</p>
-    <p>移开目光，火灭了，灰烬一点一点退去，原画慢慢重新盖回来。凝视得越久，烧得越大、退得越慢。</p>
+    <p>这件作品让"看"本身成为火。画铺成一面环绕你一整圈的弧幕：正前方是《死之岛》，画两侧的天和海用画自己的笔触接着往左右铺开，一直到你身后合拢。画有两层：前面是你熟悉的《死之岛》，后面垫着同一幅画在一百年的潮湿里腐蚀之后的样子——水痕、龟裂、剥落，岩石上的地衣与锈<span class="swatch"><i style="background:#c49a4a"></i><i style="background:#8a4a24"></i><i style="background:#e6dcc6"></i></span>，柏树间的苔藓<span class="swatch"><i style="background:#3a4a2a"></i><i style="background:#6b7a4a"></i></span>，水面上盐与骨色的斑。你的目光停在哪里，哪里就被点燃：前层像一张纸从目光处燃开，火线<span class="swatch"><i style="background:#ff4a0a"></i><i style="background:#ffd860"></i><i style="background:#1a0e08"></i></span>自己向四周蔓延、飘起火星，烧出后面那一层——刚烧穿是一片炭黑、余烬在炭缝里明灭，然后慢慢冷却，白灰落下，腐蚀的画从灰烬里透出来。</p>
+    <p>烧过的地方要过很久才一点一点愈合，原画慢慢重新盖回来；长回来之后，才能再次被点燃。</p>
     <div class="note">据记载，委托第二版的玛丽·贝尔纳希望它是一幅"可以对着做梦的画"（ein Bild zum Träumen）。</div>
     <button id="enter" disabled>载入中…</button>
     <div class="how">XR：看向哪里，哪里生长；手柄或手指着的地方也会生长<br>桌面：鼠标就是目光；按住拖动可以环顾<br>建议戴耳机</div>
   </div>
 </div>
-<div id="hud"><span id="hudText">凝视之处正在燃烧</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div>目光停留越久，烧得越广；移开后灰烬慢慢退去</div>
+<div id="hud"><span id="hudText">凝视之处正在燃烧</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div>目光点火，火自己蔓延；烧过的地方很久之后才慢慢愈合</div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -66,32 +66,51 @@ const params = new URLSearchParams(location.search);
 
 // ---------- 空间：画铺在一面 110° 的弧形大幕上，地平线落在眼睛高度 ----------
 const EYE = new THREE.Vector3(0, 1.5, 0);
-const R = 3.2, ARC = 200 * DEG, PIC_ARC = 120 * DEG;   // 画幕包住 200°：中间 120° 是画，两侧各 40° 是画往雾里的延展
+const R = 3.2, ARC = 360 * DEG, PIC_ARC = 130 * DEG;   // 画幕环绕一整圈：正前方 130° 是画，其余是画自己的天和海接着往两侧铺开，直到身后合拢
 const ASPECT = 1920 / 1369;
 const HM = R * PIC_ARC / ASPECT;           // 画面高度（米）
 const HOR_V = 0.235;                        // 画里地平线的 v（自下而上）
-// 画幕 uv → 画上 uv。两侧延展区：把画边上那一条天和海拉出去、加噪声揉开，再融进雾里
+// 画幕 uv → 画上 uv，以及两侧延展区的取样
 const PIC_GLSL = /* glsl */`
   const float ARCR = ${(ARC / PIC_ARC).toFixed(5)};
   float picU(vec2 uv) { return (uv.x - 0.5) * ARCR + 0.5; }
-  // 出画多远算"延展区"：画边外约 2° 内就切到延展（边界用噪声揉成参差的，不是一条直线）；画边像素拉长的那几条线几乎看不到
+  // 出画多远算"延展区"：画边外约 1° 内就切到延展（边界用噪声揉成参差的，不是一条直线）
   float flankAmt(vec2 uv) {
-    float u = picU(uv) + 0.025 * (fbm(vec2(uv.x * 60.0, uv.y * 24.0)) - 0.5);
-    return smoothstep(0.0, -0.03, u) + smoothstep(1.0, 1.03, u);
+    float u = picU(uv) + 0.02 * (fbm(vec2(uv.x * 80.0, uv.y * 24.0)) - 0.5);
+    return smoothstep(0.0, -0.025, u) + smoothstep(1.0, 1.025, u);
   }
   vec2 picUV(vec2 uv) { return vec2(clamp(picU(uv), 0.01, 0.99), uv.y); }
-  // 延展区的天和海：不是把画边拉长（那会成一条条横线），而是按画边的色调重新"画"一片——
-  // 雾色打底、横向的笔触噪声、地平线处一道微光；再给腐蚀层一个发灰发脏的版本
-  vec3 flankSky(vec2 uv, vec3 fog) {
-    float brush = fbm(vec2(uv.x * 70.0, uv.y * 40.0)) * 0.6 + fbm(vec2(uv.x * 20.0, uv.y * 11.0)) * 0.4;
-    vec3 c = fog * (0.78 + 0.5 * brush);
-    float hor = exp(-abs(uv.y - ${HOR_V}) * 30.0);
-    c += vec3(0.10, 0.09, 0.07) * hor;
-    return c;
+  // 绕一圈无缝的 3D 值噪声（坐标取在圆环上，身后不会有接缝）
+  float hash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+  float vnoise3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash3(i), hash3(i + vec3(1, 0, 0)), f.x), mix(hash3(i + vec3(0, 1, 0)), hash3(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(hash3(i + vec3(0, 0, 1)), hash3(i + vec3(1, 0, 1)), f.x), mix(hash3(i + vec3(0, 1, 1)), hash3(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+  // 延展区：从画两侧边上那一条干净的天和海（左 1%–5.5%，右 97%–99.5%）里取像素，取样位置沿着圆环用噪声来回游走——
+  // 铺出来的就是这幅画自己的笔触，接着画边继续往左右延伸；两条源带在身后对半混，看不出哪里是接头
+  vec3 extNoise(vec2 uv, float seed) {
+    float th = (uv.x - 0.5) * 6.2831853;
+    vec3 ring = vec3(cos(th), sin(th), 0.0);
+    float n1 = vnoise3(ring * 9.0 + vec3(0.0, 0.0, uv.y * 40.0 + seed));
+    float n2 = vnoise3(ring * 23.0 + vec3(0.0, 0.0, uv.y * 90.0 + seed * 3.0));
+    float n3 = vnoise3(ring * 4.0 + vec3(0.0, 0.0, uv.y * 12.0 + seed * 7.0));
+    return vec3(n1, n2, n3);
+  }
+  vec3 extSample(sampler2D t, vec2 uv) {
+    vec3 a = extNoise(uv, 0.0), b = extNoise(uv, 11.0);
+    float vA = clamp(uv.y + 0.03 * (a.z - 0.5) + 0.012 * (a.y - 0.5), 0.002, 0.998);
+    float vB = clamp(uv.y + 0.03 * (b.z - 0.5) + 0.012 * (b.y - 0.5), 0.002, 0.998);
+    float wA = a.x * 0.6 + a.y * 0.4, wB = b.x * 0.6 + b.y * 0.4;
+    vec3 cL = 0.5 * (texture2D(t, vec2(0.0325 + 0.0225 * (wA - 0.5) * 2.0, vA)).rgb + texture2D(t, vec2(0.0325 + 0.0225 * (wB - 0.5) * 2.0, vB)).rgb);
+    vec3 cR = 0.5 * (texture2D(t, vec2(0.9825 + 0.0125 * (wA - 0.5) * 2.0, vA)).rgb + texture2D(t, vec2(0.9825 + 0.0125 * (wB - 0.5) * 2.0, vB)).rgb);
+    float s = uv.x - 0.5;
+    float wR = mix(smoothstep(-0.08, 0.08, s), 0.5, smoothstep(0.28, 0.48, abs(s)));
+    return mix(cL, cR, wR);
   }`;
 
 // 腐蚀场网格：默认 1024 宽（每格约 6 mm；边缘的毛边由着色器里的噪声给，不靠网格分辨率）
-const SIM_W = +(params.get('sim') || 1024), SIM_H = Math.round(SIM_W / ASPECT);
+// 画幕是一整圈（周长约 20 m）× 5 m 高：模拟网格按画幕的真实长宽比建，火才会各个方向等速蔓延
+const CURT_ASP = (ARC / PIC_ARC) * ASPECT;   // 画幕宽高比 ≈ 3.9
+const SIM_W = +(params.get('sim') || 2048), SIM_H = Math.round(SIM_W / CURT_ASP);
 const STEPS = +(params.get('steps') || 1);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -133,7 +152,7 @@ const N_GAZE = 3;
 const simU = {
   tPrev: { value: null }, tRegion: { value: null },
   uPx: { value: new THREE.Vector2(1 / SIM_W, 1 / SIM_H) },
-  uAspect: { value: ASPECT },
+  uAspect: { value: CURT_ASP },
   uGaze: { value: Array.from({ length: N_GAZE }, () => new THREE.Vector4(-9, -9, 0, 0.03)) },   // (u, v, 强度, 半径)：盯得越久，半径越大
   uDeposit: { value: 0 }, uDecay: { value: 0 }, uSeed: { value: 0 }, uTime: { value: 0 },
 };
@@ -152,11 +171,14 @@ const simMat = new THREE.ShaderMaterial({
     varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tPrev, vUv);
-      // 稍大一圈的模糊（3 像素），火线往外蔓延的时候用
-      float blur = 0.0;
-      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) blur += texture2D(tPrev, vUv + vec2(float(x), float(y)) * uPx * 3.0).r;
-      blur /= 9.0;
-      float E = c.r, T = c.b;
+      float E = c.r, fuel = c.g, T = c.b;
+      // 周围（5 像素一圈）有多少"正在烧"的：烧穿了（E 过阈值）并且还有燃料
+      float burnN = 0.0;
+      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+        vec4 q = texture2D(tPrev, vUv + vec2(float(x), float(y)) * uPx * 4.0);
+        burnN += smoothstep(0.45, 0.6, q.r) * smoothstep(0.05, 0.3, q.g);
+      }
+      burnN /= 9.0;
       // 不同材质烧得快慢不同：岩石和水面快，柏树慢一点，天空最慢（颜料厚）
       vec3 rg = texture2D(tRegion, picUV(vUv)).rgb;   // r 岩石  g 水  b 柏树
       float sky = clamp(1.0 - rg.r - rg.g - rg.b, 0.0, 1.0);
@@ -173,15 +195,20 @@ const simMat = new THREE.ShaderMaterial({
         T += g * uDeposit;
         gazeAmt = max(gazeAmt, g);
       }
-      // 注视处直接烧；已经烧穿的边上，火线也自己往外蔓延（哪怕目光已经略偏）——火就是这样
-      E += uDeposit * rate * (gazeAmt * 1.1 + 0.6 * smoothstep(0.35, 0.8, blur) * max(blur - E, 0.0) * 4.0);
-      // 愈合：很慢（满格约 100 秒），一点一点退回来，厚处先回来
+      // 点燃：目光直接烧。蔓延：周围在烧、自己还有燃料，就被烤热——点着之后火线自己往外走，不用目光跟着
+      // （速度：一圈画幕约 100 秒烧完）
+      E += uDeposit * rate * (gazeAmt * 1.1 * smoothstep(0.05, 0.3, fuel) + 1.1 * burnN * smoothstep(0.15, 0.6, fuel));   // 燃料烧尽的地方目光也烧不动了，它会开始冷却
+      // 燃料：烧穿后约 3 秒烧尽（这 3 秒是余烬在闪的时候）；愈合回原画之后再慢慢长回来，才能再次被点燃
+      float burning = smoothstep(0.45, 0.6, E);
+      fuel -= uDeposit * 0.35 * burning;
+      fuel += uDeposit * 0.012 * (1.0 - smoothstep(0.2, 0.35, E));
+      // 愈合：很慢（烧透之后约 100 秒），一点一点退回来，厚处先回来
       E -= uDecay * (0.6 + 0.8 * (1.0 - thick));
       T = clamp(T - uDecay * 1.8, 0.0, 1.5);
-      gl_FragColor = vec4(clamp(E, 0.0, 1.5), 0.0, T, 1.0);
+      gl_FragColor = vec4(clamp(E, 0.0, 1.5), clamp(fuel, 0.0, 1.0), T, 1.0);
     }`,
 });
-const initMat = new THREE.ShaderMaterial({ vertexShader: quadVS, fragmentShader: `void main(){ gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }` });
+const initMat = new THREE.ShaderMaterial({ vertexShader: quadVS, fragmentShader: `void main(){ gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }` });   // E=0，燃料满，T=0
 const simQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), initMat);
 simScene.add(simQuad);
 function simRender(target) { renderer.setRenderTarget(target); renderer.render(simScene, simCam); }
@@ -227,7 +254,7 @@ const paintMat = new THREE.ShaderMaterial({
       float d = texture2D(tDepth, picUV(uv)).r * (1.0 - flankAmt(uv));
       float E = texture2D(tSim, uv).r;
       float th = (uv.x - 0.5) * ${ARC.toFixed(5)};
-      float r = ${R.toFixed(3)} * (1.0 - 0.42 * pow(d, 1.3)) + smoothstep(0.3, 0.8, E) * 0.016;   // 近处（岛、水面）往你这边凸；烧穿的地方往后凹进去
+      float r = ${R.toFixed(3)} * (1.0 - 0.42 * pow(d, 1.3)) + smoothstep(0.3, 0.8, E) * 0.045;   // 近处（岛、水面）往你这边凸；烧穿的地方明显往后凹进去
       float y = ${EYE.y.toFixed(3)} + (uv.y - ${HOR_V}) * ${HM.toFixed(4)} * (r / ${R.toFixed(3)});
       vec3 p = vec3(r * sin(th), y, -r * cos(th));
       vW = p; vDir = normalize(p - vec3(0.0, ${EYE.y.toFixed(3)}, 0.0));
@@ -239,7 +266,7 @@ const paintMat = new THREE.ShaderMaterial({
     uniform vec3 uLight;
     uniform float uTime;
     varying vec2 vUv; varying vec3 vW, vDir;
-    const float ASP = ${ASPECT.toFixed(4)};
+    const float ASP = ${CURT_ASP.toFixed(4)};
     // 阈值 = 这一点颜料的"厚度"。三层：大形（哪一块先穿）、细颗粒（火线的毛边）、
     // 以及按"片"来的随机厚度——颜料是一片一片烧掉的，格子抖动过，不会看出网格
     float thresholdAt(vec2 uv, out float nBig, out float nFine) {
@@ -256,12 +283,10 @@ const paintMat = new THREE.ShaderMaterial({
       vec3 fog = fogColor(normalize(vDir));
       vec3 paint = texture2D(tPaint, puv).rgb;
       vec3 corr = texture2D(tCorroded, puv).rgb;
-      // 延展区：按画边色调重新画的天和海；腐蚀层是它发灰发脏、带水渍的版本
-      vec3 sky = flankSky(vUv, fog);
-      vec3 skyCorr = sky * vec3(0.72, 0.70, 0.64) * (0.55 + 0.6 * fbm(vUv * vec2(14.0, 5.0)));
-      paint = mix(paint, sky, fl); corr = mix(corr, skyCorr, fl);
+      // 延展区：用画自己两侧的天和海接着铺出去（原画和腐蚀底图各铺各的）
+      if (fl > 0.001) { paint = mix(paint, extSample(tPaint, vUv), fl); corr = mix(corr, extSample(tCorroded, vUv), fl); }
       vec4 s = texture2D(tSim, vUv);
-      float E = s.r, T = s.b;
+      float E = s.r, fuelv = s.g, T = s.b;
       float nBig, nFine;
       float th = thresholdAt(vUv, nBig, nFine);
       float x = E - th;                                   // > 0：这里的前层已经烧穿
@@ -275,9 +300,9 @@ const paintMat = new THREE.ShaderMaterial({
       float ew = 0.012 + 0.04 * smoothstep(0.3, 0.85, nFine) * (0.5 + 0.5 * flick);
       float ember = smoothstep(-ew, -0.003, x) * (1.0 - smoothstep(-0.003, 0.012, x)) * (0.4 + 0.9 * smoothstep(0.3, 0.8, nFine));
       vec3 emberC = mix(vec3(1.0, 0.22, 0.02), vec3(1.0, 0.86, 0.38), smoothstep(-0.03, -0.004, x)) * flick;
-      // 炭化带：火线外侧，颜料先发黄发褐、鼓泡，再烧成炭黑
-      float heat = smoothstep(-0.34, -0.17, x);
-      float charB = smoothstep(-0.19, -0.05, x);
+      // 炭化带：火线外侧，颜料先发黄发褐、鼓泡，再烧成炭黑（带宽一些，火来之前就看得出要烧到了）
+      float heat = smoothstep(-0.40, -0.19, x);
+      float charB = smoothstep(-0.21, -0.05, x);
 
       // ---- 前层：原画。被凝视过的地方先发旧、发暖（烤过）；靠火线：褐 → 炭黑 → 炽红 ----
       float lum = dot(paint, vec3(0.3, 0.59, 0.11));
@@ -292,11 +317,19 @@ const paintMat = new THREE.ShaderMaterial({
       front += vec3(0.9, 0.25, 0.04) * crack * charB * (1.0 - reveal) * flick * 0.8;
       front += emberC * ember * 1.7;                      // 火线本身：高亮，当作自发光
 
-      // ---- 后层：腐蚀底图。刚烧出来的一圈：被火光照亮、落着白灰、熏着黑烟 ----
+      // ---- 后层：烧焦的腐蚀底图。刚烧穿是一片炭黑、余烬在炭缝里闪；几秒后余烬熄灭；
+      //      之后慢慢冷却：白灰一层层落下来，腐蚀底图从灰烬里透出来；烧过和没烧过的差别要一眼看出 ----
+      float hot = smoothstep(0.0, 0.6, fuelv);                       // 还有燃料 = 余烬还在烧
+      float age = smoothstep(1.45, 1.15, E);                         // 烧过多久：余烬熄灭后约 30 秒冷透、灰落尽
       float soot = 1.0 - smoothstep(0.0, 0.14, x);
-      float ash = (1.0 - smoothstep(0.0, 0.08, x)) * smoothstep(0.45, 0.75, nFine);
-      vec3 back = corr * (1.0 - 0.55 * soot);
-      back = mix(back, vec3(0.64, 0.62, 0.58) * (0.6 + 0.6 * nFine), ash * 0.6);
+      float ash = (1.0 - smoothstep(0.0, 0.08, x)) * smoothstep(0.45, 0.75, nFine) + age * 0.3 * smoothstep(0.5, 0.8, nBig) * smoothstep(0.3, 0.7, nFine);
+      vec3 charred = corr * vec3(0.26, 0.19, 0.14) * (0.6 + 0.8 * nFine);
+      vec3 back = mix(charred, corr * 0.9, age * 0.85);               // 新烧的是炭，冷透了露出腐蚀的画
+      back *= 1.0 - 0.45 * soot;
+      back = mix(back, vec3(0.70, 0.68, 0.64) * (0.6 + 0.6 * nFine), clamp(ash, 0.0, 1.0) * 0.6);
+      // 余烬：炭缝里一格一格明灭的红
+      float emberCells = smoothstep(0.58, 0.85, vnoise(vUv * vec2(420.0 * ASP, 420.0) + vec2(0.0, 0.2 * sin(uTime * 3.0 + nBig * 20.0))));
+      back += emberC * emberCells * hot * 1.5;
       back += emberC * exp(-max(x, 0.0) / 0.035) * 0.45;   // 火光照进洞里
       // 水面那一层烧出后还带一点湿光
       float wet = texture2D(tRegion, puv).g;
@@ -306,14 +339,14 @@ const paintMat = new THREE.ShaderMaterial({
       vec3 c = mix(front, back, reveal);
       // 火线两侧的光晕（没有 bloom，用一圈软光代替）
       c += emberC * exp(-abs(x + 0.015) / 0.06) * 0.22;
-      // 延展区越远越融进雾里；画幕上下边缘也融进雾里
-      c = mix(c, fog, fl * smoothstep(0.0, 0.5, abs(vUv.x - 0.5) - 0.3) * 0.7);
-      float edge = smoothstep(0.0, 0.05, vUv.x) * smoothstep(1.0, 0.95, vUv.x) * smoothstep(1.0, 0.9, vUv.y) * smoothstep(0.0, 0.04, vUv.y);
+      // 延展区往身后略融进雾里（画是正前方的，身后的天和海暗一点）；画幕上下边缘也融进雾里
+      c = mix(c, fog, fl * smoothstep(0.2, 0.5, abs(vUv.x - 0.5)) * 0.35);
+      float edge = smoothstep(1.0, 0.9, vUv.y) * smoothstep(0.0, 0.04, vUv.y);
       c = mix(fog, c, edge);
       gl_FragColor = vec4(c, 1.0);
     }`,
 });
-const curtain = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 720, 372), paintMat);
+const curtain = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 1080, 372), paintMat);
 curtain.frustumCulled = false;
 scene.add(curtain);
 
@@ -326,7 +359,7 @@ const emberMat = new THREE.ShaderMaterial({
     attribute vec2 aUv; attribute float aSeed;
     uniform sampler2D tSim, tDepth; uniform float uTime, uPx;
     varying float vA, vLife;
-    const float ASP = ${ASPECT.toFixed(4)};
+    const float ASP = ${CURT_ASP.toFixed(4)};
     void main() {
       float E = texture2D(tSim, aUv).r;
       float nBig = fbm(aUv * vec2(40.0 * ASP, 40.0));
@@ -421,10 +454,10 @@ function updateGaze() {
   }
   for (let i = 0; i < N_GAZE; i++) {
     const g = gazeUV[i], dst = simU.uGaze.value[i], st = gazeDwell[i];
-    // 停在一处越久（漂移不超过 6%），火烧的范围越大：0.035 → 0.20（画幕上约 7° → 40° 的半径），12 秒左右扩到最大
+    // 目光只负责点火：范围很小（约 4°），停得久略大一点；之后火自己蔓延
     if (g && st.a && Math.hypot((g[0] - st.a[0]) * ASPECT, g[1] - st.a[1]) < 0.06) st.t += lastDts;
     else { st.a = g; st.t *= 0.3; }
-    const sg = 0.035 + 0.165 * Math.min(1, st.t / 12) ** 0.7;
+    const sg = 0.012 + 0.02 * Math.min(1, st.t / 6) ** 0.7;
     if (g) dst.set(g[0], g[1], i === 0 ? 1 : 0.8, sg); else dst.set(-9, -9, 0, 0.03);
   }
 }
