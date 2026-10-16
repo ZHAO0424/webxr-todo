@@ -48,11 +48,11 @@
     <div class="kicker">SPATIAL REINTERPRETATION · AFTER KLIMT, THE KISS (1907–08)</div>
     <h1>这一吻</h1>
     <h2>This Kiss</h2>
-    <p>在克里姆特的《吻》里，男人的长袍是黑、白、金的矩形<span class="glyphs"><i style="background:#1c1610"></i><i style="background:#efe6d0;width:5px"></i><i style="background:#d4a838"></i></span>，女人的长袍是彩色的圆与花<span class="glyphs"><i style="background:#c0392b;border-radius:50%"></i><i style="background:#6b4fa0;border-radius:50%"></i><i style="background:#3c6eb4;border-radius:50%"></i></span>。两种图形本来对立，只有在拥吻里才合成一体，一起裹进同一片金色。</p>
-    <p>这里，整幅画被拆成两万多片金箔马赛克。<b>你的两只手</b>就是这对恋人：双手分开，他们被分开，各自漂在两侧；双手慢慢合拢，他们一点点靠近；当你的双手合上，他们相拥，金色从那一吻漫过整幅画，两个一直在靠近的音，最终合成同一个音。</p>
+    <p>克里姆特的《吻》里有一处常被忽略的细节：这对恋人不是悬在金色的虚空里，而是跪在一片开满花的草地上，而草地在他们脚边<b>戛然而止</b>——那是一道悬崖的边缘，她的脚趾和金色的藤蔓垂在崖外。整个世界只剩这一小块花地和无边的金。</p>
+    <p>这里，我们把那道崖边补全成一个可以俯瞰的地方：一座伸进金色虚空的花甸岬角，草在风里摇，紫、蓝、黄的小花<span class="glyphs"><i style="background:#8e5bbf;border-radius:50%"></i><i style="background:#3c6eb4;border-radius:50%"></i><i style="background:#e8c84a;border-radius:50%"></i></span>一直铺到崖口，藤蔓从崖口垂进深渊；两人以金底浮雕的样子立在崖边，男人的黑白矩形<span class="glyphs"><i style="background:#1c1610"></i><i style="background:#efe6d0;width:5px"></i></span>与女人的彩色圆花，隔着一道空气。<b>你的两只手</b>仍是这对恋人：双手分开，他们在崖边分开；双手合拢，他们相拥，金色从那一吻漫过整片花甸。</p>
     <blockquote>“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how">XR：伸出双手，两手之间的距离就是两人之间的距离；手合上 = 相拥<br>桌面：鼠标离画面中线越远，两人分得越开；移到中线 = 相拥<br>建议戴耳机</div>
+    <div class="how">XR：花甸是一座放在你面前的小岛，低头俯瞰；伸出双手，两手之间的距离就是两人之间的距离；手合上 = 相拥<br>桌面：视角缓缓绕着岬角飞；拖动可以转、滚轮可以远近；鼠标离画面中线越远，两人分得越开，移到中线 = 相拥<br>建议戴耳机</div>
   </div>
 </div>
 <div id="hud"><span id="state">双手合拢，让他们靠近</span><button id="mute">静音</button><div id="meter"><i id="ml"></i><i id="mr"></i></div>两手之间的距离 = 两人之间的距离</div>
@@ -70,10 +70,12 @@ const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 const clamp01 = x => Math.max(0, Math.min(1, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 
-const EYE = new THREE.Vector3(0, 1.5, 0);
-const SIDE = 1.7;                                    // 画面边长 1.7 m，距离 2.4 m：约 39°，正好在前方视锥里
-const CENTER = new THREE.Vector3(0, 1.45, -2.4);
-const KISS_UV = new THREE.Vector2(0.56, 0.83);       // 两张脸相贴的位置
+// ---------- 尺度：真实比例的世界（两人约 1.9 m 高），桌面上从空中俯瞰；XR 里整个世界缩成一座 1/9 的小岛放在你面前 ----------
+const SIDE = 2.0;                                   // 画幅在世界里的边长（m）：恋人浮雕 + 他们脚下那一小块画里的花地
+const FIG = new THREE.Vector3(0, 0, 0);             // 恋人站的位置：岬角的崖口
+const KISS_UV = new THREE.Vector2(0.56, 0.83);      // 两张脸相贴的位置（画上 uv）
+const EYE_XR = new THREE.Vector3(0, 1.5, 0);
+const XR_SCALE = 1 / 9, XR_POS = new THREE.Vector3(0, 0.78, -0.85);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -82,249 +84,395 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.02, 100);
-camera.position.copy(EYE);
-camera.lookAt(CENTER);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.02, 300);
 renderer.setClearColor(0x120e08, 1);
+const world = new THREE.Group();                    // 所有"岛上的东西"都挂在这里，XR 时整体缩小、摆到面前
+scene.add(world);
 
-// 暗金色的空间（AR 时隐藏）
-const room = new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), new THREE.ShaderMaterial({
-  side: THREE.BackSide, depthWrite: false,
-  uniforms: { uU: { value: 0 } },
-  vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
-  fragmentShader: `uniform float uU; varying vec3 vP; void main(){
-    float f = smoothstep(-0.2, 1.0, -vP.z) * smoothstep(-0.6, 0.3, vP.y);
-    vec3 c = mix(vec3(0.05,0.04,0.025), vec3(0.16,0.11,0.04), f) * (1.0 + 0.5 * uU);
-    gl_FragColor = vec4(c, 1.); }`,
-}));
-room.position.copy(EYE);
-scene.add(room);
-
-// ---------- 金箔马赛克 ----------
+// 公共 uniform
 const U = {
   uTime: { value: 0 }, uApart: { value: 1 }, uUnion: { value: 0 }, uWave: { value: -1 },
-  uLight: { value: new THREE.Vector3(-0.35, 0.85, 0.4).normalize() },
+  uLight: { value: new THREE.Vector3(-0.45, 0.8, 0.4).normalize() },
+  uFig: { value: FIG },
+  uFogC: { value: new THREE.Color(0.62, 0.47, 0.18) },
 };
-const TILE_VS = /* glsl */`
-  attribute vec3 aHome, aCol;
-  attribute vec2 aUV;
-  attribute float aSize, aShape, aGroup, aSeed;
-  uniform float uTime, uApart, uUnion, uWave;
-  varying vec2 vUv, vTex, vSz; varying vec3 vCol, vN, vW; varying float vShape, vSeed, vWaveHit, vApart, vTexS, vRot;
-  mat3 rotX(float a) { float c = cos(a), s = sin(a); return mat3(1,0,0, 0,c,s, 0,-s,c); }
-  mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c,0,-s, 0,1,0, s,0,c); }
-  mat3 rotZ(float a) { float c = cos(a), s = sin(a); return mat3(c,s,0, -s,c,0, 0,0,1); }
-  void main() {
-    float g = aGroup;
-    // 每片按自己的节奏跟上，两人是一层层分开、一层层合拢
-    // 先后顺序按离两张脸相贴处的远近：从那一吻开始一层层散开，也从外往里一层层合拢
-    float kd = length(aHome.xy - vec2(${((KISS_UV.x - 0.5) * SIDE).toFixed(3)}, ${((KISS_UV.y - 0.5) * SIDE).toFixed(3)} + ${CENTER.y.toFixed(3)}));
-    float lag = clamp(kd / 1.4, 0.0, 1.0) * 0.3 + fract(aSeed * 7.31) * 0.03;
-    float a = smoothstep(lag, lag + 0.65, uApart) * abs(g);
-    vec3 p = aHome;
-    // 往两侧、并往你这边浮出来；整个人一起移，只带一点各自的偏差，分开时仍看得出人形
-    // 整个人一起移、一起起伏（只按位置变化，不按单片随机），分开时人形和细节都保留
-    p.x += g * a * 0.5;
-    p.z += a * 0.28;
-    p.y += a * 0.04 * sin(uTime * 0.6 + aHome.y * 2.0 + g);
-    // 不同的片有不同的厚度：圆片和矩形凸出一点，背景金箔最平
-    p.z += aShape > 1.5 && aShape < 2.5 ? 0.004 : aShape > 0.5 && aShape < 1.5 ? 0.003 : 0.0;
-    // 金箔微微翻动
-    float flutter = 0.03 + 0.04 * a;
-    float ax = sin(uTime * (0.7 + aSeed) + aSeed * 40.0) * flutter;
-    float ay = cos(uTime * (0.6 + aSeed * 0.8) + aSeed * 23.0) * flutter;
-    // 背景金箔：像一片片手贴上去的箔，大小、角度、位置都不齐，互相叠压
-    bool leaf = abs(g) < 0.5 && aShape < 0.5;
-    float az = leaf ? (fract(aSeed * 11.0) - 0.5) * 0.7
-             : (aShape > 0.5 && aShape < 1.5) ? (fract(aSeed * 11.0) - 0.5) * 0.1 : (fract(aSeed * 11.0) - 0.5) * 0.08;
-    float scl = leaf ? 1.0 + 0.45 * fract(aSeed * 19.7) : 1.0;
-    vec2 off = leaf ? (vec2(fract(aSeed * 31.1), fract(aSeed * 47.3)) - 0.5) * 0.35 * aSize : vec2(0.0);
-    mat3 R = rotY(ay) * rotX(ax) * rotZ(az);
-    vec2 sz = aShape > 0.5 && aShape < 1.5 ? vec2(0.6, 1.0) : vec2(1.0);
-    vec3 local = R * vec3(position.xy * sz * aSize * scl, 0.0);
-    vec3 w = p + vec3(off, leaf ? fract(aSeed * 61.0) * 0.002 : 0.0) + local;
-    vN = normalize(R * vec3(0.0, 0.0, 1.0));
-    vW = w;
-    // 在原画上取样的位置：这一片覆盖的那一小块（跟着片的旋转一起转，所以图案是"贴"在片上的）
-    vec2 lp = vec2(cos(az) * position.x * sz.x - sin(az) * position.y * sz.y, sin(az) * position.x * sz.x + cos(az) * position.y * sz.y) * scl;
-    vTex = aUV + lp * aSize / ${SIDE.toFixed(3)} + off / ${SIDE.toFixed(3)};
-    vUv = uv; vSz = sz; vCol = aCol; vShape = aShape; vSeed = aSeed; vTexS = aSize; vRot = az;
-    vApart = abs(g) < 0.5 ? -uApart : a;   // 负数 = 背景片：两人分开时背景暗下去
-    float d = length(aHome.xy - vec2(${((KISS_UV.x - 0.5) * SIDE).toFixed(3)}, ${((KISS_UV.y - 0.5) * SIDE).toFixed(3)} + ${CENTER.y.toFixed(3)}));
-    vWaveHit = uWave < 0.0 ? 0.0 : exp(-pow((d - uWave * 2.4) / 0.12, 2.0)) * (1.0 - uWave * 0.6);
-    gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
-  }`;
-const TILE_FS = /* glsl */`
-  uniform vec3 uLight;
-  uniform float uTime, uUnion;
-  uniform sampler2D uMap;
-  varying vec2 vUv, vTex, vSz; varying vec3 vCol, vN, vW; varying float vShape, vSeed, vWaveHit, vApart, vTexS, vRot;
+const NOISE = /* glsl */`
   float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-  // 箔面上的细裂纹：取最近两个格点的距离差
-  float crackle(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    float d1 = 9.0, d2 = 9.0;
-    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
-      vec2 o = vec2(float(x), float(y));
-      vec2 c = o + vec2(hash(i + o), hash(i + o + 17.3)) - f;
-      float d = dot(c, c);
-      if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
-    }
-    return sqrt(d2) - sqrt(d1);
+  float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+  float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.07 + 11.3; a *= 0.5; } return s; }`;
+// 金色的雾：越远越融进虚空；相拥时亮一点
+const FOG = /* glsl */`
+  uniform vec3 uFogC; uniform float uUnion;
+  vec3 applyFog(vec3 c, float dist, float y) {
+    float f = 1.0 - exp(-dist * dist * 0.0045);
+    f = max(f, smoothstep(-2.0, -9.0, y));          // 往下掉进深渊的也融进金里
+    vec3 fc = uFogC * (1.0 + 0.35 * uUnion);
+    return mix(c, fc, clamp(f, 0.0, 0.96));
+  }`;
+
+// ---------- 虚空：克里姆特的金底——锤打过的金箔，上面亮、下面沉；无数金粉在落 ----------
+const voidMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false,
+  uniforms: { uTime: U.uTime, uUnion: U.uUnion, uApart: U.uApart },
+  vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: NOISE + /* glsl */`
+    uniform float uTime, uUnion, uApart; varying vec3 vP;
+    void main() {
+      vec3 d = normalize(vP);
+      float h = d.y;
+      vec3 up = vec3(0.86, 0.68, 0.30), mid = vec3(0.64, 0.48, 0.19), low = vec3(0.26, 0.19, 0.08);
+      vec3 c = h > 0.0 ? mix(mid, up, smoothstep(0.0, 0.8, h)) : mix(mid, low, smoothstep(0.0, 0.7, -h));
+      // 锤打的金箔：一块块方形的箔片，边缘略暗，面上有颗粒
+      vec2 q = vec2(atan(d.x, -d.z) * 9.0, h * 14.0);
+      vec2 cell = floor(q), f = fract(q);
+      float leaf = 0.95 + 0.10 * hash(cell);
+      float seam = smoothstep(0.0, 0.05, min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)));
+      c *= leaf * (0.93 + 0.07 * seam);
+      c *= 0.86 + 0.28 * fbm(q * 5.0);
+      c *= 0.92 + 0.16 * fbm(q * 0.7 + 5.0);        // 大块的明暗，像金箔贴得不匀
+      // 分开时虚空暗下来，相拥时亮起来
+      c *= 1.0 - 0.35 * uApart + 0.4 * uUnion;
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+});
+const voidSphere = new THREE.Mesh(new THREE.SphereGeometry(120, 48, 24), voidMat);
+scene.add(voidSphere);
+
+// ---------- 岬角：一座伸进虚空的花甸，前沿是悬崖 ----------
+// 崖口的曲线：恋人站在 (0,0)，崖边从他们脚前方约 0.7 m 处开始，左右蜿蜒
+const n1 = (x) => Math.sin(x * 0.53 + 1.1) * 0.5 + Math.sin(x * 1.37 + 0.3) * 0.25 + Math.sin(x * 2.9) * 0.12;
+function edgeZ(x) { return -0.7 + 0.9 * n1(x) - 0.012 * x * x; }   // 两侧往后收，岬角是个舌头
+function plateau(x, z) { const sd = z - edgeZ(x); return smooth(-1.1, 0.25, sd); }   // 1 = 台地，0 = 崖下
+function groundY(x, z) {
+  const P = plateau(x, z);
+  const sd = z - edgeZ(x);
+  const fall = (1 - P);
+  // 崖面：陡降 8 m，带层理和凸出的岩块；台地：轻微起伏，往后缓缓抬高
+  let y = -fall * fall * 8.5 - fall * (0.5 + 0.5 * Math.sin(x * 2.3 + z * 1.7)) * 0.9;
+  y += P * (0.05 * Math.sin(x * 1.3) * Math.cos(z * 0.9) + 0.012 * z * z);
+  if (sd < -2.6) y -= (-2.6 - sd) * 0.5;            // 崖下继续往深渊里掉
+  return y;
+}
+const TERR = 26, TN = 180;
+const terrGeo = new THREE.PlaneGeometry(TERR, TERR, TN, TN);
+terrGeo.rotateX(-Math.PI / 2);
+{
+  const pos = terrGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i); pos.setY(i, groundY(x, z)); }
+  terrGeo.computeVertexNormals();
+}
+const terrMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: U.uTime, uLight: U.uLight, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart },
+  vertexShader: `varying vec3 vW, vN; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: NOISE + FOG + /* glsl */`
+    uniform float uTime, uWave, uApart; uniform vec3 uLight, uFig;
+    varying vec3 vW, vN;
+    void main() {
+      vec3 n = normalize(vN);
+      float up = clamp(n.y, 0.0, 1.0);
+      float flat_ = smoothstep(0.55, 0.9, up);
+      // 草地底色：深绿到黄绿的斑驳（花由另一层实例画，这里只是地）
+      float g1 = fbm(vW.xz * 0.9), g2 = vnoise(vW.xz * 6.0);
+      vec3 meadow = mix(vec3(0.16, 0.30, 0.12), vec3(0.42, 0.52, 0.18), g1 * 0.8 + g2 * 0.3);
+      meadow = mix(meadow, vec3(0.55, 0.60, 0.26), smoothstep(0.6, 0.9, g2) * 0.4);
+      // 崖壁：灰褐的岩石，水平层理，缝里发暗，偶有金色的矿脉（这是克里姆特的世界）
+      float strata = smoothstep(0.35, 0.65, vnoise(vec2(vW.x * 0.6 + vW.z * 0.4, vW.y * 2.4)));
+      vec3 rock = mix(vec3(0.24, 0.19, 0.14), vec3(0.42, 0.36, 0.28), strata);
+      rock *= 0.75 + 0.5 * fbm(vec2(vW.x * 3.0 + vW.z * 2.0, vW.y * 5.0));
+      float vein = smoothstep(0.92, 0.97, vnoise(vec2(vW.x * 1.3 + vW.z, vW.y * 0.7 + vW.x * 0.3) * 4.0));
+      rock = mix(rock, vec3(0.9, 0.7, 0.3), vein * 0.8);
+      vec3 c = mix(rock, meadow, flat_);
+      // 崖口一圈：草被风压低、泛黄，像真的崖边
+      float edgeBand = (1.0 - smoothstep(0.0, 1.4, abs(vW.z - (-0.7 + 0.9 * (sin(vW.x * 0.53 + 1.1) * 0.5 + sin(vW.x * 1.37 + 0.3) * 0.25 + sin(vW.x * 2.9) * 0.12) - 0.012 * vW.x * vW.x)))) * flat_;
+      c = mix(c, vec3(0.62, 0.58, 0.26), edgeBand * 0.35);
+      // 相拥：金色从恋人脚下漫出去
+      float dF = length(vW.xz - uFig.xz);
+      float gold = uWave < 0.0 ? 0.0 : smoothstep(uWave * 14.0 + 0.6, uWave * 14.0 - 1.4, dF) * (1.0 - uWave * 0.45);
+      c = mix(c, vec3(0.86, 0.66, 0.24) * (0.8 + 0.4 * g2), gold * flat_ * 0.75);
+      // 光：从左上来的暖光 + 金色虚空的环境光
+      float diff = 0.35 + 0.75 * max(dot(n, uLight), 0.0);
+      vec3 amb = vec3(0.30, 0.24, 0.12) * (0.5 + 0.5 * n.y);
+      c = c * diff + c * amb;
+      c *= 1.0 - 0.25 * uApart;                     // 分开时整座岛暗一点
+      // 恋人脚下的接触阴影
+      float sh = smoothstep(1.3, 0.25, dF);
+      c *= 1.0 - 0.45 * sh * flat_;
+      c = applyFog(c, length(vW - cameraPosition), vW.y);
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+});
+const terrain = new THREE.Mesh(terrGeo, terrMat);
+world.add(terrain);
+
+// ---------- 草：几万片在风里摇的叶片 ----------
+const GRASS_N = 45000;
+{
+  const blade = new THREE.BufferGeometry();
+  blade.setAttribute('position', new THREE.Float32BufferAttribute([-0.018, 0, 0, 0.018, 0, 0, 0, 0.22, 0], 3));
+  blade.setAttribute('aH', new THREE.Float32BufferAttribute([0, 0, 1], 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uTime: U.uTime, uLight: U.uLight, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart },
+    side: THREE.DoubleSide,
+    vertexShader: NOISE + /* glsl */`
+      attribute float aH; uniform float uTime;
+      varying float vH; varying vec3 vW, vC;
+      void main() {
+        vec4 base = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        vec3 p = position;
+        // 风：一阵阵掠过草地的波，叶尖摆得多，叶根不动
+        float w = sin(uTime * 1.6 + base.x * 0.7 + base.z * 0.9) * 0.5 + sin(uTime * 2.7 + base.z * 1.9 - base.x * 0.4) * 0.3
+                + (fbm(base.xz * 0.35 + vec2(uTime * 0.45, uTime * 0.2)) - 0.5) * 2.0;
+        p.x += w * 0.09 * aH * aH; p.z += w * 0.05 * aH * aH;
+        vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
+        vW = wp.xyz; vH = aH; vC = instanceColor;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: NOISE + FOG + /* glsl */`
+      uniform float uWave, uApart; uniform vec3 uLight, uFig;
+      varying float vH; varying vec3 vW, vC;
+      void main() {
+        vec3 c = vC * (0.55 + 0.6 * vH);              // 叶根暗、叶尖亮
+        float dF = length(vW.xz - uFig.xz);
+        float gold = uWave < 0.0 ? 0.0 : smoothstep(uWave * 14.0 + 0.6, uWave * 14.0 - 1.4, dF) * (1.0 - uWave * 0.45);
+        c = mix(c, vec3(0.92, 0.72, 0.28), gold * 0.8);
+        c *= 0.75 + 0.5 * max(uLight.y, 0.0);
+        c *= 1.0 - 0.25 * uApart;
+        c *= 1.0 - 0.4 * smoothstep(1.3, 0.25, dF);  // 恋人脚下的阴影
+        c = applyFog(c, length(vW - cameraPosition), vW.y);
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  const grass = new THREE.InstancedMesh(blade, mat, GRASS_N);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler(), col = new THREE.Color();
+  let k = 0, guard = 0;
+  while (k < GRASS_N && guard++ < GRASS_N * 6) {
+    const x = rand(-11.5, 11.5), z = rand(-3.5, 11.5);
+    const P = plateau(x, z);
+    if (P < 0.55 || Math.random() > P) continue;
+    if (Math.hypot(x, z) > 11.5 + rand(-1, 1)) continue;
+    p.set(x, groundY(x, z) - 0.01, z);
+    e.set(rand(-0.25, 0.25), rand(0, Math.PI * 2), rand(-0.25, 0.25)); q.setFromEuler(e);
+    const sc = rand(0.6, 1.5); s.set(sc * rand(0.8, 1.2), sc, sc);
+    m.compose(p, q, s); grass.setMatrixAt(k, m);
+    const t = Math.random();
+    col.setRGB(0.22 + 0.35 * t, 0.42 + 0.25 * t, 0.10 + 0.12 * t); grass.setColorAt(k, col);
+    k++;
   }
-  void main() {
-    vec2 q = vUv - 0.5;
-    float r = length(q);
-    vec3 tex = texture2D(uMap, vTex).rgb;
-    vec3 c = mix(vCol, tex, 0.85);           // 主要用原画本身的细节，平均色只用来压掉噪点
-    float metal = 0.0, rough = 60.0;
-    vec3 gold = vec3(0.86, 0.66, 0.24);
-    // 片与片之间的灰缝 + 每片四边的斜面（左上亮、右下暗）
-    float e = min(0.5 - abs(q.x), 0.5 - abs(q.y));
-    float px = fwidth(vUv.x) + 1e-4;
-    // 片在屏幕上太小（< 约 12 像素）就不画缝，否则细碎的地方会整片发黑
-    float groutOn = 1.0 - smoothstep(0.04, 0.09, px);
-    float grout = mix(1.0, smoothstep(0.0, 1.5 * px, e - 0.025), groutOn);
-    float bevel = smoothstep(0.0, 0.12, e);
-    float lightEdge = (q.y > abs(q.x) || -q.x > abs(q.y)) ? 1.0 : -1.0;
-    if (vShape < 0.5) {                       // 金箔：锤打的颗粒 + 细裂纹 + 箔片边缘的毛边
-      metal = 0.95; rough = 90.0;
-      float grain = hash(floor(vTex * 2400.0));
-      float ck = crackle(vTex * 220.0 + vSeed * 13.0);
-      c = mix(c, gold * (0.85 + 0.3 * grain), 0.35);
-      c *= 0.88 + 0.22 * grain;
-      c *= mix(0.72, 1.0, smoothstep(0.0, 0.06, ck));
-      float ragged = 0.5 - 0.04 * hash(floor(vUv * 18.0) + vSeed);
-      if (groutOn > 0.5 && max(abs(q.x), abs(q.y)) > ragged) discard;       // 箔片边缘不齐（看得清的片才做）
-      grout = 1.0;
-    } else if (vShape < 1.5) {                // 黑白矩形：金边框住
-      float edgeX = 0.5 - abs(q.x), edgeY = 0.5 - abs(q.y);
-      if (edgeX < 0.09 || edgeY < 0.06) { c = gold * (0.95 + 0.1 * hash(floor(vTex * 1800.0))); metal = 0.95; }
-      else { c = mix(c, vec3(dot(c, vec3(0.33))), 0.35); metal = 0.1; }
-    } else if (vShape < 2.5) {                // 彩色圆片：大的做成同心圆，小的保持方块
-      if (vTexS > 0.009 && groutOn > 0.5) {
-        if (r > 0.5) discard;
-        if (r > 0.42) { c *= 0.35; }                        // 深色外环
-        else if (abs(r - 0.27) < 0.035) { c = mix(c, gold, 0.8); metal = 0.9; }   // 金色内环
-        else if (r < 0.09) { c = mix(c, vec3(1.0, 0.96, 0.85), 0.5); }
-        grout = 1.0;
-        bevel = smoothstep(0.5, 0.36, r);
-        lightEdge = q.y - q.x > 0.0 ? 1.0 : -1.0;
-      }
-      metal = max(metal, 0.2);
-    } else if (vShape < 3.5) {                // 螺旋：金底 + 深色涡线
-      metal = 0.95;
-      float ang = atan(q.y, q.x);
-      float sp = fract(r * 7.0 - ang / 6.2832 + vSeed);
-      c = mix(c, gold, 0.3);
-      if (r < 0.48 && sp < 0.18) c *= 0.4;
-    } else {                                  // 皮肤：哑光，几乎没有缝
-      metal = 0.0; grout = mix(1.0, grout, 0.3);
-      c = mix(c, tex, 0.15);
+  grass.count = k; grass.frustumCulled = false;
+  world.add(grass);
+}
+
+// ---------- 花：克里姆特的调色盘——紫、蓝、黄、白、一点红——铺满台地，一直到崖口 ----------
+const FLOWER_N = 14000;
+const PALETTE = [[0.56, 0.36, 0.75], [0.44, 0.30, 0.68], [0.24, 0.43, 0.71], [0.91, 0.78, 0.29], [0.95, 0.90, 0.72], [0.80, 0.26, 0.20], [0.62, 0.52, 0.80], [0.98, 0.84, 0.36]];
+{
+  const disc = new THREE.CircleGeometry(0.05, 7);
+  disc.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uTime: U.uTime, uUnion: U.uUnion, uWave: U.uWave, uFig: U.uFig, uFogC: U.uFogC, uApart: U.uApart },
+    side: THREE.DoubleSide,
+    vertexShader: /* glsl */`
+      uniform float uTime; varying vec3 vW, vC; varying vec2 vUv;
+      void main() {
+        vec4 base = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        vec3 p = position;
+        float w = sin(uTime * 1.6 + base.x * 0.7 + base.z * 0.9) * 0.5 + sin(uTime * 2.7 + base.z * 1.9 - base.x * 0.4) * 0.3;
+        p.x += w * 0.04; p.z += w * 0.02;
+        vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
+        vW = wp.xyz; vC = instanceColor; vUv = uv;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: NOISE + FOG + /* glsl */`
+      uniform float uTime, uWave, uApart; uniform vec3 uFig;
+      varying vec3 vW, vC; varying vec2 vUv;
+      void main() {
+        float r = length(vUv - 0.5) * 2.0;
+        vec3 c = vC;
+        c = mix(c, vec3(0.98, 0.92, 0.55), smoothstep(0.35, 0.0, r) * 0.7);   // 花心
+        c *= 0.85 + 0.3 * (1.0 - r);
+        float dF = length(vW.xz - uFig.xz);
+        float gold = uWave < 0.0 ? 0.0 : smoothstep(uWave * 14.0 + 0.6, uWave * 14.0 - 1.4, dF) * (1.0 - uWave * 0.45);
+        float glint = step(0.985, hash(floor(vW.xz * 40.0) + floor(uTime * 3.0)));
+        c = mix(c, vec3(0.95, 0.76, 0.30) + glint * 0.6, gold * 0.85);
+        c *= 1.0 - 0.3 * uApart;
+        c *= 1.0 - 0.4 * smoothstep(1.3, 0.25, dF);
+        c = applyFog(c, length(vW - cameraPosition), vW.y);
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  const flowers = new THREE.InstancedMesh(disc, mat, FLOWER_N);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), e = new THREE.Euler(), col = new THREE.Color();
+  let k = 0, guard = 0;
+  while (k < FLOWER_N && guard++ < FLOWER_N * 8) {
+    const x = rand(-11.5, 11.5), z = rand(-3.5, 11.5);
+    const P = plateau(x, z);
+    if (P < 0.5 || Math.random() > P) continue;
+    if (Math.hypot(x, z) > 11.5 + rand(-1, 1)) continue;
+    // 花丛：成簇地长（噪声决定密度），崖口附近更密（画里就是这样）
+    const cl = 0.5 + 0.5 * Math.sin(x * 1.7 + 0.4) * Math.sin(z * 1.3 + 2.0) + 0.5 * (1 - smooth(0, 2.5, z - edgeZ(x)));
+    if (Math.random() > cl) continue;
+    p.set(x, groundY(x, z) + rand(0.05, 0.2), z);
+    e.set(rand(-0.4, 0.4), rand(0, Math.PI * 2), rand(-0.4, 0.4)); q.setFromEuler(e);
+    const sc = rand(0.6, 1.4); s.set(sc, sc, sc);
+    m.compose(p, q, s); flowers.setMatrixAt(k, m);
+    const pc = PALETTE[Math.random() < 0.55 ? (Math.random() * 3 | 0) : (Math.random() * PALETTE.length | 0)];
+    col.setRGB(pc[0] * rand(0.85, 1.1), pc[1] * rand(0.85, 1.1), pc[2] * rand(0.85, 1.1)); flowers.setColorAt(k, col);
+    k++;
+  }
+  flowers.count = k; flowers.frustumCulled = false;
+  world.add(flowers);
+}
+
+// ---------- 藤蔓：从崖口垂进深渊的金色藤——画里从她脚边垂下去的那些 ----------
+{
+  const pts = [], cols = [];
+  const gold = new THREE.Color(0.88, 0.70, 0.30), dark = new THREE.Color(0.45, 0.36, 0.14);
+  for (let v = 0; v < 90; v++) {
+    const x0 = rand(-5.5, 5.5), z0 = edgeZ(x0) + rand(-0.15, 0.25);
+    const y0 = groundY(x0, z0) + 0.05, len = rand(1.5, 6.5), sway = rand(-0.4, 0.4), segs = 14;
+    const c = Math.random() < 0.5 ? gold : dark;
+    for (let i = 0; i < segs; i++) {
+      const t0 = i / segs, t1 = (i + 1) / segs;
+      const f = t => [x0 + Math.sin(t * 5 + x0) * 0.12 * t + sway * t, y0 - t * len, z0 - 0.35 * t - 0.15 * Math.sin(t * 7 + z0)];
+      pts.push(...f(t0), ...f(t1));
+      const a = c.clone().multiplyScalar(1 - 0.6 * t0), b = c.clone().multiplyScalar(1 - 0.6 * t1);
+      cols.push(a.r, a.g, a.b, b.r, b.g, b.b);
     }
-    bevel = mix(1.0, bevel, groutOn);
-    c *= mix(1.0, 1.0 + 0.12 * lightEdge, 1.0 - bevel);   // 斜面
-    // 灯光
-    vec3 n = normalize(gl_FrontFacing ? vN : -vN);
-    // 斜面也让法线歪一点，片的边缘会各自反光
-    n = normalize(n + (1.0 - bevel) * 0.35 * vec3(sign(q.x) * step(abs(q.y), abs(q.x)), sign(q.y) * step(abs(q.x), abs(q.y)), 0.0));
+    // 藤上挂着的小叶/金片
+    for (let i = 0; i < 5; i++) { const t = rand(0.1, 0.95); const px = x0 + Math.sin(t * 5 + x0) * 0.12 * t + sway * t, py = y0 - t * len, pz = z0 - 0.35 * t - 0.15 * Math.sin(t * 7 + z0); pts.push(px - 0.05, py, pz, px + 0.05, py - 0.08, pz); cols.push(gold.r, gold.g, gold.b, gold.r, gold.g, gold.b); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  const vines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 }));
+  world.add(vines);
+}
+
+// ---------- 恋人：以画作本身做成的金底浮雕，立在崖口；按深度图凸起，背面是锤打的金 ----------
+let relief = null, depthThr = 0.5;
+const RELIEF_VS = /* glsl */`
+  uniform sampler2D uDepth; uniform float uApart, uThr, uTime;
+  varying vec2 vUv; varying vec3 vW; varying float vFg, vG, vAng; varying mat3 vNM;
+  // 男人在左、女人在右；分界线从两人头部之间斜着往下到袍子底部（与烘焙脚本一致）
+  float boundary(float v) { return v > 0.87 ? 0.62 : v > 0.68 ? 0.5 : 0.55 - 0.08 * (0.68 - v) / 0.46; }
+  void main() {
+    vUv = uv;
+    float d = texture2D(uDepth, uv).r;
+    float fg = smoothstep(uThr - 0.06, uThr + 0.06, d);
+    vFg = fg;
+    float g = uv.x < boundary(uv.y) ? -1.0 : 1.0;
+    vG = g;
+    vec3 p = position;
+    p.z += fg * clamp((d - uThr) / (1.0 - uThr), 0.0, 1.0) * 0.30;     // 近处（脸、手、袍子）往前凸
+    // 分开：两人沿崖边各自退开，并微微背过身去；只有前景（人）动，脚下那块花地不动
+    float moving = fg * smoothstep(0.14, 0.3, uv.y);
+    float a = uApart * moving;
+    float ang = g * a * 0.35;
+    vec3 c0 = vec3(g * 0.25, 0.0, 0.0);
+    vec3 rel = p - c0;
+    rel = vec3(rel.x * cos(ang) - rel.z * sin(ang), rel.y, rel.x * sin(ang) + rel.z * cos(ang));
+    p = rel + c0 + vec3(g * a * 0.55, 0.0, -a * 0.1);
+    p.y += a * 0.02 * sin(uTime * 0.7 + g);
+    vAng = ang; vNM = mat3(modelMatrix);
+    vec4 w = modelMatrix * vec4(p, 1.0);
+    vW = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+const RELIEF_FS = NOISE + FOG + /* glsl */`
+  uniform sampler2D uMap, uDepth; uniform float uThr, uTime, uApart, uWave; uniform vec3 uLight; uniform vec2 uPx;
+  varying vec2 vUv; varying vec3 vW; varying float vFg, vG, vAng; varying mat3 vNM;
+  void main() {
+    if (vFg < 0.5) discard;
+    // 两人分开时，横跨分界线的三角形会被拉成长条：vG 在 ±1 之间插值的就是它们，丢掉
+    if (uApart > 0.002 && abs(vG) < 0.98) discard;
+    // 底边：画里的花地淡入三维的花甸，两人像站在齐膝的花里
+    float alpha = smoothstep(0.08, 0.24, vUv.y);
+    if (alpha < hash(floor(vUv * 900.0)) ) discard;   // 用抖动当渐隐：不透明物体，不走半透明排序
+    vec3 tex = texture2D(uMap, vUv).rgb;
+    // 由深度图的梯度算法线：浮雕的明暗
+    float dL = texture2D(uDepth, vUv - vec2(uPx.x, 0.0)).r, dR = texture2D(uDepth, vUv + vec2(uPx.x, 0.0)).r;
+    float dD = texture2D(uDepth, vUv - vec2(0.0, uPx.y)).r, dU = texture2D(uDepth, vUv + vec2(0.0, uPx.y)).r;
+    vec3 nl = normalize(vec3(-(dR - dL) * 9.0, -(dU - dD) * 9.0, 1.0));
+    nl = vec3(nl.x * cos(vAng) - nl.z * sin(vAng), nl.y, nl.x * sin(vAng) + nl.z * cos(vAng));   // 跟着人转过去的角度
+    vec3 n = normalize(vNM * nl);
+    if (!gl_FrontFacing) {
+      // 背面：锤打的金箔，带一点原画的明暗
+      float grain = hash(floor(vUv * 1400.0));
+      vec3 gold = vec3(0.84, 0.64, 0.24) * (0.8 + 0.35 * grain) * (0.7 + 0.5 * dot(tex, vec3(0.3, 0.59, 0.11)));
+      gold *= 0.6 + 0.6 * max(dot(-n, uLight), 0.0);
+      gl_FragColor = vec4(applyFog(gold, length(vW - cameraPosition), vW.y), 1.0);
+      return;
+    }
+    // 金的地方更金：按颜色判断（黄且亮），给金属高光与颗粒
+    float goldness = smoothstep(0.08, 0.3, tex.r - tex.b) * smoothstep(0.35, 0.6, tex.r);
+    float grain = hash(floor(vUv * 1800.0));
+    vec3 c = tex * (0.92 + 0.16 * grain * goldness);
     vec3 v = normalize(cameraPosition - vW);
     vec3 h = normalize(uLight + v);
-    float spec = pow(max(dot(n, h), 0.0), rough);
+    float spec = pow(max(dot(n, h), 0.0), 60.0);
     float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
-    c = pow(c, vec3(1.1)) * 1.1;
-    float l = dot(c, vec3(0.3, 0.59, 0.11)); c = mix(vec3(l), c, 1.2);
-    vec3 lit = c * (0.72 + 0.38 * max(dot(n, uLight), 0.0));
-    // 金箔上偶尔一闪
-    float glint = metal * step(0.996, hash(floor(vTex * 900.0) + floor(uTime * 2.0 + vSeed * 7.0))) * 0.8;
-    lit += metal * (spec * vec3(1.0, 0.86, 0.5) * 1.8 + fres * gold * 0.35) + glint * vec3(1.0, 0.9, 0.6);
-    lit = mix(vec3(0.07, 0.05, 0.03), lit, grout);      // 灰缝
-    if (vApart < 0.0) lit *= 1.0 + 0.65 * vApart;
-    lit *= 1.0 + 0.18 * uUnion;
-    lit += vWaveHit * gold * (0.6 + 0.8 * metal);
-    gl_FragColor = vec4(lit, 1.0);
+    vec3 lit = c * (0.55 + 0.7 * max(dot(n, uLight), 0.0)) + c * vec3(0.26, 0.20, 0.10) * (0.5 + 0.5 * n.y);
+    lit += goldness * (spec * vec3(1.0, 0.86, 0.5) * 1.4 + fres * vec3(0.86, 0.66, 0.24) * 0.3);
+    // 偶尔一闪
+    lit += goldness * step(0.997, hash(floor(vUv * 700.0) + floor(uTime * 2.0))) * vec3(0.9, 0.8, 0.5);
+    // 相拥的那一刻：一圈金光从那一吻漫过两人
+    float kd = length((vUv - vec2(${KISS_UV.x}, ${KISS_UV.y})) * vec2(1.0, 1.0));
+    float wave = uWave < 0.0 ? 0.0 : exp(-pow((kd - uWave * 1.3) / 0.08, 2.0)) * (1.0 - uWave * 0.6);
+    lit += wave * vec3(0.86, 0.66, 0.24) * (0.5 + goldness);
+    // 分开时各自暗一点、冷一点
+    lit *= 1.0 - 0.18 * uApart;
+    gl_FragColor = vec4(applyFog(lit, length(vW - cameraPosition), vW.y), 1.0);
   }`;
-
-let tileMesh = null;
-async function buildTiles() {
-  const [bin, depImg] = await Promise.all([
-    fetch('data/kiss/tiles.bin').then(r => { if (!r.ok) throw new Error('tiles.bin ' + r.status); return r.arrayBuffer(); }),
-    new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = 'data/kiss/depth.png'; }),
-  ]);
-  const dc = document.createElement('canvas'); dc.width = depImg.width; dc.height = depImg.height;
-  const dg = dc.getContext('2d'); dg.drawImage(depImg, 0, 0);
-  const dd = dg.getImageData(0, 0, dc.width, dc.height).data;
-  const depthAt = (u, v) => dd[(Math.min(dc.height - 1, ((1 - v) * dc.height) | 0) * dc.width + Math.min(dc.width - 1, (u * dc.width) | 0)) * 4] / 255;
-  const f = new Float32Array(bin), n = f.length / 8;
-  const tuv = new Float32Array(n * 2);
-  const home = new Float32Array(n * 3), col = new Float32Array(n * 3), size = new Float32Array(n), shape = new Float32Array(n), group = new Float32Array(n), seed = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const [u, v, s, r, g, b, sh, gr] = f.subarray(i * 8, i * 8 + 8);
-    const d = depthAt(u, v);
-    home.set([CENTER.x + (u - 0.5) * SIDE, CENTER.y + (v - 0.5) * SIDE, CENTER.z + (d - 1) * 0.35 + Math.random() * 0.004], i * 3);
-    col.set([r, g, b], i * 3);
-    tuv.set([u, v], i * 2);
-    size[i] = s * SIDE; shape[i] = sh; group[i] = gr; seed[i] = Math.random();
-  }
-  const quad = new THREE.PlaneGeometry(1, 1);
-  const geo = new THREE.InstancedBufferGeometry();
-  geo.index = quad.index;
-  geo.setAttribute('position', quad.attributes.position);
-  geo.setAttribute('uv', quad.attributes.uv);
-  geo.setAttribute('aHome', new THREE.InstancedBufferAttribute(home, 3));
-  geo.setAttribute('aCol', new THREE.InstancedBufferAttribute(col, 3));
-  geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(size, 1));
-  geo.setAttribute('aShape', new THREE.InstancedBufferAttribute(shape, 1));
-  geo.setAttribute('aGroup', new THREE.InstancedBufferAttribute(group, 1));
-  geo.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 1));
-  geo.setAttribute('aUV', new THREE.InstancedBufferAttribute(tuv, 2));
-  geo.instanceCount = n;
-  const map = await new THREE.TextureLoader().loadAsync('data/kiss/color_hi.jpg');
+async function buildRelief() {
+  const loader = new THREE.TextureLoader();
+  const [map, depth] = await Promise.all([loader.loadAsync('data/kiss/color_hi.jpg'), loader.loadAsync('data/kiss/depth.png')]);
   map.anisotropy = renderer.capabilities.getMaxAnisotropy(); map.minFilter = THREE.LinearMipmapLinearFilter;
-  tileMesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: { ...U, uMap: { value: map } }, vertexShader: TILE_VS, fragmentShader: TILE_FS, side: THREE.DoubleSide, extensions: { derivatives: true } }));
-  tileMesh.frustumCulled = false;
-  scene.add(tileMesh);
-  // 底板：原画本身，铺在所有金箔后面；相拥时从缝隙里透出来，分开时淡去，中间只剩空
-  const base = new THREE.Mesh(new THREE.PlaneGeometry(SIDE, SIDE), new THREE.ShaderMaterial({
-    uniforms: { map: { value: map }, uApart: U.uApart },
-    transparent: true, depthWrite: false,
-    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
-    fragmentShader: `uniform sampler2D map; uniform float uApart; varying vec2 vUv;
-      void main(){ vec3 c = texture2D(map, vUv).rgb * 0.35; gl_FragColor = vec4(c, 1.0 - smoothstep(0.0, 0.4, uApart)); }`,
-  }));
-  base.position.set(CENTER.x, CENTER.y, CENTER.z - 0.37);
-  base.renderOrder = -1;
-  scene.add(base);
-  console.log('tiles', n);
+  depth.minFilter = THREE.LinearFilter; depth.magFilter = THREE.LinearFilter;
+  // 阈值：与烘焙脚本一样取深度的 55 分位（前景 = 比它近的那一大块）
+  const dc = document.createElement('canvas'); dc.width = 128; dc.height = 128;
+  const g = dc.getContext('2d', { willReadFrequently: true }); g.drawImage(depth.image, 0, 0, 128, 128);
+  const dd = g.getImageData(0, 0, 128, 128).data, vals = [];
+  for (let i = 0; i < 128 * 128; i++) vals.push(dd[i * 4] / 255);
+  vals.sort((a, b) => a - b); depthThr = vals[Math.floor(vals.length * 0.55)];
+  const geo = new THREE.PlaneGeometry(SIDE, SIDE, 300, 300);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uMap: { value: map }, uDepth: { value: depth }, uThr: { value: depthThr }, uTime: U.uTime, uApart: U.uApart, uWave: U.uWave, uLight: U.uLight, uFogC: U.uFogC, uUnion: U.uUnion,
+                uPx: { value: new THREE.Vector2(1 / depth.image.width, 1 / depth.image.height) } },
+    vertexShader: RELIEF_VS, fragmentShader: RELIEF_FS, side: THREE.DoubleSide,
+  });
+  relief = new THREE.Mesh(geo, mat);
+  relief.position.set(FIG.x, FIG.y + SIDE / 2 - 0.22, FIG.z + 0.05);   // 画的下沿略埋进花里
+  relief.frustumCulled = false;
+  world.add(relief);
 }
 
-// ---------- 画后面的金粉：很小、很淡，偶尔闪一下 ----------
-const DUST_N = 5000;
-const dustPos = new Float32Array(DUST_N * 3), dustSeed = new Float32Array(DUST_N);
-for (let i = 0; i < DUST_N; i++) {
-  const depth = 0.4 + Math.pow(Math.random(), 0.8) * 6;
-  const spread = 1 + depth / 2.4;
-  dustPos.set([rand(-1, 1) * (SIDE * 0.5 + 1.4) * spread, CENTER.y + rand(-1, 1) * (SIDE * 0.5 + 1.0) * spread, CENTER.z - depth], i * 3);
-  dustSeed[i] = Math.random();
+// ---------- 金粉：在整座岛上空慢慢落下的金，相拥时下得更密、更亮 ----------
+const DUST_N = 6000;
+{
+  const pos = new Float32Array(DUST_N * 3), seed = new Float32Array(DUST_N);
+  for (let i = 0; i < DUST_N; i++) { pos.set([rand(-16, 16), rand(-10, 12), rand(-16, 16)], i * 3); seed[i] = Math.random(); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uTime: U.uTime, uUnion: U.uUnion, uPx: { value: innerHeight }, uScale: { value: 1 } },
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `attribute float aSeed; uniform float uTime, uUnion, uPx, uScale; varying float vA;
+      void main(){ vec3 p = position;
+        p.y = -10.0 + mod(p.y + 10.0 - uTime * (0.25 + 0.5 * aSeed) * (1.0 + 1.5 * uUnion), 22.0);
+        p.x += sin(uTime * 0.4 + aSeed * 30.0) * 0.3;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
+        float tw = pow(0.5 + 0.5 * sin(uTime * (0.8 + aSeed) + aSeed * 50.0), 6.0);
+        vA = 0.2 + 0.8 * tw + 0.5 * uUnion;
+        gl_PointSize = clamp(0.012 * uScale * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.0, 10.0); }`,
+    fragmentShader: `varying float vA; void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard;
+      gl_FragColor = vec4(vec3(0.95, 0.76, 0.32) * vA * smoothstep(0.5, 0.1, d), 1.0); }`,
+  });
+  const dust = new THREE.Points(g, mat); dust.frustumCulled = false;
+  world.add(dust);
+  world.userData.dustMat = mat;
 }
-const dustGeo = new THREE.BufferGeometry();
-dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-dustGeo.setAttribute('aSeed', new THREE.BufferAttribute(dustSeed, 1));
-const dustMat = new THREE.ShaderMaterial({
-  uniforms: { uTime: U.uTime, uUnion: U.uUnion, uPx: { value: innerHeight } },
-  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-  vertexShader: `attribute float aSeed; uniform float uTime, uUnion, uPx; varying float vA;
-    void main(){ vec3 p = position; p.y += sin(uTime * 0.2 + aSeed * 30.0) * 0.05;
-      vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
-      float tw = pow(0.5 + 0.5 * sin(uTime * (0.6 + aSeed) + aSeed * 50.0), 8.0);
-      vA = 0.25 + 0.75 * tw + 0.4 * uUnion;
-      gl_PointSize = clamp(0.0035 * length(mv.xyz) * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.0, 12.0); }`,
-  fragmentShader: `varying float vA; void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard;
-      gl_FragColor = vec4(vec3(0.9, 0.7, 0.3) * vA * smoothstep(0.5, 0.1, d), 1.0); }`,
-});
-const dust = new THREE.Points(dustGeo, dustMat);
-dust.frustumCulled = false;
-scene.add(dust);
 
 // ---------- 声音：两个声部，手越近音越近；相拥时合成同一个音 ----------
 let audio = null, muted = false;
@@ -345,7 +493,14 @@ function startAudio() {
   const a = voice('sine', 0.09), b = voice('triangle', 0.06);
   const pad = ctx.createGain(); pad.gain.value = 0.025; pad.connect(lp);
   [110, 165, 330].forEach(fq => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = fq; o.connect(pad); o.start(); });
-  audio = { ctx, master, a, b, lp, delay };
+  // 风：很轻的、一阵阵的
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate), d = buf.getChannelData(0);
+  let last = 0; for (let i = 0; i < d.length; i++) { last = (last + 0.03 * (Math.random() * 2 - 1)) / 1.03; d[i] = last * 3; }
+  const wind = ctx.createBufferSource(); wind.buffer = buf; wind.loop = true;
+  const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 500; wf.Q.value = 0.7;
+  const wg = ctx.createGain(); wg.gain.value = 0.1;
+  wind.connect(wf).connect(wg).connect(master); wind.start();
+  audio = { ctx, master, a, b, lp, delay, wg };
 }
 function bell(freqs, gain = 0.12) {
   if (!audio || muted) return;
@@ -358,7 +513,7 @@ function bell(freqs, gain = 0.12) {
 }
 $('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.35, audio.ctx.currentTime, 0.3); };
 
-// ---------- 输入：两只手的距离 ----------
+// ---------- 输入：两只手的距离（XR）/ 鼠标离中线的距离（桌面）；桌面上拖动转视角、滚轮远近 ----------
 const hands = [0, 1].map(i => { const h = renderer.xr.getHand(i); scene.add(h); return h; });
 const ctrls = [0, 1].map(i => { const c = renderer.xr.getController(i); scene.add(c); return c; });
 const tA = new THREE.Vector3(), tB = new THREE.Vector3();
@@ -370,19 +525,31 @@ function handPoint(i, out) {
   return null;
 }
 const mouse = new THREE.Vector2(0.9, 0);
-let mouseSeen = false;
-addEventListener('pointermove', e => { mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseSeen = true; });
+let mouseSeen = false, dragging = false, dragStart = null;
+const orbit = { az: 0.45, el: 40 * DEG, r: 7.5, azV: 0.045 };
+addEventListener('pointermove', e => {
+  mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseSeen = true;
+  if (dragging) {
+    orbit.az = dragStart.az - (e.clientX - dragStart.x) * 0.005;
+    orbit.el = Math.max(18 * DEG, Math.min(78 * DEG, dragStart.el + (e.clientY - dragStart.y) * 0.004));
+  }
+});
+renderer.domElement.addEventListener('pointerdown', e => { dragging = true; dragStart = { x: e.clientX, y: e.clientY, az: orbit.az, el: orbit.el }; });
+addEventListener('pointerup', () => { dragging = false; });
+addEventListener('wheel', e => { orbit.r = Math.max(4.5, Math.min(18, orbit.r * (1 + e.deltaY * 0.0008))); }, { passive: true });
 function targetApart() {
+  if (forcedApart !== null) return forcedApart;
   if (renderer.xr.isPresenting) {
     const a = handPoint(0, tA), b = handPoint(1, tB);
     if (!a || !b) return null;                         // 看不到两只手：保持现状，慢慢分开
     return smooth(0.1, 0.55, a.distanceTo(b));         // 10 cm 以内 = 合上；55 cm 以外 = 完全分开
   }
+  if (dragging) return apart;
   return mouseSeen ? smooth(0.04, 0.75, Math.abs(mouse.x)) : 1;
 }
 
 // ---------- 状态 ----------
-let apart = 1, union = 0, unionHold = 0, unions = 0, waveT = -1, quoteShown = false;
+let apart = 1, union = 0, unionHold = 0, unions = 0, waveT = -1, quoteShown = false, forcedApart = null;
 function step(dt, t) {
   const ta = targetApart();
   const goal = ta === null ? Math.min(1, apart + dt * 0.08) : ta;
@@ -394,7 +561,7 @@ function step(dt, t) {
     if (unionHold > 0.5 && union < 0.5) {
       union = 1; unions++; waveT = 0;
       bell([BASE * 2, BASE * 3, BASE * 4, BASE * 5]);
-      $('state').textContent = '相拥';
+      $('state').textContent = '相拥——金色漫过花甸';
       if (!quoteShown) { quoteShown = true; $('quote').classList.add('on'); setTimeout(() => $('quote').classList.remove('on'), 11000); }
     }
   } else {
@@ -402,15 +569,15 @@ function step(dt, t) {
     if (apart > 0.15 && union > 0.5) { union = 0; $('state').textContent = '双手合拢，让他们靠近'; }
   }
   U.uUnion.value += (union - U.uUnion.value) * Math.min(1, dt * 1.2);
-  room.material.uniforms.uU.value = U.uUnion.value;
-  if (waveT >= 0) { waveT += dt * 0.45; if (waveT > 1.3) waveT = -1; }
+  if (waveT >= 0) { waveT += dt * 0.22; if (waveT > 1.3) waveT = -1; }
   U.uWave.value = waveT;
   // 声音：第二个声部从五度（分开）滑到同度（相拥），中间的拍音越来越慢
   if (audio) {
     const at = audio.ctx.currentTime;
-    const interval = apart * 7 + (apart < 0.06 ? 0 : 0.18);   // 半音数；快合上时还差一点点 → 慢慢的拍音
+    const interval = apart * 7 + (apart < 0.06 ? 0 : 0.18);
     audio.b.frequency.setTargetAtTime(BASE * Math.pow(2, interval / 12), at, 0.15);
     audio.lp.frequency.setTargetAtTime(900 + 1400 * (1 - apart) + 900 * U.uUnion.value, at, 0.3);
+    audio.wg.gain.setTargetAtTime(0.06 + 0.06 * Math.sin(t * 0.35) + 0.04 * Math.sin(t * 0.9), at, 0.5);
   }
   // 提示条：两边的金条随距离张开
   const w = 50 * apart;
@@ -418,10 +585,19 @@ function step(dt, t) {
   $('mr').style.left = `${50 + w - Math.max(1, w * 0.15)}%`; $('mr').style.width = `${Math.max(1, w * 0.15)}%`;
 }
 
+// ---------- 相机：桌面上从空中俯瞰，绕着岬角缓缓飞 ----------
+const target = new THREE.Vector3(FIG.x, FIG.y + 0.6, FIG.z + 0.8);
+function updateCamera(dt) {
+  if (!dragging) orbit.az += orbit.azV * dt;
+  const el = orbit.el, r = orbit.r;
+  camera.position.set(target.x + r * Math.cos(el) * Math.sin(orbit.az), target.y + r * Math.sin(el), target.z + r * Math.cos(el) * Math.cos(orbit.az));
+  camera.lookAt(target);
+}
+
 // ---------- XR 展签 ----------
 const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.height = 520;
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
-plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
+plaque.position.set(-0.42, EYE_XR.y - 0.35, -0.75); plaque.lookAt(EYE_XR); plaque.visible = false;
 scene.add(plaque);
 (function () {
   const g = plaqueC.getContext('2d');
@@ -430,7 +606,7 @@ scene.add(plaque);
   g.fillStyle = '#b49a6a'; g.font = '22px system-ui'; g.fillText('AFTER KLIMT · THE KISS · 1907–08', 44, 66);
   g.fillStyle = '#f0d27a'; g.font = '56px serif'; g.fillText('这一吻  This Kiss', 44, 142);
   g.font = '30px serif'; g.fillStyle = '#e9dfc6';
-  ['伸出双手，两手之间的距离就是两人之间的距离；', '慢慢合拢，他们一点点靠近；', '双手合上，他们相拥。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  ['画里的花地在他们脚边戛然而止——那是一道崖边。', '这里把崖边补成一座花甸岬角，俯瞰它。', '伸出双手：分开，他们分开；合上，他们相拥。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
   g.fillStyle = '#f3dc98'; g.font = 'italic 26px serif'; g.fillText('“这一吻，献给全世界！”— 席勒 / 克里姆特《贝多芬横饰带》', 44, 470);
   plaque.material.map.needsUpdate = true;
 })();
@@ -444,17 +620,29 @@ for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
-  room.visible = opaque; plaque.visible = true;
+  voidSphere.visible = opaque; plaque.visible = true;
+  world.scale.setScalar(XR_SCALE); world.position.copy(XR_POS);
+  world.userData.dustMat.uniforms.uScale.value = XR_SCALE;
   renderer.setClearColor(0x120e08, opaque ? 1 : 0);
 });
-renderer.xr.addEventListener('sessionend', () => { room.visible = true; plaque.visible = false; renderer.setClearColor(0x120e08, 1); });
+renderer.xr.addEventListener('sessionend', () => {
+  voidSphere.visible = true; plaque.visible = false;
+  world.scale.setScalar(1); world.position.set(0, 0, 0); world.rotation.set(0, 0, 0);
+  world.userData.dustMat.uniforms.uScale.value = 1;
+  renderer.setClearColor(0x120e08, 1);
+});
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
-window.__state = () => ({ apart, union, unions });
-buildTiles().then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
+// 测试钩子
+window.__state = () => ({ apart, union, unions, thr: depthThr });
+window.__apart = v => { forcedApart = v === null ? null : v; };
+window.__view = (azDeg, elDeg, r) => { orbit.az = azDeg * DEG; orbit.el = elDeg * DEG; if (r) orbit.r = r; orbit.azV = 0; };
+window.__warp = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; U.uTime.value = time; step(dt, time); updateCamera(dt); } renderer.render(scene, camera); };
+
+buildRelief().then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
   .catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
 
-// 进 XR 后每只眼睛画面的像素高度：老接口是 framebufferHeight，新的投影图层是 textureHeight，都没有就取左眼视口
+// 进 XR 后每只眼睛画面的像素高度
 function xrPixelHeight() {
   const layer = renderer.xr.getBaseLayer && renderer.xr.getBaseLayer();
   let h = layer && (layer.framebufferHeight || layer.textureHeight);
@@ -468,12 +656,9 @@ renderer.setAnimationLoop(() => {
   time += dt;
   U.uTime.value = time;
   step(dt, time);
-  if (!renderer.xr.isPresenting) {
-    // 桌面：视点随鼠标上下、随时间轻轻漂，让金箔的反光动起来
-    camera.position.set(EYE.x + Math.sin(time * 0.21) * 0.05, EYE.y + mouse.y * 0.08, EYE.z);
-    camera.lookAt(CENTER);
-  }
-  dustMat.uniforms.uPx.value = renderer.xr.isPresenting ? xrPixelHeight() : renderer.domElement.height;
+  if (!renderer.xr.isPresenting) updateCamera(dt);
+  else world.rotation.y += dt * 0.03;              // XR：小岛在面前缓缓自转
+  world.userData.dustMat.uniforms.uPx.value = renderer.xr.isPresenting ? xrPixelHeight() : renderer.domElement.height;
   renderer.render(scene, camera);
 });
 </script>

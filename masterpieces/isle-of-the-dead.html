@@ -44,14 +44,14 @@
     <h1>目光停留之处</h1>
     <h2>Where the Gaze Rests</h2>
     <p>1880 年，勃克林在佛罗伦萨画下第一版《死之岛》：暮色里一座岩岛，高耸的柏树，凿进岩壁的墓室，一只小船载着白衣人和棺木缓缓驶近。他后来又画了四个版本；拉赫玛尼诺夫看过它的黑白复制品后，写出了同名交响诗，用 5/8 拍模仿划桨。</p>
-    <p>这件作品让"看"本身成为时间。你的目光停在哪里，哪里就开始老去——岩石上长出地衣与锈<span class="swatch"><i style="background:#c49a4a"></i><i style="background:#8a4a24"></i><i style="background:#e6dcc6"></i></span>，柏树间爬满苔藓<span class="swatch"><i style="background:#3a4a2a"></i><i style="background:#6b7a4a"></i></span>，水面结出盐与骨色的斑。纹理是一套反应扩散方程自己"长"出来的，没有一处是画上去的。</p>
-    <p>移开目光，时间会慢慢退回，原画一点点重新露出来。凝视得越久，退得越慢。</p>
+    <p>这件作品让"看"本身成为时间。这幅画有两层：前面是你熟悉的《死之岛》，后面垫着同一幅画在一百年的潮湿里腐蚀之后的样子——水痕、龟裂、剥落，岩石上的地衣与锈<span class="swatch"><i style="background:#c49a4a"></i><i style="background:#8a4a24"></i><i style="background:#e6dcc6"></i></span>，柏树间的苔藓<span class="swatch"><i style="background:#3a4a2a"></i><i style="background:#6b7a4a"></i></span>，水面上盐与骨色的斑。你的目光停在哪里，哪里的前层就被蚀穿，一片一片碎掉，露出后面那一层。</p>
+    <p>移开目光，裂口会慢慢愈合，原画一点点重新盖回来。凝视得越久，愈合得越慢。</p>
     <div class="note">据记载，委托第二版的玛丽·贝尔纳希望它是一幅"可以对着做梦的画"（ein Bild zum Träumen）。</div>
     <button id="enter" disabled>载入中…</button>
     <div class="how">XR：看向哪里，哪里生长；手柄或手指着的地方也会生长<br>桌面：鼠标就是目光；按住拖动可以环顾<br>建议戴耳机</div>
   </div>
 </div>
-<div id="hud"><span id="hudText">凝视之处正在老去</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div>目光停留越久，那里越老；移开后慢慢退回</div>
+<div id="hud"><span id="hudText">凝视之处正在蚀穿</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div>目光停留越久，蚀穿得越深越广；移开后慢慢愈合</div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -71,9 +71,9 @@ const ASPECT = 1920 / 1369;
 const HM = R * ARC / ASPECT;               // 画面高度（米）
 const HOR_V = 0.235;                        // 画里地平线的 v（自下而上）
 
-// 反应扩散网格：默认 1536 宽（每格约 4 mm，图案在 1–3 cm）
-const SIM_W = +(params.get('sim') || 1536), SIM_H = Math.round(SIM_W / ASPECT);
-const STEPS = +(params.get('steps') || 10);
+// 腐蚀场网格：默认 1024 宽（每格约 6 mm；边缘的毛边由着色器里的噪声给，不靠网格分辨率）
+const SIM_W = +(params.get('sim') || 1024), SIM_H = Math.round(SIM_W / ASPECT);
+const STEPS = +(params.get('steps') || 1);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -102,7 +102,9 @@ const dome = new THREE.Mesh(new THREE.SphereGeometry(40, 48, 24), new THREE.Shad
 dome.position.copy(EYE);
 scene.add(dome);
 
-// ---------- 反应扩散（Gray-Scott）：r = U，g = V，b = T（这一处被注视累积的"时间"）----------
+// ---------- 腐蚀场：r = E（这一处前层颜料被蚀掉的程度），b = T（被注视累积的"时间"）----------
+// 不再用反应扩散"长"纹理：腐蚀后的样子是一张烘好的底图（corroded.jpg），垫在原画后面；
+// 这里只算"前面那层被蚀穿到哪里"。注视处 E 上升，蚀穿的边缘顺着噪声一点点向外啃，离开后慢慢愈合。
 const rtOpts = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false, wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping };
 let rtA = new THREE.WebGLRenderTarget(SIM_W, SIM_H, rtOpts), rtB = new THREE.WebGLRenderTarget(SIM_W, SIM_H, rtOpts);
 const simCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -116,66 +118,51 @@ const simU = {
   uGaze: { value: Array.from({ length: N_GAZE }, () => new THREE.Vector4(-9, -9, 0, 0.03)) },   // (u, v, 强度, 半径)：盯得越久，半径越大
   uDeposit: { value: 0 }, uDecay: { value: 0 }, uSeed: { value: 0 }, uTime: { value: 0 },
 };
+const NOISE_GLSL = /* glsl */`
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+  float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.7 + 5.1) + 0.15 * vnoise(p * 7.3 + 1.7); }`;
 const simMat = new THREE.ShaderMaterial({
   uniforms: simU, vertexShader: quadVS,
-  fragmentShader: /* glsl */`
+  fragmentShader: NOISE_GLSL + /* glsl */`
     uniform sampler2D tPrev, tRegion;
     uniform vec2 uPx;
     uniform float uAspect, uDeposit, uDecay, uSeed, uTime;
     uniform vec4 uGaze[${N_GAZE}];
     varying vec2 vUv;
-    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-    float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-      return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
-    float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.7 + 5.1) + 0.15 * vnoise(p * 7.3 + 1.7); }
     void main() {
       vec4 c = texture2D(tPrev, vUv);
-      vec4 n = texture2D(tPrev, vUv + vec2(0.0, uPx.y)), s = texture2D(tPrev, vUv - vec2(0.0, uPx.y));
-      vec4 e = texture2D(tPrev, vUv + vec2(uPx.x, 0.0)), w = texture2D(tPrev, vUv - vec2(uPx.x, 0.0));
-      vec4 ne = texture2D(tPrev, vUv + uPx), nw = texture2D(tPrev, vUv + vec2(-uPx.x, uPx.y));
-      vec4 se = texture2D(tPrev, vUv + vec2(uPx.x, -uPx.y)), sw = texture2D(tPrev, vUv - uPx);
-      vec4 lap = 0.2 * (n + s + e + w) + 0.05 * (ne + nw + se + sw) - c;
-      float U = c.r, V = c.g, T = c.b;
-      // 分区：岩石长珊瑚/地衣状、柏树长迷宫般的苔、水面长斑、天空几乎不长
+      // 稍大一圈的模糊（3 像素），腐蚀前沿往外啃的时候用
+      float blur = 0.0;
+      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) blur += texture2D(tPrev, vUv + vec2(float(x), float(y)) * uPx * 3.0).r;
+      blur /= 9.0;
+      float E = c.r, T = c.b;
+      // 不同材质蚀得快慢不同：岩石和水面快，柏树慢一点，天空最慢（颜料厚）
       vec3 rg = texture2D(tRegion, vUv).rgb;   // r 岩石  g 水  b 柏树
       float sky = clamp(1.0 - rg.r - rg.g - rg.b, 0.0, 1.0);
-      float wsum = rg.r + rg.g + rg.b + sky;
-      float f = (rg.r * 0.0545 + rg.b * 0.0290 + rg.g * 0.0367 + sky * 0.0140) / wsum;
-      float k = (rg.r * 0.0620 + rg.b * 0.0570 + rg.g * 0.0649 + sky * 0.0540) / wsum;
-      // 没被凝视过的地方养不活纹理：k 抬高，图案从外缘一点点死掉，原画退回来
-      // 能长到哪里的边界不是圆的：叠一层噪声，边缘像地衣一样参差
-      float Tn = T + 0.45 * (fbm(vUv * vec2(28.0 * uAspect, 28.0)) - 0.5);
-      // A：这里还"活着"吗。不改 k（改 k 会在边界上逼出一圈孤立的斑点），而是直接让反应停下、浓度回落
-      float A = smoothstep(0.1, 0.4, Tn);
-      // 一点低频起伏，让生长的速度不处处一样
-      f *= 0.96 + 0.08 * hash(floor(vUv * 24.0));
-      float uvv = U * V * V;
-      // 扩散系数调小：图案的尺度跟 √D 成正比，这样纹路更细（VR 里在毫米到厘米级）
-      U += 0.36 * lap.r + A * (-uvv + f * (1.0 - U)) + (1.0 - A) * 0.02 * (1.0 - U);
-      V += 0.18 * lap.g + A * (uvv - (f + k) * V) - (1.0 - A) * 0.02 * V;
-      // 时间：注视处累积、慢慢向四周洇开、离开后缓慢消退
-      T += 0.18 * lap.b;
-      float seedAmt = 0.0;
+      float rate = rg.r * 1.0 + rg.g * 1.1 + rg.b * 0.75 + sky * 0.55;
+      // 颜料的"厚薄"：高频噪声，薄处先穿；这让边缘参差、洞里有孤岛
+      float thick = fbm(vUv * vec2(90.0 * uAspect, 90.0));
+      rate *= 0.55 + 0.9 * thick;
+      float gazeAmt = 0.0;
       for (int i = 0; i < ${N_GAZE}; i++) {
         vec2 d = (vUv - uGaze[i].xy) * vec2(uAspect, 1.0);
         float r2 = dot(d, d);
         float sg = uGaze[i].w;
-        T += uGaze[i].z * uDeposit * exp(-r2 / (sg * sg));
-        seedAmt = max(seedAmt, uGaze[i].z * exp(-r2 / (sg * sg * 0.7)));
+        float g = uGaze[i].z * exp(-r2 / (sg * sg));
+        T += g * uDeposit;
+        gazeAmt = max(gazeAmt, g);
       }
-      T = clamp(T - uDecay, 0.0, 1.5);
-      // 时间退尽的地方，残留的斑点也慢慢消掉（否则孤立的斑点会一直留着）
-
-      // 催化剂：注视点周围稀疏地撒下种子
-      // 种子要成团（单个像素会被扩散抹平）：按 3×3 格子整块投放。
-      // 注视点附近密集投放；被凝视过的整片区域里也零星冒出新的菌落，像地衣一簇簇地长
-      vec2 cell = floor(vUv / uPx / 3.0);
-      float pSeed = seedAmt * 0.012;   // 种子撒得开一点、稀一点：几簇菌落各自长、再连成片，轮廓才不规整
-      if (uSeed > 0.5 && hash(cell + fract(uTime * 0.37) * 91.0) < pSeed) { U = 0.5; V = 0.25 + 0.1 * hash(cell); }
-      gl_FragColor = vec4(clamp(U, 0.0, 1.0), clamp(V, 0.0, 1.0), T, 1.0);
+      // 注视处直接蚀；已经蚀穿的边上，前沿也慢慢往外啃（哪怕目光已经略偏）
+      E += uDeposit * rate * (gazeAmt * 1.1 + 0.35 * smoothstep(0.35, 0.8, blur) * max(blur - E, 0.0) * 4.0);
+      // 愈合：很慢（满格约 70 秒），厚处先回来
+      E -= uDecay * (0.6 + 0.8 * (1.0 - thick));
+      T = clamp(T - uDecay * 1.8, 0.0, 1.5);
+      gl_FragColor = vec4(clamp(E, 0.0, 1.5), 0.0, T, 1.0);
     }`,
 });
-const initMat = new THREE.ShaderMaterial({ vertexShader: quadVS, fragmentShader: `void main(){ gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); }` });
+const initMat = new THREE.ShaderMaterial({ vertexShader: quadVS, fragmentShader: `void main(){ gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }` });
 const simQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), initMat);
 simScene.add(simQuad);
 function simRender(target) { renderer.setRenderTarget(target); renderer.render(simScene, simCam); }
@@ -184,20 +171,17 @@ function initSim() {
   simQuad.material = initMat; simRender(rtA); simRender(rtB);
   renderer.setRenderTarget(null); renderer.xr.enabled = xrOn;
 }
-// 每帧多步迭代；XR 里临时关掉 xr，算完恢复 XR 的帧缓冲
-// 时间按模拟步数算（约 700 步 = 1 秒），帧率高低不影响生长与退回的节奏
-const STEPS_PER_SEC = 700;
+// 每帧一步；XR 里临时关掉 xr，算完恢复 XR 的帧缓冲。按真实时间推进，帧率高低不影响腐蚀与愈合的节奏
 function stepSim(dt, t) {
-  const dts = STEPS / STEPS_PER_SEC;
-  lastDts = dts;
+  lastDts = dt;
   const rt = renderer.getRenderTarget(), xrOn = renderer.xr.enabled;
   renderer.xr.enabled = false;
   simQuad.material = simMat;
   simU.uTime.value = t;
   for (let i = 0; i < STEPS; i++) {
     simU.tPrev.value = rtA.texture;
-    simU.uDeposit.value = i === 0 ? dts * 0.7 : 0;  // 时间累积：每帧算一次
-    simU.uDecay.value = i === 0 ? dts * 0.03 : 0;   // 满格约 40 秒退完
+    simU.uDeposit.value = i === 0 ? dt * 0.8 : 0;    // 盯住一处约 2 秒蚀穿中心，边缘再慢慢扩开
+    simU.uDecay.value = i === 0 ? dt * 0.016 : 0;    // 满格约 60 秒愈合
     simU.uSeed.value = i === 0 ? 1 : 0;
     simRender(rtB);
     [rtA, rtB] = [rtB, rtA];
@@ -207,81 +191,80 @@ function stepSim(dt, t) {
   paintMat.uniforms.tSim.value = rtA.texture;
 }
 
-// ---------- 画幕 ----------
+// ---------- 画幕：两层。前层是原画，后层是烘好的腐蚀底图；腐蚀场 E 过了噪声阈值的地方，前层碎掉露出后层 ----------
 const paintMat = new THREE.ShaderMaterial({
   uniforms: {
-    tPaint: { value: null }, tDepth: { value: null }, tRegion: { value: null }, tSim: { value: rtA.texture },
+    tPaint: { value: null }, tCorroded: { value: null }, tDepth: { value: null }, tRegion: { value: null }, tSim: { value: rtA.texture },
     uPx: { value: new THREE.Vector2(1 / SIM_W, 1 / SIM_H) }, uTime: { value: 0 },
     uLight: { value: new THREE.Vector3(-0.55, 0.45, 0.7).normalize() },
   },
+  extensions: { derivatives: true },
   vertexShader: /* glsl */`
     uniform sampler2D tDepth, tSim;
     varying vec2 vUv; varying vec3 vW, vDir;
     void main() {
       vUv = uv;
       float d = texture2D(tDepth, uv).r;
-      float V = texture2D(tSim, uv).g;
+      float E = texture2D(tSim, uv).r;
       float th = (uv.x - 0.5) * ${ARC.toFixed(5)};
-      float r = ${R.toFixed(3)} * (1.0 - 0.38 * pow(d, 1.4)) - V * 0.012;   // 近处（岛、水面）往你这边凸，长出来的纹理再凸一点
+      float r = ${R.toFixed(3)} * (1.0 - 0.38 * pow(d, 1.4)) + smoothstep(0.3, 0.8, E) * 0.014;   // 近处（岛、水面）往你这边凸；蚀穿的地方往后凹进去
       float y = ${EYE.y.toFixed(3)} + (uv.y - ${HOR_V}) * ${HM.toFixed(4)} * (r / ${R.toFixed(3)});
       vec3 p = vec3(r * sin(th), y, -r * cos(th));
       vW = p; vDir = normalize(p - vec3(0.0, ${EYE.y.toFixed(3)}, 0.0));
       gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
     }`,
-  fragmentShader: FOG_GLSL + /* glsl */`
-    uniform sampler2D tPaint, tRegion, tSim;
+  fragmentShader: FOG_GLSL + NOISE_GLSL + /* glsl */`
+    uniform sampler2D tPaint, tCorroded, tRegion, tSim;
     uniform vec2 uPx;
     uniform vec3 uLight;
     uniform float uTime;
     varying vec2 vUv; varying vec3 vW, vDir;
-    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-    float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-      return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+    const float ASP = ${ASPECT.toFixed(4)};
     void main() {
       vec3 paint = texture2D(tPaint, vUv).rgb;
+      vec3 corr = texture2D(tCorroded, vUv).rgb;
       vec4 s = texture2D(tSim, vUv);
-      float V = s.g, T = s.b;
-      // 浓度梯度 → 法线，做出浮雕
-      float vx = texture2D(tSim, vUv + vec2(uPx.x, 0.0)).g - texture2D(tSim, vUv - vec2(uPx.x, 0.0)).g;
-      float vy = texture2D(tSim, vUv + vec2(0.0, uPx.y)).g - texture2D(tSim, vUv - vec2(0.0, uPx.y)).g;
-      // 颗粒：地衣是一层粗糙的壳，不是光滑的管子
-      float crust = vnoise(vUv * vec2(1800.0, 1280.0)) * 0.6 + vnoise(vUv * vec2(520.0, 370.0)) * 0.4;
-      vec3 n = normalize(vec3(-vx * 2.0 + (crust - 0.5) * 0.25, -vy * 2.0 + (vnoise(vUv * vec2(1800.0, 1280.0) + 7.0) - 0.5) * 0.25, 1.0) * vec3(1.0 - 0.6 * texture2D(tRegion, vUv).g, 1.0 - 0.6 * texture2D(tRegion, vUv).g, 1.0));   // 水面上压平
-      vec3 rg = texture2D(tRegion, vUv).rgb;
-      float sky = clamp(1.0 - rg.r - rg.g - rg.b, 0.0, 1.0);
-      // 各区的"老化"颜色：按浓度从边缘到中心取色
-      float t = smoothstep(0.12, 0.42, V);
-      float grain = hash(floor(vUv * vec2(2400.0, 1700.0)));
-      // 每一片菌落的颜色不同：低频噪声在黄地衣、橙锈、灰绿地衣之间变
-      vec2 q2 = vUv * vec2(26.0, 18.0);
-      vec2 qi = floor(q2), qf = fract(q2); qf = qf * qf * (3.0 - 2.0 * qf);
-      float sp = mix(mix(hash(qi), hash(qi + vec2(1, 0)), qf.x), mix(hash(qi + vec2(0, 1)), hash(qi + vec2(1, 1)), qf.x), qf.y);
-      vec3 lichenTip = mix(mix(vec3(0.82, 0.64, 0.28), vec3(0.70, 0.38, 0.16), smoothstep(0.35, 0.65, sp)), vec3(0.62, 0.64, 0.50), smoothstep(0.75, 0.95, sp));
-      vec3 lichen = mix(vec3(0.30, 0.17, 0.09), lichenTip, t);                               // 深色边 → 地衣本色
-      lichen = mix(lichen, vec3(0.86, 0.83, 0.74), smoothstep(0.34, 0.46, V) * 0.6);          // 最浓处泛骨白
-      vec3 moss = mix(vec3(0.12, 0.17, 0.09), vec3(0.42, 0.50, 0.28), t);
-      vec3 salt = mix(vec3(0.16, 0.19, 0.21), vec3(0.58, 0.60, 0.56), t);   // 水面上的盐斑：压暗，不要发亮
-      vec3 mould = mix(vec3(0.30, 0.31, 0.33), vec3(0.58, 0.58, 0.56), t);
-      float wsum = rg.r + rg.g + rg.b + sky;
-      vec3 grow = (lichen * rg.r + salt * rg.g + moss * rg.b + mould * sky) / wsum;
-      grow *= 0.78 + 0.4 * crust;
-      // 纹理里也留着一点原画的明暗
-      grow *= mix(1.0, 0.55 + 0.9 * dot(paint, vec3(0.3, 0.59, 0.11)), 0.35);
-      // 光照：从左上来的暮光（和原画的光向一致）
-      float diff = 0.72 + 0.32 * max(dot(n, uLight), 0.0);
-      vec3 h = normalize(uLight + vec3(0.0, 0.0, 1.0));
-      float spec = pow(max(dot(n, h), 0.0), 30.0) * (0.04 + 0.12 * rg.g);   // 水面上的盐斑带一点湿光
-      vec3 growLit = grow * diff + spec;
-      // 图案边缘的一圈深色细线，像菌落的边
-      float rim = smoothstep(0.06, 0.12, V) * (1.0 - smoothstep(0.12, 0.2, V));
-      growLit *= 1.0 - 0.15 * rim;
-      // 覆盖的边缘被颗粒啃得参差，不是一条干净的线
-      float edgeN = (crust - 0.5) * 0.12;
-      float cover = smoothstep(0.08 + edgeN, 0.26 + edgeN, V) * (0.85 - 0.4 * rg.g - 0.35 * sky);   // 地衣是薄薄一层，底下的画还透出来
-      // 被凝视过的地方即使还没长，也先蒙上一层旧色（发暗、褪色）
+      float E = s.r, T = s.b;
+      // 阈值 = 这一点颜料的"厚度"。三层：大形（哪一块先穿）、细颗粒（边缘的毛边）、
+      // 以及按"片"来的随机厚度——颜料是一片一片剥的，格子抖动过，不会看出网格
+      float nBig = fbm(vUv * vec2(40.0 * ASP, 40.0));
+      float nFine = vnoise(vUv * vec2(700.0 * ASP, 700.0));
+      vec2 cellUV = vUv * vec2(120.0 * ASP, 120.0);
+      cellUV += 0.5 * (vec2(vnoise(cellUV * 0.7), vnoise(cellUV * 0.7 + 3.0)) - 0.5);
+      float chip = hash(floor(cellUV));
+      float th = 0.5 + 0.22 * (nBig - 0.5) + 0.10 * (nFine - 0.5) + 0.14 * (chip - 0.5);
+      float x = E - th;                                   // > 0：这里的前层已经蚀穿
+      float aa = fwidth(x) + 1e-4;
+      float reveal = smoothstep(-aa, aa, x);              // 硬边：颜料是碎掉的，不是渐隐
+      // 断口的方向（屏幕导数只取方向，幅度由遮罩给），用来给翘起的颜料边打光
+      vec2 g = vec2(dFdx(x), dFdy(x));
+      vec3 n = normalize(vec3(-g / (length(g) + 1e-6) * 0.8, 1.0));
+      float diff = 0.7 + 0.6 * max(dot(n, uLight), 0.0);
+
+      // ---- 前层：原画。被凝视过但还没穿的地方先发旧、发暗；靠近断口的一圈翘起、焦黄、有裂纹 ----
       float lum = dot(paint, vec3(0.3, 0.59, 0.11));
       vec3 aged = mix(paint, vec3(lum) * vec3(1.0, 0.94, 0.82) * 0.82, 0.5 * clamp(T, 0.0, 1.0));
-      vec3 c = mix(aged, growLit, cover);
+      float rim = smoothstep(-0.12, -0.03, x);            // 离断口越近越强（仍在前层这一侧）
+      vec3 scorched = mix(aged, aged * vec3(0.62, 0.46, 0.30) + vec3(0.04, 0.02, 0.0), 0.75);
+      vec3 front = mix(aged, scorched * diff, rim);
+      // 快要穿的地方先裂开细纹（阈值噪声的等高线）
+      float crack = 1.0 - smoothstep(0.0, 0.012, abs(fract(nBig * 9.0 + nFine * 0.6) - 0.5) - 0.47);
+      front *= 1.0 - 0.45 * crack * smoothstep(-0.18, -0.02, x) * (1.0 - reveal);
+      // 断口本身：一道浅色的颜料断面（露出底子的白垩），很细、不发亮
+      float lip = 1.0 - smoothstep(0.0, 1.5 * aa, abs(x + aa));
+      front = mix(front, vec3(0.55, 0.50, 0.40) * (0.7 + 0.6 * nFine), lip * 0.55);
+
+      // ---- 后层：腐蚀底图。凹在后面：靠断口一圈有前层投下的暗影，洞里散着碎屑和灰 ----
+      float ao = 1.0 - 0.45 * (1.0 - smoothstep(0.0, 0.10, x));
+      float crumb = (1.0 - smoothstep(0.0, 0.07, x)) * smoothstep(0.55, 0.8, nFine);
+      vec3 back = corr * ao;
+      back = mix(back, vec3(0.50, 0.46, 0.40) * (0.6 + 0.6 * nFine), crumb * 0.5);
+      // 水面那一层蚀穿后还带一点湿光
+      float wet = texture2D(tRegion, vUv).g;
+      vec3 h = normalize(uLight + vec3(0.0, 0.0, 1.0));
+      back += pow(max(dot(normalize(vec3((nFine - 0.5) * 0.3, (nBig - 0.5) * 0.3, 1.0)), h), 0.0), 40.0) * 0.08 * wet;
+
+      vec3 c = mix(front, back, reveal);
       // 画幕边缘融进雾里
       float edge = smoothstep(0.0, 0.07, vUv.x) * smoothstep(1.0, 0.93, vUv.x) * smoothstep(1.0, 0.9, vUv.y) * smoothstep(0.0, 0.04, vUv.y);
       c = mix(fogColor(normalize(vDir)), c, edge);
@@ -343,10 +326,10 @@ function updateGaze() {
   }
   for (let i = 0; i < N_GAZE; i++) {
     const g = gazeUV[i], dst = simU.uGaze.value[i], st = gazeDwell[i];
-    // 停在一处越久（漂移不超过 5%），影响半径越大：0.03 → 0.14（约 15 cm → 80 cm），20 秒左右长满
-    if (g && st.a && Math.hypot((g[0] - st.a[0]) * ASPECT, g[1] - st.a[1]) < 0.05) st.t += lastDts;
+    // 停在一处越久（漂移不超过 6%），蚀穿的范围越大：0.04 → 0.20（约 20 cm → 1.1 m），14 秒左右扩到最大
+    if (g && st.a && Math.hypot((g[0] - st.a[0]) * ASPECT, g[1] - st.a[1]) < 0.06) st.t += lastDts;
     else { st.a = g; st.t *= 0.3; }
-    const sg = 0.03 + 0.11 * Math.min(1, st.t / 20) ** 0.8;
+    const sg = 0.04 + 0.16 * Math.min(1, st.t / 14) ** 0.7;
     if (g) dst.set(g[0], g[1], i === 0 ? 1 : 0.8, sg); else dst.set(-9, -9, 0, 0.03);
   }
 }
@@ -406,7 +389,7 @@ scene.add(plaque);
   g.fillStyle = '#9a9384'; g.font = '22px system-ui'; g.fillText('AFTER BÖCKLIN · ISLE OF THE DEAD · 1880', 44, 66);
   g.fillStyle = '#e6dcc6'; g.font = '56px serif'; g.fillText('目光停留之处', 44, 142);
   g.font = '30px serif'; g.fillStyle = '#d8cfbc';
-  ['看向哪里，哪里就开始老去：', '地衣、苔藓、盐与骨色在那里生长。', '移开目光，时间慢慢退回，原画重新露出。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  ['画有两层：前面是原画，后面是它腐蚀后的样子。', '看向哪里，哪里的前层就被蚀穿、剥落，露出后面。', '移开目光，裂口慢慢愈合，原画重新盖回来。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
   plaque.material.map.needsUpdate = true;
 })();
 
@@ -429,8 +412,8 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 // ---------- 载入 ----------
 const loader = new THREE.TextureLoader();
 const load = url => loader.loadAsync(url).then(t => { t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; });
-Promise.all([load('data/isle-of-the-dead/color.jpg'), load('data/isle-of-the-dead/depth.png'), load('data/isle-of-the-dead/region.png')]).then(([p, d, r]) => {
-  paintMat.uniforms.tPaint.value = p; paintMat.uniforms.tDepth.value = d; paintMat.uniforms.tRegion.value = r;
+Promise.all([load('data/isle-of-the-dead/color.jpg'), load('data/isle-of-the-dead/depth.png'), load('data/isle-of-the-dead/region.png'), load('data/isle-of-the-dead/corroded.jpg')]).then(([p, d, r, c]) => {
+  paintMat.uniforms.tPaint.value = p; paintMat.uniforms.tDepth.value = d; paintMat.uniforms.tRegion.value = r; paintMat.uniforms.tCorroded.value = c;
   simU.tRegion.value = r;
   initSim();
   $('enter').disabled = false; $('enter').textContent = '进入';
@@ -439,16 +422,20 @@ Promise.all([load('data/isle-of-the-dead/color.jpg'), load('data/isle-of-the-dea
 // 测试钩子：强制注视某处（null = 取消）
 window.__gaze = (u, v) => { forced = u === null ? null : [u, v]; };
 window.__state = () => ({ dwell, gaze: gazeUV[0] });
-window.__probe = (u, v) => {   // 调试：读模拟纹理某点的 (U, V, T)
+window.__warp = (n, dt = 1 / 60) => {   // 测试：快进模拟 n 帧并画一帧
+  for (let i = 0; i < n; i++) { time += dt; updateGaze(); if (paintMat.uniforms.tPaint.value) stepSim(dt, time); }
+  paintMat.uniforms.uTime.value = time; renderer.render(scene, camera);
+};
+window.__probe = (u, v) => {   // 调试：读模拟纹理某点的 (E, 0, T)
   const buf = new Uint16Array(4);
   renderer.readRenderTargetPixels(rtA, Math.floor(u * SIM_W), Math.floor(v * SIM_H), 1, 1, buf);
   return Array.from(buf).map(h => THREE.DataUtils.fromHalfFloat(h));
 };
-window.__maxV = (u, v, r) => {   // 调试：注视点周围一块里的最大 V 和长出来的比例
+window.__maxV = (u, v, r) => {   // 调试：注视点周围一块里的最大 E 和蚀穿（E > 0.5）的比例
   const x0 = Math.max(0, Math.floor((u - r) * SIM_W)), y0 = Math.max(0, Math.floor((v - r * ASPECT) * SIM_H));
   const w = Math.floor(2 * r * SIM_W), h = Math.floor(2 * r * ASPECT * SIM_H), buf = new Uint16Array(w * h * 4);
   renderer.readRenderTargetPixels(rtA, x0, y0, w, h, buf);
-  let m = 0, n = 0; for (let i = 0; i < w * h; i++) { const V = THREE.DataUtils.fromHalfFloat(buf[i * 4 + 1]); m = Math.max(m, V); if (V > 0.15) n++; }
+  let m = 0, n = 0; for (let i = 0; i < w * h; i++) { const E = THREE.DataUtils.fromHalfFloat(buf[i * 4]); m = Math.max(m, E); if (E > 0.5) n++; }
   return [m, n / (w * h)];
 };
 window.__view = (fov, yawDeg, pitchDeg) => { camera.fov = fov; camera.updateProjectionMatrix(); yaw = yawDeg * DEG; pitch = pitchDeg * DEG; };

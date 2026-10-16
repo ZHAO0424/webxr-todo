@@ -46,13 +46,13 @@
     <h1>通往何处的路</h1>
     <h2>Paths to Nowhere</h2>
     <p>1890 年 7 月，凡·高在奥维尔画下《麦田群鸦》：翻滚的天空、低飞的乌鸦，麦田里三条小路——一条往左、一条往右、一条通向麦田深处，没有一条通到哪里。</p>
-    <p>这里，麦田环绕着你。几十万个微小的"行者"在画上爬行，像黏菌一样，沿着彼此留下的痕迹、沿着凡·高的笔触走，自己织出一张发光的路网。<b>你看向哪里，你站在哪里，就是它们要去的地方</b>——路会向你生长、在你注视的方向变粗；你转身、走动，路就改道追随你。你一离开，它们又慢慢回到画里那三条哪儿也不通的路上。</p>
+    <p>这里，麦田环绕着你。几十万个微小的"行者"在画上爬行，像黏菌一样，沿着彼此留下的痕迹、沿着凡·高的笔触走，自己织出一张发光的路网。但这张网<b>只在你目光所及的那一圈里显形</b>——像提灯照进夜里的麦田，灯圈之外一切如常，看不见任何路。<b>你看向哪里，你站在哪里，就是它们要去的地方</b>——路会向你的目光生长、在那里变粗；停得越久，照亮的圈越大。你一离开，灯灭了，它们在暗处慢慢回到画里那三条哪儿也不通的路上。</p>
     <blockquote>“那是动荡天空下无边无际的麦田，我特意尝试去表达悲伤、极度的孤独。”<small>— 凡·高致提奥与乔，奥维尔，约 1890 年 7 月 10 日（Letter 898）</small></blockquote>
     <button id="enter" disabled>载入中…</button>
     <div class="how">XR：转头看、在原地走动——路网追随你的头部位置与视线<br>桌面：鼠标就是你的目光；把鼠标移到画面外 = 离开<br>建议戴耳机</div>
   </div>
 </div>
-<div id="hud"><span id="state">路网正在生长</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>你看向哪里，路就长向哪里</div>
+<div id="hud"><span id="state">路网正在生长</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>路只在目光所及处显形，并向那里生长</div>
 <div id="quote">“……我几乎相信，这些画会替我说出我无法用言语说出的东西。”<small>— 凡·高致提奥与乔，1890 年 7 月（Letter 898）</small></div>
 
 <script type="module">
@@ -130,6 +130,7 @@ const FS_VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(posit
 const U = {
   uTime: { value: 0 }, uRes: { value: new THREE.Vector2(TW, TH) },
   uFood: { value: new THREE.Vector3(0.5, 0.4, 0) },      // 你的落点 uv + 强度
+  uLamp: { value: new THREE.Vector4(0.5, 0.4, 0, 0.12) }, // 目光的"提灯"：uv + 亮度 + 半径。路网只在这一圈里看得见
   uFoodR: { value: 0.32 },
   uSA: { value: 0.5 }, uRA: { value: 0.45 }, uSD: { value: 6.0 }, uSS: { value: 1.0 },   // 转向角 > 感知角：长成多孔的网，而不是几条高速路
   uBrush: { value: 0.06 },                                // 笔触走向的引导强度
@@ -307,7 +308,7 @@ function buildStage() {
   hitMesh = new THREE.Mesh(stageGeometry(120, 56), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
   scene.add(hitMesh);
   stageMat = new THREE.ShaderMaterial({
-    uniforms: { tPaint: { value: paintTex }, tDepth: { value: depthTex }, tTrail: { value: null }, tMem: { value: null }, uTime: U.uTime, uFood: U.uFood, uRes: U.uRes, uDebug: { value: 0 } },
+    uniforms: { tPaint: { value: paintTex }, tDepth: { value: depthTex }, tTrail: { value: null }, tMem: { value: null }, uTime: U.uTime, uFood: U.uFood, uLamp: U.uLamp, uRes: U.uRes, uDebug: { value: 0 } },
     transparent: true, depthWrite: true,
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */`
@@ -315,12 +316,23 @@ function buildStage() {
       uniform float uTime, uDebug;
       uniform vec2 uRes;
       uniform vec3 uFood;
+      uniform vec4 uLamp;
       varying vec2 vUv;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
       void main() {
         vec3 c = texture2D(tPaint, vUv).rgb;
         float t = texture2D(tTrail, vUv).r;
         if (uDebug > 0.01) { gl_FragColor = vec4(vec3(sqrt(t / uDebug)), 1.0); return; }
         float m = texture2D(tMem, vUv).r;
+        // 目光的提灯：路网只在目光所及的一圈里显形。中心全亮，往外软软地暗下去，
+        // 边缘叠一点慢慢流动的噪声——像灯光穿过麦穗，边界不是一个干净的圆
+        vec2 ld = (vUv - uLamp.xy) * vec2(uRes.x / uRes.y, 1.0);
+        float lr = length(ld) / max(uLamp.w, 1e-3);
+        float lampN = vnoise(vUv * vec2(38.0, 18.0) + uTime * 0.15) - 0.5;
+        float lamp = uLamp.z * smoothstep(1.0, 0.3, lr + 0.22 * lampN);
+        float lampCore = uLamp.z * smoothstep(0.55, 0.0, lr);
         // 细丝：只取浓度的"脊"——比周围高的地方才亮，网络就是细线而不是一团
         // 细丝：只画每条路的中心线——和周围 2.5 像素一圈里的最大值比，接近它的才算在线上
         vec2 px = 1.0 / uRes;
@@ -334,15 +346,14 @@ function buildStage() {
         float mid = smoothstep(0.06, 0.3, t);         // 走熟的路
         float core = smoothstep(0.5, 1.5, t);         // 主干
         float line = clamp(center * (faint * 0.6 + mid * 0.4 + core * 0.2) + core * 0.12, 0.0, 1.0);
-        // 你注视的地方：路更亮、更粗
-        vec2 fd = (vUv - uFood.xy) * vec2(uRes.x / uRes.y, 1.0);
-        float near = uFood.z * exp(-dot(fd, fd) / 0.02);
-        line = clamp(line * (1.0 + 1.2 * near) + smoothstep(0.03, 0.2, t) * near * 0.4, 0.0, 1.0);
-        core = max(core, near * mid);
+        // 灯圈中心：路更亮、更粗；灯圈之外：什么都看不见——行者还在爬，只是你看不到
+        line = clamp(line * (1.0 + 0.6 * lampCore) + smoothstep(0.03, 0.2, t) * lampCore * 0.2, 0.0, 1.0) * lamp;
+        core = max(core, lampCore * mid) * lamp;
+        faint *= lamp;
         float lum = dot(c, vec3(0.3, 0.59, 0.11));
         float yellow = smoothstep(0.08, 0.3, c.r - c.b);
-        // 走过很久的路：地面被踩暗（像麦田里被踩出的小径）
-        c *= 1.0 - 0.12 * smoothstep(0.15, 0.6, m) * yellow;   // 走了很久的路：麦田被踩得略暗
+        // 走过很久的路：地面被踩暗（像麦田里被踩出的小径）——这是路留在画里的唯一痕迹，灯圈外也只隐约看得出
+        c *= 1.0 - 0.12 * smoothstep(0.15, 0.6, m) * yellow * (0.35 + 0.65 * lamp);
         // 麦田上：钴蓝的细线，芯里发白；天空上：金白的光丝
         vec3 onWheat = mix(vec3(0.16, 0.30, 0.95), vec3(0.88, 0.94, 1.0), core * 0.8);
         c += vec3(0.05, 0.10, 0.35) * faint * yellow * 0.6;   // 麦田上的毛细支路：一层淡淡的钴蓝
@@ -350,8 +361,10 @@ function buildStage() {
         vec3 lc = mix(onSky, onWheat, yellow);
         c = mix(c, lc, line * 0.92);
         c += onSky * line * (1.0 - yellow) * 0.35;              // 天上的丝有一点辉光
-        // 旧路在天空上：一层淡淡的群青残影
-        c += vec3(0.10, 0.16, 0.42) * smoothstep(0.15, 0.6, m) * (1.0 - yellow) * 0.35;
+        // 旧路在天空上：一层淡淡的群青残影（也只在灯圈里）
+        c += vec3(0.10, 0.16, 0.42) * smoothstep(0.15, 0.6, m) * (1.0 - yellow) * 0.35 * lamp;
+        // 灯圈本身：麦穗被照亮一点点，暖的；让人看得出"光"在哪里，哪怕那里还没有路
+        c *= 1.0 + 0.10 * lamp * (0.6 + 0.4 * yellow);
         // 两侧边缘：渐隐进天地
         float edge = smoothstep(0.0, 0.06, vUv.x) * smoothstep(1.0, 0.94, vUv.x) * smoothstep(0.0, 0.03, vUv.y) * smoothstep(1.0, 0.95, vUv.y);
         gl_FragColor = vec4(c, edge);
@@ -483,6 +496,9 @@ function gazeUV(origin, d) {
 }
 let food = new THREE.Vector3(0.5, 0.4, 0), dwell = 0, foodTarget = new THREE.Vector2(0.5, 0.4);
 let arrived = false, gazeInfo = null, idle = 0;
+// 提灯：紧跟目光（比"食物"跟得快），看向画面就亮起、移开就在一两秒内灭掉；停得越久，照亮的圈越大
+const lampPos = new THREE.Vector2(0.5, 0.4);
+let lampOn = 0;
 function updateGaze(dt) {
   let g = null;
   if (renderer.xr.isPresenting) {
@@ -510,8 +526,11 @@ function updateGaze(dt) {
   food.y += (foodTarget.y - food.y) * Math.min(1, dt * 1.5);
   food.z = dwell;
   U.uFood.value.copy(food);
+  if (onPic) { lampPos.lerp(new THREE.Vector2(g.u, g.v), Math.min(1, dt * 7)); lampOn = Math.min(1, lampOn + dt * 2.5); }
+  else lampOn = Math.max(0, lampOn - dt * 0.8);
+  U.uLamp.value.set(lampPos.x, lampPos.y, lampOn, 0.09 + 0.15 * dwell);
   $('lvl').style.width = `${dwell * 100}%`;
-  $('state').textContent = onPic ? (dwell > 0.85 ? '路已经到了你这里' : '路正在向你生长') : (dwell > 0.05 ? '你离开了，路在慢慢回去' : '路回到了麦田里');
+  $('state').textContent = onPic ? (dwell > 0.85 ? '路已经到了你这里' : '路正在向你生长') : (dwell > 0.05 ? '你离开了，路在暗处慢慢回去' : '路回到了麦田里，看不见了');
   if (dwell > 0.85 && !arrived) { arrived = true; arrive(); }
   if (dwell < 0.4) arrived = false;
 }
@@ -528,7 +547,7 @@ scene.add(plaque);
   g.fillStyle = '#9eaad0'; g.font = '22px system-ui'; g.fillText('AFTER VAN GOGH · WHEATFIELD WITH CROWS · 1890', 44, 66);
   g.fillStyle = '#f6d77a'; g.font = '56px serif'; g.fillText('通往何处的路  Paths to Nowhere', 44, 142);
   g.font = '30px serif'; g.fillStyle = '#e8e2cf';
-  ['几十万个行者沿着彼此的痕迹和凡·高的笔触爬行，', '你看向哪里、站在哪里，路就长向哪里；', '你离开，它们回到那三条哪儿也不通的小路。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  ['几十万个行者沿着彼此的痕迹和凡·高的笔触爬行，', '路网只在你目光所及的一圈里显形，并向那里生长；', '你离开，灯灭了，它们回到那三条哪儿也不通的小路。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
   g.fillStyle = '#f6e2a6'; g.font = 'italic 26px serif'; g.fillText('“我特意尝试去表达悲伤、极度的孤独。”— 致提奥，1890（Letter 898）', 44, 470);
   plaque.material.map.needsUpdate = true;
 })();
@@ -556,7 +575,7 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 window.__state = () => ({ food: food.toArray(), dwell });
 window.__mouse = (x, y, inside = true) => { mouse.set(x, y); mouseIn = inside; };
 window.__debug = v => { stageMat.uniforms.uDebug.value = v; };
-window.__warp = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { updateGaze(dt); stepSlime(1); } };   // 测试：快进模拟
+window.__warp = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; U.uTime.value = time; updateGaze(dt); stepSlime(1); } renderer.render(scene, camera); };   // 测试：快进模拟并画一帧
 
 build().then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
   .catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });

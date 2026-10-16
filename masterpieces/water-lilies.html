@@ -44,7 +44,7 @@
     <h1>水与倒影的风景</h1>
     <h2>Landscapes of Water</h2>
     <p>莫奈生命的最后三十年，几乎只画一个池塘。画里没有岸，也没有地平线：水面同时是天空的倒影、水下的深处和浮在上面的睡莲。到了巴黎橘园美术馆，这些画被弯成两个椭圆的房间，把人围在中间。</p>
-    <p>这里，你站在池塘的正中央，整幅《睡莲》铺满你脚下一圈的水面，一直延伸到雾里。水是真的：<b>用手（或指向水面并捏合）去点它</b>，涟漪会一圈圈扩散，把水下的颜色、水面的天光搅在一起；睡莲的叶子浮在上面，涟漪到那里就弱下去。等水静下来，画又会重新清晰。</p>
+    <p>这里，你站在池塘的正中央，整幅《睡莲》铺满你脚下一圈的水面，一直延伸到雾里。水是真的：<b>用手（或指向水面并捏合）去点它</b>，涟漪会一圈圈扩散，把水下的颜色、水面的天光搅在一起；睡莲的叶子浮在上面，涟漪到那里就弱下去。而且有风——一阵一阵掠过水面，风到之处起一片细碎的纹，倒影被打散、闪光变密，风过之后又慢慢归于镜面。等水静下来，画又会重新清晰。</p>
     <blockquote>“这些水与倒影的风景，已经成了我的执念。”<small>— 莫奈致古斯塔夫·热弗鲁瓦的信，1908 年 8 月</small></blockquote>
     <button id="enter" disabled>载入中…</button>
     <div class="how">XR：低头看水；伸手指向水面，捏合 / 扣扳机 = 落下一滴；按住并划过 = 一串涟漪；手能碰到水面时直接点<br>桌面：鼠标点水面 = 一滴；按住拖动 = 划过水面；拖动画面边缘附近可以转头<br>建议戴耳机</div>
@@ -111,16 +111,32 @@ const PAINT_MAP = /* glsl */`
     return smoothstep(0.3, 0.55, sat) * yellow * smoothstep(0.55, 0.75, mx);
   }`;
 
+// ---------- 噪声（天空、水面、风都用） ----------
+const NOISE_GLSL = /* glsl */`
+  float hsh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y); }
+  float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * vnoise(p); p = p * 2.03 + 7.1; a *= 0.5; } return s; }
+  // 阵风：风吹过水面不是处处均匀的，是一块一块掠过去的"猫爪纹"（cat's paw）——
+  // 一团一团顺风漂移的斑块，斑块里水面起细纹，斑块外仍是镜面
+  float gustAt(vec2 xz, vec2 wind, float t, float amp) {
+    vec2 p = xz - wind * t * 1.4;
+    float g = fbm(p * 0.09 + 3.0) * 0.7 + fbm(p * 0.23 - 1.0) * 0.3;
+    return smoothstep(0.52 - 0.14 * amp, 0.72, g) * amp;
+  }`;
+
 // ---------- 波动方程（GPU，ping-pong，HalfFloat） ----------
 const rtOpts = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false, wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping };
 let simA = new THREE.WebGLRenderTarget(SIM, SIM, rtOpts), simB = new THREE.WebGLRenderTarget(SIM, SIM, rtOpts);
 const MAX_DROPS = 16;
 const drops = Array.from({ length: MAX_DROPS }, () => new THREE.Vector4(0, 0, 0, 0));
+const wind = { dir: new THREE.Vector2(0.6, -0.8).normalize(), amp: 0.6 };   // 风向（xz）与阵风强度，随时间慢慢变
 const simMat = new THREE.ShaderMaterial({
-  uniforms: { uPrev: { value: null }, uTexel: { value: 1 / SIM }, uDrops: { value: drops }, uNDrops: { value: 0 }, uPaint: { value: paintTex }, uSize: { value: SIM_SIZE } },
+  uniforms: { uPrev: { value: null }, uTexel: { value: 1 / SIM }, uDrops: { value: drops }, uNDrops: { value: 0 }, uPaint: { value: paintTex }, uSize: { value: SIM_SIZE },
+              uT: { value: 0 }, uWind: { value: wind.dir }, uWindAmp: { value: wind.amp } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
-  fragmentShader: PAINT_MAP + /* glsl */`
-    uniform sampler2D uPrev; uniform float uTexel, uSize; uniform vec4 uDrops[${MAX_DROPS}]; uniform int uNDrops;
+  fragmentShader: PAINT_MAP + NOISE_GLSL + /* glsl */`
+    uniform sampler2D uPrev; uniform float uTexel, uSize, uT, uWindAmp; uniform vec2 uWind; uniform vec4 uDrops[${MAX_DROPS}]; uniform int uNDrops;
     varying vec2 vUv;
     void main() {
       vec4 s = texture2D(uPrev, vUv);                    // r = 当前高度, g = 上一步高度
@@ -137,6 +153,13 @@ const simMat = new THREE.ShaderMaterial({
       float edge = smoothstep(${(POND_R - 1.5).toFixed(2)}, ${POND_R.toFixed(2)}, length(xz));   // 池边吸收，不反弹
       damp *= 1.0 - 0.12 * edge;
       float hn = (2.0 * h - hp + 1.6 * lap) * damp;
+      // 风：阵风掠过的斑块里，往水面撒细碎、随机、顺风推进的扰动。它们进了波动方程，
+      // 就成了真的在传播、互相干涉、被叶子吃掉的毛细波，而不是贴在表面的花纹
+      float gust = gustAt(xz, uWind, uT, uWindAmp);
+      vec2 wq = vec2(dot(xz, uWind), dot(xz, vec2(-uWind.y, uWind.x)));
+      float force = (vnoise(vec2(wq.x * 6.0 - uT * 9.0, wq.y * 2.2 + uT * 0.7)) - 0.5) * 0.7
+                  + (vnoise(vec2(wq.x * 13.0 - uT * 15.0, wq.y * 5.0 - uT * 1.1)) - 0.5) * 0.3;
+      hn += gust * force * 0.004 * (1.0 - 0.85 * lily) * (1.0 - edge);
       for (int i = 0; i < ${MAX_DROPS}; i++) {
         if (i >= uNDrops) break;
         vec4 d = uDrops[i];                               // x, z, 半径, 强度
@@ -170,11 +193,7 @@ function stepSim() {
 }
 
 // ---------- 天空（倒影的来源；颜色取自画里的天光：淡紫、粉、天蓝） ----------
-const SKY_GLSL = /* glsl */`
-  float hsh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y); }
-  float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * vnoise(p); p = p * 2.03 + 7.1; a *= 0.5; } return s; }
+const SKY_GLSL = NOISE_GLSL + /* glsl */`
   vec3 skyColor(vec3 d, float t) {
     float h = clamp(d.y, -0.2, 1.0);
     vec3 zen = vec3(0.56, 0.66, 0.86), hor = vec3(0.86, 0.80, 0.88), warm = vec3(0.98, 0.86, 0.66);
@@ -202,12 +221,23 @@ const waterGeo = new THREE.CircleGeometry(POND_R, 256, 0, Math.PI * 2);
 waterGeo.rotateX(-Math.PI / 2);
 const waterMat = new THREE.ShaderMaterial({
   uniforms: { uH: { value: simA.texture }, uPaint: { value: paintTex }, uSize: { value: SIM_SIZE }, uTexel: { value: 1 / SIM }, uT: { value: 0 },
-              uSun: { value: new THREE.Vector3(-0.35, 0.55, -0.75).normalize() } },
+              uSun: { value: new THREE.Vector3(-0.35, 0.55, -0.75).normalize() }, uWind: { value: wind.dir }, uWindAmp: { value: wind.amp } },
   vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
   fragmentShader: PAINT_MAP + SKY_GLSL + /* glsl */`
-    uniform sampler2D uH; uniform float uSize, uTexel, uT; uniform vec3 uSun;
+    uniform sampler2D uH; uniform float uSize, uTexel, uT, uWindAmp; uniform vec3 uSun; uniform vec2 uWind;
     varying vec3 vW;
     float H(vec2 uv) { return texture2D(uH, uv).r; }
+    // 风吹出的毛细波（渲染层）：在风坐标系里，顺风方向密、横风方向拉长的细纹，整体顺风漂。
+    // 两相位交替 + 三角波混合（flow map 的老办法），纹理不会被无限拉长
+    float ripH(vec2 q, float t) {
+      return vnoise(vec2(q.x * 5.0 - t * 2.2, q.y * 1.8 + t * 0.2)) * 0.55
+           + vnoise(vec2(q.x * 11.0 - t * 4.0, q.y * 4.0 - t * 0.3)) * 0.30
+           + vnoise(vec2(q.x * 22.0 - t * 6.5, q.y * 9.0)) * 0.15;
+    }
+    vec2 ripGrad(vec2 q, float t) {
+      float e = 0.03;
+      return vec2(ripH(q + vec2(e, 0.0), t) - ripH(q - vec2(e, 0.0), t), ripH(q + vec2(0.0, e), t) - ripH(q - vec2(0.0, e), t)) / (2.0 * e);
+    }
     void main() {
       vec2 xz = vW.xz;
       vec2 suv = xz / uSize + 0.5;
@@ -215,10 +245,17 @@ const waterMat = new THREE.ShaderMaterial({
       float hx = H(suv + vec2(uTexel, 0.0)) - H(suv - vec2(uTexel, 0.0));
       float hz = H(suv + vec2(0.0, uTexel)) - H(suv - vec2(0.0, uTexel));
       float lapH = H(suv + vec2(uTexel, 0.0)) + H(suv - vec2(uTexel, 0.0)) + H(suv + vec2(0.0, uTexel)) + H(suv - vec2(0.0, uTexel)) - 4.0 * h;
-      // 很轻的自然微波：两层慢慢漂移的细纹
       float t = uT;
-      vec2 mw = vec2(sin(xz.x * 3.1 + t * 0.7) * cos(xz.y * 2.3 - t * 0.5), cos(xz.x * 2.7 - t * 0.6) * sin(xz.y * 3.7 + t * 0.8)) * 0.012
-              + vec2(sin(xz.x * 11.0 + xz.y * 5.0 + t * 1.6), cos(xz.y * 9.0 - xz.x * 4.0 + t * 1.3)) * 0.004;
+      // 风：阵风掠过的斑块里细纹密，斑块外几乎镜面；再留一点点处处都有的呼吸，水不会死平
+      vec2 wd = uWind, wp = vec2(-uWind.y, uWind.x);
+      vec2 q = vec2(dot(xz, wd), dot(xz, wp));
+      float gust = gustAt(xz, uWind, t, uWindAmp);
+      float ph = fract(t * 0.35);
+      float wB = 1.0 - abs(1.0 - 2.0 * ph);   // 三角波：A 相位拉到最长时权重为 0，换 B 相位接上
+      vec2 gq = mix(ripGrad(q - vec2(ph * 2.0, 0.0), t), ripGrad(q - vec2(fract(ph + 0.5) * 2.0, 0.0) + 17.0, t), wB);
+      vec2 ripXZ = gq.x * wd + gq.y * wp;
+      float ripAmp = 0.005 + 0.055 * gust;
+      vec2 mw = ripXZ * ripAmp;
       vec3 n = normalize(vec3(-hx * 4.0 + mw.x, 1.0, -hz * 4.0 + mw.y));
       vec3 v = normalize(cameraPosition - vW);
       float dist = length(xz - cameraPosition.xz);
@@ -249,7 +286,10 @@ const waterMat = new THREE.ShaderMaterial({
       vec3 hv = normalize(uSun + v);
       // 只要细碎的点状闪光，不要一大片白：锐利的高光，再乘一层随位置闪烁的遮罩
       float sparkle = smoothstep(0.62, 0.8, vnoise(xz * 26.0 + vec2(t * 1.3, -t * 0.9)) * vnoise(xz * 9.0 - t * 0.4) * 1.6);
-      float spec = pow(max(dot(n, hv), 0.0), 700.0) * 1.1 * (0.2 + 0.8 * sparkle) + pow(max(dot(n, hv), 0.0), 120.0) * 0.06;
+      // 起风的斑块里闪光更碎、更多（真实水面上阵风过处是一片细碎的亮点）
+      float spec = pow(max(dot(n, hv), 0.0), 700.0) * 1.1 * (0.2 + 0.8 * sparkle) * (1.0 + 1.5 * gust) + pow(max(dot(n, hv), 0.0), 120.0) * 0.06;
+      // 阵风斑块本身：倒影被打碎，颜色略发灰发暗，像一片掠过的阴影
+      c = mix(c, c * vec3(0.90, 0.92, 0.95), 0.25 * gust);
       c += spec * vec3(1.0, 0.95, 0.85) * (1.0 - 0.85 * lily);
       // 叶子边上一圈很浅的阴影，像浮在水面投下的
       float lilyN = lilyMask(texture2D(uPaint, paintUV(xz + vec2(0.06, 0.08))).rgb);
@@ -452,12 +492,28 @@ renderer.setAnimationLoop(() => {
     camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
   }
   activity *= Math.exp(-dt * 0.6);
-  $('state').textContent = activity > 0.25 ? '涟漪正在扩散' : activity > 0.05 ? '水面慢慢静下来' : '水面平静';
+  updateWind(time);
+  $('state').textContent = activity > 0.25 ? '涟漪正在扩散' : activity > 0.05 ? '水面慢慢静下来' : wind.amp > 0.75 ? '一阵风掠过水面' : wind.amp > 0.45 ? '微风，水面起细纹' : '水面平静';
   stepSim();
   waterMat.uniforms.uT.value = time;
   sky.material.uniforms.uT.value = time;
   renderer.render(scene, camera);
 });
+// 风：方向慢慢转，强弱像真的阵风——几十秒一阵，中间有几乎无风的间歇
+function updateWind(t) {
+  const a = -0.65 + 0.35 * Math.sin(t * 0.021) + 0.12 * Math.sin(t * 0.071 + 2.0);
+  wind.dir.set(Math.sin(a), -Math.cos(a));
+  const g = 0.5 + 0.5 * Math.sin(t * 0.085) * Math.sin(t * 0.031 + 1.0) + 0.25 * Math.sin(t * 0.21 + 0.6);
+  wind.amp += (Math.max(0.12, Math.min(1.0, g)) - wind.amp) * 0.02;
+  simMat.uniforms.uT.value = t; simMat.uniforms.uWindAmp.value = wind.amp;
+  waterMat.uniforms.uWindAmp.value = wind.amp;
+}
+window.__warp = (n, dt = 1 / 60) => {   // 测试：快进 n 帧并画一帧
+  for (let i = 0; i < n; i++) { time += dt; updateWind(time); stepSim(); }
+  waterMat.uniforms.uT.value = time; sky.material.uniforms.uT.value = time;
+  camera.position.copy(EYE); camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
+  renderer.render(scene, camera);
+};
 </script>
 </body>
 </html>
