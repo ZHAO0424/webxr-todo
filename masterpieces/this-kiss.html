@@ -371,205 +371,179 @@ const PALETTE = [[0.56, 0.36, 0.75], [0.44, 0.30, 0.68], [0.24, 0.43, 0.71], [0.
   world.add(vines);
 }
 
-// ---------- 恋人（分开时）：两尊有人形的鎏金立像——身体是旋成的长袍，头是球；袍子上贴的是画里各自的纹样
-// （他：黑白金的矩形；她：彩色的圆与花），脸和头发也从画里取。双手合拢时，两尊像化回画中相拥的姿势（下面的立体浮雕） ----------
-const FIG_VS = /* glsl */`
-  varying vec2 vUv; varying vec3 vW, vN;
-  void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`;
-const FIG_FS = NOISE + FOG + /* glsl */`
-  uniform sampler2D uMap; uniform vec4 uRegion; uniform float uShow, uTime, uApart, uIsHead; uniform vec3 uLight;
-  varying vec2 vUv; varying vec3 vW, vN;
+// ---------- 恋人：几万个小立方体。双手分开时它们排成两尊方块人像，合拢时同一批立方体飞到画中相拥的姿势——
+// 终态是把画的深度浮雕实心体素化（里面是填满的，不是空壳），起态是把两尊方块人也体素化；
+// 两边一一对应（按高度排序配对），所以变形是一群立方体各自从一处飞到另一处，没有切换 ----------
+const VOX = 0.030;                                   // 立方体边长（m）
+const KISS_SIDE = SIDE;
+let voxMesh = null, depthThr = 0.5, voxCount = 0;
+const VOX_VS = NOISE + /* glsl */`
+  attribute vec3 aA, aB, aCA, aCB;
+  attribute float aSeed, aG;
+  uniform float uMorph, uDx, uTime, uApart, uSize;
+  varying vec3 vC, vW, vN; varying float vFly;
+  mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0, -s, 0, 1, 0, s, 0, c); }
+  mat3 rotX(float a) { float c = cos(a), s = sin(a); return mat3(1, 0, 0, 0, c, s, 0, -s, c); }
   void main() {
-    // 屏幕空间抖动淡入淡出（细到单像素、随时间轻微换位，看起来像一层溶解的雾而不是棋盘格）；不透明物体不走半透明排序
-    if (uShow < hash(floor(gl_FragCoord.xy) + floor(uTime * 8.0) * 0.731)) discard;
-    // 把画里的一块纹样绕着身体贴一圈（镜像平铺，接缝处不跳）
-    float tu = vUv.x * 2.0; tu = 1.0 - abs(1.0 - fract(tu) * 2.0);
-    vec2 puv = vec2(mix(uRegion.x, uRegion.y, tu), mix(uRegion.z, uRegion.w, vUv.y));
-    vec3 tex = texture2D(uMap, puv).rgb;
-    float lum = dot(tex, vec3(0.3, 0.59, 0.11));
-    float goldness = smoothstep(0.08, 0.3, tex.r - tex.b) * smoothstep(0.35, 0.6, tex.r);
+    // 每块按自己的节奏起飞：按高度（低的先走）加一点随机，整个过程里总有块在路上
+    float lag = clamp(aA.y / 1.9, 0.0, 1.0) * 0.45 + aSeed * 0.15;
+    float t = smoothstep(lag, lag + 0.4, uMorph);
+    t = t * t * (3.0 - 2.0 * t);
+    // 起态：方块人；站位随双手距离移动，并微微向对方倾身
+    vec3 a = aA;
+    float lean = (1.0 - uApart) * 0.12;
+    a = rotY(aG * (0.4 - 0.25 * uApart)) * a;
+    a.x += aG * uDx;
+    a.x -= aG * lean * a.y * 0.5;
+    a.y += 0.01 * sin(uTime * 0.8 + aG);
+    // 飞行路径：中点抬高、略向外鼓，像一群蜂飞过去；路上自转
+    vec3 p = mix(a, aB, t);
+    float arc = sin(3.14159 * t);
+    p.y += arc * (0.25 + 0.35 * aSeed);
+    p.x += arc * aG * 0.15 * (0.5 + aSeed);
+    p.z += arc * 0.2 * (aSeed - 0.5);
+    float spin = arc * (3.0 + 4.0 * aSeed);
+    mat3 R = rotY(spin) * rotX(spin * 0.7);
+    vec3 local = R * (position * uSize);
+    vec3 n = R * normal;
+    vec4 w = modelMatrix * vec4(p + local, 1.0);
+    vW = w.xyz; vN = normalize(mat3(modelMatrix) * n);
+    vC = mix(aCA, aCB, t);
+    vFly = arc;
+    gl_Position = projectionMatrix * viewMatrix * w;
+  }`;
+const VOX_FS = NOISE + FOG + /* glsl */`
+  uniform float uTime, uApart, uWave; uniform vec3 uLight;
+  varying vec3 vC, vW, vN; varying float vFly;
+  void main() {
     vec3 n = normalize(vN);
     vec3 v = normalize(cameraPosition - vW);
     vec3 h = normalize(uLight + v);
-    float spec = pow(max(dot(n, h), 0.0), 60.0);
+    float goldness = smoothstep(0.08, 0.3, vC.r - vC.b) * smoothstep(0.35, 0.6, vC.r);
+    float spec = pow(max(dot(n, h), 0.0), 50.0);
     float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
-    vec3 c = tex * (0.92 + 0.16 * hash(floor(vUv * 900.0)) * goldness);
+    vec3 c = vC;
     vec3 lit = c * (0.5 + 0.75 * max(dot(n, uLight), 0.0)) + c * vec3(0.26, 0.20, 0.10) * (0.5 + 0.5 * n.y);
-    lit += (0.3 + 0.7 * goldness) * (spec * vec3(1.0, 0.86, 0.5) * 1.1 + fres * vec3(0.86, 0.66, 0.24) * 0.3);
-    lit *= 1.0 - 0.18 * uApart;
-    gl_FragColor = vec4(applyFog(lit, length(vW - cameraPosition), vW.y), 1.0);
-  }`;
-const figures = { man: null, woman: null, mats: [] };
-// 立像由方块叠成（像他袍子上的矩形）：底座、下摆、腰身、胸、肩、颈、头，每一块略转一点角度，叠得不齐
-function makeFigure(map, isMan) {
-  const g = new THREE.Group();
-  const s = isMan ? 1.0 : 0.9;
-  const mk = (region, isHead) => {
-    const m = new THREE.ShaderMaterial({ uniforms: { uMap: { value: map }, uRegion: { value: new THREE.Vector4(...region) }, uShow: { value: 1 }, uTime: U.uTime, uApart: U.uApart, uLight: U.uLight, uFogC: U.uFogC, uUnion: U.uUnion, uIsHead: { value: isHead ? 1 : 0 } }, vertexShader: FIG_VS, fragmentShader: FIG_FS });
-    figures.mats.push(m); return m;
-  };
-  const robeMat = mk(isMan ? [0.30, 0.47, 0.18, 0.80] : [0.52, 0.70, 0.18, 0.75], false);
-  const headMat = mk(isMan ? [0.44, 0.60, 0.86, 0.99] : [0.55, 0.68, 0.80, 0.92], true);
-  // [宽, 高, 厚, 中心高度, 绕 y 的偏转]
-  const blocks = isMan
-    ? [[0.78, 0.16, 0.60, 0.08, 0.00], [0.66, 0.48, 0.50, 0.40, 0.06], [0.54, 0.42, 0.42, 0.85, -0.05], [0.58, 0.40, 0.44, 1.26, 0.04], [0.70, 0.14, 0.46, 1.53, 0.00], [0.20, 0.10, 0.20, 1.65, 0.0]]
-    : [[0.70, 0.14, 0.54, 0.07, 0.00], [0.60, 0.46, 0.46, 0.37, -0.05], [0.46, 0.40, 0.38, 0.80, 0.06], [0.50, 0.38, 0.40, 1.19, -0.04], [0.58, 0.12, 0.40, 1.44, 0.00], [0.17, 0.09, 0.17, 1.54, 0.0]];
-  for (const [w, h, d, y, ry] of blocks) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w * s, h * s, d * s), robeMat);
-    b.position.y = y * s; b.rotation.y = ry; g.add(b);
-  }
-  // 头：一个方块，纹样取画里各自的头部（他：深色卷发与常春藤；她：红发与小花、脸）
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.26 * s, 0.30 * s, 0.26 * s), headMat);
-  head.position.y = (isMan ? 1.86 : 1.74) * s; head.rotation.y = isMan ? 0.08 : -0.08;
-  g.add(head);
-  // 几个小方块点缀在袍子上，像贴上去的金箔片
-  for (let i = 0; i < 5; i++) {
-    const c = new THREE.Mesh(new THREE.BoxGeometry(0.08 * s, 0.08 * s, 0.08 * s), robeMat);
-    const ang = i * 1.3 + (isMan ? 0 : 0.6), r = 0.30 * s;
-    c.position.set(Math.cos(ang) * r, (0.5 + i * 0.22) * s, Math.sin(ang) * r); c.rotation.set(0.3, ang, 0.2);
-    g.add(c);
-  }
-  g.frustumCulled = false;
-  return g;
-}
-
-// ---------- 恋人（合拢时）：以画作本身做成的立体像，立在崖口。前后两片壳：前壳按深度图向前凸，后壳向后凸，
-// 在人形的轮廓处合拢成一个封闭的体——从前后左右看都是完整的一座像；后壳贴的是同一幅画，镀一层金 ----------
-let relief = null, depthThr = 0.5;
-const RELIEF_VS = /* glsl */`
-  uniform sampler2D uDepth; uniform float uApart, uThr, uTime, uSide;
-  varying vec2 vUv; varying vec3 vW; varying float vFg, vG, vAng; varying mat3 vNM;
-  // 男人在左、女人在右；分界线从两人头部之间斜着往下到袍子底部（与烘焙脚本一致）
-  float boundary(float v) { return v > 0.87 ? 0.62 : v > 0.68 ? 0.5 : 0.55 - 0.08 * (0.68 - v) / 0.46; }
-  void main() {
-    vUv = uv;
-    float d = texture2D(uDepth, uv).r;
-    float fg = smoothstep(uThr - 0.06, uThr + 0.06, d);
-    vFg = fg;
-    float g = uv.x < boundary(uv.y) ? -1.0 : 1.0;
-    vG = g;
-    vec3 p = position;
-    // 厚度：按深度图鼓起来，前壳向前、后壳向后；轮廓处（fg → 0）两壳合拢
-    // 鼓起量：过了阈值就基本鼓满（像一块有厚度的剪影），深度细节只占小份——
-    // 否则男人（深度 1.0）和女人（0.85）之间会鼓出一道朝侧面的台阶，从侧面看是一条被拉长的花纹
-    float inner = clamp((d - uThr) / (1.0 - uThr), 0.0, 1.0);
-    float bulge = fg * (0.78 * smoothstep(0.0, 0.3, inner) + 0.22 * inner) * 0.34;
-    p.z += uSide * bulge;
-    // 分开：两人沿崖边各自退开，并微微背过身去；只有前景（人）动，脚下那块花地不动
-    float moving = fg * smoothstep(0.14, 0.3, uv.y);
-    float a = uApart * moving;
-    float ang = g * a * 0.35;
-    vec3 c0 = vec3(g * 0.25, 0.0, 0.0);
-    vec3 rel = p - c0;
-    rel = vec3(rel.x * cos(ang) - rel.z * sin(ang), rel.y, rel.x * sin(ang) + rel.z * cos(ang));
-    p = rel + c0 + vec3(g * a * 0.55, 0.0, -a * 0.1);
-    p.y += a * 0.02 * sin(uTime * 0.7 + g);
-    vAng = ang; vNM = mat3(modelMatrix);
-    vec4 w = modelMatrix * vec4(p, 1.0);
-    vW = w.xyz;
-    gl_Position = projectionMatrix * viewMatrix * w;
-  }`;
-const RELIEF_FS = NOISE + FOG + /* glsl */`
-  uniform sampler2D uMap, uDepth; uniform float uThr, uTime, uApart, uWave, uSide, uShow; uniform vec3 uLight; uniform vec2 uPx;
-  varying vec2 vUv; varying vec3 vW; varying float vFg, vG, vAng; varying mat3 vNM;
-  void main() {
-    if (vFg < 0.5) discard;
-    if (uShow < hash(floor(gl_FragCoord.xy) + floor(uTime * 8.0) * 0.731)) discard;   // 与两尊立像抖动交叉淡变（同一套抖动，互补）
-    // 两人分开时，横跨分界线的三角形会被拉成长条：vG 在 ±1 之间插值的就是它们，丢掉
-    if (uApart > 0.03 && abs(vG) < 0.98) discard;
-    // 底边：画里的花地淡入三维的花甸，两人像站在齐膝的花里
-    float alpha = smoothstep(0.08, 0.24, vUv.y);
-    if (alpha < hash(floor(vUv * 900.0)) ) discard;   // 用抖动当渐隐：不透明物体，不走半透明排序
-    vec3 tex = texture2D(uMap, vUv).rgb;
-    // 由深度图的梯度算法线：浮雕的明暗
-    float dL = texture2D(uDepth, vUv - vec2(uPx.x, 0.0)).r, dR = texture2D(uDepth, vUv + vec2(uPx.x, 0.0)).r;
-    float dD = texture2D(uDepth, vUv - vec2(0.0, uPx.y)).r, dU = texture2D(uDepth, vUv + vec2(0.0, uPx.y)).r;
-    // 前壳法线朝 +z，后壳朝 -z（表面是 z = -h，向外的法线是 (-h_u, -h_v, -1)）
-    vec3 nl = normalize(vec3(-(dR - dL) * 9.0, -(dU - dD) * 9.0, uSide));
-    nl = vec3(nl.x * cos(vAng) - nl.z * sin(vAng), nl.y, nl.x * sin(vAng) + nl.z * cos(vAng));   // 跟着人转过去的角度
-    vec3 n = normalize(vNM * nl);
-    // "侧面"：轮廓附近深度刚过阈值、两壳正从合拢处鼓起来的那一圈。这里面的画是被拉长的，
-    // 下面会换成金。按深度值判断（平滑、稳定），不用屏幕导数（在皱褶的轮廓上会一片噪点）
-    // 用粗一级（6 个纹素）的深度梯度量"面有多陡"：轮廓附近深度从阈值猛升到前景，就是侧面；正面深度平缓
-    float e6 = 6.0;
-    float gL = texture2D(uDepth, vUv - vec2(uPx.x * e6, 0.0)).r, gR = texture2D(uDepth, vUv + vec2(uPx.x * e6, 0.0)).r;
-    float gD = texture2D(uDepth, vUv - vec2(0.0, uPx.y * e6)).r, gU = texture2D(uDepth, vUv + vec2(0.0, uPx.y * e6)).r;
-    float slopeMag = length(vec2(gR - gL, gU - gD)) / (2.0 * e6 * uPx.x);
-    float sideness = max(smoothstep(9.0, 22.0, slopeMag), 1.0 - smoothstep(uThr + 0.02, uThr + 0.12, texture2D(uDepth, vUv).r));
-    // 后壳：同一幅画，但镀上一层金——像一座金背的像；轮廓附近两壳颜色一致，接缝看不出来
-    float lum = dot(tex, vec3(0.3, 0.59, 0.11));
-    vec3 gilt = vec3(0.86, 0.66, 0.26) * (0.6 + 0.7 * lum);
-    if (uSide < 0.0) tex = mix(tex, gilt, 0.45 * smoothstep(0.0, 0.25, vFg - 0.5));
-    // 侧面（面几乎侧着的地方）：画面在这里被拉长了，换成金——像的侧边是鎏金的
-    vec3 sideGold = vec3(0.86, 0.66, 0.26) * (0.72 + 0.3 * hash(floor(vUv * 900.0)) + 0.15 * vnoise(vUv * 40.0));   // 不带原画明暗，拉长的纹样就不会透出来
-    tex = mix(tex, sideGold, smoothstep(0.15, 0.7, sideness));
-    // 金的地方更金：按颜色判断（黄且亮），给金属高光与颗粒
-    float goldness = smoothstep(0.08, 0.3, tex.r - tex.b) * smoothstep(0.35, 0.6, tex.r);
-    float grain = hash(floor(vUv * 1800.0));
-    vec3 c = tex * (0.92 + 0.16 * grain * goldness);
-    vec3 v = normalize(cameraPosition - vW);
-    vec3 h = normalize(uLight + v);
-    float spec = pow(max(dot(n, h), 0.0), 60.0);
-    float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
-    vec3 lit = c * (0.55 + 0.7 * max(dot(n, uLight), 0.0)) + c * vec3(0.26, 0.20, 0.10) * (0.5 + 0.5 * n.y);
-    lit += goldness * (spec * vec3(1.0, 0.86, 0.5) * 1.4 + fres * vec3(0.86, 0.66, 0.24) * 0.3);
-    // 偶尔一闪
-    lit += goldness * step(0.997, hash(floor(vUv * 700.0) + floor(uTime * 2.0))) * vec3(0.9, 0.8, 0.5);
+    lit += (0.25 + 0.75 * goldness) * (spec * vec3(1.0, 0.86, 0.5) * 1.1 + fres * vec3(0.86, 0.66, 0.24) * 0.3);
+    lit += vFly * vec3(0.5, 0.36, 0.12) * 0.5;        // 飞着的块亮一点，像金粉
     // 相拥的那一刻：一圈金光从那一吻漫过两人
-    float kd = length((vUv - vec2(${KISS_UV.x}, ${KISS_UV.y})) * vec2(1.0, 1.0));
-    float wave = uWave < 0.0 ? 0.0 : exp(-pow((kd - uWave * 1.3) / 0.08, 2.0)) * (1.0 - uWave * 0.6);
+    float kd = length(vW.xy - vec2(${((KISS_UV.x - 0.5) * SIDE).toFixed(3)}, ${((KISS_UV.y - 0.5) * SIDE + SIDE / 2 - 0.22).toFixed(3)}));
+    float wave = uWave < 0.0 ? 0.0 : exp(-pow((kd - uWave * 2.6) / 0.16, 2.0)) * (1.0 - uWave * 0.6);
     lit += wave * vec3(0.86, 0.66, 0.24) * (0.5 + goldness);
-    // 分开时各自暗一点、冷一点
     lit *= 1.0 - 0.18 * uApart;
     gl_FragColor = vec4(applyFog(lit, length(vW - cameraPosition), vW.y), 1.0);
   }`;
-async function buildRelief() {
+// 方块人：[宽, 高, 厚, 中心高度]，由小立方体填满
+function personBlocks(isMan) {
+  const s = isMan ? 1.0 : 0.9;
+  const b = isMan
+    ? [[0.78, 0.16, 0.60, 0.08], [0.66, 0.48, 0.50, 0.40], [0.54, 0.42, 0.42, 0.85], [0.58, 0.40, 0.44, 1.26], [0.70, 0.14, 0.46, 1.53], [0.20, 0.10, 0.20, 1.65], [0.26, 0.30, 0.26, 1.86]]
+    : [[0.70, 0.14, 0.54, 0.07], [0.60, 0.46, 0.46, 0.37], [0.46, 0.40, 0.38, 0.80], [0.50, 0.38, 0.40, 1.19], [0.58, 0.12, 0.40, 1.44], [0.17, 0.09, 0.17, 1.54], [0.24, 0.28, 0.24, 1.74]];
+  return b.map(([w, h, d, y]) => [w * s, h * s, d * s, y * s]);
+}
+function fillBlocks(blocks, step, headIndex) {
+  const out = [];
+  blocks.forEach(([w, h, d, y], bi) => {
+    const nx = Math.max(1, Math.round(w / step)), ny = Math.max(1, Math.round(h / step)), nz = Math.max(1, Math.round(d / step));
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) for (let k = 0; k < nz; k++) {
+      // 只要表面一层（里面看不见，省掉）
+      if (i > 0 && i < nx - 1 && j > 0 && j < ny - 1 && k > 0 && k < nz - 1) continue;
+      out.push({ x: (i + 0.5) / nx * w - w / 2, y: y - h / 2 + (j + 0.5) / ny * h, z: (k + 0.5) / nz * d - d / 2, head: bi >= headIndex, hf: (j + 0.5) / ny, ang: Math.atan2((k + 0.5) / nz - 0.5, (i + 0.5) / nx - 0.5) });
+    }
+  });
+  return out;
+}
+async function buildVoxels() {
   const loader = new THREE.TextureLoader();
   const [map, depth] = await Promise.all([loader.loadAsync('data/kiss/color_hi.jpg'), loader.loadAsync('data/kiss/depth.png')]);
-  map.anisotropy = renderer.capabilities.getMaxAnisotropy(); map.minFilter = THREE.LinearMipmapLinearFilter;
-  depth.minFilter = THREE.LinearFilter; depth.magFilter = THREE.LinearFilter;
-  // 阈值：与烘焙脚本一样取深度的 55 分位（前景 = 比它近的那一大块）
-  const dc = document.createElement('canvas'); dc.width = 128; dc.height = 128;
-  const g = dc.getContext('2d', { willReadFrequently: true }); g.drawImage(depth.image, 0, 0, 128, 128);
-  const dd = g.getImageData(0, 0, 128, 128).data, vals = [];
-  for (let i = 0; i < 128 * 128; i++) vals.push(dd[i * 4] / 255);
+  map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  // 读像素
+  const pix = (img, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, w, h); return g.getImageData(0, 0, w, h).data; };
+  const CW = 256, CH = 256;
+  const col = pix(map.image, CW, CH), dep = pix(depth.image, CW, CH);
+  const depthAt = (u, v) => dep[(Math.min(CH - 1, ((1 - v) * CH) | 0) * CW + Math.min(CW - 1, (u * CW) | 0)) * 4] / 255;
+  const colorAt = (u, v) => { const i = (Math.min(CH - 1, ((1 - v) * CH) | 0) * CW + Math.min(CW - 1, (u * CW) | 0)) * 4; return [col[i] / 255, col[i + 1] / 255, col[i + 2] / 255]; };
+  const vals = []; for (let i = 0; i < CW * CH; i++) vals.push(dep[i * 4] / 255);
   vals.sort((a, b) => a - b); depthThr = vals[Math.floor(vals.length * 0.55)];
-  const geo = new THREE.PlaneGeometry(SIDE, SIDE, 300, 300);
-  relief = new THREE.Group();
-  for (const side of [1, -1]) {
-    const mat = new THREE.ShaderMaterial({
-      uniforms: { uMap: { value: map }, uDepth: { value: depth }, uThr: { value: depthThr }, uTime: U.uTime, uApart: U.uApart, uWave: U.uWave, uLight: U.uLight, uFogC: U.uFogC, uUnion: U.uUnion,
-                  uSide: { value: side }, uShow: { value: 1 }, uPx: { value: new THREE.Vector2(1 / depth.image.width, 1 / depth.image.height) } },
-      vertexShader: RELIEF_VS, fragmentShader: RELIEF_FS, side: THREE.DoubleSide,
-    });
-    const m = new THREE.Mesh(geo, mat); m.frustumCulled = false;
-    relief.add(m);
+  const boundary = v => v > 0.87 ? 0.62 : v > 0.68 ? 0.5 : 0.55 - 0.08 * (0.68 - v) / 0.46;
+  const smoothf = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+  // ---- 终态：画的实心体素 ----
+  const N = Math.round(KISS_SIDE / VOX);                // 每边格数
+  const yBase = FIG.y + KISS_SIDE / 2 - 0.22 - KISS_SIDE / 2;   // 画下沿的世界高度（与浮雕时一致）
+  const kiss = { man: [], woman: [] };
+  const gilt = (c) => { const l = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]; return [0.86 * (0.6 + 0.7 * l), 0.66 * (0.6 + 0.7 * l), 0.26 * (0.6 + 0.7 * l)]; };
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const u = (i + 0.5) / N, v = (j + 0.5) / N;
+    if (v < 0.14) continue;
+    const d = depthAt(u, v);
+    const fg = smoothf(depthThr - 0.06, depthThr + 0.06, d);
+    if (fg < 0.5) continue;
+    if (v < 0.26 && Math.random() > (v - 0.14) / 0.12) continue;   // 底边淡出到花里
+    const inner = clamp01((d - depthThr) / (1 - depthThr));
+    const bulge = (0.78 * smoothf(0, 0.3, inner) + 0.22 * inner) * 0.34;
+    const c = colorAt(u, v), g = gilt(c);
+    const nz = Math.max(1, Math.round(2 * bulge / VOX));
+    const edge = smoothf(depthThr + 0.14, depthThr + 0.02, d);   // 轮廓附近 = 侧面，鎏金
+    for (let k = 0; k < nz; k++) {
+      const zf = nz === 1 ? 1 : k / (nz - 1);                      // 0 = 最后，1 = 最前
+      if (k > 0 && k < nz - 1 && i % 2 && j % 2) continue;         // 内部抽稀（看不见），省一半
+      const frontness = smoothf(0.6, 1.0, zf);
+      let cc = [c[0] * frontness + g[0] * (1 - frontness), c[1] * frontness + g[1] * (1 - frontness), c[2] * frontness + g[2] * (1 - frontness)];
+      if (edge > 0.5) cc = g;
+      const x = (u - 0.5) * KISS_SIDE, y = yBase + v * KISS_SIDE, z = FIG.z + 0.05 + (zf * 2 - 1) * bulge;
+      (u < boundary(v) ? kiss.man : kiss.woman).push({ x, y, z, c: cc });
+    }
   }
-  relief.position.set(FIG.x, FIG.y + SIDE / 2 - 0.22, FIG.z + 0.05);   // 画的下沿略埋进花里
-  world.add(relief);
-  figures.man = makeFigure(map, true); figures.woman = makeFigure(map, false);
-  world.add(figures.man, figures.woman);
+  // ---- 起态：两尊方块人体素，数量按终态配平（调整步长），再按高度排序一一配对 ----
+  const out = { A: [], B: [], CA: [], CB: [], seed: [], g: [] };
+  for (const [key, isMan, gsign] of [['man', true, -1], ['woman', false, 1]]) {
+    const target = kiss[key];
+    target.sort((p, q) => (p.y - q.y) || (p.x - q.x));
+    const blocks = personBlocks(isMan);
+    let step = VOX, person = fillBlocks(blocks, step, 6);
+    // 让方块人的块数接近目标数（二分步长）
+    let lo = VOX * 0.5, hi = VOX * 3;
+    for (let it = 0; it < 14; it++) { step = (lo + hi) / 2; person = fillBlocks(blocks, step, 6); if (person.length > target.length) lo = step; else hi = step; }
+    person.sort((p, q) => (p.y - q.y) || (p.x - q.x));
+    const region = isMan ? [0.30, 0.47, 0.18, 0.80] : [0.52, 0.70, 0.18, 0.75];
+    const headR = isMan ? [0.44, 0.60, 0.86, 0.99] : [0.55, 0.68, 0.80, 0.92];
+    for (let i = 0; i < target.length; i++) {
+      const t = target[i], p = person[Math.min(person.length - 1, Math.floor(i / target.length * person.length))];
+      const r = p.head ? headR : region;
+      let tu = (p.ang / Math.PI + 1) * 1.0; tu = 1 - Math.abs(1 - (tu % 1) * 2);
+      const ca = colorAt(r[0] + (r[1] - r[0]) * tu, r[2] + (r[3] - r[2]) * p.hf);
+      out.A.push(p.x, p.y - 0.06, p.z + FIG.z + 0.05);
+      out.B.push(t.x, t.y, t.z);
+      out.CA.push(ca[0], ca[1], ca[2]);
+      out.CB.push(t.c[0], t.c[1], t.c[2]);
+      out.seed.push(Math.random()); out.g.push(gsign);
+    }
+  }
+  voxCount = out.seed.length;
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  const geo = new THREE.InstancedBufferGeometry();
+  geo.index = box.index; geo.setAttribute('position', box.attributes.position); geo.setAttribute('normal', box.attributes.normal);
+  geo.setAttribute('aA', new THREE.InstancedBufferAttribute(new Float32Array(out.A), 3));
+  geo.setAttribute('aB', new THREE.InstancedBufferAttribute(new Float32Array(out.B), 3));
+  geo.setAttribute('aCA', new THREE.InstancedBufferAttribute(new Float32Array(out.CA), 3));
+  geo.setAttribute('aCB', new THREE.InstancedBufferAttribute(new Float32Array(out.CB), 3));
+  geo.setAttribute('aSeed', new THREE.InstancedBufferAttribute(new Float32Array(out.seed), 1));
+  geo.setAttribute('aG', new THREE.InstancedBufferAttribute(new Float32Array(out.g), 1));
+  geo.instanceCount = voxCount;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uMorph: { value: 0 }, uDx: { value: 1.8 }, uTime: U.uTime, uApart: U.uApart, uWave: U.uWave, uLight: U.uLight, uFogC: U.uFogC, uUnion: U.uUnion, uSize: { value: VOX * 0.92 } },
+    vertexShader: VOX_VS, fragmentShader: VOX_FS,
+  });
+  voxMesh = new THREE.Mesh(geo, mat); voxMesh.frustumCulled = false;
+  world.add(voxMesh);
+  console.log('voxels', voxCount);
 }
-// 两尊立像的位置与姿态：分得越开站得越远（完全分开时相距约 3.6 m）；靠近时向对方倾身。
-// 变回画中姿势是连续的：手合到一半起，两尊方块像一边继续走近、一边收窄拉高、转向正面，
-// 同时溶进画中姿势的立体像（它的两半此时也正在合拢）——没有一个"切换"的瞬间
+// 变形进度与站位：手合到一半开始飞，合上时全部到位；分开时各自站在崖口两侧（完全分开相距约 3.6 m）
 function updateFigures(apart, t) {
-  if (!figures.man) return;
-  const human = smooth(0.12, 0.58, apart);          // 1 = 两尊人像，0 = 画中姿势的立体像（宽范围、平滑的交叉）
-  const melt = 1 - human;                           // 立像向浮雕"融"过去的程度
-  for (const m of figures.mats) m.uniforms.uShow.value = human;
-  if (relief) for (const m of relief.children) m.material.uniforms.uShow.value = 1 - human;
-  const dx = (0.26 + 1.55 * apart) * (1 - 0.15 * melt), lean = smooth(1.0, 0.3, apart) * 0.14;
-  figures.man.position.set(FIG.x - dx, FIG.y - 0.06 + 0.02 * melt, FIG.z + 0.05 + 0.08 * melt);
-  figures.woman.position.set(FIG.x + dx, FIG.y - 0.06 + 0.02 * melt, FIG.z + 0.05 + 0.08 * melt);
-  figures.man.rotation.set(0, (0.4 - 0.25 * apart) * (1 - melt), -lean * (1 - 0.5 * melt));
-  figures.woman.rotation.set(0, (-0.4 + 0.25 * apart) * (1 - melt), lean * (1 - 0.5 * melt));
-  const sx = 1 - 0.35 * melt, sy = 1 + 0.12 * melt;
-  figures.man.scale.set(sx, sy, sx); figures.woman.scale.set(sx, sy, sx);
-  figures.man.position.y += 0.01 * Math.sin(t * 0.8);
-  figures.woman.position.y += 0.01 * Math.sin(t * 0.8 + 1.5);
-  figures.man.visible = figures.woman.visible = human > 0.001;
-  if (relief) relief.visible = human < 0.999;
+  if (!voxMesh) return;
+  const morph = smooth(0.55, 0.08, apart);
+  voxMesh.material.uniforms.uMorph.value = morph;
+  voxMesh.material.uniforms.uDx.value = 0.26 + 1.55 * apart;
 }
 
 // ---------- 崖下的上升气流：风撞上崖壁往上翻，带起花瓣——从崖下冲上来、在崖口打着旋，再被风推进花甸 ----------
@@ -839,12 +813,12 @@ renderer.xr.addEventListener('sessionend', () => {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 // 测试钩子
-window.__state = () => ({ apart, union, unions, thr: depthThr });
+window.__state = () => ({ apart, union, unions, thr: depthThr, voxels: voxCount });
 window.__apart = v => { forcedApart = v === null ? null : v; };
 window.__view = (azDeg, elDeg, r) => { orbit.az = azDeg * DEG; orbit.el = elDeg * DEG; if (r) orbit.r = r; orbit.azV = 0; };
 window.__warp = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; U.uTime.value = time; step(dt, time); updateCamera(dt); } renderer.render(scene, camera); };
 
-buildRelief().then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
+buildVoxels().then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
   .catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
 
 // 进 XR 后每只眼睛画面的像素高度
