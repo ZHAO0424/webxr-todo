@@ -59,6 +59,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { xrCaption } from './xr-caption.js';
+import { hop } from './xr-hop.js';   // 头显里换画不退出会话
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -76,7 +77,8 @@ const ASPECT = 1920 / 1443;
 const HGT = R * 2;                                   // 只给雪的高度范围用
 const VORTEX = new THREE.Vector2(0.62, 0.56);       // 风暴的眼：桅杆后面那团光
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // 头显里换过来的：沿用会话所在的渲染器
+hop.attach(renderer);
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);

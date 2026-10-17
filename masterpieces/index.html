@@ -52,9 +52,13 @@
   }
 </style>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
 </script>
 <script src="works.js"></script>
+<link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="veil"></div>
@@ -75,7 +79,7 @@
 <div id="side">
   <div id="count"></div>
   <div class="arrows"><button id="prev" aria-label="上一幅">‹</button><button id="next" aria-label="下一幅">›</button></div>
-  <div class="hint">拖动 · 滚轮 · 方向键浏览<br>点击正中的画，走进去</div>
+  <div class="hint">拖动 · 滚轮 · 方向键浏览<br>点击正中的画，走进去<br>戴上头显：点右上角 VR，进一次，全程不出来</div>
 </div>
 <div id="list" role="dialog" aria-label="全部作品"><ol id="listOl"></ol>
   <div class="foot">每一件都不复制原画，而是挑一种和那幅画精神相合的算法，把画放进你周围的空间里，再给它一个只属于它的交互。电脑上用鼠标，头显里用手、视线或声音。所有画作均为公有领域，图片来自 Wikimedia Commons。WebXR 需要 HTTPS 或 localhost；离线烘焙脚本在 <code>bake/</code>。← <a href="../">悬浮体</a></div>
@@ -83,13 +87,19 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { hop } from './xr-hop.js';   // 在主页进一次 VR：走进画、换画、回画廊都在同一个会话里
+import { xrCaption } from './xr-caption.js';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
 THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
 const W = window.WORKS, N = W.length, STEP = Math.PI * 2 / N;
 const RING = 6.6, FLOOR = -1.55;
 
 // ---------- 画廊：你站在一间暗室正中，九幅画挂成一圈，正对你的那幅被一束光照着；鼠标是一盏提灯 ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // alpha：之后走进的作品要用 AR 透视
+hop.attach(renderer);
+renderer.xr.enabled = true;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -97,20 +107,21 @@ renderer.setClearColor(0x0b0a0d);
 document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.05, 100);
+const rig = new THREE.Group(); scene.add(rig); rig.add(camera);   // 头显里把人（相机、手柄、手）放低到画廊的地板上
 const torch = new THREE.Vector3(-9999, -9999, 0);          // 提灯：屏幕像素坐标 + 强度
 
 // 墙：一圈暗色的圆筒；每幅画后面的墙被灯打亮一团，正中那幅最亮
-const wallU = { uRot: { value: 0 }, uTorch: { value: torch } };
+const wallU = { uRot: { value: 0 }, uView: { value: 0 }, uTorch: { value: torch } };
 const wall = new THREE.Mesh(new THREE.CylinderGeometry(RING + 0.4, RING + 0.4, 9, 128, 1, true), new THREE.ShaderMaterial({
   side: THREE.BackSide, uniforms: wallU,
   vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: `
-    uniform float uRot; uniform vec3 uTorch; varying vec3 vP;
+    uniform float uRot, uView; uniform vec3 uTorch; varying vec3 vP;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     void main() {
       float th = atan(vP.x, -vP.z) + uRot;                                    // 墙面上的方位（跟着画一起转）
       float a = mod(th + ${(STEP / 2).toFixed(5)}, ${STEP.toFixed(5)}) - ${(STEP / 2).toFixed(5)};   // 离最近一幅画多远
-      float view = atan(vP.x, -vP.z);                                         // 离你正前方多远
+      float view = mod(atan(vP.x, -vP.z) - uView + 3.14159265, 6.2831853) - 3.14159265;   // 离你正前方（头显里是视线方向）多远
       float front = exp(-view * view * 3.0);
       float pool = exp(-a * a * 16.0) * exp(-pow(vP.y - 1.0, 2.0) * 0.3) * (0.05 + 0.22 * front);
       vec3 c = vec3(0.050, 0.044, 0.048) * (0.8 + 0.3 * smoothstep(-4.5, 3.0, vP.y)) + vec3(0.95, 0.78, 0.55) * pool;
@@ -185,7 +196,7 @@ const paintings = W.map((w, k) => {
   };
   fit(1.3);
   loader.load(`data/thumbs/${w.slug}.jpg`, t => { t.anisotropy = renderer.capabilities.getMaxAnisotropy(); u.tMap.value = t; fit(t.image.width / t.image.height); u.uReady.value = 1; });
-  return { mesh, u };
+  return { mesh, u, holder, size: u.uSize.value };
 });
 
 // ---------- 交互 ----------
@@ -229,7 +240,7 @@ addEventListener('keydown', e => {
   if ($('list').classList.contains('on')) return;
   if (e.key === 'ArrowRight' || e.key === ']') target = Math.round(target) + 1;
   else if (e.key === 'ArrowLeft' || e.key === '[') target = Math.round(target) - 1;
-  else if (e.key === 'Enter' && (document.activeElement === document.body || document.activeElement === cv)) enter();
+  else if (e.key === 'Enter' && (renderer.xr.isPresenting || document.activeElement === document.body || document.activeElement === cv)) enter();
 });
 $('prev').onclick = () => { target = Math.round(target) - 1; };
 $('next').onclick = () => { target = Math.round(target) + 1; };
@@ -241,7 +252,8 @@ function pick() {
   return hit ? hit.object.userData.k : -1;
 }
 // 走进画里：镜头朝那幅画推过去，画铺满视野，再黑下来换页
-function enter() {
+function enter(kXR) {
+  if (renderer.xr.isPresenting) { const k = kXR !== undefined ? kXR : xr.gazeK; if (k >= 0) hop.go(0, false, k); return; }   // 头显里：不跳页，同一个会话里走进去
   if (entering) return;
   const k = mod(Math.round(target), N);
   target = Math.round(target);
@@ -272,6 +284,92 @@ function showInfo(k) {
   history.replaceState(null, '', `?from=${w.slug}`);
 }
 
+// ---------- 头显里的画廊：九幅画围着你挂成一圈，看住一幅（或用射线指着它扣扳机 / 捏合）就走进去 ----------
+const EYE_H = 1.55;                                         // 头显里人的脚踩在画廊的地板上（地板在 y = -1.55）
+const xr = { gazeK: -1, dwellK: -1, dwell: 0, ctrls: [] };
+const DWELL = 1.8;
+// 画下面的名牌：作品名、英文名、怎么进去；被看着的那幅才挂出来，下面一道金线是"看住"的进度
+const label = (() => {
+  const c = document.createElement('canvas'); c.width = 1536; c.height = 420;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2 * 420 / 1536), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, toneMapped: false }));
+  m.visible = false; m.renderOrder = 5;
+  const bar = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.03), new THREE.MeshBasicMaterial({ color: 0xdeba6e, toneMapped: false }));
+  bar.visible = false; bar.renderOrder = 6;
+  const g = c.getContext('2d');
+  const draw = k => {
+    const w = W[k]; g.clearRect(0, 0, c.width, c.height); g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(201,164,92,.95)'; g.font = '500 44px system-ui, sans-serif'; g.letterSpacing = '10px';
+    g.fillText(`${k + 1} / ${N} · AFTER ${w.after.toUpperCase()} · ${w.year}`, c.width / 2, 60);
+    g.fillStyle = '#f3ede2'; g.font = '400 130px "Songti SC", "STSong", "SimSun", serif'; g.letterSpacing = '20px'; g.fillText(w.zh, c.width / 2, 185);
+    g.fillStyle = 'rgba(232,224,210,.78)'; g.font = 'italic 52px "Songti SC", Georgia, serif'; g.letterSpacing = '2px'; g.fillText(w.en, c.width / 2, 290);
+    g.fillStyle = 'rgba(232,224,210,.6)'; g.font = '500 40px system-ui, sans-serif'; g.letterSpacing = '6px'; g.fillText('看住它，或指着它扣扳机 / 捏合，走进去', c.width / 2, 375);
+    m.material.map.needsUpdate = true;
+  };
+  return { m, bar, draw };
+})();
+const cap = xrCaption({ renderer, scene, camera });
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+document.body.append(vrBtn, arBtn);
+const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]);
+for (let i = 0; i < 2; i++) {
+  const c = renderer.xr.getController(i);
+  const line = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: 0xdeba6e, transparent: true, opacity: 0.4 }));
+  line.scale.z = 7; c.add(line); c.userData.k = -1;
+  c.addEventListener('select', () => { if (c.userData.k >= 0) enter(c.userData.k); });
+  rig.add(c); xr.ctrls.push(c);
+  rig.add(renderer.xr.getHand(i));
+}
+renderer.xr.addEventListener('sessionstart', () => {
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  rig.position.y = -EYE_H;                                  // 地板在脚下，画挂在眼睛的高度
+  wall.visible = floor.visible = opaque;                    // AR：只留下一圈画，挂在真实的房间里
+  renderer.setClearColor(0x0b0a0d, opaque ? 1 : 0);
+  entering = null; torch.z = 0; mouse.set(9, 9);
+  cap.show(['入画', 'Into the Painting', '转身看一圈 · 看住一幅画，走进去'], 9);
+});
+renderer.xr.addEventListener('sessionend', () => {
+  rig.position.y = 0; wall.visible = floor.visible = true; renderer.setClearColor(0x0b0a0d, 1);
+  label.m.visible = label.bar.visible = false; wallU.uView.value = 0; xr.gazeK = -1;
+});
+const xrTmp = { o: new THREE.Vector3(), d: new THREE.Vector3(), p: new THREE.Vector3(), q: new THREE.Vector3(), m: new THREE.Matrix4() };
+const meshes = paintings.map(p => p.mesh);
+const hitK = (o, d) => { ray.set(o, d); const h = ray.intersectObjects(meshes)[0]; return h ? h.object.userData.k : -1; };
+function xrStep(dt) {
+  const cam = renderer.xr.getCamera(), { o, d, p, q, m } = xrTmp;
+  cam.getWorldPosition(o); cam.getWorldDirection(d);
+  // 视线落在哪幅画上；手柄 / 手的射线各自指着哪幅
+  const gk = hitK(o, d);
+  for (const c of xr.ctrls) {
+    m.identity().extractRotation(c.matrixWorld);
+    c.userData.k = c.visible ? hitK(p.setFromMatrixPosition(c.matrixWorld), q.set(0, 0, -1).applyMatrix4(m)) : -1;
+  }
+  const pointed = xr.ctrls.map(c => c.userData.k).find(k => k >= 0);
+  xr.gazeK = gk >= 0 ? gk : (pointed !== undefined ? pointed : -1);
+  // 墙上的光和画上的光都跟着视线走
+  wallU.uView.value = Math.atan2(d.x, -d.z);
+  const dh = Math.max(1e-4, Math.hypot(d.x, d.z));
+  paintings.forEach((pt, k) => {
+    pt.mesh.getWorldPosition(p).sub(o).setY(0).normalize();
+    const a = Math.acos(Math.max(-1, Math.min(1, (p.x * d.x + p.z * d.z) / dh))) / STEP;
+    pt.u.uLit.value = Math.exp(-a * a * 2.2);
+    pt.u.uHover.value += ((xr.gazeK === k ? 1 : 0) - pt.u.uHover.value) * Math.min(1, dt * 8);
+  });
+  // 看住：画下面一道金线慢慢走满，满了就走进去
+  if (gk >= 0 && gk === xr.dwellK) xr.dwell += dt; else { xr.dwellK = gk; xr.dwell = 0; }
+  const k = xr.gazeK;
+  if (k >= 0) {
+    const pt = paintings[k], h = pt.size.y, wd = pt.size.x, bottom = 0.35 - h / 2 - 0.11;
+    if (label.m.parent !== pt.holder) { pt.holder.add(label.m, label.bar); label.draw(k); }
+    label.m.position.set(0, bottom - 0.4, 0.02); label.m.visible = true;   // 名牌底边刚好在地板之上
+    label.bar.position.set(0, bottom - 0.04, 0.03);
+    label.bar.scale.x = Math.max(0.001, wd * Math.min(1, xr.dwell / DWELL)); label.bar.visible = gk === k && xr.dwell > 0.05;
+  } else label.m.visible = label.bar.visible = false;
+  if (gk >= 0 && xr.dwell > DWELL) { xr.dwell = 0; enter(gk); }
+  return { gazeK: xr.gazeK, dwell: +xr.dwell.toFixed(2), label: label.m.visible, bar: +label.bar.scale.x.toFixed(2) };
+}
+window.__xrStep = xrStep;   // 测试钩子
+
 // ---------- 动画 ----------
 const clock = new THREE.Clock();
 let time = 0;
@@ -281,6 +379,7 @@ renderer.setAnimationLoop(() => {
   vel += ((target - cur) * 38 - vel * 11) * dt; cur += vel * dt;
   ring.rotation.y = cur * STEP; wallU.uRot.value = cur * STEP;
   showInfo(mod(Math.round(target), N));
+  if (renderer.xr.isPresenting) { paintings.forEach(p => { p.u.uTime.value = time; }); xrStep(dt); renderer.render(scene, camera); return; }
   hoverK = drag || entering ? -1 : pick();
   cv.classList.toggle('over', hoverK >= 0);
   paintings.forEach((p, k) => {
@@ -309,5 +408,6 @@ window.__goto = k => { target = cur = k; };   // 测试钩子
 setTimeout(() => $('veil').classList.add('off'), 60);
 if (location.search.includes('shot')) $('veil').style.display = 'none';
 </script>
+<script src="nav.js"></script>
 </body>
 </html>

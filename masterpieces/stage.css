@@ -67,3 +67,24 @@
 #hud #meter, #hud #dawn, #hud #age { background: rgba(239,233,221,.18) !important; height: 2px !important; margin: 6px 0 6px !important; box-shadow: none !important; border: 0 !important; }
 #hud #meter i, #hud #dawn i, #hud #age i { box-shadow: none !important; }
 #hud input[type=range] { accent-color: var(--st-gold); }
+
+/* ---------- 进入 VR / AR：收在右下角，和左下的提示字分开 ---------- */
+#st-xr { position: fixed; right: 16px; bottom: 16px; z-index: 50; display: flex; gap: 8px; align-items: center; pointer-events: none; }
+#st-xr:empty { display: none; }
+html body #st-xr .st-xrbtn {
+  position: static !important; left: auto !important; right: auto !important; bottom: auto !important; width: auto !important; min-width: 0 !important;
+  pointer-events: auto; padding: 9px 16px !important; margin: 0 !important; border: 1px solid rgba(201,164,92,.75) !important; border-radius: 999px !important;
+  background: rgba(11,10,13,.45) !important; color: var(--st-ink) !important; font: 11px/1 system-ui, sans-serif !important; letter-spacing: .2em !important;
+  opacity: .85 !important; white-space: nowrap; text-decoration: none !important; box-sizing: border-box;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: background .2s, color .2s;
+}
+html body #st-xr button.st-xrbtn:not([disabled]):hover { background: var(--st-gold) !important; color: #17140e !important; opacity: 1 !important; }
+html body #st-xr a.st-xrbtn { border-color: rgba(239,233,221,.25) !important; opacity: .55 !important; letter-spacing: .12em !important; }
+/* 窄屏：按钮占底部一行居中，提示字整体抬到按钮上面 */
+@media (max-width: 720px) {
+  #st-xr { left: 16px; right: 16px; justify-content: center; }
+  #hud { bottom: 64px !important; }
+}
+/* 画廊主页：右下角是计数和箭头，VR / AR 放到右上角「目录」的左边 */
+.mp-home #st-xr { top: 24px; bottom: auto; right: 110px; left: auto; justify-content: flex-end; }
+@media (max-width: 720px) { .mp-home #st-xr { top: 64px; right: 16px; left: 16px; } }

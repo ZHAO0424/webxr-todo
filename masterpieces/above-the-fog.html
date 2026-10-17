@@ -54,6 +54,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { xrCaption } from './xr-caption.js';
+import { hop } from './xr-hop.js';   // 头显里换画不退出会话
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -71,7 +72,8 @@ const HOR_V = 0.64;                          // 画里旅人的眼睛 / 雾海�
 const FOG_TOP = -9.0;                        // 雾海的"海面"（世界 y）；你站的岩顶是 0
 const GROUND_Y = -60.0;                      // 雾下的谷底
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // 头显里换过来的：沿用会话所在的渲染器
+hop.attach(renderer);
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 const PR_MAX = Math.min(devicePixelRatio, 1.5); let prScale = Math.min(PR_MAX, 1.0);
 renderer.setPixelRatio(prScale);

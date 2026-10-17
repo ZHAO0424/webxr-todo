@@ -57,6 +57,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { xrCaption } from './xr-caption.js';
+import { hop } from './xr-hop.js';   // 头显里换画不退出会话
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -73,7 +74,8 @@ const R_IN = 0.35, R_OUT = 11.0; // 画作在水面上的径向范围：脚下 �
 const SIM = 512, SIM_SIZE = 24.0; // 波动方程网格：24 m × 24 m，512²，每格约 4.7 cm
 
 // ---------- 基础 ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // 头显里换过来的：沿用会话所在的渲染器
+hop.attach(renderer);
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -395,8 +397,8 @@ addEventListener('pointermove', e => {
     if (steps) lastStroke.copy(p);
   }
 });
-addEventListener('keydown', e => {   // 方向键也能转头
-  if (e.code === 'ArrowLeft') look.yaw += 0.12; if (e.code === 'ArrowRight') look.yaw -= 0.12;
+addEventListener('keydown', e => {   // 上下方向键低头抬头，A / D 左右转头（左右方向键留给换画）
+  if (e.code === 'KeyA') look.yaw += 0.12; if (e.code === 'KeyD') look.yaw -= 0.12;
   if (e.code === 'ArrowUp') look.pitch = Math.min(10 * DEG, look.pitch + 0.08); if (e.code === 'ArrowDown') look.pitch = Math.max(-80 * DEG, look.pitch - 0.08);
 });
 

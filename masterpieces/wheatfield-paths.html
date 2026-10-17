@@ -59,6 +59,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { xrCaption } from './xr-caption.js';
+import { hop } from './xr-hop.js';   // 头显里换画不退出会话
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -77,7 +78,8 @@ const Y0 = EYE.y - PIC_H * 0.52;                // 画下沿：地平线（画�
 const TW = 2048, TH = Math.round(TW / PIC_ASPECT);   // 黏菌信息素场的分辨率
 const AG = 1024;                                  // 1024² ≈ 105 万个行者
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // 头显里换过来的：沿用会话所在的渲染器
+hop.attach(renderer);
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -556,8 +558,8 @@ scene.add(plaque);
 })();
 
 // ---------- 进入 ----------
-const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
-const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
 vrBtn.style.display = arBtn.style.display = 'none';
 document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);

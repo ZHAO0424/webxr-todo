@@ -68,6 +68,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { xrCaption } from './xr-caption.js';
+import { hop } from './xr-hop.js';   // 头显里换画不退出会话
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -82,7 +83,8 @@ const EYE = new THREE.Vector3(0, 1.5, 0);
 const PLANE_Z = -3.2, PIC_W = 3.0;
 let PIC_H = 2.0, PIC_Y0 = 0.5;   // 载入后按画幅比例更新
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // 头显里换过来的：沿用会话所在的渲染器
+hop.attach(renderer);
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -476,8 +478,8 @@ scene.add(plaque);
 })();
 
 // ---------- 进入 ----------
-const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
-const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
 vrBtn.style.display = arBtn.style.display = 'none';
 document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);

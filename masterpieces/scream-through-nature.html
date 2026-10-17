@@ -61,6 +61,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { xrCaption } from './xr-caption.js';
+import { hop } from './xr-hop.js';   // 头显里换画不退出会话
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
@@ -73,7 +74,8 @@ const pick = a => a[(Math.random() * a.length) | 0];
 const clamp01 = x => Math.max(0, Math.min(1, x));
 const EYE = new THREE.Vector3(0, 1.5, 0);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // 头显里换过来的：沿用会话所在的渲染器
+hop.attach(renderer);
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -557,13 +559,14 @@ function startAudio() {
   const wg = ctx.createGain(); wg.gain.value = 0.02;
   wind.connect(wf).connect(wg).connect(master); wind.start();
   audio = { ctx, master, drone, wf, wg, buf };
+  const micEl = $('micState');
   navigator.mediaDevices?.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } }).then(stream => {
     const src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
     src.connect(analyser);                       // 只接分析器，不接扬声器
     micBuf = new Float32Array(analyser.fftSize);
-    micOn = true; $('micState').textContent = '麦克风：已开启';
-  }).catch(() => { $('micState').textContent = '麦克风：未授权（按住空格或鼠标代替声音）'; });
+    micOn = true; micEl.textContent = '麦克风：已开启';
+  }).catch(() => { micEl.textContent = '麦克风：未授权（按住空格或鼠标代替声音）'; });   // 用开始时拿到的元素：头显里已换到别的画时也不报错
 }
 // 自然的回应：一团不协和的锯齿和弦，带通扫上去
 function natureScream(strength) {
@@ -657,8 +660,8 @@ world.add(plaque);
 })();
 
 // ---------- 进入 ----------
-const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
-const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['local-floor'] });
+const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
+const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
 vrBtn.style.display = arBtn.style.display = 'none';
 document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
