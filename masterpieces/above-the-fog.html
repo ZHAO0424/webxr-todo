@@ -42,7 +42,7 @@
     <h1>雾海之上</h1>
     <h2>Above the Sea of Fog</h2>
     <p>1818 年前后，弗里德里希画下一个背对我们的人：他站在岩顶，脚下是翻涌的雾海，远处的山脊和岩柱从雾里探出来。我们永远看不到他的脸，只能站在他身后，和他看向同一片雾。</p>
-    <p>这里，你就站在那块岩石的后面，在黎明之前。雾是真的，而且一开始漫过你的头顶：眼前、头上都是雾，画只隐约透出来。<b>你看住一处，那里的雾就一层一层退下去</b>——先退到胸口，再退回画里那片雾海的海面，再往下露出半山，最后见底：黑压压的松林、一条反着天光的河、谷底零星的灯火。像他说的"精神的眼睛"，看得越久，看得越深。退下去的雾不会马上涨回来，要过很久才慢慢回涨。<b>而你站得越静，天亮得越快</b>：太阳从山脊后面升起来，雾被晨光从背后照透，由青灰转成金粉色，太阳出来以后雾会慢慢散去，露出整片山谷；你一走动、一转头，黎明就慢下来。伸手进雾里拨，雾退得更快。</p>
+    <p>这里，你就站在那块岩石的后面，在黎明之前。雾是真的，而且一开始漫过你的头顶：眼前、头上都是雾，画只隐约透出来。<b>你看住一处，那里的雾就一层一层退下去</b>——先退到胸口，再退回画里那片雾海的海面，再往下露出半山，最后见底：六十米下的山谷里有松林、田块、一条反着天光的河，河边的村子和教堂，夜里村里亮着灯。像他说的"精神的眼睛"，看得越久，看得越深。退下去的雾不会马上涨回来，要过很久才慢慢回涨。<b>而你站得越静，天亮得越快</b>：太阳从山脊后面升起来，雾被晨光从背后照透，由青灰转成金粉色，太阳出来以后雾会慢慢散去，露出整片山谷；你一走动、一转头，黎明就慢下来。伸手进雾里拨，雾退得更快。</p>
     <blockquote>“闭上你肉体的眼睛，先用精神的眼睛看你的画。然后把你在黑暗中看到的带到光里来。”<small>— 弗里德里希，约 1830</small></blockquote>
     <button id="enter" disabled>载入中…</button>
     <div class="how">XR：盯住一处 = 那里的雾一层层退下去；站着不动 = 天亮；手伸出去拨 = 退得更快<br>桌面：鼠标就是目光，停住 = 雾一层层退下；不动鼠标 = 天亮；右键拖动 = 转头；左键按住 = 拨雾<br>建议戴耳机</div>
@@ -67,7 +67,7 @@ const ASPECT = 1280 / 1639;
 const HM = R * PIC_ARC / ASPECT;             // 画高（米）≈ 4.4
 const HOR_V = 0.64;                          // 画里旅人的眼睛 / 雾海的地平线所在的 v
 const FOG_TOP = -0.25;                       // 雾海的"海面"（世界 y）；你站的岩顶是 0
-const GROUND_Y = -14.0;                      // 雾下的谷底
+const GROUND_Y = -60.0;                      // 雾下的谷底
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -128,9 +128,9 @@ const noiseTex = (() => {
 
 // ---------- 雾层：雾分五层"顶"，一开始漫过头顶；目光 / 手 / 拖动在一张俯视的地图上一层层把雾顶往下剥 ----------
 // 地图每格存"剥掉了几层"（0..4）和"最近被碰过"（碰过后约 25 秒内不回涨，之后很慢地回涨）
-const STAGES = [6.0, 2.4, FOG_TOP, -6.0, GROUND_Y - 3.5];   // 0 漫过头顶 → 1 齐胸 → 2 画里的雾海面 → 3 半山 → 4 见底
+const STAGES = [6.0, 2.4, FOG_TOP, -22.0, GROUND_Y - 4.0];   // 0 漫过头顶 → 1 齐胸 → 2 画里的雾海面 → 3 半山 → 4 见底
 const stageTopJS = c => { c = Math.max(0, Math.min(4, c)); const k = Math.floor(c), f = c - k, s = f < 0.3 ? 0 : f >= 1 ? 1 : ((f - 0.3) / 0.7) ** 2 * (3 - 2 * (f - 0.3) / 0.7); return STAGES[k] + (STAGES[Math.min(4, k + 1)] - STAGES[k]) * s; };
-const FIELD_RES = 256, FIELD_HALF = 48;
+const FIELD_RES = 256, FIELD_HALF = 160;
 const STAGE_GLSL = /* glsl */`
   uniform sampler2D tClear; uniform float uBaseC;
   float clearAt(vec2 xz) {
@@ -166,7 +166,7 @@ const simMat = new THREE.ShaderMaterial({
         vec2 w = uSegW[i]; if (w.y <= 0.0) continue;
         vec2 a = uSeg[i].xy, ab = uSeg[i].zw - uSeg[i].xy;
         float h = clamp(dot(xz - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
-        vec2 dd = xz - (a + ab * h); float r = w.x * (0.7 + 1.0 * h);
+        vec2 dd = xz - (a + ab * h); float r = w.x * (0.7 + 2.6 * h);   // 远端放宽：谷底在 60 米下，洞要够大才看得见
         float k = exp(-dot(dd, dd) / (r * r));
         add += k * w.y; touch = max(touch, k);
       }
@@ -218,14 +218,17 @@ const W = {
   uSun: { value: new THREE.Vector3(-0.35, 0.0, -0.9).normalize() },
   uDawn: { value: 0 },                                   // 0 黎明前 → 1 日出
   uStir: { value: new THREE.Vector4(0, -9, 0, 0) },      // 手 / 鼠标正在搅的位置 + 强度（只是轻轻推一下，真正的剥雾在地图里）
-  tClear: { value: fieldA.texture }, tNoise: { value: noiseTex }, uThin: { value: 0 }, uBaseC: { value: 0 }, uTopMax: { value: STAGES[0] + 1.0 },
+  tClear: { value: fieldA.texture }, tNoise: { value: noiseTex }, uThin: { value: 0 },
+  tMask: { value: null }, tValley: { value: null }, tRock: { value: null },
+  uVill: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 0)) },   // 村庄中心 xz + 半径：夜里只有村子里亮灯
+  uBaseC: { value: 0 }, uTopMax: { value: STAGES[0] + 1.0 },
   uSteps: { value: 26 },
 };
 const worldMat = new THREE.ShaderMaterial({
   uniforms: W, side: THREE.BackSide, depthWrite: false,
   vertexShader: `varying vec3 vW; void main(){ vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
   fragmentShader: NOISE + STAGE_GLSL + FOG_GLSL + /* glsl */`
-    uniform sampler2D tPaint; uniform float uSteps, uDawn, uTopMax; uniform vec3 uSun;
+    uniform sampler2D tPaint, tMask, tValley; uniform float uSteps, uDawn, uTopMax; uniform vec3 uSun; uniform vec4 uVill[8];
     varying vec3 vW;
     const float R0 = ${R.toFixed(3)}, EYE_Y = ${EYE.y.toFixed(3)}, HM0 = ${HM.toFixed(4)}, HORV = ${HOR_V.toFixed(3)}, PARC = ${PIC_ARC.toFixed(5)}, FOGT = ${FOG_TOP.toFixed(3)}, GY = ${GROUND_Y.toFixed(2)};
     const float PI = 3.14159265;
@@ -262,37 +265,22 @@ const worldMat = new THREE.ShaderMaterial({
     // 雾下的山谷：黑压压的松林、起伏的山坡、一条反着天光的河、谷底零星的灯火
     vec3 valley(vec3 p, vec3 d) {
       vec2 q = p.xz;
-      float hills = fbm(q * 0.04);
-      float forest = fbm(q * 0.35 + 3.0);
-      vec3 pine = mix(vec3(0.06, 0.09, 0.07), vec3(0.16, 0.22, 0.15), forest) * (0.6 + 0.8 * hills) * (0.8 + 0.6 * uDawn);
-      // 一棵棵松树：格子里一个暗点 + 朝光一侧的亮边；林间空地是浅草色
-      // 一棵棵松树：两层随机抖动的格子叠起来（不会排成点阵），大小随机，密度跟着林地噪声走
-      float tree = 0.0;
-      for (int L = 0; L < 2; L++) {
-        float sc = L == 0 ? 1.3 : 2.3;
-        vec2 tc = floor(q * sc + float(L) * 0.37), tf = fract(q * sc + float(L) * 0.37) - 0.5 - 0.8 * (vec2(hash(tc + float(L)), hash(tc + 3.0 + float(L))) - 0.5);
-        float rr = 0.18 + 0.18 * hash(tc + 5.0);
-        tree = max(tree, smoothstep(rr, rr * 0.4, length(tf)) * step(0.5, forest * 1.3 + 0.35 * hash(tc + 9.0)));
-      }
-      vec3 under = mix(vec3(0.07, 0.08, 0.05), vec3(0.14, 0.15, 0.09), fbm(q * 0.6));    // 林下的地
-      pine = mix(under, pine * 0.55, tree);
-      float clearing = smoothstep(0.66, 0.74, fbm(q * 0.12 + 11.0));
-      pine = mix(pine, vec3(0.22, 0.23, 0.14) * (0.7 + 0.5 * uDawn), clearing * 0.6);
-      pine *= 1.15 + 0.7 * uDawn;
-      // 河：沿 z 蜿蜒的一条带
-      float river = abs(q.x - 6.0 - 9.0 * sin(q.y * 0.045 + 1.0) - 3.0 * sin(q.y * 0.13)) - 2.2 - 1.2 * vnoise(vec2(q.y * 0.1, 0.0));
-      float rv = 1.0 - smoothstep(0.0, 1.5, river);
-      vec3 skyR = mix(vec3(0.55, 0.62, 0.76), vec3(0.95, 0.72, 0.50), uDawn);
+      vec3 c = texture2D(tValley, q / 1024.0 + 0.5).rgb;
+      // 黎明前是月下的青灰，天亮后是原色
+      c *= mix(vec3(0.20, 0.24, 0.34), vec3(1.05, 0.98, 0.88), smoothstep(0.05, 0.9, uDawn));
+      // 河：和烘图用的同一条公式；水面反天光，太阳出来后有一道反光
+      float rdist = abs(q.x - 4.0 * (6.0 + 9.0 * sin(q.y * 0.01125 + 1.0) + 3.0 * sin(q.y * 0.0325)));
+      float rv = smoothstep(6.6, 5.0, rdist);
+      vec3 skyR = mix(vec3(0.30, 0.34, 0.44), vec3(0.66, 0.70, 0.74), uDawn);
       float glint = pow(max(dot(reflect(d, vec3(0.0, 1.0, 0.0)), uSun), 0.0), 60.0);
-      vec3 water = skyR * (0.45 + 0.4 * vnoise(q * 0.8 + uTime * 0.1)) + glint * sunColor() * 1.5;
-      vec3 c = mix(pine, water, rv);
-      // 灯火：稀疏的暖点，黎明越亮越淡
-      vec2 cell = floor(q * 0.12); vec2 cp = (cell + 0.5 + 0.6 * (vec2(hash(cell), hash(cell + 7.0)) - 0.5)) / 0.12;
-      float lamp = step(0.72, hash(cell + 3.0)) * exp(-dot(q - cp, q - cp) * 0.9) * (1.0 - rv);
-      c += vec3(1.0, 0.72, 0.38) * lamp * 2.4 * pow(1.0 - uDawn, 1.5);
-      c += vec3(0.03, 0.045, 0.08) * (1.0 - uDawn);   // 黎明前的月光
-      // 山坡朝阳的一面亮一点
-      c *= 0.7 + 0.6 * smoothstep(0.3, 0.7, hills) * (0.5 + 0.5 * uDawn);
+      vec3 water = skyR * (0.55 + 0.3 * vnoise(q * 0.25 + uTime * 0.1)) + glint * sunColor() * 1.5;
+      c = mix(c, water, rv * 0.85);
+      // 灯火：只在村子里，一户一点，天亮就熄
+      float vill = 0.0;
+      for (int i = 0; i < 8; i++) { if (uVill[i].z > 0.0) vill = max(vill, smoothstep(uVill[i].z, uVill[i].z * 0.4, length(q - uVill[i].xy))); }
+      vec2 cell = floor(q * 0.08); vec2 cp = (cell + 0.5 + 0.6 * (vec2(hash(cell), hash(cell + 7.0)) - 0.5)) / 0.08;
+      float lamp = step(0.4, hash(cell + 3.0)) * exp(-dot(q - cp, q - cp) * 0.35) * vill;
+      c += vec3(1.0, 0.72, 0.38) * lamp * 2.2 * pow(1.0 - uDawn, 1.5);
       return c;
     }
     // tSea 之前算整团雾；tSea 到 tMax 之间只算雾幔（画当作远景：雾幔可以挡在画前面，雾海不会淹到画上）
@@ -312,7 +300,7 @@ const worldMat = new THREE.ShaderMaterial({
       for (float i = 0.0; i < 40.0; i++) {
         if (i >= steps) break;
         float f = (i + jitter) / steps;
-        float t = t0 + f * f * min(tMax - t0, 90.0) + f * 0.4;
+        float t = t0 + f * f * min(tMax - t0, 160.0) + f * 0.4;
         if (t > tMax) break;
         vec3 p = o + d * t;
         float dep;
@@ -322,7 +310,7 @@ const worldMat = new THREE.ShaderMaterial({
         float depth = clamp((FOGT - p.y) / 12.0, 0.0, 1.0);
         vec3 col = mix(ambC, deepC, depth) * (0.65 + 0.35 * lit) + sunC * lit * (0.55 + 1.2 * sunFwd) * (1.0 - depth * 0.7) * (0.55 + 0.45 * uDawn);
         col = mix(col, hazeC, smoothstep(25.0, 90.0, t));
-        float step_ = (2.0 * f * min(tMax - t0, 90.0) + 0.4) / steps * 0.35;   // 按真实步长：近处的短射线（看画）不会被算成几十米厚
+        float step_ = (2.0 * f * min(tMax - t0, 160.0) + 0.4) / steps * 0.35;   // 按真实步长：近处的短射线（看画）不会被算成几十米厚
         float a = 1.0 - exp(-dn * step_ * 0.9);
         acc += T * a * col; T *= 1.0 - a;
         if (T < 0.02) break;
@@ -355,13 +343,13 @@ const worldMat = new THREE.ShaderMaterial({
         hitT = tg;   // 雾只算到谷底为止（以前一直算到地下，谷底永远被埋着）
         vec3 pg = o + d * tg;
         vec3 vc = valley(pg, d);
-        float far = smoothstep(30.0, 140.0, tg);
+        float far = smoothstep(220.0, 900.0, tg);
         bg = mix(vc, ridgeNear, far);
       }
       if (u > 0.0 && u < 1.0 && v > -0.7 && v < 1.0) {
         vec3 pc = texture2D(tPaint, vec2(u, max(v, 0.045))).rgb * tint;
         // 模糊一级判断"这一片是雾"，再要求这个像素本身也像雾——旅人的头发、衣角不会被当成雾抠掉
-        mask = fogMask(texture2D(tPaint, vec2(u, max(v, 0.045)), 3.0).rgb, max(v, 0.045)) * fogMask(texture2D(tPaint, vec2(u, max(v, 0.045)), 0.5).rgb, max(v, 0.045)) * (1.0 - smoothstep(0.045, -0.02, v));
+        mask = smoothstep(0.3, 0.7, texture2D(tMask, vec2(u, max(v, 0.045))).r) * (1.0 - smoothstep(0.045, -0.02, v));
         float edge = smoothstep(0.0, 0.1, u) * smoothstep(1.0, 0.9, u) * smoothstep(1.0, 0.96, v);
         edge *= smoothstep(0.035, 0.06, v);   // 画的底边（含画框暗边）之下不画，交给脚下的岩体
         inPic = edge;
@@ -421,30 +409,34 @@ scene.add(world);
       y = topAt(sr, th) + (w > 0.5 ? Math.min(bump, 0) : bump) - 0.3 * sm(clamp01((f - 0.88) / 0.12)) * (1 - w);
     } else {
       // 崖壁：往下越来越粗，一直落到谷底以下；大块凹凸 + 竖向节理
-      const down = -dy, sp = 1 + 1.3 * down * down;
+      const down = -dy, sp = 1 + 2.6 * down * down;
       const n = fbm3(Math.sin(th) * 3, dy * 6, Math.cos(th) * 3) - 0.47, nj = vn3(th * 7.0, dy * 4.0, 0.5) - 0.5;
       const sr = rr * sp * (1 + 0.45 * n + 0.15 * nj);
       x = Math.sin(th) * sr; z = -Math.cos(th) * sr;
-      y = topAt(rr, th) - 0.3 - down * 15;
+      y = topAt(rr, th) - 0.3 - down * (-GROUND_Y + 4);
     }
     pos.setXYZ(i, x, y, z);
   }
   g.computeVertexNormals();
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uSun: W.uSun, uDawn: W.uDawn, tClear: W.tClear, uBaseC: W.uBaseC, tNoise: W.tNoise, uTime: W.uTime, uStir: W.uStir, uThin: W.uThin },
+    uniforms: { tRock: W.tRock, uSun: W.uSun, uDawn: W.uDawn, tClear: W.tClear, uBaseC: W.uBaseC, tNoise: W.tNoise, uTime: W.uTime, uStir: W.uStir, uThin: W.uThin },
     vertexShader: `varying vec3 vN, vW; void main(){ vN = normalize(mat3(modelMatrix) * normal); vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
     fragmentShader: NOISE + STAGE_GLSL + FOG_GLSL + /* glsl */`
-      uniform vec3 uSun; uniform float uDawn; varying vec3 vN, vW;
+      uniform sampler2D tRock; uniform vec3 uSun; uniform float uDawn; varying vec3 vN, vW;
       void main() {
         vec3 n = normalize(vN);
         vec3 an = abs(n); an /= an.x + an.y + an.z;
         float tex = fbm(vW.yz * 3.0) * an.x + fbm(vW.xz * 3.0 + 7.0) * an.y + fbm(vW.xy * 3.0 + 3.0) * an.z;
         float fine = fbm(vW.yz * 22.0) * an.x + fbm(vW.xz * 22.0 + 7.0) * an.y + fbm(vW.xy * 22.0 + 3.0) * an.z;
         float strata = smoothstep(0.42, 0.58, vnoise(vec2(vW.x * 1.2 + vW.z * 0.8, vW.y * 5.0)));
-        vec3 rock = mix(vec3(0.075, 0.062, 0.052), vec3(0.21, 0.16, 0.11), strata * 0.6 + tex * 0.5) * (0.65 + 0.7 * fine);
-        rock *= 0.55 + 0.45 * smoothstep(0.3, 0.55, tex);   // 裂缝
+        // 画里岩石的笔触（裁自画底），按世界坐标三向投影；贴图是镜像平铺，不会有接缝
+        vec2 k = vec2(0.24, 0.24 * 2.9);
+        // 偏一级 mip：画面龟裂的白线不会变成一道道刮痕
+        vec3 paint = texture2D(tRock, vW.zy * k, 1.5).rgb * an.x + texture2D(tRock, vW.xz * k + 0.37, 1.5).rgb * an.y + texture2D(tRock, vW.xy * k + 0.71, 1.5).rgb * an.z;
+        vec3 rock = paint * vec3(2.2, 1.8, 1.3) * (0.8 + 0.4 * tex) * (0.85 + 0.3 * fine);
+        rock = mix(rock, rock * vec3(1.1, 0.95, 0.8), strata * 0.3);
         float diff = 0.35 + 0.65 * max(dot(n, uSun), 0.0) * (0.4 + 0.8 * uDawn);
-        vec3 c = rock * diff + rock * vec3(0.3, 0.33, 0.4) * (0.5 + 0.5 * n.y);
+        vec3 c = rock * diff + rock * vec3(0.30, 0.30, 0.30) * (0.5 + 0.5 * n.y);
         // 和天空球里同一团雾：从眼睛到岩面走 8 步累积，岩石被雾埋住的程度和周围的雾一致
         vec3 rd = vW - cameraPosition; float L = length(rd); rd /= L;
         float od = 0.0, dep;
@@ -480,7 +472,7 @@ let sunUp = 0, gazeHold = 0, still = 0, dawn = 0, sunrisePlayed = false, entered
 const landXZ = new THREE.Vector2(), gdir = new THREE.Vector3();
 // 视线走廊的终点：往下看就是视线落到谷底的地方（最远 40 米）；平视 / 仰视就是身前 9 米（仰视时就缩到头顶那一片）
 function landOn(o, d, out) {
-  const t = d.y < -0.05 ? Math.min((GROUND_Y - o.y) / d.y, 40 / Math.max(Math.hypot(d.x, d.z), 1e-3)) : 9.0;
+  const t = d.y < -0.05 ? Math.min((GROUND_Y - o.y) / d.y, 130 / Math.max(Math.hypot(d.x, d.z), 1e-3)) : 9.0;
   out.set(o.x + d.x * t, o.z + d.z * t);
   return Math.hypot(d.x * t, d.z * t);
 }
@@ -509,7 +501,7 @@ function updateGaze(dt) {
   W.uDawn.value = dawn;
   // 天亮时整片雾自己也慢慢沉回画里的雾海面（第 2 层）；太阳出来以后（约 90 秒）继续沉到半山、变薄、散开，露出谷底
   if (dawn >= 0.95) sunUp = Math.min(1, sunUp + dt / 90);
-  W.uBaseC.value = 2.0 * THREE.MathUtils.smoothstep(dawn, 0.3, 0.95) + 1.6 * THREE.MathUtils.smoothstep(sunUp, 0.0, 1.0);
+  W.uBaseC.value = 2.0 * THREE.MathUtils.smoothstep(dawn, 0.3, 0.95) + 1.95 * THREE.MathUtils.smoothstep(sunUp, 0.0, 1.0);
   W.uThin.value = 0.9 * THREE.MathUtils.smoothstep(sunUp, 0.15, 1.0);
   W.uTopMax.value = stageTopJS(W.uBaseC.value) + 1.0;
   // 太阳：从山脊后 -2° 升到 +11°，方位略偏左前
@@ -598,11 +590,18 @@ renderer.xr.addEventListener('sessionend', () => { plaque.visible = false; W.uSt
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 // ---------- 载入 ----------
-new THREE.TextureLoader().loadAsync('data/wanderer/color.jpg').then(t => {
-  t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.minFilter = THREE.LinearMipmapLinearFilter;
-  W.tPaint.value = t;
-  $('enter').disabled = false; $('enter').textContent = '进入';
-}).catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+{
+  const L = new THREE.TextureLoader(), aniso = renderer.capabilities.getMaxAnisotropy();
+  Promise.all(['color.jpg', 'fogmask.png', 'valley.jpg', 'rock.jpg'].map(f => L.loadAsync('data/wanderer/' + f)).concat(fetch('data/wanderer/valley.json').then(r => r.json())))
+  .then(([paint, mask, valleyT, rockT, info]) => {
+    paint.anisotropy = aniso; paint.minFilter = THREE.LinearMipmapLinearFilter;
+    valleyT.anisotropy = aniso; valleyT.wrapS = valleyT.wrapT = THREE.MirroredRepeatWrapping;
+    rockT.anisotropy = aniso; rockT.wrapS = rockT.wrapT = THREE.MirroredRepeatWrapping;
+    W.tPaint.value = paint; W.tMask.value = mask; W.tValley.value = valleyT; W.tRock.value = rockT;
+    info.villages.slice(0, 8).forEach(([x, z, r], i) => W.uVill.value[i].set(x, z, r, 0));
+    $('enter').disabled = false; $('enter').textContent = '进入';
+  }).catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+}
 
 // 测试钩子
 window.__bench = n => { const gl = renderer.getContext(); renderer.render(scene, camera); gl.finish(); const t0 = performance.now(); for (let i = 0; i < n; i++) renderer.render(scene, camera); gl.finish(); console.log("[bench]", ((performance.now() - t0) / n).toFixed(1), "ms/frame"); };
