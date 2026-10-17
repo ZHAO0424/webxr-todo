@@ -38,18 +38,19 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="intro">
   <div class="card">
-    <div class="kicker">SPATIAL REINTERPRETATION · AFTER J. M. W. TURNER, SNOW STORM – STEAM-BOAT OFF A HARBOUR'S MOUTH (1842)</div>
+    <div class="kicker">After J. M. W. Turner · Snow Storm – Steam-Boat off a Harbour's Mouth · 1842</div>
     <h1>被绑在桅杆上</h1>
     <h2>Lashed to the Mast</h2>
-    <p>据说透纳为了画这场暴风雪，让水手把自己绑在桅杆上四个小时。这个故事多半是传说，但画是真的：船、海、雪、烟都被卷进同一个漩涡，没有一样东西轮廓清楚，只有光从风暴的中心透出来。</p>
-    <p>这里，整幅画是一片真正在流动的流体。它在你四周缓慢旋转，像风暴的眼。<b>伸出手去搅动它</b>：颜料会被拉成丝、卷成涡、和雪混在一起，船消失在风里。你一停手，风暴慢慢记起自己原来的样子，画又从漩涡里浮现出来。</p>
-    <blockquote>"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"<small>— 透纳谈《暴风雪》，据罗斯金记述（被绑桅杆的故事多被认为是传说）</small></blockquote>
+    <p class="lead">传说透纳让水手把自己绑在桅杆上四个小时，只为画这场暴风雪。故事多半是传说，画却是真的：船、海、雪、烟被卷进同一个漩涡，只有光从风暴的中心透出来。</p>
+    <p>这里，整幅画是一片真正在流动的流体，在你四周缓缓旋转，像风暴的眼。<b>伸手搅动它</b>，颜料被拉成丝、卷成涡，船消失在风里，远处传来汽笛；你一停手，风暴慢慢记起自己，画又从漩涡里浮现。</p>
+    <blockquote>我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。<small>— 透纳谈《暴风雪》，据罗斯金记述</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how">XR：在面前挥手、划圈，手掠过的地方就是风；手柄同样可以<br>桌面：按住鼠标拖动搅动<br>建议戴耳机</div>
+    <div class="how" data-xr="挥手搅动风暴 · 停下，画会浮现"><em>手</em><span>在面前挥手、划圈，手掠过的地方就是风</span><em>鼠标</em><span>按住拖动搅动</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
 <div id="hud">风暴强度<button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>挥手搅动风暴；停下来，画会慢慢浮现</div>
@@ -57,6 +58,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { xrCaption } from './xr-caption.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -82,6 +84,7 @@ renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.02, 100);
+xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方
 camera.position.copy(EYE);
 renderer.setClearColor(0x3a3730, 1);
 
@@ -338,7 +341,7 @@ function mouseInput(dt) {
   addStir(2, dirToUV(raycaster.ray.direction), dt);
 }
 
-// ---------- 声音：风（滤波噪声）+ 低沉的海；搅得越猛，风声越尖、越大 ----------
+// ---------- 声音：风（滤波噪声）+ 低沉的海；搅得越猛，风声越尖、越大；风暴猛时远处滚雷；隔一阵，雾里传来那艘汽船的求救汽笛 ----------
 let audio = null, muted = false;
 function startAudio() {
   if (audio) { audio.ctx.resume(); return; }
@@ -353,8 +356,29 @@ function startAudio() {
     const gn = ctx.createGain(); gn.gain.value = g; s.connect(flt).connect(gn).connect(master); return { flt, gn };
   };
   const wind = mk('bandpass', 500, 1.2, 0.12), howl = mk('bandpass', 900, 8, 0.02), sea = mk('lowpass', 180, 0.7, 0.35);
-  audio = { ctx, master, wind, howl, sea };
+  audio = { ctx, master, wind, howl, sea, buf };
+  // 汽笛：两支略微走调的锯齿波经过共鸣滤波，低沉、拖长，从风里冒出来
+  const whistle = () => {
+    if (!audio || muted) return;
+    const t = ctx.currentTime, dur = 2.2 + Math.random() * 1.6;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 520; bp.Q.value = 3;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.35); g.gain.setValueAtTime(0.05, t + dur - 0.6); g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+    for (const f of [246, 249.5, 370]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 0.97, t); o.frequency.linearRampToValueAtTime(f, t + 0.3); o.connect(bp); o.start(t); o.stop(t + dur + 0.1); }
+    bp.connect(g).connect(master);
+  };
+  const loop = () => { whistle(); setTimeout(loop, 18000 + Math.random() * 22000); };
+  setTimeout(loop, 7000);
 }
+// 滚雷：低通的噪声，慢慢涌上来、拖很长
+function thunder(strength) {
+  if (!audio || muted) return;
+  const { ctx } = audio, t = ctx.currentTime;
+  const s = ctx.createBufferSource(); s.buffer = audio.buf; s.playbackRate.value = 0.5;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(260, t); lp.frequency.exponentialRampToValueAtTime(70, t + 5);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.5 * strength, t + 0.6); g.gain.exponentialRampToValueAtTime(0.001, t + 6);
+  s.connect(lp).connect(g).connect(audio.master); s.start(t, Math.random() * 2); s.stop(t + 6.2);
+}
+let lastThunder = 0;
 $('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.6, audio.ctx.currentTime, 0.3); };
 
 // ---------- XR 展签 ----------
@@ -384,7 +408,7 @@ let quoteShown = false;
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
-  dome.visible = opaque; plaque.visible = true;
+  dome.visible = opaque; plaque.visible = false;
   renderer.setClearColor(0x3a3730, opaque ? 1 : 0);
 });
 renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x3a3730, 1); });
@@ -427,6 +451,7 @@ renderer.setAnimationLoop(() => {
   if (audio) {
     const at = audio.ctx.currentTime;
     audio.wind.gn.gain.setTargetAtTime(0.08 + 0.35 * storm, at, 0.3);
+    if (storm > 0.55 && at - lastThunder > 9 && Math.random() < dt * 0.4) { lastThunder = at; thunder(storm); }
     audio.wind.flt.frequency.setTargetAtTime(380 + 900 * storm, at, 0.3);
     audio.howl.gn.gain.setTargetAtTime(0.01 + 0.08 * storm * storm, at, 0.3);
     audio.howl.flt.frequency.setTargetAtTime(700 + 600 * storm + 120 * Math.sin(time * 0.7), at, 0.2);

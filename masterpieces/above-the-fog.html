@@ -34,24 +34,26 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="intro">
   <div class="card">
-    <div class="kicker">SPATIAL REINTERPRETATION · AFTER FRIEDRICH, WANDERER ABOVE THE SEA OF FOG (c. 1818)</div>
+    <div class="kicker">After Caspar David Friedrich · Wanderer above the Sea of Fog · c. 1818</div>
     <h1>雾海之上</h1>
     <h2>Above the Sea of Fog</h2>
-    <p>1818 年前后，弗里德里希画下一个背对我们的人：他站在岩顶，脚下是翻涌的雾海，远处的山脊和岩柱从雾里探出来。我们永远看不到他的脸，只能站在他身后，和他看向同一片雾。</p>
-    <p>这里，你就站在那块岩石的后面，在黎明之前。雾是真的，而且一开始漫过你的头顶：眼前、头上都是雾，画只隐约透出来。<b>你看住一处，那里的雾就一层一层退下去</b>——先退到胸口，再退回画里那片雾海的海面，再往下露出半山，最后退到半山，一堆堆叠起来的砂岩从雾里露出来；最底下那层雾永远不散，谷底一直埋在里面。像他说的"精神的眼睛"，看得越久，看得越深。退下去的雾不会马上涨回来，要过很久才慢慢回涨。<b>而你站得越静，天亮得越快</b>：太阳从山脊后面升起来，雾被晨光从背后照透，由青灰转成金粉色，太阳出来以后，朝着太阳那一边的雾被晒薄、一层层往下沉；你一走动、一转头，黎明就慢下来。伸手进雾里拨，雾退得更快。</p>
-    <blockquote>“闭上你肉体的眼睛，先用精神的眼睛看你的画。然后把你在黑暗中看到的带到光里来。”<small>— 弗里德里希，约 1830</small></blockquote>
+    <p class="lead">一个背对我们的人站在岩顶，脚下是翻涌的雾海。我们永远看不到他的脸，只能站在他身后，和他看向同一片雾。</p>
+    <p>这里是黎明之前，雾漫过你的头顶。<b>看住一处</b>，那里的雾就一层层退下去：退到胸口，退回画里的雾海面，再露出一堆堆从雾里升起的砂岩；退下去的雾，很久才会回涨。<b>站得越静，天亮得越快</b>：太阳从山脊后升起，雾被晨光从背后照透，朝阳那一侧的雾被晒薄。</p>
+    <blockquote>闭上你肉体的眼睛，先用精神的眼睛看你的画。然后把你在黑暗中看到的带到光里来。<small>— 弗里德里希，约 1830</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how">XR：盯住一处 = 那里的雾一层层退下去；站着不动 = 天亮；手伸出去拨 = 退得更快<br>桌面：鼠标就是目光，停住 = 雾一层层退下；不动鼠标 = 天亮；右键拖动 = 转头；左键按住 = 拨雾<br>建议戴耳机</div>
+    <div class="how" data-xr="看住一处，雾会退下 · 站得越静，天亮得越快"><em>视线</em><span>盯住一处，雾一层层退下；站着不动，天亮；伸手去拨，退得更快</span><em>鼠标</em><span>停住即是凝视；右键拖动转头；左键按住拨雾</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
 <div id="hud"><span id="state">你站在雾里。看住一处，或伸手拨开</span><button id="mute">静音</button><div id="dawn"><i id="dawnBar"></i></div>看住一处，雾一层层退下；站得越静，天亮得越快</div>
 
 <script type="module">
 import * as THREE from 'three';
+import { xrCaption } from './xr-caption.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -79,6 +81,7 @@ renderer.xr.setFramebufferScaleFactor(0.8);
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.02, 500);
+xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方
 camera.position.copy(EYE);
 renderer.setClearColor(0x8d97a9, 1);
 
@@ -694,7 +697,7 @@ vrBtn.style.display = arBtn.style.display = 'none';
 document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { entered = true; startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
-renderer.xr.addEventListener('sessionstart', () => { plaque.visible = true; W.uSteps.value = 16; });
+renderer.xr.addEventListener('sessionstart', () => { plaque.visible = false; W.uSteps.value = 16; });
 renderer.xr.addEventListener('sessionend', () => { plaque.visible = false; W.uSteps.value = 26; });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 

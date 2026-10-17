@@ -36,18 +36,19 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="intro">
   <div class="card">
-    <div class="kicker">SPATIAL REINTERPRETATION · AFTER MONET, WATER-LILIES (AFTER 1916)</div>
-    <h1>水与倒影的风景</h1>
-    <h2>Landscapes of Water</h2>
-    <p>莫奈生命的最后三十年，几乎只画一个池塘。画里没有岸，也没有地平线：水面同时是天空的倒影、水下的深处和浮在上面的睡莲。到了巴黎橘园美术馆，这些画被弯成两个椭圆的房间，把人围在中间。</p>
-    <p>这里，你站在池塘的正中央，整幅《睡莲》铺满你脚下一圈的水面，一直延伸到雾里。水是真的：<b>用手（或指向水面并捏合）去点它</b>，涟漪会一圈圈扩散，把水下的颜色、水面的天光搅在一起；睡莲的叶子浮在上面，涟漪到那里就弱下去。而且有风——一阵一阵掠过水面，风到之处起一片细碎的纹，倒影被打散、闪光变密，风过之后又慢慢归于镜面。等水静下来，画又会重新清晰。</p>
-    <blockquote>“这些水与倒影的风景，已经成了我的执念。”<small>— 莫奈致古斯塔夫·热弗鲁瓦的信，1908 年 8 月</small></blockquote>
+    <div class="kicker">After Claude Monet · Water Lilies · after 1916</div>
+    <h1>睡莲</h1>
+    <h2>Water Lilies</h2>
+    <p class="lead">莫奈生命的最后三十年，几乎只画一个池塘。画里没有岸，也没有地平线：水面同时是天空的倒影、水下的深处，和浮在上面的睡莲。</p>
+    <p>这里，你站在池塘正中，整幅《睡莲》铺满脚下一圈水面，一直延伸进雾里。<b>点一下水</b>，涟漪一圈圈荡开，把水下的颜色和水面的天光搅在一起；阵风一块一块掠过，风到之处倒影碎开、闪光变密。等水静下来，画又重新清晰。</p>
+    <blockquote>这些水与倒影的风景，已经成了我的执念。<small>— 莫奈致古斯塔夫·热弗鲁瓦，1908 年 8 月</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how">XR：低头看水；伸手指向水面，捏合 / 扣扳机 = 落下一滴；按住并划过 = 一串涟漪；手能碰到水面时直接点<br>桌面：鼠标点水面 = 一滴；按住拖动 = 划过水面；拖动画面边缘附近可以转头<br>建议戴耳机</div>
+    <div class="how" data-xr="低头看水 · 指向水面捏合，落下一滴"><em>手</em><span>指向水面捏合 = 一滴；按住划过 = 一串涟漪；手碰到水面也可以</span><em>鼠标</em><span>点水面 = 一滴；按住拖动 = 划过水面；拖到画面边缘可以转头</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
 <div id="hud"><span id="state">水面平静</span><button id="mute">静音</button><br>点水，涟漪会扩散；静下来，画会重新清晰</div>
@@ -55,6 +56,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { xrCaption } from './xr-caption.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -79,6 +81,7 @@ renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.02, 200);
+xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方
 camera.position.copy(EYE);
 renderer.setClearColor(0xd9d3e2, 1);
 
@@ -463,7 +466,7 @@ for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
-  sky.visible = opaque; plaque.visible = true;
+  sky.visible = opaque; plaque.visible = false;
   renderer.setClearColor(0xd9d3e2, opaque ? 1 : 0);
 });
 renderer.xr.addEventListener('sessionend', () => { sky.visible = true; plaque.visible = false; renderer.setClearColor(0xd9d3e2, 1); });

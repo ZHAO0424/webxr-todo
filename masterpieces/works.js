@@ -16,6 +16,6 @@ window.WORKS = [
     blurb: '画铺成环绕你一整圈的弧幕。你注视哪里，哪里就被点燃，火线自己向四周蔓延，烧出后面那层腐蚀一百年后的画。', tags: ['火烧溶解', '视线'] },
   { slug: 'above-the-fog', zh: '雾海之上', en: 'Above the Sea of Fog', after: 'Friedrich', year: 'c. 1818',
     blurb: '你站在旅人身后，雾漫过头顶。看住一处，雾就一层层退下去，露出一堆堆砂岩；站得越静，太阳升得越快。', tags: ['体积雾', '视线 · 静止', '手'] },
-  { slug: 'wheatfield-paths', zh: '通向不知何处的路', en: 'Wheatfield Paths', after: 'van Gogh', year: '1890',
+  { slug: 'wheatfield-paths', zh: '通向不知何处的路', en: 'Paths to Nowhere', after: 'van Gogh', year: '1890',
     blurb: '一百万个黏菌"行者"在《麦田群鸦》上长出发光的路网，但只在你目光所及的一圈里显形，像提灯照进夜里的麦田。', tags: ['Physarum 黏菌', '视线'] },
 ];

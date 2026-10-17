@@ -41,18 +41,19 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="intro">
   <div class="card">
-    <div class="kicker">SPATIAL REINTERPRETATION · AFTER KLIMT, THE KISS (1907–08)</div>
+    <div class="kicker">After Gustav Klimt · The Kiss · 1907–08</div>
     <h1>这一吻</h1>
     <h2>This Kiss</h2>
-    <p>克里姆特的《吻》里有一处常被忽略的细节：这对恋人不是悬在金色的虚空里，而是跪在一片开满花的草地上，而草地在他们脚边<b>戛然而止</b>——那是一道悬崖的边缘，她的脚趾和金色的藤蔓垂在崖外。整个世界只剩这一小块花地和无边的金。</p>
-    <p>这里，我们把那道崖边补全成一个可以俯瞰的地方：一座浮在金色虚空里的花甸岛，风一阵一阵掠过草地、压出一道道波浪，紫、蓝、黄的小花<span class="glyphs"><i style="background:#8e5bbf;border-radius:50%"></i><i style="background:#3c6eb4;border-radius:50%"></i><i style="background:#e8c84a;border-radius:50%"></i></span>一直铺到崖口，藤蔓从崖口垂进深渊，风撞上崖壁翻上来，把花瓣卷过崖口。两人立在崖边：分开时是两尊方块叠成的鎏金人像——像他袍子上那些矩形<span class="glyphs"><i style="background:#1c1610"></i><i style="background:#efe6d0;width:5px"></i><i style="background:#d4a838"></i></span>长成了人；他披黑白金的矩形，她披彩色的圆花，隔着几米的空气相望。<b>你的两只手</b>就是他们：双手慢慢合拢，他们向彼此走近、倾身；合到一半，方块开始溶解、拉长、转向正面，渐渐化成画中相拥的姿势；合上的那一刻，金色从那一吻漫过整座岛。</p>
-    <blockquote>“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small></blockquote>
+    <p class="lead">《吻》里的恋人跪在一片开满花的草地上，而草地在他们脚边戛然而止——那是一道崖边，她的脚趾和金色的藤蔓垂在崖外。</p>
+    <p>这里，那道崖边被补成一座浮在金色虚空里的花甸岛。风掠过草地压出波浪，从崖下卷起花瓣。两人由两万多个小立方体组成，分开时是两尊方块人像，隔着几米的空气相望。<b>你的两只手就是他们</b>：双手慢慢合拢，他们走近；合上的那一刻，方块滑成画中相拥的姿势，金色漫过整座岛。</p>
+    <blockquote>这一吻，献给全世界！<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how">XR：花甸是一座放在你面前的小岛，低头俯瞰；伸出双手，两手之间的距离就是两人之间的距离；手合上 = 相拥<br>桌面：视角缓缓绕着岬角飞；拖动可以转、滚轮可以远近；鼠标离画面中线越远，两人分得越开，移到中线 = 相拥<br>建议戴耳机</div>
+    <div class="how" data-xr="伸出双手 · 慢慢合拢，让他们靠近"><em>手</em><span>小岛就在你面前，低头俯瞰；两手之间的距离，就是两人之间的距离</span><em>鼠标</em><span>拖动旋转、滚轮远近；鼠标越靠近画面中线，两人越近</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
 <div id="hud"><span id="state">双手合拢，让他们靠近</span><button id="mute">静音</button><div id="meter"><i id="ml"></i><i id="mr"></i></div>两手之间的距离 = 两人之间的距离</div>
@@ -60,6 +61,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { xrCaption } from './xr-caption.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -85,6 +87,7 @@ renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.02, 300);
+xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方
 renderer.setClearColor(0x120e08, 1);
 const world = new THREE.Group();                    // 所有"岛上的东西"都挂在这里，XR 时整体缩小、摆到面前
 scene.add(world);
@@ -795,7 +798,7 @@ for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
-  voidSphere.visible = opaque; plaque.visible = true;
+  voidSphere.visible = opaque; plaque.visible = false;
   world.scale.setScalar(XR_SCALE); world.position.copy(XR_POS);
   world.userData.dustMat.uniforms.uScale.value = world.userData.petalMat.uniforms.uScale.value = XR_SCALE;
   renderer.setClearColor(0x120e08, opaque ? 1 : 0);

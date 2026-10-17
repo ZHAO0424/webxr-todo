@@ -50,6 +50,15 @@
 
   const mount = () => {
     document.body.append(veil, nav);
+    // 入场页：左边挂上原画（带画框），背后铺一层虚化的画
+    const intro = document.getElementById('intro');
+    if (intro && !intro.querySelector('.st-plate')) {
+      const thumb = `data/thumbs/${slug}.jpg`;
+      intro.style.setProperty('--st-thumb', `url("${thumb}")`);
+      const fig = document.createElement('figure'); fig.className = 'st-plate'; fig.style.margin = '0';
+      fig.innerHTML = `<img src="${thumb}" alt=""><figcaption>${W[i].after} · ${W[i].year} · ${i + 1} / ${W.length}</figcaption>`;
+      intro.prepend(fig);
+    }
     requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.add('off')));
     // 下一幅的缩略图先取好，悬停时立刻出来
     [prev, next].forEach(w => { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = `${w.slug}.html`; document.head.appendChild(l); });

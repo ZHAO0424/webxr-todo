@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Masterpieces in Space</title>
+<title>入画 · Into the Painting</title>
 <style>
   :root { --ink: #ece7dc; --mute: #9d97a8; --line: rgba(236,231,220,.16); --gold: #c9a45c; --bg: #0b0a0d; }
   * { box-sizing: border-box; }
@@ -15,7 +15,8 @@
   #veil.off { opacity: 0; }
   header { position: fixed; top: 22px; left: 24px; z-index: 10; pointer-events: none; }
   .kicker { font: 11px/1.4 system-ui, sans-serif; letter-spacing: .3em; color: var(--mute); }
-  h1 { font-size: 30px; font-weight: 500; margin: 4px 0 0; letter-spacing: .12em; }
+  h1 { font-size: 44px; font-weight: 400; margin: 6px 0 0; letter-spacing: .5em; line-height: 1; }
+  header .sub { font-size: 13px; letter-spacing: .3em; color: var(--mute); margin-top: 10px; }
   #info { position: fixed; left: 24px; bottom: 26px; z-index: 10; max-width: 440px; width: calc(100% - 48px); transition: opacity .3s, transform .3s; }
   #info.swap { opacity: 0; transform: translateY(8px); }
   #info .after { font: 11px/1.4 system-ui, sans-serif; letter-spacing: .2em; color: var(--gold); text-transform: uppercase; }
@@ -58,8 +59,9 @@
 <body>
 <div id="veil"></div>
 <header>
-  <div class="kicker">SPATIAL REINTERPRETATIONS OF PUBLIC-DOMAIN PAINTINGS</div>
-  <h1>名画入空间</h1>
+  <div class="kicker">INTO THE PAINTING · NINE ROOMS</div>
+  <h1>入画</h1>
+  <div class="sub">九幅名画，九种走进去的方式</div>
 </header>
 <button id="listBtn" aria-expanded="false">目录</button>
 <section id="info" aria-live="polite">

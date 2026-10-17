@@ -1,0 +1,69 @@
+/* 入画：每件作品的入场页和场景里的提示，统一成展厅的样子——没有卡片，字直接落在画的暗影上 */
+:root { --st-ink: #efe9dd; --st-mute: #a49e93; --st-gold: #c9a45c; --st-line: rgba(239,233,221,.18); }
+
+/* ---------- 入场页 ---------- */
+#intro {
+  background: #0b0a0d !important; color: var(--st-ink) !important;
+  display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); align-items: center; gap: clamp(24px, 5vw, 80px);
+  padding: clamp(24px, 6vh, 72px) clamp(20px, 6vw, 96px) !important; overflow-y: auto; transition: opacity 1.6s ease !important;
+}
+#intro::before {   /* 画本身，大幅虚化铺满背后 */
+  content: ""; position: fixed; inset: -40px; background: var(--st-thumb, none) center / cover no-repeat;
+  filter: blur(38px) saturate(1.1) brightness(.42); transform: scale(1.08); z-index: -1;
+}
+#intro::after { content: ""; position: fixed; inset: 0; background: radial-gradient(ellipse at 30% 50%, rgba(11,10,13,0) 0%, rgba(11,10,13,.55) 70%, rgba(11,10,13,.8) 100%); z-index: -1; pointer-events: none; }
+#intro .st-plate { justify-self: end; max-width: 100%; max-height: 78vh; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+#intro .st-plate img {
+  max-width: 100%; max-height: 70vh; display: block; object-fit: contain;
+  box-shadow: 0 0 0 10px #241a0e, 0 0 0 11px #6e5228, 0 0 0 14px #1a130a, 0 30px 80px rgba(0,0,0,.7);
+}
+#intro .st-plate figcaption { font: 11px/1.5 system-ui, sans-serif; letter-spacing: .18em; color: var(--st-mute); text-transform: uppercase; margin-top: 14px; }
+#intro .card {
+  background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; max-width: 520px !important;
+  color: var(--st-ink) !important; font-family: "Songti SC", "STSong", "SimSun", Georgia, serif !important; font-size: 15px !important; line-height: 1.95 !important;
+}
+#intro .kicker { font: 11px/1.6 system-ui, sans-serif !important; letter-spacing: .28em !important; color: var(--st-gold) !important; text-transform: uppercase; }
+#intro h1 { font-size: clamp(38px, 5.2vw, 64px) !important; font-weight: 400 !important; letter-spacing: .14em !important; line-height: 1.15 !important; margin: 14px 0 4px !important; color: var(--st-ink) !important; }
+#intro h2 { font-size: 17px !important; font-weight: 400 !important; font-style: italic !important; color: var(--st-mute) !important; margin: 0 0 26px !important; letter-spacing: .04em !important; }
+#intro h2::after { content: ""; display: block; width: 48px; height: 1px; background: var(--st-gold); margin-top: 22px; }
+#intro p { margin: 0 0 14px !important; color: #d8d1c4 !important; }
+#intro p.lead { font-size: 17px !important; color: var(--st-ink) !important; line-height: 1.9 !important; }
+#intro b { color: var(--st-ink) !important; font-weight: 600 !important; }
+#intro blockquote {
+  position: relative; margin: 26px 0 30px !important; padding: 0 0 0 30px !important; border: 0 !important;
+  font-style: italic; color: #cfc6b5 !important; font-size: 15px !important;
+}
+#intro blockquote::before { content: "“"; position: absolute; left: -4px; top: -18px; font-size: 64px; line-height: 1; color: var(--st-gold); opacity: .7; font-style: normal; }
+#intro blockquote small { display: block; font: 11px/1.6 system-ui, sans-serif !important; letter-spacing: .08em; color: var(--st-mute) !important; margin-top: 8px !important; font-style: normal; }
+#intro #enter {
+  background: none !important; color: var(--st-ink) !important; border: 1px solid var(--st-gold) !important; border-radius: 0 !important;
+  padding: 13px 40px !important; font-size: 15px !important; letter-spacing: .6em !important; text-indent: .6em; cursor: pointer; font-family: inherit !important;
+  transition: background .25s, color .25s, letter-spacing .25s !important; margin: 4px 0 0 !important;
+}
+#intro #enter:not(:disabled):hover, #intro #enter:focus-visible { background: var(--st-gold) !important; color: #17140e !important; outline: none; letter-spacing: .8em !important; }
+#intro #enter:disabled { opacity: .45 !important; border-color: var(--st-line) !important; letter-spacing: .3em !important; }
+#intro .how {
+  margin-top: 26px !important; padding-top: 16px; border-top: 1px solid var(--st-line);
+  font: 12px/1.9 system-ui, sans-serif !important; color: var(--st-mute) !important; display: grid; grid-template-columns: auto 1fr; column-gap: 14px;
+}
+#intro .how em { font-style: normal; color: var(--st-gold); letter-spacing: .14em; white-space: nowrap; }
+#intro .how span { color: var(--st-mute); }
+#intro #status { font: 12px/1.6 system-ui, sans-serif; color: var(--st-mute) !important; margin-top: 10px; }
+@media (max-width: 820px) {
+  #intro { grid-template-columns: 1fr !important; align-items: start; }
+  #intro .st-plate { justify-self: center; align-items: center; } #intro .st-plate img { max-height: 34vh; }
+  #intro .st-plate figcaption { display: none; }
+}
+
+/* ---------- 场景里的提示：不要卡片，只是一行字落在画面左下 ---------- */
+#hud {
+  background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 0 0 14px !important;
+  color: var(--st-ink) !important; font: 12px/1.8 system-ui, sans-serif !important; letter-spacing: .04em;
+  text-shadow: 0 1px 2px rgba(0,0,0,.55), 0 0 14px rgba(0,0,0,.45); max-width: min(380px, calc(100% - 32px)) !important; width: auto !important;
+}
+#hud::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px; background: var(--st-gold); opacity: .8; }
+#hud > span:first-child, #hud > b:first-child { font: 16px/1.6 "Songti SC", "STSong", serif; letter-spacing: .08em; display: inline-block; margin-bottom: 2px; }
+#hud button { background: rgba(11,10,13,.25) !important; border: 1px solid rgba(239,233,221,.4) !important; color: var(--st-ink) !important; border-radius: 999px !important; padding: 1px 10px !important; font-size: 11px !important; margin-left: 10px !important; text-shadow: none; cursor: pointer; }
+#hud #meter, #hud #dawn, #hud #age { background: rgba(239,233,221,.18) !important; height: 2px !important; margin: 6px 0 6px !important; box-shadow: none !important; border: 0 !important; }
+#hud #meter i, #hud #dawn i, #hud #age i { box-shadow: none !important; }
+#hud input[type=range] { accent-color: var(--st-gold); }

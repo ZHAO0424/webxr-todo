@@ -36,18 +36,19 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="intro">
   <div class="card">
-    <div class="kicker">SPATIAL REINTERPRETATION · AFTER VAN GOGH, THE STARRY NIGHT (1889)</div>
+    <div class="kicker">After Vincent van Gogh · The Starry Night · 1889</div>
     <h1>去往星星</h1>
     <h2>To Reach a Star</h2>
-    <p>1889 年 6 月，梵高在圣雷米疗养院的窗前画下《星月夜》。天空在翻卷，村庄却安静地睡着；一株柏树像一团黑色的火焰，从大地伸向星辰。</p>
-    <p>这件作品不复制那张画。它把画里的三股力量拆开，放进你面前的空间：<b>动荡的天空</b>、<b>沉睡的村庄</b>、<b>向上燃烧的柏树</b>。天空由一万多道会流动的笔触构成——你的手势会搅动它，那是画家内心的风暴；当你指向一颗星并捏合，一束金色笔触会沿着柏树升起，去往那颗星，村里也会多亮起一盏灯。所有星星都被抵达之后，天空会慢慢平静下来。</p>
-    <blockquote>“就像我们乘火车去塔拉斯孔或鲁昂，我们乘死亡去往一颗星星。”<small>— 梵高致提奥，阿尔勒，1888 年 7 月（Letter 638）</small></blockquote>
+    <p class="lead">1889 年 6 月，圣雷米疗养院的窗前。天空在翻卷，村庄睡着，一株柏树像一团黑色的火焰，从大地伸向星辰。</p>
+    <p>这里，那片天空由一万多道流动的笔触织成，悬在你的头顶。<b>挥手</b>，就搅动画家心里的风暴；<b>指向一颗星</b>，一束金色的笔触沿着柏树升起，去往那里，村里随之多亮起一盏灯。等每一颗星都被抵达，天空才慢慢平静下来。</p>
+    <blockquote>就像我们乘火车去塔拉斯孔或鲁昂，我们乘死亡去往一颗星星。<small>— 梵高致提奥，阿尔勒，1888 年 7 月</small></blockquote>
     <button id="enter">进入</button>
-    <div class="how">桌面：移动鼠标搅动天空 · 点击星星<br>XR：挥手搅动天空 · 用射线指向星星后扣扳机 / 捏合<br>建议戴耳机</div>
+    <div class="how" data-xr="挥手搅动天空 · 指向一颗星并捏合"><em>手</em><span>挥动搅动天空；射线指向星星，捏合或扣扳机</span><em>鼠标</em><span>移动搅动天空，点击星星</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
 <div id="hud"><b id="count">0 / 11</b> 颗星已抵达<button id="mute">静音</button><br>移动 / 挥手搅动天空，指向星星并点击 / 捏合</div>
@@ -55,6 +56,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { xrCaption } from './xr-caption.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -76,6 +78,7 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.02, 100);
+xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方
 camera.position.copy(EYE);
 
 // 整个作品挂在眼睛高度的原点上；天空里的东西用 (θ 方位, φ 仰角, r 距离) 摆放
@@ -443,7 +446,7 @@ function updateGold(dt) {
   gold.flush();
 }
 
-// ---------- 声音：低沉的和弦铺底（随天空的动荡变亮），抵达一颗星时响一声 ----------
+// ---------- 声音：圣雷米六月的夜——柔和的降 E 和弦铺底（随天空的动荡变亮）、远处的蟋蟀；抵达一颗星时响一声钟片 ----------
 let audio = null, muted = false;
 const PENTA = [622.25, 698.46, 783.99, 932.33, 1046.5, 1244.5, 1396.9, 1568, 1864.7, 2093, 2489];
 function startAudio() {
@@ -454,8 +457,8 @@ function startAudio() {
   const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 420; filter.connect(master);
   [155.56, 233.08, 311.13, 392.0].forEach((f, i) => {
     for (const det of [-7, 7]) {
-      const o = ctx.createOscillator(); o.type = i < 2 ? 'sawtooth' : 'triangle'; o.frequency.value = f; o.detune.value = det;
-      const g = ctx.createGain(); g.gain.value = i < 2 ? 0.045 : 0.07;
+      const o = ctx.createOscillator(); o.type = i < 2 ? 'triangle' : 'sine'; o.frequency.value = f; o.detune.value = det;
+      const g = ctx.createGain(); g.gain.value = i < 2 ? 0.08 : 0.07;
       o.connect(g).connect(filter); o.start();
     }
   });
@@ -463,15 +466,32 @@ function startAudio() {
   const fb = ctx.createGain(); fb.gain.value = 0.5;
   delay.connect(fb).connect(delay); delay.connect(master);
   audio = { ctx, master, filter, delay };
+  // 蟋蟀：4.6 kHz 的短音，一次三四下快速的颤，左右随机，很轻
+  const cricket = () => {
+    if (!audio || muted) return;
+    const t = ctx.currentTime, f = 4300 + Math.random() * 700, n = 3 + (Math.random() * 2 | 0);
+    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+    const g = ctx.createGain(); g.gain.value = 0;
+    for (let k = 0; k < n; k++) { const s = t + k * 0.045; g.gain.setValueAtTime(0, s); g.gain.linearRampToValueAtTime(0.014, s + 0.008); g.gain.linearRampToValueAtTime(0, s + 0.03); }
+    if (pan) { pan.pan.value = Math.random() * 1.6 - 0.8; o.connect(g).connect(pan).connect(master); } else o.connect(g).connect(master);
+    o.start(t); o.stop(t + n * 0.045 + 0.05);
+  };
+  const loop = () => { cricket(); setTimeout(loop, 500 + Math.random() * 1800); };
+  setTimeout(loop, 3000);
 }
 function chime(n, gain = 0.22) {
   if (!audio || muted) return;
   const { ctx } = audio, t = ctx.currentTime;
-  const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = PENTA[n % PENTA.length];
+  // 钟片：基音 + 2.76 倍的非谐泛音（很快消失），像星光一闪
+  const f = PENTA[n % PENTA.length];
   const g = ctx.createGain();
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0008, t + 3.5);
-  o.connect(g); g.connect(audio.master); g.connect(audio.delay);
-  o.start(t); o.stop(t + 3.6);
+  g.connect(audio.master); g.connect(audio.delay);
+  const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(g); o.start(t); o.stop(t + 3.6);
+  const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2.76;
+  const g2 = ctx.createGain(); g2.gain.setValueAtTime(gain * 0.35, t); g2.gain.exponentialRampToValueAtTime(0.0005, t + 0.8);
+  o2.connect(g2).connect(g); o2.start(t); o2.stop(t + 0.9);
 }
 $('mute').onclick = () => {
   muted = !muted; $('mute').textContent = muted ? '开声音' : '静音';
@@ -608,7 +628,7 @@ $('enter').onclick = () => {
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
   dome.visible = opaque;                       // AR：去掉夜空背景，笔触漂在真实房间里
-  plaque.visible = true;
+  plaque.visible = false;
   renderer.setClearColor(0x0a1230, opaque ? 1 : 0);
 });
 renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x0a1230, 1); });

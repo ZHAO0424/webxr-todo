@@ -38,18 +38,19 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="intro">
   <div class="card">
-    <div class="kicker">SPATIAL REINTERPRETATION · AFTER VAN GOGH, WHEATFIELD WITH CROWS (1890)</div>
-    <h1>通往何处的路</h1>
+    <div class="kicker">After Vincent van Gogh · Wheatfield with Crows · 1890</div>
+    <h1>通向不知何处的路</h1>
     <h2>Paths to Nowhere</h2>
-    <p>1890 年 7 月，凡·高在奥维尔画下《麦田群鸦》：翻滚的天空、低飞的乌鸦，麦田里三条小路——一条往左、一条往右、一条通向麦田深处，没有一条通到哪里。</p>
-    <p>这里，麦田环绕着你。几十万个微小的"行者"在画上爬行，像黏菌一样，沿着彼此留下的痕迹、沿着凡·高的笔触走，自己织出一张发光的路网。但这张网<b>只在你目光所及的那一圈里显形</b>——像提灯照进夜里的麦田，灯圈之外一切如常，看不见任何路。<b>你看向哪里，你站在哪里，就是它们要去的地方</b>——路会向你的目光生长、在那里变粗；停得越久，照亮的圈越大。你一离开，灯灭了，它们在暗处慢慢回到画里那三条哪儿也不通的路上。</p>
-    <blockquote>“那是动荡天空下无边无际的麦田，我特意尝试去表达悲伤、极度的孤独。”<small>— 凡·高致提奥与乔，奥维尔，约 1890 年 7 月 10 日（Letter 898）</small></blockquote>
+    <p class="lead">1890 年 7 月，奥维尔。翻滚的天空，低飞的乌鸦，麦田里三条小路——一条往左、一条往右、一条通向麦田深处，没有一条通到哪里。</p>
+    <p>这里，麦田环绕着你。一百万个黏菌一样的"行者"沿着彼此的痕迹和凡·高的笔触爬行，织出一张发光的路网。但它<b>只在你目光所及的一圈里显形</b>，像提灯照进夜里的麦田。你看向哪里，路就长向哪里；停得越久，灯圈越大。你一离开，它们在暗处慢慢回到画里那三条哪儿也不通的路上。</p>
+    <blockquote>那是动荡天空下无边无际的麦田，我特意尝试去表达悲伤、极度的孤独。<small>— 凡·高致提奥与乔，奥维尔，1890 年 7 月</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how">XR：转头看、在原地走动——路网追随你的头部位置与视线<br>桌面：鼠标就是你的目光；把鼠标移到画面外 = 离开<br>建议戴耳机</div>
+    <div class="how" data-xr="看向哪里，路就长向哪里"><em>视线</em><span>转头看、在原地走动，路网追随你</span><em>鼠标</em><span>鼠标就是目光；移出画面 = 离开</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
 <div id="hud"><span id="state">路网正在生长</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>路只在目光所及处显形，并向那里生长</div>
@@ -57,6 +58,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { xrCaption } from './xr-caption.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -83,6 +85,7 @@ renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.02, 100);
+xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方
 camera.position.copy(EYE);
 renderer.setClearColor(0x1b2550, 1);
 
@@ -565,7 +568,7 @@ $('enter').onclick = () => {
 };
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
-  dome.visible = opaque; plaque.visible = true;
+  dome.visible = opaque; plaque.visible = false;
   renderer.setClearColor(0x1b2550, opaque ? 1 : 0);
 });
 renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x1b2550, 1); });

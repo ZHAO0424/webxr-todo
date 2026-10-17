@@ -36,25 +36,26 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="intro">
   <div class="card">
-    <div class="kicker">SPATIAL REINTERPRETATION · AFTER BÖCKLIN, ISLE OF THE DEAD (1880, BASEL)</div>
+    <div class="kicker">After Arnold Böcklin · Isle of the Dead · 1880</div>
     <h1>目光停留之处</h1>
     <h2>Where the Gaze Rests</h2>
-    <p>1880 年，勃克林在佛罗伦萨画下第一版《死之岛》：暮色里一座岩岛，高耸的柏树，凿进岩壁的墓室，一只小船载着白衣人和棺木缓缓驶近。他后来又画了四个版本；拉赫玛尼诺夫看过它的黑白复制品后，写出了同名交响诗，用 5/8 拍模仿划桨。</p>
-    <p>这件作品让"看"本身成为火。画铺成一面环绕你一整圈的弧幕：正前方是《死之岛》，画两侧的天和海用画自己的笔触接着往左右铺开，一直到你身后合拢。画有两层：前面是你熟悉的《死之岛》，后面垫着同一幅画在一百年的潮湿里腐蚀之后的样子——水痕、龟裂、剥落，岩石上的地衣与锈<span class="swatch"><i style="background:#c49a4a"></i><i style="background:#8a4a24"></i><i style="background:#e6dcc6"></i></span>，柏树间的苔藓<span class="swatch"><i style="background:#3a4a2a"></i><i style="background:#6b7a4a"></i></span>，水面上盐与骨色的斑。你的目光停在哪里，哪里就被点燃：前层像一张纸从目光处燃开，火线<span class="swatch"><i style="background:#ff4a0a"></i><i style="background:#ffd860"></i><i style="background:#1a0e08"></i></span>自己向四周蔓延、飘起火星，烧出后面那一层——刚烧穿是一片炭黑、余烬在炭缝里明灭，然后慢慢冷却，白灰落下，腐蚀的画从灰烬里透出来。</p>
-    <p>烧过的地方要过很久才一点一点愈合，原画慢慢重新盖回来；长回来之后，才能再次被点燃。</p>
-    <div class="note">据记载，委托第二版的玛丽·贝尔纳希望它是一幅"可以对着做梦的画"（ein Bild zum Träumen）。</div>
+    <p class="lead">暮色里一座岩岛，高耸的柏树，凿进岩壁的墓室，一只小船载着白衣人和棺木缓缓驶近。拉赫玛尼诺夫看过它的黑白复制品，写下同名交响诗，用 5/8 拍模仿划桨。</p>
+    <p>这里，画铺成环绕你一整圈的弧幕，天和海用画自己的笔触一直接到你身后。画有两层：前面是《死之岛》，后面垫着它在一百年潮湿里腐蚀之后的样子。<b>你的目光停在哪里，哪里就被点燃</b>：火线向四周蔓延，烧出炭黑与余烬；冷却之后，腐蚀的画从灰烬里透出来。很久以后，原画才慢慢长回来。</p>
+    <blockquote>一幅可以对着做梦的画。<small>— 委托第二版的玛丽·贝尔纳对这幅画的期望（ein Bild zum Träumen）</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how">XR：看向哪里，哪里生长；手柄或手指着的地方也会生长<br>桌面：鼠标就是目光；按住拖动可以环顾<br>建议戴耳机</div>
+    <div class="how" data-xr="看向哪里，哪里燃起"><em>视线</em><span>看向哪里，哪里燃起；手柄或手指着的地方也会燃起</span><em>鼠标</em><span>鼠标就是目光；按住拖动环顾</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
 <div id="hud"><span id="hudText">凝视之处正在燃烧</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div>目光点火，火自己蔓延；烧过的地方很久之后才慢慢愈合</div>
 
 <script type="module">
 import * as THREE from 'three';
+import { xrCaption } from './xr-caption.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
@@ -162,6 +163,7 @@ renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.02, 100);
+xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方
 camera.position.copy(EYE);
 renderer.setClearColor(0x0c0f15, 1);
 
@@ -581,7 +583,7 @@ let entered = false;
 $('enter').onclick = () => { entered = true; startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
-  dome.visible = opaque; plaque.visible = true;
+  dome.visible = opaque; plaque.visible = false;
   renderer.setClearColor(0x0c0f15, opaque ? 1 : 0);
 });
 renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x0c0f15, 1); });
