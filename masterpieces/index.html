@@ -5,93 +5,307 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Masterpieces in Space</title>
 <style>
-  :root { --bg: #f3efe6; --ink: #24222a; --mute: #6f6a78; --line: rgba(36,34,42,.14); --accent: #b8452a; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #16151a; --ink: #ece7dc; --mute: #9d97a8; --line: rgba(236,231,220,.14); --accent: #e0805e; } }
-  :root[data-theme="dark"] { --bg: #16151a; --ink: #ece7dc; --mute: #9d97a8; --line: rgba(236,231,220,.14); --accent: #e0805e; }
+  :root { --ink: #ece7dc; --mute: #9d97a8; --line: rgba(236,231,220,.16); --gold: #c9a45c; --bg: #0b0a0d; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; line-height: 1.75; }
-  main { max-width: 920px; margin: 0 auto; padding: 48px 16px 64px; }
-  .kicker { font-family: system-ui, sans-serif; font-size: 12px; letter-spacing: .28em; color: var(--mute); }
-  h1 { font-size: 40px; font-weight: 500; margin: 6px 0 4px; letter-spacing: .04em; }
-  .lede { color: var(--mute); margin: 0 0 36px; max-width: 640px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
-  a.card { display: block; text-decoration: none; color: inherit; border-top: 2px solid var(--ink); padding: 14px 2px 18px; transition: border-color .2s; }
-  a.card:hover { border-top-color: var(--accent); }
-  .card .after { font-family: system-ui, sans-serif; font-size: 11px; letter-spacing: .16em; color: var(--mute); text-transform: uppercase; }
-  .card h2 { font-size: 22px; font-weight: 500; margin: 4px 0 2px; }
-  .card .en { font-style: italic; color: var(--mute); font-size: 14px; }
-  .card p { font-size: 14px; margin: 8px 0 10px; }
-  .tags { display: flex; flex-wrap: wrap; gap: 6px; font-family: system-ui, sans-serif; font-size: 11px; }
-  .tags span { border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; color: var(--mute); }
-  h3 { font-size: 15px; font-weight: 500; margin: 48px 0 12px; font-family: system-ui, sans-serif; letter-spacing: .12em; color: var(--mute); }
-  .small { font-family: system-ui, sans-serif; font-size: 13px; color: var(--mute); }
-  .small a { color: inherit; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: "Songti SC", "STSong", "SimSun", Georgia, serif; }
+  canvas { display: block; touch-action: none; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  canvas.over { cursor: pointer; }
+  #veil { position: fixed; inset: 0; background: var(--bg); z-index: 30; pointer-events: none; opacity: 1; transition: opacity 1.2s ease; }
+  #veil.off { opacity: 0; }
+  header { position: fixed; top: 22px; left: 24px; z-index: 10; pointer-events: none; }
+  .kicker { font: 11px/1.4 system-ui, sans-serif; letter-spacing: .3em; color: var(--mute); }
+  h1 { font-size: 30px; font-weight: 500; margin: 4px 0 0; letter-spacing: .12em; }
+  #info { position: fixed; left: 24px; bottom: 26px; z-index: 10; max-width: 440px; width: calc(100% - 48px); transition: opacity .3s, transform .3s; }
+  #info.swap { opacity: 0; transform: translateY(8px); }
+  #info .after { font: 11px/1.4 system-ui, sans-serif; letter-spacing: .2em; color: var(--gold); text-transform: uppercase; }
+  #info h2 { font-size: 34px; font-weight: 500; margin: 6px 0 0; letter-spacing: .06em; }
+  #info .en { font-style: italic; color: var(--mute); font-size: 15px; margin-top: 2px; }
+  #info p { font-size: 14px; line-height: 1.85; margin: 12px 0 12px; color: #d9d3c6; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; font: 11px/1 system-ui, sans-serif; margin-bottom: 16px; }
+  .tags span { border: 1px solid var(--line); border-radius: 999px; padding: 5px 9px; color: var(--mute); }
+  #enter { background: none; color: var(--ink); border: 1px solid var(--gold); padding: 10px 26px; font-size: 14px; letter-spacing: .4em; cursor: pointer; font-family: inherit; transition: background .2s, color .2s; }
+  #enter:hover, #enter:focus-visible { background: var(--gold); color: #17140e; outline: none; }
+  #side { position: fixed; right: 24px; bottom: 26px; z-index: 10; text-align: right; font: 12px/1.6 system-ui, sans-serif; color: var(--mute); }
+  #count { font: 28px/1 "Songti SC", "STSong", serif; color: var(--ink); letter-spacing: .08em; }
+  #count small { font-size: 14px; color: var(--mute); }
+  .arrows { display: flex; gap: 8px; justify-content: flex-end; margin: 12px 0 10px; }
+  .arrows button, #listBtn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: rgba(14,13,18,.5); color: var(--ink); font-size: 16px; cursor: pointer; }
+  .arrows button:hover, #listBtn:hover { border-color: var(--gold); }
+  #listBtn { width: auto; padding: 0 16px; border-radius: 999px; height: 32px; font-size: 12px; letter-spacing: .1em; position: fixed; top: 24px; right: 24px; z-index: 12; }
+  #list { position: fixed; inset: 0; z-index: 11; background: rgba(11,10,13,.94); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity .35s; overflow-y: auto; padding: 84px 24px 40px; }
+  #list.on { opacity: 1; pointer-events: auto; }
+  #list ol { list-style: none; margin: 0 auto; padding: 0; max-width: 820px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 22px; }
+  #list a { display: block; color: inherit; text-decoration: none; }
+  #list img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; filter: brightness(.85); transition: filter .25s; }
+  #list a:hover img { filter: none; }
+  #list b { display: block; font-size: 18px; font-weight: 500; margin-top: 8px; }
+  #list i { font: 11px/1.4 system-ui, sans-serif; letter-spacing: .14em; color: var(--mute); font-style: normal; }
+  #list .foot { max-width: 820px; margin: 40px auto 0; font: 12px/1.8 system-ui, sans-serif; color: var(--mute); }
+  #list .foot a { display: inline; text-decoration: underline; }
+  @media (max-width: 640px) {
+    #info h2 { font-size: 26px; } #info p { display: none; } #info { bottom: 92px; }
+    #side { left: 24px; right: 24px; bottom: 20px; display: flex; align-items: center; justify-content: space-between; text-align: left; }
+    #side .hint { display: none; } .arrows { margin: 0; }
+    h1 { font-size: 24px; } .kicker { display: none; } #info { bottom: 84px; }
+  }
 </style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script src="works.js"></script>
 </head>
 <body>
-<main>
-  <div class="kicker">WEBXR · SPATIAL REINTERPRETATIONS OF PUBLIC-DOMAIN PAINTINGS</div>
+<div id="veil"></div>
+<header>
+  <div class="kicker">SPATIAL REINTERPRETATIONS OF PUBLIC-DOMAIN PAINTINGS</div>
   <h1>名画入空间</h1>
-  <p class="lede">每一件都不复制原画，而是挑一种和那幅画精神相合的算法，把画放进你周围的空间里，再给它一个只属于它的交互。电脑上用鼠标，头显里用手、视线或声音。所有画作均为公有领域，图片来自 Wikimedia Commons。</p>
+</header>
+<button id="listBtn" aria-expanded="false">目录</button>
+<section id="info" aria-live="polite">
+  <div class="after" id="iAfter"></div>
+  <h2 id="iZh"></h2>
+  <div class="en" id="iEn"></div>
+  <p id="iBlurb"></p>
+  <div class="tags" id="iTags"></div>
+  <button id="enter">进入</button>
+</section>
+<div id="side">
+  <div id="count"></div>
+  <div class="arrows"><button id="prev" aria-label="上一幅">‹</button><button id="next" aria-label="下一幅">›</button></div>
+  <div class="hint">拖动 · 滚轮 · 方向键浏览<br>点击正中的画，走进去</div>
+</div>
+<div id="list" role="dialog" aria-label="全部作品"><ol id="listOl"></ol>
+  <div class="foot">每一件都不复制原画，而是挑一种和那幅画精神相合的算法，把画放进你周围的空间里，再给它一个只属于它的交互。电脑上用鼠标，头显里用手、视线或声音。所有画作均为公有领域，图片来自 Wikimedia Commons。WebXR 需要 HTTPS 或 localhost；离线烘焙脚本在 <code>bake/</code>。← <a href="../">悬浮体</a></div>
+</div>
 
-  <div class="grid">
-    <a class="card" href="to-reach-a-star.html">
-      <div class="after">After van Gogh · 1889</div>
-      <h2>去往星星</h2><div class="en">To Reach a Star</div>
-      <p>一万五千道流动的笔触组成翻卷的天空。挥手搅动风暴，指向一颗星，一束金色笔触沿柏树升起去往那里。</p>
-      <div class="tags"><span>流场笔触</span><span>手</span></div>
-    </a>
-    <a class="card" href="seeing-takes-time.html">
-      <div class="after">After Seurat · 1884–86</div>
-      <h2>看见需要时间</h2><div class="en">Seeing Takes Time</div>
-      <p>十五万颗纯色点漂成一团色雾，只有你的目光停留之处，它们才聚成点彩画。</p>
-      <div class="tags"><span>视觉混合</span><span>视线</span></div>
-    </a>
-    <a class="card" href="scream-through-nature.html">
-      <div class="after">After Munch · 1892–96</div>
-      <h2>穿过自然的尖叫</h2><div class="en">A Scream Through Nature</div>
-      <p>几十万条笔触鱼群沿河道绕着你游。只有发出声音，它们才游回来，在你眼前聚成蒙克五幅画中的一幅。</p>
-      <div class="tags"><span>GPU 鱼群</span><span>声音</span></div>
-    </a>
-    <a class="card" href="lashed-to-the-mast.html">
-      <div class="after">After Turner · 1842</div>
-      <h2>被绑在桅杆上</h2><div class="en">Lashed to the Mast</div>
-      <p>整幅《暴风雪》是一片真正在流动的流体，包住你前方的半个球。伸手搅动，画被卷成漩涡；停手，它慢慢记起自己。</p>
-      <div class="tags"><span>Stable Fluids</span><span>手</span></div>
-    </a>
-    <a class="card" href="water-lilies.html">
-      <div class="after">After Monet · after 1916</div>
-      <h2>睡莲</h2><div class="en">Water Lilies</div>
-      <p>你站在池塘中央，整幅睡莲铺满一圈水面。点水起涟漪，折射、焦散和天光倒影都随波纹变化；阵风一块一块掠过水面，风到之处起细纹、倒影碎开。</p>
-      <div class="tags"><span>波动方程</span><span>阵风</span><span>手 / 射线</span></div>
-    </a>
-    <a class="card" href="this-kiss.html">
-      <div class="after">After Klimt · 1907–08</div>
-      <h2>这一吻</h2><div class="en">This Kiss</div>
-      <p>画里的花地在恋人脚边戛然而止——那是一道崖边。这里把它补成一座浮在金色虚空里的花甸岛，从空中俯瞰，风一阵阵掠过草地、从崖下卷起花瓣。两人由两万多个小立方体组成：分开时排成两尊方块人像，双手合拢时同一批立方体飞到画中相拥的姿势，金色漫过整座岛。</p>
-      <div class="tags"><span>3D 花甸岛</span><span>深度立体像</span><span>双手距离</span></div>
-    </a>
-    <a class="card" href="isle-of-the-dead.html">
-      <div class="after">After Böcklin · 1880</div>
-      <h2>目光停留之处</h2><div class="en">Where the Gaze Rests</div>
-      <p>画铺成环绕你一整圈的弧幕，两侧的天和海用画自己的笔触接出去。画有两层：前面是《死之岛》，后面垫着它腐蚀一百年之后的样子。你注视哪里，哪里就被点燃，火线自己向四周蔓延、飘起火星，烧出后面那层炭黑与余烬；很久之后灰烬才慢慢退去。</p>
-      <div class="tags"><span>火烧溶解</span><span>视线</span></div>
-    </a>
-    <a class="card" href="above-the-fog.html">
-      <div class="after">After Friedrich · c. 1818</div>
-      <h2>雾海之上</h2><div class="en">Above the Sea of Fog</div>
-      <p>你站在旅人身后，黎明之前，体积雾漫过头顶。你看住哪里，哪里的雾就一层一层退下去——退到胸口、退回雾海面、再露出雾里一堆堆叠起来的砂岩，而且很久才回涨；站得越静，太阳升得越快，雾被晨光从背后照透，日出后朝阳一侧的雾被晒薄。</p>
-      <div class="tags"><span>体积雾 raymarch</span><span>视线 · 静止</span><span>手</span></div>
-    </a>
-    <a class="card" href="wheatfield-paths.html">
-      <div class="after">After van Gogh · 1890</div>
-      <h2>通向不知何处的路</h2><div class="en">Wheatfield Paths</div>
-      <p>一百万个黏菌"行者"在《麦田群鸦》上留痕、追痕，长出发光的路网。但路网只在你目光所及的一圈里显形，像提灯照进夜里的麦田；你看向哪里，路就长向哪里；离开后，它们在暗处慢慢回到画里的三条小路。</p>
-      <div class="tags"><span>Physarum 黏菌</span><span>视线</span></div>
-    </a>
-  </div>
+<script type="module">
+import * as THREE from 'three';
+THREE.ColorManagement.enabled = false;
+const $ = id => document.getElementById(id);
+const W = window.WORKS, N = W.length, STEP = Math.PI * 2 / N;
+const RING = 6.6, FLOOR = -1.55;
 
-  <p class="small" style="margin-top:48px">WebXR 需要 HTTPS 或 localhost。离线烘焙脚本（深度、笔触走向、马赛克）在 <code>bake/</code>。← <a href="../">悬浮体</a></p>
-</main>
+// ---------- 画廊：你站在一间暗室正中，九幅画挂成一圈，正对你的那幅被一束光照着；鼠标是一盏提灯 ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+renderer.setClearColor(0x0b0a0d);
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.05, 100);
+const torch = new THREE.Vector3(-9999, -9999, 0);          // 提灯：屏幕像素坐标 + 强度
+
+// 墙：一圈暗色的圆筒；每幅画后面的墙被灯打亮一团，正中那幅最亮
+const wallU = { uRot: { value: 0 }, uTorch: { value: torch } };
+const wall = new THREE.Mesh(new THREE.CylinderGeometry(RING + 0.4, RING + 0.4, 9, 128, 1, true), new THREE.ShaderMaterial({
+  side: THREE.BackSide, uniforms: wallU,
+  vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform float uRot; uniform vec3 uTorch; varying vec3 vP;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main() {
+      float th = atan(vP.x, -vP.z) + uRot;                                    // 墙面上的方位（跟着画一起转）
+      float a = mod(th + ${(STEP / 2).toFixed(5)}, ${STEP.toFixed(5)}) - ${(STEP / 2).toFixed(5)};   // 离最近一幅画多远
+      float view = atan(vP.x, -vP.z);                                         // 离你正前方多远
+      float front = exp(-view * view * 3.0);
+      float pool = exp(-a * a * 16.0) * exp(-pow(vP.y - 1.0, 2.0) * 0.3) * (0.05 + 0.22 * front);
+      vec3 c = vec3(0.050, 0.044, 0.048) * (0.8 + 0.3 * smoothstep(-4.5, 3.0, vP.y)) + vec3(0.95, 0.78, 0.55) * pool;
+      vec2 d = gl_FragCoord.xy - uTorch.xy;
+      c += vec3(0.9, 0.75, 0.55) * 0.05 * uTorch.z * exp(-dot(d, d) / 60000.0);
+      c += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+}));
+wall.position.y = 1.5; scene.add(wall);
+// 地：深色的打蜡地板，画倒映在上面
+const floor = new THREE.Mesh(new THREE.CircleGeometry(RING + 0.4, 96), new THREE.ShaderMaterial({
+  vertexShader: `varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `varying vec2 vP; float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){ float r = length(vP); vec3 c = vec3(0.030, 0.026, 0.026) * (1.0 - 0.4 * smoothstep(1.0, 6.5, r)); c += (hash(gl_FragCoord.xy) - 0.5) / 255.0; gl_FragColor = vec4(c, 1.0); }`,
+}));
+floor.rotation.x = -Math.PI / 2; floor.position.y = FLOOR; floor.renderOrder = -1; scene.add(floor);
+
+// 画：一块平面同时画画框和画；正对你的那幅亮，其余的暗；提灯照到哪里哪里亮
+const ring = new THREE.Group(); scene.add(ring);
+const paintVS = `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`;
+const paintFS = reflect => `
+  uniform sampler2D tMap; uniform vec2 uSize; uniform float uFrame, uLit, uHover, uTime, uReady; uniform vec3 uTorch;
+  varying vec2 vUv; varying vec3 vW;
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  void main() {
+    vec2 full = uSize + 2.0 * uFrame;
+    vec2 p = (vUv - 0.5) * full;
+    vec2 q = abs(p) - uSize * 0.5;
+    vec3 c;
+    if (q.x < 0.0 && q.y < 0.0) {
+      vec2 uv = p / uSize + 0.5;
+      c = mix(vec3(0.08), texture2D(tMap, uv).rgb, uReady);
+      // 画面上一道慢慢扫过的光泽，像清漆
+      float sheen = pow(max(0.0, 1.0 - abs(uv.x + uv.y * 0.35 - fract(uTime * 0.05) * 2.2 + 0.4) * 3.0), 6.0);
+      c += c * sheen * 0.10 * uLit;
+      // 画框投在画面上的一圈暗边
+      float e = min(-q.x, -q.y); c *= 0.72 + 0.28 * smoothstep(0.0, 0.05, e);
+    } else {
+      // 画框：老金色，两道斜面
+      float t = clamp(max(q.x, q.y) / uFrame, 0.0, 1.0);
+      float bevel = sin(t * 6.28318) * 0.5 + 0.5;
+      c = mix(vec3(0.20, 0.14, 0.07), vec3(0.62, 0.46, 0.22), bevel) * (0.8 + 0.2 * hash(floor(p * 140.0)));
+      c *= 0.6 + 0.4 * smoothstep(-0.5, 0.5, p.y / full.y * 2.0);
+    }
+    // 光：从上方打下来的一束，正中那幅最亮
+    float spot = 0.55 + 0.45 * smoothstep(-1.3, 1.1, p.y) * exp(-p.x * p.x * 0.12);
+    vec3 lit = c * (0.12 + 0.95 * uLit * spot + 0.12 * uHover);
+    vec2 d = gl_FragCoord.xy - uTorch.xy;
+    lit += c * vec3(1.0, 0.86, 0.66) * 0.55 * uTorch.z * exp(-dot(d, d) / 26000.0);
+    lit += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
+    ${reflect ? `gl_FragColor = vec4(lit, 0.2 * (1.0 - smoothstep(${(FLOOR - 0.05).toFixed(2)}, ${(FLOOR - 2.4).toFixed(2)}, vW.y)));` : `gl_FragColor = vec4(lit, 1.0);`}
+  }`;
+const loader = new THREE.TextureLoader();
+const paintings = W.map((w, k) => {
+  const u = { tMap: { value: null }, uSize: { value: new THREE.Vector2(2, 2) }, uFrame: { value: 0.11 }, uLit: { value: 0.2 }, uHover: { value: 0 }, uTime: { value: 0 }, uReady: { value: 0 }, uTorch: { value: torch } };
+  const mat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: paintVS, fragmentShader: paintFS(false) });
+  const rmat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: paintVS, fragmentShader: paintFS(true), transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const holder = new THREE.Group();
+  const th = k * STEP;
+  holder.position.set(Math.sin(th) * RING, 0, -Math.cos(th) * RING);
+  holder.lookAt(0, 0, 0);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+  const refl = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), rmat);
+  mesh.userData.k = k;
+  holder.add(mesh, refl); ring.add(holder);
+  const fit = aspect => {
+    const h = Math.min(2.25, 3.05 / aspect), wd = h * aspect, f = u.uFrame.value, cy = 0.35;
+    u.uSize.value.set(wd, h);
+    mesh.scale.set(wd + 2 * f, h + 2 * f, 1); mesh.position.y = cy;
+    refl.scale.set(wd + 2 * f, -(h + 2 * f), 1); refl.position.y = 2 * FLOOR - cy;
+  };
+  fit(1.3);
+  loader.load(`data/thumbs/${w.slug}.jpg`, t => { t.anisotropy = renderer.capabilities.getMaxAnisotropy(); u.tMap.value = t; fit(t.image.width / t.image.height); u.uReady.value = 1; });
+  return { mesh, u };
+});
+
+// ---------- 交互 ----------
+const mod = (a, n) => ((a % n) + n) % n;
+const shortest = (a, b) => { let d = b - a; if (d > N / 2) d -= N; if (d < -N / 2) d += N; return d; };
+const from = new URLSearchParams(location.search).get('from');
+let target = Math.max(0, W.findIndex(w => w.slug === from)), cur = target, vel = 0;
+let drag = null, moved = 0, hoverK = -1, entering = null, shown = -1;
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(9, 9);
+const cv = renderer.domElement;
+cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, t: target }; moved = 0; cv.setPointerCapture(e.pointerId); cv.classList.add('dragging'); });
+cv.addEventListener('pointermove', e => {
+  mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
+  const pr = renderer.getPixelRatio();
+  torch.set(e.clientX * pr, (innerHeight - e.clientY) * pr, e.pointerType === 'mouse' ? 1 : 0);
+  if (!drag) return;
+  const dx = e.clientX - drag.x; moved = Math.max(moved, Math.abs(dx));
+  target = drag.t - dx / Math.min(innerWidth, 900) * 2.2;
+});
+const release = () => {
+  if (!drag) return;
+  cv.classList.remove('dragging');
+  if (moved < 6) {           // 是点击：点正中的画就进去，点旁边的画就转过去
+    const k = pick(), f = mod(Math.round(target), N);
+    if (k >= 0) { if (k === f) enter(); else target = Math.round(target) + shortest(f, k); }
+  } else target = Math.round(target);
+  drag = null;
+};
+cv.addEventListener('pointerup', release); cv.addEventListener('pointercancel', release);
+cv.addEventListener('pointerleave', () => { torch.z = 0; mouse.set(9, 9); });
+let wheelLock = 0;
+addEventListener('wheel', e => {
+  if ($('list').classList.contains('on')) return;
+  const now = performance.now(); if (now < wheelLock) return;
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (Math.abs(d) < 4) return;
+  target = Math.round(target) + Math.sign(d); wheelLock = now + 420;
+}, { passive: true });
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') { toggleList(false); return; }
+  if ($('list').classList.contains('on')) return;
+  if (e.key === 'ArrowRight' || e.key === ']') target = Math.round(target) + 1;
+  else if (e.key === 'ArrowLeft' || e.key === '[') target = Math.round(target) - 1;
+  else if (e.key === 'Enter' && (document.activeElement === document.body || document.activeElement === cv)) enter();
+});
+$('prev').onclick = () => { target = Math.round(target) - 1; };
+$('next').onclick = () => { target = Math.round(target) + 1; };
+$('enter').onclick = () => enter();
+function pick() {
+  if (mouse.x > 5) return -1;
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(paintings.map(p => p.mesh))[0];
+  return hit ? hit.object.userData.k : -1;
+}
+// 走进画里：镜头朝那幅画推过去，画铺满视野，再黑下来换页
+function enter() {
+  if (entering) return;
+  const k = mod(Math.round(target), N);
+  target = Math.round(target);
+  entering = { k, t0: performance.now() };
+  setTimeout(() => $('veil').classList.remove('off'), 700);
+  setTimeout(() => { location.href = `${W[k].slug}.html`; }, 1750);
+}
+
+// 目录
+const toggleList = on => { $('list').classList.toggle('on', on); $('listBtn').setAttribute('aria-expanded', on); $('listBtn').textContent = on ? '关闭' : '目录'; };
+$('listBtn').onclick = () => toggleList(!$('list').classList.contains('on'));
+$('listOl').innerHTML = W.map(w => `<li><a href="${w.slug}.html"><img src="data/thumbs/${w.slug}.jpg" alt="" loading="lazy"><b>${w.zh}</b><i>AFTER ${w.after.toUpperCase()} · ${w.year}</i></a></li>`).join('');
+
+let swapT = 0;
+function showInfo(k) {
+  if (k === shown) return;
+  const first = shown < 0; shown = k;
+  const w = W[k], el = $('info');
+  const fill = () => {
+    $('iAfter').textContent = `After ${w.after} · ${w.year}`;
+    $('iZh').textContent = w.zh; $('iEn').textContent = w.en; $('iBlurb').textContent = w.blurb;
+    $('iTags').innerHTML = w.tags.map(t => `<span>${t}</span>`).join('');
+    $('count').innerHTML = `${String(k + 1).padStart(2, '0')} <small>/ ${String(N).padStart(2, '0')}</small>`;
+    el.classList.remove('swap');
+  };
+  clearTimeout(swapT);
+  if (first) fill(); else { el.classList.add('swap'); swapT = setTimeout(fill, 280); }
+  history.replaceState(null, '', `?from=${w.slug}`);
+}
+
+// ---------- 动画 ----------
+const clock = new THREE.Clock();
+let time = 0;
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 0.05); time += dt;
+  // 弹簧：转到目标那一格
+  vel += ((target - cur) * 38 - vel * 11) * dt; cur += vel * dt;
+  ring.rotation.y = cur * STEP; wallU.uRot.value = cur * STEP;
+  showInfo(mod(Math.round(target), N));
+  hoverK = drag || entering ? -1 : pick();
+  cv.classList.toggle('over', hoverK >= 0);
+  paintings.forEach((p, k) => {
+    const dist = Math.abs(mod(k - cur + N / 2, N) - N / 2);           // 离正中几格（连续）
+    p.u.uLit.value = Math.exp(-dist * dist * 2.2);
+    p.u.uHover.value += ((hoverK === k ? 1 : 0) - p.u.uHover.value) * Math.min(1, dt * 8);
+    p.u.uTime.value = time;
+  });
+  // 镜头：鼠标轻轻带一点视差；走进去时向画推近
+  const mx = mouse.x > 5 ? 0 : mouse.x, my = mouse.x > 5 ? 0 : mouse.y;
+  camera.rotation.set(my * 0.025 + 0.02, -mx * 0.035, 0, 'YXZ');
+  if (entering) {
+    const t = Math.min(1, (performance.now() - entering.t0) / 1500), e = t * t * (3 - 2 * t);
+    camera.position.set(0, 0.35 * e, -(RING - 1.9) * e);
+    camera.rotation.set(0, 0, 0);
+    camera.fov = baseFov * (1 - 0.27 * e); camera.updateProjectionMatrix();
+  } else camera.position.set(0, 0.05 * Math.sin(time * 0.4), 0);
+  renderer.render(scene, camera);
+});
+let baseFov = 52;
+const fitFov = () => { camera.aspect = innerWidth / innerHeight; const hf = 44 * Math.PI / 180; baseFov = Math.max(52, 2 * Math.atan(Math.tan(hf / 2) / camera.aspect) * 180 / Math.PI); camera.fov = baseFov; camera.updateProjectionMatrix(); };
+fitFov();
+addEventListener('resize', () => { fitFov(); renderer.setSize(innerWidth, innerHeight); });
+addEventListener('pageshow', e => { if (e.persisted) { entering = null; camera.fov = baseFov; camera.updateProjectionMatrix(); } requestAnimationFrame(() => $('veil').classList.add('off')); });
+window.__goto = k => { target = cur = k; };   // 测试钩子
+setTimeout(() => $('veil').classList.add('off'), 60);
+if (location.search.includes('shot')) $('veil').style.display = 'none';
+</script>
 </body>
 </html>

@@ -604,10 +604,10 @@ function updateGaze(dt) {
   const headMove = renderer.xr.isPresenting ? moved : (rotating ? 0.05 : moved * 0.5);
   still += ((headMove < 0.01 ? 1 : 0) - still) * Math.min(1, dt * 0.8);
   if (forcedDawn !== null) dawn = forcedDawn;
-  else if (entered) dawn = Math.min(1, dawn + dt * (0.0035 + 0.012 * still));   // 全静止约 65 秒日出，一直在动约 5 分钟
+  else if (entered) dawn = Math.min(1, dawn + dt * (0.011 + 0.025 * still));   // 全静止约 28 秒日出，一直在动约 90 秒
   W.uDawn.value = dawn;
   // 天亮时整片雾自己也慢慢沉回画里的雾海面（第 2 层）；太阳出来以后（约 90 秒）继续沉到半山、变薄、散开，露出谷底
-  if (dawn >= 0.95) sunUp = Math.min(1, sunUp + dt / 90);
+  if (dawn >= 0.95) sunUp = Math.min(1, sunUp + dt / 45);
   W.uBaseC.value = 2.0 * THREE.MathUtils.smoothstep(dawn, 0.3, 0.95) + 0.55 * THREE.MathUtils.smoothstep(sunUp, 0.0, 1.0);
   W.uThin.value = 0.8 * THREE.MathUtils.smoothstep(sunUp, 0.1, 1.0);
   W.uBurn.value = 0.5 * THREE.MathUtils.smoothstep(dawn, 0.75, 1.0) + 0.5 * THREE.MathUtils.smoothstep(sunUp, 0.0, 0.8);
@@ -754,5 +754,7 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 </script>
+<script src="works.js"></script>
+<script src="nav.js"></script>
 </body>
 </html>
