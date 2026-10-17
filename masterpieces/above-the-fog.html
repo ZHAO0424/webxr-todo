@@ -372,7 +372,7 @@ const FIG = (() => {
   const uv = (px, py) => [px / img[0], 1 - py / img[1]];
   const at = (px, py) => { const [u, v] = uv(px, py), th = (u - 0.5) * PIC_ARC; return { x: Math.sin(th) * R, y: EYE.y + (v - HOR_V) * HM, z: -Math.cos(th) * R, th }; };
   const c = at((box[0] + box[2]) / 2, 1232), b = at((box[0] + box[2]) / 2, box[3]);
-  return { box, img, th: c.th, x: c.x, z: c.z, feetY: c.y, bottomY: b.y, footL: at(530, 1125) };
+  return { box, img, th: c.th, x: c.x, z: c.z, feetY: c.y, bottomY: b.y, footL: at(530, 1125), footR: at(655, 1228) };
 })();
 let rockMat = null;
 
@@ -491,6 +491,7 @@ let rockMat = null;
     stone([0.15, -1.35, -1.55], [0.85, 0.8, 0.75], 0.25, -0.3, 0.1),                    // 浅鞍
     stone([F.x, F.feetY - 0.03 - 0.95, F.z], [0.8, 0.75, 0.7], 0.2, 0.35, -0.06),       // 旅人脚下
     stone([fl.x, fl.y - 0.36, fl.z + 0.05], [0.28, 0.24, 0.26], 0.12, 0.6, 0.15),        // 左脚那块
+    stone([F.footR.x * 0.9, F.feetY - 0.2, F.footR.z * 0.9], [0.26, 0.2, 0.17], 0.09, 0.4, 0.1),   // 右脚前面一块小石头，挡住鞋底
     stone([-1.35, -1.65, -2.3], [0.8, 0.9, 0.7], 0.25, 0.6, 0.2), stone([1.35, -1.55, -2.6], [0.9, 0.8, 0.8], 0.25, -0.4, -0.15),
     stone([-0.9, -2.3, -3.9], [1.0, 1.0, 0.8], 0.3, 0.3, 0.1), stone([1.15, -2.45, -4.1], [0.9, 1.1, 0.9], 0.3, -0.2, -0.1),
     stone([0.2, -3.0, -5.0], [1.3, 1.2, 1.0], 0.35, 0.1, 0.05),
@@ -540,13 +541,16 @@ function makeFigure(tex) {
       uniform sampler2D tFig; varying vec2 vUv; varying vec3 vW;
       void main() {
         vec4 t = texture2D(tFig, vUv);
-        if (t.a < 0.5) discard;
+        if (t.a < 0.01) discard;
         vec3 col = t.rgb * mix(vec3(0.86, 0.90, 1.0), vec3(1.0, 0.90, 0.78), uDawn);
         vec4 fg = fogAlong(cameraPosition, vW, 6.0);
-        gl_FragColor = vec4(col * (1.0 - fg.a) + fg.rgb, 1.0);
+        gl_FragColor = vec4(col * (1.0 - fg.a) + fg.rgb, t.a);   // 软边：真正的半透明混合，不再按 0.5 一刀切
       }`,
   });
+  m.transparent = true; m.depthWrite = false;
+  tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
   const fig = new THREE.Mesh(geo, m);
+  fig.renderOrder = 2;
   fig.position.set(Math.sin(FIG.th) * R, FIG.bottomY + h / 2, -Math.cos(FIG.th) * R);
   fig.lookAt(EYE.x, FIG.bottomY + h / 2, EYE.z);
   scene.add(fig);
