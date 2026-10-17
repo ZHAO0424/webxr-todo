@@ -42,7 +42,7 @@
     <h1>雾海之上</h1>
     <h2>Above the Sea of Fog</h2>
     <p>1818 年前后，弗里德里希画下一个背对我们的人：他站在岩顶，脚下是翻涌的雾海，远处的山脊和岩柱从雾里探出来。我们永远看不到他的脸，只能站在他身后，和他看向同一片雾。</p>
-    <p>这里，你就站在那块岩石的后面，在黎明之前。雾是真的，而且一开始漫过你的头顶：眼前、头上都是雾，画只隐约透出来。<b>你看住一处，那里的雾就一层一层退下去</b>——先退到胸口，再退回画里那片雾海的海面，再往下露出半山，最后退到半山，一根根砂岩石柱从雾里露出来，有的柱顶长着松树；最底下那层雾永远不散，谷底一直埋在里面。像他说的"精神的眼睛"，看得越久，看得越深。退下去的雾不会马上涨回来，要过很久才慢慢回涨。<b>而你站得越静，天亮得越快</b>：太阳从山脊后面升起来，雾被晨光从背后照透，由青灰转成金粉色，太阳出来以后，朝着太阳那一边的雾被晒薄、一层层往下沉；你一走动、一转头，黎明就慢下来。伸手进雾里拨，雾退得更快。</p>
+    <p>这里，你就站在那块岩石的后面，在黎明之前。雾是真的，而且一开始漫过你的头顶：眼前、头上都是雾，画只隐约透出来。<b>你看住一处，那里的雾就一层一层退下去</b>——先退到胸口，再退回画里那片雾海的海面，再往下露出半山，最后退到半山，一堆堆叠起来的砂岩从雾里露出来；最底下那层雾永远不散，谷底一直埋在里面。像他说的"精神的眼睛"，看得越久，看得越深。退下去的雾不会马上涨回来，要过很久才慢慢回涨。<b>而你站得越静，天亮得越快</b>：太阳从山脊后面升起来，雾被晨光从背后照透，由青灰转成金粉色，太阳出来以后，朝着太阳那一边的雾被晒薄、一层层往下沉；你一走动、一转头，黎明就慢下来。伸手进雾里拨，雾退得更快。</p>
     <blockquote>“闭上你肉体的眼睛，先用精神的眼睛看你的画。然后把你在黑暗中看到的带到光里来。”<small>— 弗里德里希，约 1830</small></blockquote>
     <button id="enter" disabled>载入中…</button>
     <div class="how">XR：盯住一处 = 那里的雾一层层退下去；站着不动 = 天亮；手伸出去拨 = 退得更快<br>桌面：鼠标就是目光，停住 = 雾一层层退下；不动鼠标 = 天亮；右键拖动 = 转头；左键按住 = 拨雾<br>建议戴耳机</div>
@@ -368,62 +368,95 @@ scene.add(world);
 
 // ---------- 旅人在画里的位置（和 bake/bake_wanderer.py 里抠图的外框一致） ----------
 const FIG = (() => {
-  const box = [500, 560, 820, 1232], img = [1280, 1639];
+  const box = [480, 515, 840, 1250], img = [1280, 1639];
   const uv = (px, py) => [px / img[0], 1 - py / img[1]];
   const at = (px, py) => { const [u, v] = uv(px, py), th = (u - 0.5) * PIC_ARC; return { x: Math.sin(th) * R, y: EYE.y + (v - HOR_V) * HM, z: -Math.cos(th) * R, th }; };
-  const c = at((box[0] + box[2]) / 2, box[3]);
-  return { box, img, th: c.th, x: c.x, z: c.z, feetY: c.y, footL: at(530, 1125) };
+  const c = at((box[0] + box[2]) / 2, 1232), b = at((box[0] + box[2]) / 2, box[3]);
+  return { box, img, th: c.th, x: c.x, z: c.z, feetY: c.y, bottomY: b.y, footL: at(530, 1125) };
 })();
 let rockMat = null;
 
-// ---------- 脚下的岩体 ----------
+// ---------- 3D 岩体：一块块圆角的砂岩方石用有符号距离场（SDF）堆起来、平滑地熔在一起，再在载入时用 surface nets 抽成网格 ----------
+// 脚下：你站的平台 → 一道浅鞍 → 旅人脚下那堆乱石（他左脚踩着一块高一点的石头），四周是一层层往下堆、往下熔进雾里的大石块
+// 雾海里：十几堆从雾里冒出来的叠石，柱顶都在你脚下，底一直扎进最底下那层雾里
 {
-  // JS 里的一份值噪声，只在建模时用
-  const h3 = (x, y, z) => { const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return v - Math.floor(v); };
-  const sm = t => t * t * (3 - 2 * t);
-  const vn3 = (x, y, z) => {
-    const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z), fx = sm(x - ix), fy = sm(y - iy), fz = sm(z - iz);
+  const ND = noiseTex.image.data, NN = 64;
+  // 噪声体贴图在 JS 里也能查：三线性插值、周期 64
+  const nz3 = (x, y, z, ch) => {
+    const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z), fx = x - ix, fy = y - iy, fz = z - iz;
+    const g = (a, b, c) => ND[((((c & 63) * NN + (b & 63)) * NN + (a & 63)) << 2) + ch];
     const L = (a, b, t) => a + (b - a) * t;
-    return L(L(L(h3(ix, iy, iz), h3(ix + 1, iy, iz), fx), L(h3(ix, iy + 1, iz), h3(ix + 1, iy + 1, iz), fx), fy),
-             L(L(h3(ix, iy, iz + 1), h3(ix + 1, iy, iz + 1), fx), L(h3(ix, iy + 1, iz + 1), h3(ix + 1, iy + 1, iz + 1), fx), fy), fz);
+    return L(L(L(g(ix, iy, iz), g(ix + 1, iy, iz), fx), L(g(ix, iy + 1, iz), g(ix + 1, iy + 1, iz), fx), fy),
+             L(L(g(ix, iy, iz + 1), g(ix + 1, iy, iz + 1), fx), L(g(ix, iy + 1, iz + 1), g(ix + 1, iy + 1, iz + 1), fx), fy), fz) / 255;
   };
-  const fbm3 = (x, y, z) => { let s = 0, a = 0.5; for (let i = 0; i < 4; i++) { s += a * vn3(x, y, z); x = x * 2.03 + 5.1; y = y * 2.03 + 1.7; z = z * 2.03 + 3.3; a *= 0.5; } return s; };
-  // 顶面：你站的地方是平台；往前先落进一道浅鞍，再升到旅人脚下那堆乱石（他就站在 3.2 米外、和画里一样高的地方），
-  // 再往前是陡落进雾海的崖；两侧和身后是落下去的崖边
-  const sideF = s => -2.4 * sm(clamp01((s - 0.9) / 1.4));
-  const frontF = s => -0.42 * Math.exp(-(((s - 1.85) / 0.5) ** 2)) + (FIG.feetY - 0.04) * sm(clamp01((s - 2.2) / 0.6)) - 3.2 * Math.max(0, s - 3.9) ** 1.25;
-  const frontW = th => sm(clamp01((55 * DEG - Math.abs(th - FIG.th)) / (32 * DEG)));
-  const rimR = th => (2.4 + 2.2 * frontW(th)) * (1 + 0.22 * (vn3(th * 2.6, 0.5, 1.5) - 0.5) + 0.1 * (vn3(th * 7.0, 2.5, 3.5) - 0.5));
-  const topAt = (s, th) => { const w = frontW(th); return frontF(s) * w + sideF(s) * (1 - w); };
-  // 旅人左脚踩着的那块高一点的石头
-  const boulder = (x, z) => (FIG.footL.y - FIG.feetY) * Math.exp(-((x - FIG.footL.x) ** 2 + (z - FIG.footL.z) ** 2) / 0.09);
-  const g = new THREE.IcosahedronGeometry(1, 6);
-  const pos = g.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const dx = pos.getX(i), dy = pos.getY(i), dz = pos.getZ(i);
-    const th = Math.atan2(dx, -dz), rr = rimR(th), w = frontW(th);
-    let x, y, z;
-    if (dy >= 0) {
-      // 顶盖：极点是你脚下，赤道是崖边
-      const f = Math.sqrt(1 - dy * dy), sr = rr * f;
-      x = Math.sin(th) * sr; z = -Math.cos(th) * sr;
-      // 乱石：越靠近旅人越大块；脚下不往下凹，免得人悬空
-      const nearFig = Math.exp(-((x - FIG.x) ** 2 + (z - FIG.z) ** 2) / 1.2);
-      let bump = (fbm3(x * 1.4, 0.3, z * 1.4) - 0.45) * (0.3 + 0.35 * nearFig) + (fbm3(x * 4, 2.0, z * 4) - 0.47) * 0.12;
-      if (nearFig > 0.6) bump = Math.max(bump, 0);
-      y = topAt(sr, th) + bump + boulder(x, z) - (0.45 - 0.25 * w) * sm(clamp01((f - 0.8) / 0.2));
-    } else {
-      // 崖壁：往下越来越粗，一直落到谷底以下；大块凹凸 + 竖向节理
-      const down = -dy, sp = 1 + 0.35 * Math.sqrt(down) + 2.6 * down * down;
-      const n = fbm3(Math.sin(th) * 3, dy * 6, Math.cos(th) * 3) - 0.47, nj = vn3(th * 7.0, dy * 4.0, 0.5) - 0.5;
-      const sr = rr * sp * (1 + 0.65 * n + 0.22 * nj) * (1 + 0.08 * Math.sin(dy * 90 + 3 * n));
-      x = Math.sin(th) * sr; z = -Math.cos(th) * sr;
-      y = topAt(rr, th) - 0.3 - down * (-GROUND_Y + 4);
+  const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+  const stone = (c, b, r, rotY = 0, tilt = 0) => ({ c, b, r, cs: Math.cos(rotY), sn: Math.sin(rotY), ct: Math.cos(tilt), st: Math.sin(tilt), reach: Math.hypot(b[0], b[1], b[2]) + r });
+  const rbox = (px, py, pz, B) => {
+    const dx = px - B.c[0], dy = py - B.c[1], dz = pz - B.c[2];
+    if (dx * dx + dy * dy + dz * dz > (B.reach + 1.5) ** 2) return Math.sqrt(dx * dx + dy * dy + dz * dz) - B.reach;   // 远处粗算就够
+    let x = dx * B.cs - dz * B.sn, z = dx * B.sn + dz * B.cs, y = dy;
+    const y2 = y * B.ct - z * B.st, z2 = y * B.st + z * B.ct; y = y2; z = z2;
+    const qx = Math.abs(x) - B.b[0], qy = Math.abs(y) - B.b[1], qz = Math.abs(z) - B.b[2];
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - B.r;
+  };
+  // 一堆石头 = 若干圆角方石平滑并起来 + 一根往下越来越粗的底柱；表面加砂岩的大起伏、横向层理
+  const pile = (stones, k, amp, ns, col) => (px, py, pz) => {
+    let d = 1e9;
+    for (const B of stones) d = smin(d, rbox(px, py, pz, B), k);
+    if (col) { const Rr = col.r0 + col.g * Math.max(0, col.y0 - py); d = smin(d, Math.max(Math.hypot(px - col.x, pz - col.z) - Rr, py - col.y0), k * 1.6); }
+    const n = nz3(px * ns, py * ns, pz * ns, 0) - 0.47, n2 = nz3(px * ns * 2.7 + 9, py * ns * 2.7, pz * ns * 2.7, 1) - 0.47;
+    return d + amp * (n + 0.4 * n2) + amp * 0.22 * Math.sin(py * 4.5 / Math.max(amp, 0.2) + n * 7.0);
+  };
+  // surface nets：网格点上采样 SDF，每个跨过表面的格子放一个顶点（各边交点的平均），每条跨过表面的格边连成一个四边形
+  const nets = (f, bmin, bmax, step) => {
+    const nx = Math.ceil((bmax[0] - bmin[0]) / step) + 1, ny = Math.ceil((bmax[1] - bmin[1]) / step) + 1, nzz = Math.ceil((bmax[2] - bmin[2]) / step) + 1;
+    const V = new Float32Array(nx * ny * nzz);
+    let q = 0;
+    for (let z = 0; z < nzz; z++) for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) V[q++] = f(bmin[0] + x * step, bmin[1] + y * step, bmin[2] + z * step);
+    const id = (x, y, z) => (z * ny + y) * nx + x;
+    const cx = nx - 1, cy = ny - 1, cz = nzz - 1, cid = (x, y, z) => (z * cy + y) * cx + x;
+    const cellV = new Int32Array(cx * cy * cz).fill(-1);
+    const CO = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]];
+    const ED = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+    const pos = [], nor = [], v = new Float32Array(8);
+    for (let z = 0; z < cz; z++) for (let y = 0; y < cy; y++) for (let x = 0; x < cx; x++) {
+      let mask = 0;
+      for (let k = 0; k < 8; k++) { v[k] = V[id(x + CO[k][0], y + CO[k][1], z + CO[k][2])]; if (v[k] < 0) mask |= 1 << k; }
+      if (mask === 0 || mask === 255) continue;
+      let sx = 0, sy = 0, sz = 0, n = 0;
+      for (const [a, b] of ED) {
+        if ((v[a] < 0) === (v[b] < 0)) continue;
+        const t = v[a] / (v[a] - v[b]);
+        sx += CO[a][0] + (CO[b][0] - CO[a][0]) * t; sy += CO[a][1] + (CO[b][1] - CO[a][1]) * t; sz += CO[a][2] + (CO[b][2] - CO[a][2]) * t; n++;
+      }
+      const X = bmin[0] + (x + sx / n) * step, Y = bmin[1] + (y + sy / n) * step, Z = bmin[2] + (z + sz / n) * step;
+      cellV[cid(x, y, z)] = pos.length / 3; pos.push(X, Y, Z);
+      const e = step * 0.5;   // 法线：SDF 的梯度
+      const gx = f(X + e, Y, Z) - f(X - e, Y, Z), gy = f(X, Y + e, Z) - f(X, Y - e, Z), gz = f(X, Y, Z + e) - f(X, Y, Z - e), gl = Math.hypot(gx, gy, gz) || 1;
+      nor.push(gx / gl, gy / gl, gz / gl);
     }
-    pos.setXYZ(i, x, y, z);
-  }
-  g.computeVertexNormals();
-  const mat = new THREE.ShaderMaterial({
+    const idx = [];
+    const quad = (a, b, c, d, flip) => { if (a < 0 || b < 0 || c < 0 || d < 0) return; if (flip) idx.push(a, b, c, a, c, d); else idx.push(a, c, b, a, d, c); };
+    for (let z = 1; z < cz; z++) for (let y = 1; y < cy; y++) for (let x = 0; x < cx; x++) {
+      const a = V[id(x, y, z)], b = V[id(x + 1, y, z)]; if ((a < 0) === (b < 0)) continue;
+      quad(cellV[cid(x, y - 1, z - 1)], cellV[cid(x, y, z - 1)], cellV[cid(x, y, z)], cellV[cid(x, y - 1, z)], a < 0);
+    }
+    for (let z = 1; z < cz; z++) for (let y = 0; y < cy; y++) for (let x = 1; x < cx; x++) {
+      const a = V[id(x, y, z)], b = V[id(x, y + 1, z)]; if ((a < 0) === (b < 0)) continue;
+      quad(cellV[cid(x - 1, y, z - 1)], cellV[cid(x - 1, y, z)], cellV[cid(x, y, z)], cellV[cid(x, y, z - 1)], a < 0);
+    }
+    for (let z = 0; z < cz; z++) for (let y = 1; y < cy; y++) for (let x = 1; x < cx; x++) {
+      const a = V[id(x, y, z)], b = V[id(x, y, z + 1)]; if ((a < 0) === (b < 0)) continue;
+      quad(cellV[cid(x - 1, y - 1, z)], cellV[cid(x, y - 1, z)], cellV[cid(x, y, z)], cellV[cid(x - 1, y, z)], a < 0);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    geo.setIndex(idx);
+    return geo;
+  };
+
+  const mat = new THREE.ShaderMaterial({ side: THREE.DoubleSide,
     uniforms: { tRock: W.tRock, uSun: W.uSun, uDawn: W.uDawn, tClear: W.tClear, uBaseC: W.uBaseC, tNoise: W.tNoise, uTime: W.uTime, uStir: W.uStir, uThin: W.uThin },
     vertexShader: `varying vec3 vN, vW; void main(){ vN = normalize(mat3(modelMatrix) * normal); vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
     fragmentShader: NOISE + STAGE_GLSL + FOG_GLSL + /* glsl */`
@@ -448,82 +481,50 @@ let rockMat = null;
         gl_FragColor = vec4(c * (1.0 - fg.a) + fg.rgb, 1.0);
       }`,
   });
-  scene.add(new THREE.Mesh(g, mat));
 
-  // 雾海里的砂岩石柱：横向的层理、竖向的节理，越往下越粗，一直扎进最底下那层雾里
-  const spire = (thDeg, dist, topY, r, seed) => {
-    const geo = new THREE.CylinderGeometry(1, 1, 1, 40, 56, false);
-    const P = geo.attributes.position;
-    const cx = Math.sin(thDeg * DEG) * dist, cz = -Math.cos(thDeg * DEG) * dist;
-    const lean = [(h3(seed, 1, 2) - 0.5) * 0.08, (h3(seed, 3, 4) - 0.5) * 0.08];
-    const ex = 0.7 + 0.7 * h3(seed, 5, 6), rot = h3(seed, 7, 8) * Math.PI;
-    for (let i = 0; i < P.count; i++) {
-      const px = P.getX(i), py = P.getY(i), pz = P.getZ(i);
-      const yn = py + 0.5, rad = Math.hypot(px, pz), ang = Math.atan2(pz, px);
-      const isCap = yn > 0.999 && rad < 0.999;
-      // 顶点往上集中：露出雾的那一截细节多
-      const Y = isCap ? topY : topY - (topY - GROUND_Y + 4) * (1 - yn) ** 2.2;
-      const depth = topY - Y;
-      const noise = fbm3(Math.cos(ang) * 2 + seed, Y * 0.35, Math.sin(ang) * 2);
-      let k = (1 + 1.1 * Math.min(1, depth / 45) ** 2) * (1 + 0.5 * (noise - 0.47))
-        + 0.07 * Math.sin(Y * 1.6 + 4 * noise) + 0.2 * (vn3(ang * 5.0, Y * 0.12, seed) - 0.5);
-      k *= 1 - 0.18 * sm(clamp01(1 - depth / (r * 0.8)));          // 柱顶收一点，圆钝
-      let lx = Math.cos(ang) * r * k * (isCap ? rad : 1) * ex, lz = Math.sin(ang) * r * k * (isCap ? rad : 1) / ex;
-      let x = lx * Math.cos(rot) - lz * Math.sin(rot), z = lx * Math.sin(rot) + lz * Math.cos(rot);
-      let y = isCap ? topY - 0.3 * r * rad * rad + (fbm3(x * 0.5 + seed, 0, z * 0.5) - 0.47) * 0.9 * r : Y;
-      x += cx + lean[0] * depth; z += cz + lean[1] * depth;
-      P.setXYZ(i, x, y, z);
-    }
-    geo.computeVertexNormals();
-    scene.add(new THREE.Mesh(geo, mat));
-    return { cx, cz, topY, r };
-  };
-  // 前方左右两组（对应画里中景的岩柱和右边那块长着松树的岩台），其余一圈铺到身后
-  const S = [
-    spire(-28, 34, -4.5, 3.2, 1), spire(-19, 42, -2.8, 3.8, 2), spire(-12, 30, -6.0, 2.2, 3), spire(-36, 52, -1.5, 4.5, 4), spire(-8, 46, -5.0, 2.6, 16),
-    spire(14, 40, -5.2, 6.5, 5), spire(25, 48, -3.5, 4.0, 6), spire(33, 62, -1.0, 5.0, 7),
-    spire(55, 45, -3.0, 4.0, 8), spire(80, 38, -6.0, 3.0, 9), spire(105, 58, -2.0, 5.0, 10), spire(130, 44, -4.5, 3.5, 11), spire(160, 62, -1.5, 6.0, 12),
-    spire(-170, 50, -3.0, 4.0, 13), spire(-140, 40, -5.5, 3.0, 14), spire(-115, 64, -1.0, 6.0, 15), spire(-85, 42, -4.0, 3.5, 17), spire(-60, 55, -2.0, 4.5, 18),
+  const add = geo => { const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; scene.add(m); };
+
+  // 脚下这一大堆
+  const F = FIG, fl = F.footL;
+  const near = [
+    stone([0.0, -1.02, 0.3], [1.2, 0.78, 1.1], 0.24, 0.2, 0.04),                         // 你站的平台，顶面在 0
+    stone([0.15, -1.35, -1.55], [0.85, 0.8, 0.75], 0.25, -0.3, 0.1),                    // 浅鞍
+    stone([F.x, F.feetY - 0.03 - 0.95, F.z], [0.8, 0.75, 0.7], 0.2, 0.35, -0.06),       // 旅人脚下
+    stone([fl.x, fl.y - 0.36, fl.z + 0.05], [0.28, 0.24, 0.26], 0.12, 0.6, 0.15),        // 左脚那块
+    stone([-1.35, -1.65, -2.3], [0.8, 0.9, 0.7], 0.25, 0.6, 0.2), stone([1.35, -1.55, -2.6], [0.9, 0.8, 0.8], 0.25, -0.4, -0.15),
+    stone([-0.9, -2.3, -3.9], [1.0, 1.0, 0.8], 0.3, 0.3, 0.1), stone([1.15, -2.45, -4.1], [0.9, 1.1, 0.9], 0.3, -0.2, -0.1),
+    stone([0.2, -3.0, -5.0], [1.3, 1.2, 1.0], 0.35, 0.1, 0.05),
+    stone([-2.0, -1.95, -0.6], [0.9, 1.0, 1.0], 0.3, 0.9, 0.12), stone([2.0, -1.85, -0.9], [0.9, 1.0, 1.0], 0.3, -0.7, -0.1),
+    stone([-1.7, -2.1, 1.7], [1.0, 1.0, 0.9], 0.3, 0.4, 0.1), stone([1.6, -2.0, 1.9], [1.0, 1.0, 0.9], 0.3, -0.5, 0.0),
+    stone([0.0, -2.3, 2.6], [1.4, 1.0, 0.8], 0.3, 0.05, -0.1),
+    stone([-2.6, -3.6, -2.8], [1.2, 1.4, 1.1], 0.35, 0.5, 0.0), stone([2.6, -3.8, -3.0], [1.2, 1.5, 1.1], 0.35, -0.6, 0.0),
   ];
+  const nearF = pile(near, 0.45, 0.16, 4.5, { x: 0, z: -1.2, y0: -3.2, r0: 3.0, g: 0.13 });
+  add(nets(nearF, [-4.8, -6.2, -7.4], [4.8, 0.9, 4.8], 0.13));
+  add(nets(nearF, [-8.5, -34, -10.5], [8.5, -5.6, 7.5], 0.5));       // 底下那一截粗一点就够，平时都在雾里
 
-  // 柱顶的松树：右前方那块岩台上一小片，另外几根柱顶上零星几棵
-  const pines = [];
-  for (const [si, n] of [[5, 16], [6, 5], [1, 4], [10, 7], [12, 7], [17, 5], [15, 6]]) {
-    const sp = S[si];
-    for (let k = 0; k < n; k++) {
-      const a = h3(si, k, 7) * Math.PI * 2, d = Math.sqrt(h3(k, si, 9)) * sp.r * 0.7;
-      const hgt = 2.0 + 2.6 * h3(si, k, 3);
-      pines.push([sp.cx + Math.cos(a) * d, sp.topY - 0.25 * sp.r * (d / sp.r) ** 2 - 0.1, sp.cz + Math.sin(a) * d, hgt]);
-    }
-  }
-  const pineGeo = new THREE.ConeGeometry(0.28, 1, 7, 4); pineGeo.translate(0, 0.5, 0);
-  {
-    // 一棵松树 = 三层错开的锥（细高、上尖），树干埋在锥里
-    const parts = [[0.0, 1.0, 1.0], [0.32, 0.8, 0.78], [0.6, 0.55, 0.55]].map(([y0, sy, sr]) => { const c = pineGeo.clone(); c.scale(sr, sy, sr); c.translate(0, y0, 0); return c; });
-    const merged = new THREE.BufferGeometry();
-    const pos = [], nor = [];
-    for (const c of parts) { const ci = c.toNonIndexed(); pos.push(...ci.attributes.position.array); nor.push(...ci.attributes.normal.array); }
-    merged.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); merged.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-    const pineMat = new THREE.ShaderMaterial({
-      uniforms: mat.uniforms,
-      vertexShader: `varying vec3 vN, vW; void main(){ vN = normalize(mat3(modelMatrix * instanceMatrix) * normal); vW = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
-      fragmentShader: NOISE + STAGE_GLSL + FOG_GLSL + /* glsl */`
-        varying vec3 vN, vW;
-        void main() {
-          vec3 n = normalize(vN);
-          vec3 col = vec3(0.07, 0.10, 0.07) * (0.7 + 0.6 * vnoise(vW.xz * 9.0 + vW.y * 7.0));
-          col *= 0.45 + 0.55 * max(dot(n, uSun), 0.0) * (0.4 + 0.8 * uDawn) + 0.25 * n.y;
-          vec4 fg = fogAlong(cameraPosition, vW, 7.0);
-          if (fg.a > 0.985) discard;
-          gl_FragColor = vec4(col * (1.0 - fg.a) + fg.rgb, 1.0);
-        }`,
-    });
-    const im = new THREE.InstancedMesh(merged, pineMat, pines.length);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
-    pines.forEach(([x, y, z, h], i) => { m4.compose(new THREE.Vector3(x, y, z), q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), h * 7), sc.set(h * 0.8, h, h * 0.8)); im.setMatrixAt(i, m4); });
-    im.frustumCulled = false;
-    scene.add(im);
-  }
+  // 雾海里一堆堆叠石：几块大方石叠起来，越往下越大，底柱扎进最底下那层雾
+  const h3 = (a, b, c) => { const t = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return t - Math.floor(t); };
+  const stack = (thDeg, dist, top, r, seed) => {
+    const cx = Math.sin(thDeg * DEG) * dist, cz = -Math.cos(thDeg * DEG) * dist;
+    const j = k => (h3(seed, k, 3) - 0.5);
+    const st = [
+      stone([cx + j(1) * r * 0.5, top - 0.75 * r, cz + j(2) * r * 0.5], [r * 0.85, r * 0.55, r * 0.75], r * 0.18, j(3) * 3, j(4) * 0.3),
+      stone([cx + j(5) * r * 0.6, top - 1.9 * r, cz + j(6) * r * 0.6], [r * 1.05, r * 0.7, r * 0.95], r * 0.2, j(7) * 3, j(8) * 0.25),
+      stone([cx + j(9) * r * 0.6, top - 3.2 * r, cz + j(10) * r * 0.6], [r * 1.2, r * 0.8, r * 1.1], r * 0.2, j(11) * 3, j(12) * 0.2),
+    ];
+    if (h3(seed, 13, 1) > 0.45) st.push(stone([cx + j(14) * r, top - 0.25 * r, cz + j(15) * r], [r * 0.42, r * 0.3, r * 0.38], r * 0.12, j(16) * 3, j(17) * 0.4));   // 顶上再压一块小的
+    if (h3(seed, 18, 1) > 0.4) st.push(stone([cx + (j(19) > 0 ? 1 : -1) * r * 1.3, top - 2.4 * r, cz + j(20) * r], [r * 0.7, r * 1.0, r * 0.7], r * 0.18, j(21) * 3, 0));   // 旁边靠着一块
+    const f = pile(st, r * 0.45, r * 0.13, 1.2 / r * 2.0, { x: cx, z: cz, y0: top - 3.6 * r, r0: r * 1.25, g: 0.1 });
+    const ext = r * 2.6 + 1.5, stp = Math.max(0.28, r * 0.11);
+    add(nets(f, [cx - ext, top - 4.4 * r, cz - ext], [cx + ext, top + r * 0.6, cz + ext], stp));
+    add(nets(f, [cx - ext - 4, -34, cz - ext - 4], [cx + ext + 4, top - 4.2 * r, cz + ext + 4], Math.max(0.8, stp * 2.4)));
+  };
+  [[-28, 34, -4.5, 2.4, 1], [-18, 42, -2.8, 2.8, 2], [-11, 30, -6.0, 1.8, 3], [-37, 52, -1.5, 3.2, 4],
+   [13, 40, -5.2, 3.6, 5], [25, 48, -3.5, 2.8, 6], [36, 62, -1.0, 3.4, 7],
+   [58, 45, -3.0, 2.8, 8], [84, 38, -6.0, 2.2, 9], [108, 58, -2.0, 3.4, 10], [135, 44, -4.5, 2.6, 11], [165, 62, -1.5, 3.8, 12],
+   [-168, 50, -3.0, 2.8, 13], [-138, 40, -5.5, 2.2, 14], [-110, 64, -1.0, 3.8, 15], [-82, 42, -4.0, 2.6, 17], [-58, 55, -2.0, 3.0, 18],
+  ].forEach(a => stack(...a));
   rockMat = mat;
 }
 
@@ -546,8 +547,8 @@ function makeFigure(tex) {
       }`,
   });
   const fig = new THREE.Mesh(geo, m);
-  fig.position.set(Math.sin(FIG.th) * R, FIG.feetY + h / 2, -Math.cos(FIG.th) * R);
-  fig.lookAt(EYE.x, FIG.feetY + h / 2, EYE.z);
+  fig.position.set(Math.sin(FIG.th) * R, FIG.bottomY + h / 2, -Math.cos(FIG.th) * R);
+  fig.lookAt(EYE.x, FIG.bottomY + h / 2, EYE.z);
   scene.add(fig);
 }
 
