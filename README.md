@@ -8,7 +8,7 @@
 
 零依赖：一个 HTML 文件，原生 WebGL2 + WebXR Device API，没有任何框架或 CDN。
 
-**▶ [双面圆筒沙盘](https://zhao0424.github.io/webxr-todo/jelly-harbor/)** — 工业港口 / 生态研究园区，原地翻转圆盘、自动运输、玻璃罩与中央景观池（见 `jelly-harbor/`）。
+**▶ [三境圆筒沙盘](https://zhao0424.github.io/webxr-todo/jelly-harbor/)** — 工业港口 / 生态研究园区 / 废土配给站，原地翻转圆盘、自动运输、玻璃罩与蒸汽动力（见 `jelly-harbor/`）。
 
 ## 操作
 
