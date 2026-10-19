@@ -291,9 +291,9 @@ function showInfo(k) {
 //   捏住拖：左右拖动整副牌，松手带一点惯性，停在最近的一幅
 // 不再"看住一会儿就进去"：看是为了看，读名牌、端详画面时不该触发任何动作。
 const EYE_H = 1.55;                                         // 头显里人的脚踩在画廊的地板上（地板在 y = -1.55）
-// 正中那幅离眼 2.6 米、缩到 0.4 倍：最高的画约占 22° 视角，刚好在眼镜视场里；相邻两张差 21°，
-// 往后退、缩小，只在视场边上露一半；拖动时射线落点横移 0.5 米 = 一张
-const XRC = { D: 2.6, S: 0.40, GAP: 21 * Math.PI / 180, PER: 0.5, TAP: 0.04 };
+// 正中那幅离眼 2.6 米、缩到 0.28 倍：最高的画约占 15° 视角，下面的名牌也还在眼镜约 24° 的竖直视场里；
+// 相邻两张差 18°，往后退、缩小，只在视场边上露一半；拖动时射线落点横移 0.5 米 = 一张
+const XRC = { D: 2.6, S: 0.28, GAP: 18 * Math.PI / 180, PER: 0.5, TAP: 0.04 };
 const xr = { ctrls: [], hoverK: -1, anchored: false, yaw: 0, follow: false, drag: null };
 const homeXf = paintings.map(p => ({ p: p.holder.position.clone(), q: p.holder.quaternion.clone() }));
 // 正中那幅下面的名牌：作品名、英文名、怎么操作
@@ -381,11 +381,11 @@ function xrStep(dt) {
   camera.getWorldPosition(o); camera.getWorldDirection(d);
   // 轮牌锚在进 VR 时你面朝的方向、眼睛的高度；转头超过 50° 才慢慢跟过去，人走动时也慢慢跟着
   const yaw = Math.atan2(-d.x, -d.z);
-  if (!xr.anchored) { xr.anchored = true; xr.yaw = yaw; ring.position.set(o.x, o.y - 0.12, o.z); }
+  if (!xr.anchored) { xr.anchored = true; xr.yaw = yaw; ring.position.set(o.x, o.y + 0.02, o.z); }
   const dyaw = Math.atan2(Math.sin(yaw - xr.yaw), Math.cos(yaw - xr.yaw));
   if (Math.abs(dyaw) > 50 * Math.PI / 180) xr.follow = true;
   if (xr.follow) { xr.yaw += dyaw * Math.min(1, dt * 2); if (Math.abs(dyaw) < 0.05) xr.follow = false; }
-  ring.position.lerp(v.set(o.x, o.y - 0.12, o.z), Math.min(1, dt * 1.2));
+  ring.position.lerp(v.set(o.x, o.y + 0.02, o.z), Math.min(1, dt * 1.2));
   ring.rotation.y = xr.yaw;
   wallU.uView.value = -xr.yaw;                              // 墙上的光打在轮牌后面
   // 拖动：射线落点横移多少，牌就拨过去多少张
@@ -421,7 +421,7 @@ function xrStep(dt) {
   // 名牌挂在正中那幅下面；牌在转的时候先收起来
   const f = mod(Math.round(target), N), pt = paintings[f];
   if (label.k !== f) { pt.holder.add(label.m); label.draw(f); label.k = f; }
-  label.m.position.set(0, 0.35 - pt.size.y / 2 - 0.11 - 0.6, 0.02);
+  label.m.position.set(0, 0.35 - pt.size.y / 2 - 0.11 - 0.5, 0.02);
   label.m.visible = Math.abs(cur - target) < 0.25 && !g;
   return { hoverK: xr.hoverK, cur: +cur.toFixed(2), target: +target.toFixed(2), drag: !!g, label: label.m.visible, yaw: +xr.yaw.toFixed(2) };
 }
