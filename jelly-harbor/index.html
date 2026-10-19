@@ -86,12 +86,24 @@ void ocean(vec2 p,out vec3 dis,out vec3 n){dis=vec3(0.);vec3 tx=vec3(1.,0.,0.),t
 `;
 const oceanFragment=noiseGLSL+oceanGLSL+`uniform float uNight,uFlash;uniform vec2 uLamp[16];varying vec3 vP,vN,vW,vWN;varying vec2 vBase;varying float vDepth;
 vec2 shortSlope(vec2 p){
- // A very soft secondary swell; the geometric surface carries the visible waves.
- vec3 swell=oceanNoise(p*.83+vec2(uTime*.055,-uTime*.037));
- return swell.yz*.009/(1.+length(fwidth(p))*5.);
+ // Three octaves of travelling ripples; finer octaves fade with screen footprint to avoid shimmer.
+ float aa=1./(1.+length(fwidth(p))*6.);
+ vec3 a=oceanNoise(p*2.1+vec2(uTime*.21,-uTime*.13));
+ vec3 b=oceanNoise(p*4.7+vec2(-uTime*.31,uTime*.24)+3.1);
+ vec3 c=oceanNoise(p*9.3+vec2(uTime*.45,uTime*.37)+7.7);
+ return (a.yz*.05+b.yz*.026*aa+c.yz*.013*aa*aa)*(1.+uStorm*1.3);
 }
-void main(){vec2 p=vBase;float ice=shoreIce(p);vec2 micro=shortSlope(p)*(1.-ice);vec3 n=normalize(vWN+vec3(-micro.x,0.,-micro.y)),v=normalize(cameraPosition-vW);float ndv=max(.0,dot(n,v));float fres=.035+.965*pow(1.-ndv,4.);vec3 r=reflect(-v,n);vec3 reflected=mix(vec3(.055,.10,.13),vec3(.38,.47,.50),smoothstep(-.12,.7,r.y));vec3 deep=vec3(.008,.045,.061);float lift=smoothstep(-.26,.30,vP.y);vec3 body=mix(deep,vec3(.018,.095,.11),lift*.6);vec3 c=mix(body,reflected,fres);vec3 l=normalize(vec3(-.5,.8,-.2)),halfDir=normalize(l+v);float spec=pow(max(0.,dot(n,halfDir)),95.)*.48;c+=vec3(.62,.7,.72)*spec*(1.-uNight);
-// Clean swells, no granular foam or tiled surface texture.
+void main(){vec2 p=vBase;float ice=shoreIce(p);vec2 micro=shortSlope(p)*(1.-ice);vec3 n=normalize(vWN+vec3(-micro.x,0.,-micro.y)),v=normalize(cameraPosition-vW);float ndv=max(.0,dot(n,v));float fres=.035+.965*pow(1.-ndv,4.);vec3 r=reflect(-v,n);vec3 reflected=mix(vec3(.055,.10,.13),vec3(.38,.47,.50),smoothstep(-.12,.7,r.y));vec3 deep=vec3(.008,.045,.061);float lift=smoothstep(-.26,.30,vP.y);vec3 body=mix(deep,vec3(.018,.095,.11),lift*.6);
+float cd=uBasin>.5?coastDistance(p):9.;float shallow=exp(-cd*2.4);body=mix(body,vec3(.035,.15,.15),shallow*.55);body+=vec3(.012,.07,.065)*smoothstep(.06,.24,vP.y)*(1.-uNight*.7);
+vec3 c=mix(body,reflected,fres);vec3 l=normalize(vec3(-.5,.8,-.2)),halfDir=normalize(l+v);float nh=max(0.,dot(n,halfDir));float spec=pow(nh,95.)*.48+pow(nh,16.)*.05;c+=vec3(.62,.7,.72)*spec*(1.-uNight);
+// Foam: thin lace (ridged noise) hugging quays and hulls, and sparse lace on swell crests.
+float n1=noise(p*9.+vec2(uTime*.15,0.)),n2=noise(p*21.-vec2(0.,uTime*.2));
+float lace=(1.-smoothstep(0.,.07,abs(n1-.5)))*.7+(1.-smoothstep(0.,.05,abs(n2-.5)))*.5;
+float shoreF=uBasin>.5?(1.-smoothstep(0.,.02+n1*.04,cd))*.85:0.;
+float crest=smoothstep(.12,.26,vP.y)*(.25+uStorm*.6)*smoothstep(.35,.75,noise(p*2.3+vec2(uTime*.05,-uTime*.03)));
+float foam=clamp(shoreF*(.45+.55*lace)+crest*lace,0.,1.)*(1.-ice);
+c=mix(c,vec3(.58,.66,.68)*(1.-uNight*.65),foam*.6);
+// Lamp streaks and shore ice on top of the procedural surface (no tiled textures).
 if(uBasin>.5){for(int i=0;i<16;i++){vec2 d=p-uLamp[i];float streak=exp(-pow((d.x+n.x*.22)*9.,2.)-abs(d.y)*2.2)*(.65+.35*sin(p.y*3.7+uTime*.8));c+=vec3(.26,.11,.025)*streak*(.08+uNight*.6);}if(ice>.001){float grain=noise(p*26.);float cells=noise(p*3.7+noise(p*1.5));float crack=1.-smoothstep(.012,.035,abs(cells-.5));vec3 frozen=mix(vec3(.13,.24,.28),vec3(.43,.53,.56),.35+grain*.4);frozen*=1.-crack*.26;c=mix(c,frozen,ice);}}
 c*=1.-uNight*.72;c+=vec3(.09,.13,.18)*uFlash*(fres+.12);if(vDepth<-.05)c=mix(vec3(.003,.014,.024),vec3(.012,.055,.070),smoothstep(-2.46,0.,vDepth))*(1.-uNight*.65);gl_FragColor=vec4(c,1.);
 #include <tonemapping_fragment>
