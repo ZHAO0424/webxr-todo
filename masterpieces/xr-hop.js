@@ -194,9 +194,49 @@ const ray = new THREE.Raycaster(), plane = new THREE.Plane(), hitP = new THREE.V
 let linger = 0, following = false;
 const rays = [];                      // 这一帧各个输入源的射线（叠层坐标）
 
+// ---------- 把人放到这件作品的观看点 ----------
+// VITURE 的 runtime 把 local-floor 的"地板"放在眼镜启动那一刻所在的位置：戴着启动时眼睛就在 y≈0，
+// 水平原点有时偏出将近一米，朝向也是随机的（efforts/viture/webxr-场景高度-排查.md）。而每件作品都按
+// "人站在原点、眼高 1.5 米、面朝 -Z"设计 —— 于是地面挡住画的下半截、离得太近、穿模。
+// 这里每次进场景时取一次头的真实位置，用偏移参考空间把头挪到作品设计的观看点（works.js 里的 xr.eye），
+// 前方对准你此刻面朝的方向。只取偏航，不取俯仰；之后人走动、转头照常跟踪。
+let baseRef = null, recenterIn = -1;
+let eyeOverride = null;                                   // 测试钩子：mpHop._eye([x,y,z]) 试别的观看点
+// 戴着眼镜在电脑键盘上微调：I / K 前后 25 厘米，U / O 高低 10 厘米，0 复位。按作品记在本机浏览器里
+const eyeKey = () => `mp-eye-${slugNow()}`;
+const eyeSaved = () => { try { const v = JSON.parse(localStorage.getItem(eyeKey())); return Array.isArray(v) && v.length === 3 ? v : null; } catch (e) { return null; } };
+const eyeDefault = () => { const w = works().find(w => w.slug === slugNow()); return (w && w.xr && w.xr.eye) || (onWork() ? [0, 1.5, 0] : [0, 1.55, 0]); };
+function showEye(e) {
+  let el = document.getElementById('mp-eye');
+  if (!el) { el = document.createElement('div'); el.id = 'mp-eye'; el.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:70;font:12px/1.5 system-ui,sans-serif;color:#ece7dc;background:rgba(14,13,18,.75);padding:6px 10px;border-radius:6px;pointer-events:none'; document.body.appendChild(el); }
+  el.textContent = `观看点 (${e.map(v => v.toFixed(2)).join(', ')})　I/K 前后 · U/O 高低 · 0 复位`;
+  clearTimeout(showEye.t); el.style.display = ''; showEye.t = _st(() => { el.style.display = 'none'; }, 6000);
+}
+untracked(() => addEventListener('keydown', e => {
+  if (!R || !R.xr.isPresenting || e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase(), d = { i: [0, 0, -0.25], k: [0, 0, 0.25], u: [0, -0.1, 0], o: [0, 0.1, 0] }[k];
+  if (!d && k !== '0') return;
+  const cur = eyeOf(), next = k === '0' ? eyeDefault() : cur.map((v, n) => +(v + d[n]).toFixed(2));
+  try { if (k === '0') localStorage.removeItem(eyeKey()); else localStorage.setItem(eyeKey(), JSON.stringify(next)); } catch (err) {}
+  recenterIn = 0; showEye(next);
+}));
+const eyeOf = () => { if (eyeOverride) return eyeOverride; const sv = eyeSaved(); if (sv) return sv; const w = works().find(w => w.slug === slugNow()); return (w && w.xr && w.xr.eye) || (onWork() ? [0, 1.5, 0] : [0, 1.55, 0]); };
+function recenter(frame) {
+  const pose = baseRef && frame.getViewerPose(baseRef); if (!pose) return false;
+  const h = pose.transform.position, o = pose.transform.orientation;
+  const f = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion(o.x, o.y, o.z, o.w));
+  const yaw = Math.atan2(-f.x, -f.z), c = Math.cos(yaw), s = Math.sin(yaw), [ex, ey, ez] = eyeOf();
+  // 偏移空间的原点（在 local-floor 里）= 头 − Ry(yaw)·观看点，朝向 = Ry(yaw)：于是新空间里头正好在观看点、面朝 -Z
+  const p = { x: h.x - (ex * c + ez * s), y: h.y - ey, z: h.z - (-ex * s + ez * c), w: 1 };
+  R.xr.setReferenceSpace(baseRef.getOffsetReferenceSpace(new XRRigidTransform(p, { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) })));
+  return true;
+}
+
 function master(t, frame) {
   const dt = Math.min(0.1, lastT ? (t - lastT) / 1000 : 0.016); lastT = t;
   const xr = R.xr.isPresenting && frame;
+  // 等追踪稳定几帧再取头的位置（刚进会话的头几帧姿态可能还没收敛）
+  if (xr && recenterIn >= 0 && recenterIn-- === 0 && !recenter(frame)) recenterIn = 1;
   if (xr) xrRT = R.getRenderTarget();
   // 换画时新作品在黑幕后面就开始跑（有的作品要跑起来才算载完）
   if (workLoop) { inWork = !!xr; try { workLoop(t, frame); } finally { inWork = false; } }
@@ -406,20 +446,24 @@ export const hop = {
       R.xr.addEventListener('sessionstart', () => {
         teaserUntil = performance.now() + 7000; anchorYaw = null;
         const s = R.xr.getSession();
+        recenterIn = 3;
         if (s && !s.__hop) {
           s.__hop = true;
+          baseRef = R.xr.getReferenceSpace();
           // 射线指着条上的一格扣扳机 / 捏合，立刻换
           s.addEventListener('select', e => { if (!XR_SWITCH) return; const r = rays.find(x => x.src === e.inputSource); if (r && r.zone >= 0) act(ACT[r.zone]); });
         }
       });
       R.xr.addEventListener('sessionend', () => {
         fade = fadeTarget = 0; titleA = titleTarget = 0; hold = false; pads.clear();
+        baseRef = null; recenterIn = -1; R.xr.setReferenceSpace(null);
         if (fadeDone) { const f = fadeDone; fadeDone = null; f(); }   // 换到一半摘了头显：让换画在网页里走完
       });
     });
   },
 };
 window.mpHop = { go, home: () => go(0, false, 'home'), presenting: () => !!(R && R.xr.isPresenting), _r: () => R,
+  _eye: e => { eyeOverride = e; recenterIn = 1; },
   // 测试：不戴头显，按给定的头部朝向（度）把叠层逻辑跑 n 帧，返回条的状态和触发的换画方向
   _sim: (n, yaw, pitch, teaser = false) => {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch * Math.PI / 180, yaw * Math.PI / 180, 0, 'YXZ'));
