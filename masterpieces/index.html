@@ -87,7 +87,7 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { hop } from './xr-hop.js';   // 在主页进一次 VR：走进画、换画、回画廊都在同一个会话里
+import { hop, go as hopGo } from './xr-hop.js';   // 在主页进一次 VR：走进画、换画、回画廊都在同一个会话里
 import { xrCaption } from './xr-caption.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
@@ -196,7 +196,7 @@ const paintings = W.map((w, k) => {
   };
   fit(1.3);
   loader.load(`data/thumbs/${w.slug}.jpg`, t => { t.anisotropy = renderer.capabilities.getMaxAnisotropy(); u.tMap.value = t; fit(t.image.width / t.image.height); u.uReady.value = 1; });
-  return { mesh, u, holder, size: u.uSize.value };
+  return { mesh, refl, u, holder, size: u.uSize.value };
 });
 
 // ---------- 交互 ----------
@@ -253,7 +253,7 @@ function pick() {
 }
 // 走进画里：镜头朝那幅画推过去，画铺满视野，再黑下来换页
 function enter(kXR) {
-  if (renderer.xr.isPresenting) { const k = kXR !== undefined ? kXR : xr.gazeK; if (k >= 0) hop.go(0, false, k); return; }   // 头显里：不跳页，同一个会话里走进去
+  if (renderer.xr.isPresenting) { hopGo(0, false, kXR !== undefined ? kXR : mod(Math.round(target), N)); return; }   // 头显里：不跳页，同一个会话里走进去
   if (entering) return;
   const k = mod(Math.round(target), N);
   target = Math.round(target);
@@ -284,17 +284,23 @@ function showInfo(k) {
   history.replaceState(null, '', `?from=${w.slug}`);
 }
 
-// ---------- 头显里的画廊：九幅画围着你挂成一圈，看住一幅（或用射线指着它扣扳机 / 捏合）就走进去 ----------
+// ---------- 头显里的画廊：一副在眼前的轮牌 ----------
+// 眼镜的视场只有正前方几十度，九幅画围成一圈就得转身去找。所以头显里画不再挂满一圈，而是在眼前
+// 排成轮牌：正中一幅，左右各斜着露出一两张。换画是把牌拨过来，不是把头转过去。
+//   快捏快放：对着正中的画 → 走进去；对着旁边那张 → 把它转到正中；对着空白处 → 往那一侧翻一张
+//   捏住拖：左右拖动整副牌，松手带一点惯性，停在最近的一幅
+// 不再"看住一会儿就进去"：看是为了看，读名牌、端详画面时不该触发任何动作。
 const EYE_H = 1.55;                                         // 头显里人的脚踩在画廊的地板上（地板在 y = -1.55）
-const xr = { gazeK: -1, dwellK: -1, dwell: 0, ctrls: [] };
-const DWELL = 1.8;
-// 画下面的名牌：作品名、英文名、怎么进去；被看着的那幅才挂出来，下面一道金线是"看住"的进度
+// 正中那幅离眼 2.6 米、缩到 0.4 倍：最高的画约占 22° 视角，刚好在眼镜视场里；相邻两张差 21°，
+// 往后退、缩小，只在视场边上露一半；拖动时射线落点横移 0.5 米 = 一张
+const XRC = { D: 2.6, S: 0.40, GAP: 21 * Math.PI / 180, PER: 0.5, TAP: 0.04 };
+const xr = { ctrls: [], hoverK: -1, anchored: false, yaw: 0, follow: false, drag: null };
+const homeXf = paintings.map(p => ({ p: p.holder.position.clone(), q: p.holder.quaternion.clone() }));
+// 正中那幅下面的名牌：作品名、英文名、怎么操作
 const label = (() => {
   const c = document.createElement('canvas'); c.width = 1536; c.height = 420;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2 * 420 / 1536), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, toneMapped: false }));
   m.visible = false; m.renderOrder = 5;
-  const bar = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.03), new THREE.MeshBasicMaterial({ color: 0xdeba6e, toneMapped: false }));
-  bar.visible = false; bar.renderOrder = 6;
   const g = c.getContext('2d');
   const draw = k => {
     const w = W[k]; g.clearRect(0, 0, c.width, c.height); g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -302,10 +308,10 @@ const label = (() => {
     g.fillText(`${k + 1} / ${N} · AFTER ${w.after.toUpperCase()} · ${w.year}`, c.width / 2, 60);
     g.fillStyle = '#f3ede2'; g.font = '400 130px "Songti SC", "STSong", "SimSun", serif'; g.letterSpacing = '20px'; g.fillText(w.zh, c.width / 2, 185);
     g.fillStyle = 'rgba(232,224,210,.78)'; g.font = 'italic 52px "Songti SC", Georgia, serif'; g.letterSpacing = '2px'; g.fillText(w.en, c.width / 2, 290);
-    g.fillStyle = 'rgba(232,224,210,.6)'; g.font = '500 40px system-ui, sans-serif'; g.letterSpacing = '6px'; g.fillText('看住它，或指着它扣扳机 / 捏合，走进去', c.width / 2, 375);
+    g.fillStyle = 'rgba(232,224,210,.6)'; g.font = '500 40px system-ui, sans-serif'; g.letterSpacing = '6px'; g.fillText('对准它捏合，走进去 · 捏住左右拖，换一幅', c.width / 2, 375);
     m.material.map.needsUpdate = true;
   };
-  return { m, bar, draw };
+  return { m, draw, k: -1 };
 })();
 const cap = xrCaption({ renderer, scene, camera });
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -315,58 +321,109 @@ const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), ne
 for (let i = 0; i < 2; i++) {
   const c = renderer.xr.getController(i);
   const line = new THREE.Line(rayGeo, new THREE.LineBasicMaterial({ color: 0xdeba6e, transparent: true, opacity: 0.4 }));
-  line.scale.z = 7; c.add(line); c.userData.k = -1;
-  c.addEventListener('select', () => { if (c.userData.k >= 0) enter(c.userData.k); });
+  line.scale.z = 3; c.add(line); c.userData.k = -1;
+  c.addEventListener('selectstart', () => pinchStart(c));
+  c.addEventListener('selectend', () => pinchEnd(c));
   rig.add(c); xr.ctrls.push(c);
   rig.add(renderer.xr.getHand(i));
 }
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
   rig.position.y = -EYE_H;                                  // 地板在脚下，画挂在眼睛的高度
-  wall.visible = floor.visible = opaque;                    // AR：只留下一圈画，挂在真实的房间里
+  wall.visible = floor.visible = opaque;                    // AR：只留下画，挂在真实的房间里
   renderer.setClearColor(0x0b0a0d, opaque ? 1 : 0);
   entering = null; torch.z = 0; mouse.set(9, 9);
-  cap.show(['入画', 'Into the Painting', '转身看一圈 · 看住一幅画，走进去'], 9);
+  xr.anchored = false; xr.drag = null;
+  paintings.forEach(p => { p.refl.visible = false; });     // 倒影是按一圈大画算的位置，轮牌里不要
+  label.m.scale.setScalar(1.5);
+  cap.show(['入画', 'Into the Painting', '捏住左右拖，换一幅 · 对准正中的画捏合，走进去'], 9);
 });
 renderer.xr.addEventListener('sessionend', () => {
   rig.position.y = 0; wall.visible = floor.visible = true; renderer.setClearColor(0x0b0a0d, 1);
-  label.m.visible = label.bar.visible = false; wallU.uView.value = 0; xr.gazeK = -1;
+  ring.position.set(0, 0, 0); xr.drag = null; xr.hoverK = -1;
+  paintings.forEach((p, k) => { p.holder.position.copy(homeXf[k].p); p.holder.quaternion.copy(homeXf[k].q); p.holder.scale.setScalar(1); p.holder.visible = true; p.refl.visible = true; });
+  label.m.visible = false; label.m.scale.setScalar(1); wallU.uView.value = 0;
 });
-const xrTmp = { o: new THREE.Vector3(), d: new THREE.Vector3(), p: new THREE.Vector3(), q: new THREE.Vector3(), m: new THREE.Matrix4() };
+const xrTmp = { o: new THREE.Vector3(), d: new THREE.Vector3(), p: new THREE.Vector3(), q: new THREE.Vector3(), m: new THREE.Matrix4(), v: new THREE.Vector3() };
 const meshes = paintings.map(p => p.mesh);
-const hitK = (o, d) => { ray.set(o, d); const h = ray.intersectObjects(meshes)[0]; return h ? h.object.userData.k : -1; };
+// 射线打中哪幅画（藏起来的不算：Raycaster 不管 visible）
+const hitK = (o, d) => { ray.set(o, d); const h = ray.intersectObjects(meshes.filter(mm => mm.parent.visible))[0]; return h ? h.object.userData.k : -1; };
+// 射线在轮牌上的横向落点（米）：手平移和手腕转动都算。用角度而不是和平面求交，射线朝上朝下也不会跳
+function aimX(c) {
+  const { p, q, m } = xrTmp;
+  m.identity().extractRotation(c.matrixWorld);
+  p.setFromMatrixPosition(c.matrixWorld); q.set(0, 0, -1).applyMatrix4(m);
+  ring.worldToLocal(p);
+  q.applyAxisAngle(THREE.Object3D.DEFAULT_UP, -ring.rotation.y);
+  return p.x + XRC.D * Math.atan2(q.x, -q.z);
+}
+function pinchStart(c) {
+  if (xr.drag || entering) return;                          // 一次只认一只手在拨
+  const x = aimX(c), now = performance.now();
+  xr.drag = { c, x0: x, lx: x, t0: now, tgt0: target, moved: 0, v: 0 };
+}
+function pinchEnd(c) {
+  const g = xr.drag; if (!g || g.c !== c) return;
+  xr.drag = null;
+  if (g.moved < XRC.TAP && performance.now() - g.t0 < 700) return tap(c, g.x0);
+  target = Math.round(target + Math.max(-2, Math.min(2, g.v * 0.18)));   // 甩一下多翻一两张
+}
+function tap(c, x) {
+  const k = c.userData.k, f = mod(Math.round(target), N);
+  if (k === f) enter(k);                                    // 正中那幅：走进去
+  else if (k >= 0) target = Math.round(target) + shortest(f, k);   // 旁边那张：转过来
+  else target = Math.round(target) + (x < 0 ? -1 : 1);      // 空白处：往那一侧翻一张
+}
 function xrStep(dt) {
-  const cam = renderer.xr.getCamera(), { o, d, p, q, m } = xrTmp;
-  cam.getWorldPosition(o); cam.getWorldDirection(d);
-  // 视线落在哪幅画上；手柄 / 手的射线各自指着哪幅
-  const gk = hitK(o, d);
+  // 头的位置取用户相机（挂在 rig 下，three 每帧把 XR 姿态写进它）。xr.getCamera() 的 getWorldPosition
+  // 会按它自己的 position 重算世界矩阵，丢掉 rig 往下放的 1.55 米 —— 轮牌会锚到头顶上方去
+  const { o, d, p, q, m, v } = xrTmp;
+  camera.getWorldPosition(o); camera.getWorldDirection(d);
+  // 轮牌锚在进 VR 时你面朝的方向、眼睛的高度；转头超过 50° 才慢慢跟过去，人走动时也慢慢跟着
+  const yaw = Math.atan2(-d.x, -d.z);
+  if (!xr.anchored) { xr.anchored = true; xr.yaw = yaw; ring.position.set(o.x, o.y - 0.12, o.z); }
+  const dyaw = Math.atan2(Math.sin(yaw - xr.yaw), Math.cos(yaw - xr.yaw));
+  if (Math.abs(dyaw) > 50 * Math.PI / 180) xr.follow = true;
+  if (xr.follow) { xr.yaw += dyaw * Math.min(1, dt * 2); if (Math.abs(dyaw) < 0.05) xr.follow = false; }
+  ring.position.lerp(v.set(o.x, o.y - 0.12, o.z), Math.min(1, dt * 1.2));
+  ring.rotation.y = xr.yaw;
+  wallU.uView.value = -xr.yaw;                              // 墙上的光打在轮牌后面
+  // 拖动：射线落点横移多少，牌就拨过去多少张
+  const g = xr.drag;
+  if (g) {
+    const x = aimX(g.c), dx = x - g.x0;
+    g.moved = Math.max(g.moved, Math.abs(dx));
+    if (g.moved >= XRC.TAP) {
+      target = g.tgt0 - dx / XRC.PER;
+      const vi = -(x - g.lx) / XRC.PER / Math.max(dt, 1e-3);
+      g.v += (vi - g.v) * Math.min(1, dt * 12);
+    }
+    g.lx = x;
+  }
+  // 排牌：正中一幅正对你，两侧的往后退、缩小、朝里斜
+  paintings.forEach((pt, k) => {
+    const off = mod(k - cur + N / 2, N) - N / 2, ao = Math.abs(off), h = pt.holder;
+    h.visible = ao < 2.7;
+    const a = off * XRC.GAP, r = XRC.D + Math.min(ao, 2) * 0.55;
+    h.position.set(Math.sin(a) * r, 0, -Math.cos(a) * r);
+    h.rotation.set(0, -a - Math.sign(off) * Math.min(ao, 1) * 0.45, 0);
+    h.scale.setScalar(XRC.S * (1 - 0.2 * Math.min(ao, 2)));
+    pt.u.uLit.value = Math.exp(-off * off * 1.6) * (1 - Math.max(0, Math.min(1, (ao - 2) / 0.7)));
+  });
+  // 手 / 手柄的射线指着哪幅
   for (const c of xr.ctrls) {
     m.identity().extractRotation(c.matrixWorld);
     c.userData.k = c.visible ? hitK(p.setFromMatrixPosition(c.matrixWorld), q.set(0, 0, -1).applyMatrix4(m)) : -1;
   }
   const pointed = xr.ctrls.map(c => c.userData.k).find(k => k >= 0);
-  xr.gazeK = gk >= 0 ? gk : (pointed !== undefined ? pointed : -1);
-  // 墙上的光和画上的光都跟着视线走
-  wallU.uView.value = Math.atan2(d.x, -d.z);
-  const dh = Math.max(1e-4, Math.hypot(d.x, d.z));
-  paintings.forEach((pt, k) => {
-    pt.mesh.getWorldPosition(p).sub(o).setY(0).normalize();
-    const a = Math.acos(Math.max(-1, Math.min(1, (p.x * d.x + p.z * d.z) / dh))) / STEP;
-    pt.u.uLit.value = Math.exp(-a * a * 2.2);
-    pt.u.uHover.value += ((xr.gazeK === k ? 1 : 0) - pt.u.uHover.value) * Math.min(1, dt * 8);
-  });
-  // 看住：画下面一道金线慢慢走满，满了就走进去
-  if (gk >= 0 && gk === xr.dwellK) xr.dwell += dt; else { xr.dwellK = gk; xr.dwell = 0; }
-  const k = xr.gazeK;
-  if (k >= 0) {
-    const pt = paintings[k], h = pt.size.y, wd = pt.size.x, bottom = 0.35 - h / 2 - 0.11;
-    if (label.m.parent !== pt.holder) { pt.holder.add(label.m, label.bar); label.draw(k); }
-    label.m.position.set(0, bottom - 0.4, 0.02); label.m.visible = true;   // 名牌底边刚好在地板之上
-    label.bar.position.set(0, bottom - 0.04, 0.03);
-    label.bar.scale.x = Math.max(0.001, wd * Math.min(1, xr.dwell / DWELL)); label.bar.visible = gk === k && xr.dwell > 0.05;
-  } else label.m.visible = label.bar.visible = false;
-  if (gk >= 0 && xr.dwell > DWELL) { xr.dwell = 0; enter(gk); }
-  return { gazeK: xr.gazeK, dwell: +xr.dwell.toFixed(2), label: label.m.visible, bar: +label.bar.scale.x.toFixed(2) };
+  xr.hoverK = pointed !== undefined ? pointed : -1;
+  paintings.forEach((pt, k) => { pt.u.uHover.value += ((xr.hoverK === k ? 1 : 0) - pt.u.uHover.value) * Math.min(1, dt * 8); });
+  // 名牌挂在正中那幅下面；牌在转的时候先收起来
+  const f = mod(Math.round(target), N), pt = paintings[f];
+  if (label.k !== f) { pt.holder.add(label.m); label.draw(f); label.k = f; }
+  label.m.position.set(0, 0.35 - pt.size.y / 2 - 0.11 - 0.6, 0.02);
+  label.m.visible = Math.abs(cur - target) < 0.25 && !g;
+  return { hoverK: xr.hoverK, cur: +cur.toFixed(2), target: +target.toFixed(2), drag: !!g, label: label.m.visible, yaw: +xr.yaw.toFixed(2) };
 }
 window.__xrStep = xrStep;   // 测试钩子
 

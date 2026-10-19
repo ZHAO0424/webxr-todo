@@ -2,7 +2,8 @@
 // WebXR 会话活不过一次页面跳转，所以戴着头显时"下一幅"不跳页：取来下一页的 HTML，换掉样式和 DOM，
 // 用同一个渲染器（会话就挂在它上面）跑下一页的脚本。为了卸得干净，这里记下每件作品挂上的
 // 监听、定时器、声音、麦克风和显存资源，换画时一并释放。
-// 画廊主页（index.html）也走这套：在主页进一次 VR，看住一幅画走进去，之后换画、回画廊都不出 VR。
+// 画廊主页（index.html）也走这套：在主页进一次 VR，画在眼前排成轮牌，捏住左右拖换画、对准正中那幅捏合走进去，
+// 之后换画、回画廊都不出 VR。
 // 头显里怎么换：低头看视野下方的「‹ 上一幅 · 回画廊 · 下一幅 ›」，看住一会儿、或用射线指着扣扳机 / 捏合；手柄 A/X 下一幅，B/Y 上一幅；
 // 头显连着电脑时，也可以在电脑键盘上按（见 nav.js）。
 import * as THREE from 'three';
@@ -139,7 +140,7 @@ function drawStrip(hot, prog) {
 }
 
 // ---------- 每帧：先画作品，再在上面盖叠层 ----------
-let workLoop = null, hold = false, xrRT = null, lastCam = null, lastT = 0;
+let workLoop = null, hold = false, xrRT = null, lastCam = null, lastT = 0, inWork = false;
 let fade = 0, fadeTarget = 0, fadeSpeed = 2, fadeDone = null;
 let titleA = 0, titleTarget = 0, teaserUntil = 0;
 let anchorYaw = null, dwellZone = -1, dwell = 0, cooldown = 0;
@@ -153,7 +154,8 @@ function master(t, frame) {
   const dt = Math.min(0.1, lastT ? (t - lastT) / 1000 : 0.016); lastT = t;
   const xr = R.xr.isPresenting && frame;
   if (xr) xrRT = R.getRenderTarget();
-  if (workLoop) workLoop(t, frame);       // 换画时新作品在黑幕后面就开始跑（有的作品要跑起来才算载完）
+  // 换画时新作品在黑幕后面就开始跑（有的作品要跑起来才算载完）
+  if (workLoop) { inWork = !!xr; try { workLoop(t, frame); } finally { inWork = false; } }
   if (xr) untracked(() => overlay(dt, frame));
 }
 
@@ -201,7 +203,7 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
   linger = near ? linger + dt : 0;
   let vis = linger > 0.35 || (sm.material.opacity > 0.3 && near) ? 1 : 0;
   if (performance.now() < teaserUntil) vis = Math.max(vis, 0.7);
-  if (hold || fade > 0.05 || busy || !onWork()) vis = 0;           // 画廊里不用这条：看住画就能进
+  if (hold || fade > 0.05 || busy || !onWork()) vis = 0;           // 画廊里不用这条：轮牌自己能换画、能进
   sm.material.opacity += (vis - sm.material.opacity) * Math.min(1, dt * (vis ? 5 : 3));
   sm.visible = sm.material.opacity > 0.01;
 
@@ -342,6 +344,10 @@ export const hop = {
     untracked(buildOverlay);
     const sal = R.setAnimationLoop.bind(R);
     R.setAnimationLoop = cb => { workLoop = cb; sal(master); };
+    // 兜底：作品在 XR 帧里算完 GPU 模拟后写 setRenderTarget(null)，桌面上没事，头显里却把整幅场景
+    // 画到了网页画布上 —— 眼镜里黑屏（《雾海之上》就是这样）。XR 帧里的 null 一律换回 XR 帧缓冲
+    const srt = R.setRenderTarget.bind(R);
+    R.setRenderTarget = (rt, ...a) => srt(rt === null && inWork && xrRT ? xrRT : rt, ...a);
     const rnd = R.render.bind(R);
     R.render = (scene, camera) => { if (camera !== ov.cam && R.getRenderTarget() === (R.xr.isPresenting ? xrRT : null)) lastCam = camera; return rnd(scene, camera); };
     for (const k of ['getController', 'getControllerGrip', 'getHand']) {

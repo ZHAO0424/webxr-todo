@@ -186,8 +186,10 @@ const simScene = new THREE.Scene(), simCam = new THREE.Camera();
 simScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), simMat));
 function stepField(dt) {
   simMat.uniforms.tPrev.value = fieldA.texture; simMat.uniforms.uDt.value = dt;
-  const xrOn = renderer.xr.enabled; renderer.xr.enabled = false;
-  renderer.setRenderTarget(fieldB); renderer.render(simScene, simCam); renderer.setRenderTarget(null);
+  // 算完要恢复成调用前的渲染目标，不能写 null：头显里那是 XR 的帧缓冲，设成 null 之后整幅场景
+  // 都画到了网页画布上，眼镜里只剩黑屏
+  const xrOn = renderer.xr.enabled, prevRT = renderer.getRenderTarget(); renderer.xr.enabled = false;
+  renderer.setRenderTarget(fieldB); renderer.render(simScene, simCam); renderer.setRenderTarget(prevRT);
   renderer.xr.enabled = xrOn;
   [fieldA, fieldB] = [fieldB, fieldA];
   W.tClear.value = fieldA.texture;
