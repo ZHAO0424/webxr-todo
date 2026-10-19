@@ -51,7 +51,7 @@
     <div class="how" data-xr="看向哪里，哪里燃起"><em>视线</em><span>看向哪里，哪里燃起；手柄或手指着的地方也会燃起</span><em>鼠标</em><span>鼠标就是目光；按住拖动环顾</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><span id="hudText">凝视之处正在燃烧</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div>目光点火，火自己蔓延；烧过的地方很久之后才慢慢愈合</div>
+<div id="hud"><span id="hudText">凝视之处正在燃烧</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div>目光点火，火自己蔓延；烧过的地方不会复原</div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -93,14 +93,19 @@ const PIC_GLSL = /* glsl */`
   vec3 curtainPos(vec2 uv, float d, float E) {
     float th = (uv.x - 0.5) * ${ARC.toFixed(5)};
     float pv = picV(uv);
-    // 画的上下边附近深度凸起要收回去，不然在画幕与脚下 / 天穹相接处会凸出一道台阶（看起来是一圈拉丝）
-    d *= smoothstep(0.0, 0.14, pv) * smoothstep(1.0, 0.88, pv);
+    // 画的四边附近深度凸起要收回去，不然在画幕与脚下 / 天穹 / 两侧延展相接处会凸出一道台阶，看起来是一圈拉丝。
+    // 收的范围要宽：之前左右只在画边外 3° 内收、下边 14% 内收，深度在一小段里从最深掉到 0，三角形被拉得很长
+    float pu = picU(uv);
+    d *= smoothstep(0.0, 0.25, pv) * smoothstep(1.0, 0.88, pv) * smoothstep(0.0, 0.12, pu) * smoothstep(1.0, 0.88, pu);
     float recess = smoothstep(0.3, 0.8, E) * 0.045;          // 烧穿的地方往后凹
     float yBot = EYE_Y - HORV * HM0, yTop = EYE_Y + (1.0 - HORV) * HM0;
     if (pv < 0.0) {
+      // 脚下是一只半球碗，不是平面：画幕底边往下弯，一直弯到你正下方。按角度均匀取点，
+      // 碗壁上每一段的面积差不多，海面的笔触不会在边上被拉长、在中心挤成一点
       float k = clamp(-pv / EXT_LO, 0.0, 1.0);                 // 0 = 画幕底边，1 = 脚下正中
-      float r = R0 * (1.0 - k);
-      return vec3(r * sin(th), yBot - recess - 0.15 * k * k, -r * cos(th));
+      float ph = k * 1.5707963;
+      float r = R0 * cos(ph);
+      return vec3(r * sin(th), yBot - recess - R0 * 0.75 * sin(ph), -r * cos(th));
     }
     if (pv > 1.0) {
       float k = clamp((pv - 1.0) / EXT_HI, 0.0, 1.0);
@@ -123,7 +128,7 @@ const PIC_GLSL = /* glsl */`
     float th = (uv.x - 0.5) * 6.2831853;
     float pv = picV(uv);
     // 脚下 / 头顶：越靠中心周长越短，噪声的环半径也跟着收，纹理才不会在中心挤成一点
-    float shrink = pv < 0.0 ? 1.0 - clamp(-pv / EXT_LO, 0.0, 1.0) : pv > 1.0 ? 1.0 - clamp((pv - 1.0) / EXT_HI, 0.0, 1.0) : 1.0;
+    float shrink = pv < 0.0 ? cos(clamp(-pv / EXT_LO, 0.0, 1.0) * 1.5707963) : pv > 1.0 ? 1.0 - clamp((pv - 1.0) / EXT_HI, 0.0, 1.0) : 1.0;
     vec3 ring = vec3(cos(th), sin(th), 0.0) * (0.15 + 0.85 * shrink);
     float n1 = vnoise3(ring * 9.0 + vec3(0.0, 0.0, pv * 40.0 + seed));
     float n2 = vnoise3(ring * 23.0 + vec3(0.0, 0.0, pv * 90.0 + seed * 3.0));
@@ -187,7 +192,7 @@ scene.add(dome);
 
 // ---------- 腐蚀场：r = E（这一处前层颜料被蚀掉的程度），b = T（被注视累积的"时间"）----------
 // 不再用反应扩散"长"纹理：腐蚀后的样子是一张烘好的底图（corroded.jpg），垫在原画后面；
-// 这里只算"前面那层被蚀穿到哪里"。注视处 E 上升，蚀穿的边缘顺着噪声一点点向外啃，离开后慢慢愈合。
+// 这里只算"前面那层被蚀穿到哪里"。注视处 E 上升，蚀穿的边缘顺着噪声一点点向外啃；烧过的不再复原。
 const rtOpts = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false, wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping };
 let rtA = new THREE.WebGLRenderTarget(SIM_W, SIM_H, rtOpts), rtB = new THREE.WebGLRenderTarget(SIM_W, SIM_H, rtOpts);
 const simCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -247,8 +252,7 @@ const simMat = new THREE.ShaderMaterial({
       float burning = smoothstep(0.45, 0.6, E);
       fuel -= uDeposit * 0.35 * burning;
       fuel += uDeposit * 0.012 * (1.0 - smoothstep(0.2, 0.35, E));
-      // 愈合：很慢（烧透之后约 100 秒），一点一点退回来，厚处先回来
-      E -= uDecay * (0.6 + 0.8 * (1.0 - thick));
+      // 不愈合：烧过的地方一直是一百年后的样子（之前约 100 秒后会退回原画）
       T = clamp(T - uDecay * 1.8, 0.0, 1.5);
       gl_FragColor = vec4(clamp(E, 0.0, 1.5), clamp(fuel, 0.0, 1.0), T, 1.0);
     }`,
@@ -262,7 +266,7 @@ function initSim() {
   simQuad.material = initMat; simRender(rtA); simRender(rtB);
   renderer.setRenderTarget(null); renderer.xr.enabled = xrOn;
 }
-// 每帧一步；XR 里临时关掉 xr，算完恢复 XR 的帧缓冲。按真实时间推进，帧率高低不影响腐蚀与愈合的节奏
+// 每帧一步；XR 里临时关掉 xr，算完恢复 XR 的帧缓冲。按真实时间推进，帧率高低不影响腐蚀的节奏
 function stepSim(dt, t) {
   lastDts = dt;
   const rt = renderer.getRenderTarget(), xrOn = renderer.xr.enabled;
@@ -272,7 +276,7 @@ function stepSim(dt, t) {
   for (let i = 0; i < STEPS; i++) {
     simU.tPrev.value = rtA.texture;
     simU.uDeposit.value = i === 0 ? dt * 1.0 : 0;    // 盯住一处约 1.5 秒烧穿中心，火线再向外蔓延
-    simU.uDecay.value = i === 0 ? dt * 0.010 : 0;    // 满格约 100 秒愈合，一点一点退
+    simU.uDecay.value = i === 0 ? dt * 0.010 : 0;    // 只用来让注视的热度 T 慢慢散掉（E 不再愈合）
     simU.uSeed.value = i === 0 ? 1 : 0;
     simRender(rtB);
     [rtA, rtB] = [rtB, rtA];

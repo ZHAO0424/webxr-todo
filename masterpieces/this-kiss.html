@@ -73,12 +73,11 @@ const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 const clamp01 = x => Math.max(0, Math.min(1, x));
 const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 
-// ---------- 尺度：真实比例的世界（两人约 1.9 m 高），桌面上从空中俯瞰；XR 里整个世界缩成一座 1/9 的小岛放在你面前 ----------
+// ---------- 尺度：真实比例的世界（两人约 1.9 m 高），桌面上从空中俯瞰；XR 里你站在岛的另一头边缘，正对着两人 ----------
 const SIDE = 2.0;                                   // 画幅在世界里的边长（m）：恋人浮雕 + 他们脚下那一小块画里的花地
 const FIG = new THREE.Vector3(0, 0, 0);             // 恋人站的位置：岬角的崖口
 const KISS_UV = new THREE.Vector2(0.56, 0.83);      // 两张脸相贴的位置（画上 uv）
 const EYE_XR = new THREE.Vector3(0, 1.5, 0);
-const XR_SCALE = 1 / 14, XR_POS = new THREE.Vector3(0, 0.75, -1.0);
 
 const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // 头显里换过来的：沿用会话所在的渲染器
 hop.attach(renderer);
@@ -162,6 +161,9 @@ function groundY(x, z) {
   if (sd < -2.6) y -= (-2.6 - sd) * 0.5;            // 崖下继续往深渊里掉
   return y;
 }
+// 头显里的观看点：岛的另一头（南缘内侧，离两人约 10 米），地面以上 1.6 米，面朝 -Z 正对两人
+const XR_STAND_Z = 9.8;
+hop.eye = [0, groundY(0, XR_STAND_Z) + 1.6, XR_STAND_Z];
 const ISLAND_GLSL = /* glsl */`
   float islandSd(vec2 xz) {
     vec2 d = xz - vec2(${ISLE_C[0].toFixed(1)}, ${ISLE_C[1].toFixed(1)}); float th = atan(d.y, d.x);
@@ -801,8 +803,9 @@ $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
   voidSphere.visible = opaque; plaque.visible = false;
-  world.scale.setScalar(XR_SCALE); world.position.copy(XR_POS);
-  world.userData.dustMat.uniforms.uScale.value = world.userData.petalMat.uniforms.uScale.value = XR_SCALE;
+  // 不再缩成桌上的小岛、也不自转：真实比例，人站在岛南缘（观看点见下面 hop.eye），面朝北边崖口的两人
+  world.scale.setScalar(1); world.position.set(0, 0, 0); world.rotation.set(0, 0, 0);
+  world.userData.dustMat.uniforms.uScale.value = world.userData.petalMat.uniforms.uScale.value = 1;
   renderer.setClearColor(0x120e08, opaque ? 1 : 0);
 });
 renderer.xr.addEventListener('sessionend', () => {
@@ -837,7 +840,6 @@ renderer.setAnimationLoop(() => {
   U.uTime.value = time;
   step(dt, time);
   if (!renderer.xr.isPresenting) updateCamera(dt);
-  else world.rotation.y += dt * 0.03;              // XR：小岛在面前缓缓自转
   // 风向慢慢转
   const wa = 0.6 + 0.5 * Math.sin(time * 0.03) + 0.2 * Math.sin(time * 0.11 + 1.0);
   U.uWind.value.set(Math.cos(wa), Math.sin(wa));

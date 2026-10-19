@@ -205,7 +205,7 @@ let eyeOverride = null;                                   // 测试钩子：mpHo
 // 戴着眼镜在电脑键盘上微调：I / K 前后 25 厘米，U / O 高低 10 厘米，0 复位。按作品记在本机浏览器里
 const eyeKey = () => `mp-eye-${slugNow()}`;
 const eyeSaved = () => { try { const v = JSON.parse(localStorage.getItem(eyeKey())); return Array.isArray(v) && v.length === 3 ? v : null; } catch (e) { return null; } };
-const eyeDefault = () => { const w = works().find(w => w.slug === slugNow()); return (w && w.xr && w.xr.eye) || (onWork() ? [0, 1.5, 0] : [0, 1.55, 0]); };
+const eyeDefault = () => { if (pageEye) return pageEye; const w = works().find(w => w.slug === slugNow()); return (w && w.xr && w.xr.eye) || (onWork() ? [0, 1.5, 0] : [0, 1.55, 0]); };
 function showEye(e) {
   let el = document.getElementById('mp-eye');
   if (!el) { el = document.createElement('div'); el.id = 'mp-eye'; el.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:70;font:12px/1.5 system-ui,sans-serif;color:#ece7dc;background:rgba(14,13,18,.75);padding:6px 10px;border-radius:6px;pointer-events:none'; document.body.appendChild(el); }
@@ -220,7 +220,8 @@ untracked(() => addEventListener('keydown', e => {
   try { if (k === '0') localStorage.removeItem(eyeKey()); else localStorage.setItem(eyeKey(), JSON.stringify(next)); } catch (err) {}
   recenterIn = 0; showEye(next);
 }));
-const eyeOf = () => { if (eyeOverride) return eyeOverride; const sv = eyeSaved(); if (sv) return sv; const w = works().find(w => w.slug === slugNow()); return (w && w.xr && w.xr.eye) || (onWork() ? [0, 1.5, 0] : [0, 1.55, 0]); };
+let pageEye = null;                                       // 作品自己算出来的观看点（hop.eye = [...]），比如要站在地形上
+const eyeOf = () => { if (eyeOverride) return eyeOverride; const sv = eyeSaved(); if (sv) return sv; if (pageEye) return pageEye; const w = works().find(w => w.slug === slugNow()); return (w && w.xr && w.xr.eye) || (onWork() ? [0, 1.5, 0] : [0, 1.55, 0]); };
 function recenter(frame) {
   const pose = baseRef && frame.getViewerPose(baseRef); if (!pose) return false;
   const h = pose.transform.position, o = pose.transform.orientation;
@@ -378,7 +379,7 @@ export async function go(dir, force = false, to = null) {
 
 function teardown() {
   untracked(() => {
-    workLoop = null; lastCam = null;
+    workLoop = null; lastCam = null; pageEye = null;
     const g = gen; gen = newGen();
     for (const [t, ty, fn, o] of g.dom) t.removeEventListener(ty, fn, o);
     for (const [t, ty, fn] of g.xrl) t.removeEventListener(ty, fn);
@@ -426,6 +427,7 @@ async function mount(slug, html, query = '') {
 // ---------- 作品页调用：第一次建渲染器后挂上来；之后的作品直接拿到同一个渲染器 ----------
 export const hop = {
   get renderer() { return R; },
+  set eye(v) { pageEye = v; },
   attach(r) {
     if (R) return;
     R = r;

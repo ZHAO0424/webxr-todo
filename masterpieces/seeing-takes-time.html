@@ -103,6 +103,12 @@ const room = new THREE.Mesh(new THREE.SphereGeometry(40, 32, 16), new THREE.Shad
   fragmentShader: `varying vec3 vP; void main(){ float h = vP.y; vec3 c = mix(vec3(0.93,0.91,0.86), vec3(0.97,0.95,0.9), smoothstep(-0.3, 0.6, h)); gl_FragColor = vec4(c, 1.); }`,
 }));
 scene.add(room);
+// 画、画框、画外的散点都挂在 art 下。头显里以视点为中心横竖等比收窄（深度不动）：每条"视点 → 画面"的射线
+// 仍然从视点出发，所以各层深度的点照样对得齐，只是整幅画收进眼镜约 40° 的视场里。
+// 不能靠把人往后挪来看全 —— 点是沿射线摆在 3–10 米不同深度上的，离开视点，深处的点就往外偏、跑到画框外面，
+// 画框里靠边的地方（比如右边那个人的右侧）就空出一块
+const art = new THREE.Group(); scene.add(art);
+const XR_NARROW = 0.55;   // 3 米宽的画在 3.2 米外约占 50°；收到约 28° 宽、20° 高，连画框都在眼镜视场里
 
 // ---------- 修拉的调色：有限的几种纯色颜料 ----------
 const PIGMENTS = ['#f6f1e2', '#e2b23a', '#f0d45a', '#d9643a', '#c0392b', '#b0507a', '#6b4fa0', '#3c6eb4', '#2c4f8c', '#3a8a8c', '#5a9650', '#2f6b3a', '#a8b84a', '#8a5a34', '#1f2a3a']
@@ -141,7 +147,7 @@ const pointVS = /* glsl */`
   attribute vec2 aUv;
   attribute float aSeed, aSize;
   uniform sampler2D uCoh;
-  uniform float uTime, uPx;
+  uniform float uTime, uPx, uSizeK;
   varying vec3 vColor; varying float vC;
   void main() {
     float c = texture2D(uCoh, aUv).r;
@@ -153,7 +159,7 @@ const pointVS = /* glsl */`
     vec3 p = mix(loose, settle, c);
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mv;
-    float s = aSize * mix(1.35, 1.0, c);
+    float s = aSize * uSizeK * mix(1.35, 1.0, c);
     gl_PointSize = clamp(s * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.0, 48.0);
     vColor = aColor; vC = c;
   }`;
@@ -237,10 +243,10 @@ async function build() {
   geo.setAttribute('aUv', new THREE.BufferAttribute(uv, 2));
   geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
   geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
-  pointMat = new THREE.ShaderMaterial({ uniforms: { uCoh: { value: cohTex }, uTime: { value: 0 }, uPx: { value: innerHeight } }, vertexShader: pointVS, fragmentShader: pointFS });
+  pointMat = new THREE.ShaderMaterial({ uniforms: { uCoh: { value: cohTex }, uTime: { value: 0 }, uPx: { value: innerHeight }, uSizeK: { value: renderer.xr.isPresenting ? XR_NARROW : 1 } }, vertexShader: pointVS, fragmentShader: pointFS });
   points = new THREE.Points(geo, pointMat);
   points.frustumCulled = false;
-  scene.add(points);
+  art.add(points);
   buildBorder();
   buildAmbient();
   console.log('dots', N);
@@ -249,11 +255,12 @@ async function build() {
 // 修拉后来给这幅画补画了一圈点彩边框（用与画面边缘互补的颜色）；这里是一圈永远清晰的点
 function buildBorder() {
   const pts = [], cols = [];
-  const bw = 0.07, x0 = -PIC_W / 2 - bw, x1 = PIC_W / 2 + bw, y0 = PIC_Y0 - bw, y1 = PIC_Y0 + PIC_H + bw;
+  // 画框比画大一圈：和画之间留 12 cm 的空，框本身 12 cm 宽
+  const gap = 0.12, bw = 0.12, x0 = -PIC_W / 2 - gap - bw, x1 = PIC_W / 2 + gap + bw, y0 = PIC_Y0 - gap - bw, y1 = PIC_Y0 + PIC_H + gap + bw;
   const ring = [PIGMENTS[7], PIGMENTS[3], PIGMENTS[8], PIGMENTS[1], PIGMENTS[6]];
-  for (let i = 0; i < 9000; i++) {
+  for (let i = 0; i < 16000; i++) {
     let x = rand(x0, x1), y = rand(y0, y1);
-    if (x > -PIC_W / 2 && x < PIC_W / 2 && y > PIC_Y0 && y < PIC_Y0 + PIC_H) { i--; continue; }
+    if (x > -PIC_W / 2 - gap && x < PIC_W / 2 + gap && y > PIC_Y0 - gap && y < PIC_Y0 + PIC_H + gap) { i--; continue; }
     pts.push(x, y, PLANE_Z + rand(-0.01, 0.01));
     cols.push(...ring[(Math.random() * ring.length) | 0]);
   }
@@ -265,7 +272,7 @@ function buildBorder() {
     vertexShader: `attribute vec3 color; uniform float uPx; varying vec3 vC; void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position,1.); gl_Position = projectionMatrix * mv; gl_PointSize = clamp(0.012 * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1., 30.); }`,
     fragmentShader: `varying vec3 vC; void main(){ if (length(gl_PointCoord - .5) > .5) discard; gl_FragColor = vec4(vC, 1.); }`,
   });
-  scene.add(new THREE.Points(g, m));
+  art.add(new THREE.Points(g, m));
 }
 
 
@@ -299,7 +306,7 @@ function buildAmbient() {
   });
   const pts = new THREE.Points(g, m);
   pts.frustumCulled = false;
-  scene.add(pts);
+  art.add(pts);
   amb = { g, base, ph, att: new Float32Array(AMB_N), tire: new Float32Array(AMB_N) };
   window.__amb = () => ({ gathering: amb.att.filter(a => a > 0.3).length, tired: amb.tire.filter(a => a > 0.6).length });
 }
@@ -383,7 +390,8 @@ const prevHead = new THREE.Vector3(), prevFwd = new THREE.Vector3(0, 0, -1), fwd
 function rayToUV(origin, dir) {
   if (dir.z > -1e-4) return false;
   const t = (PLANE_Z - origin.z) / dir.z;
-  const x = origin.x + dir.x * t, y = origin.y + dir.y * t;
+  let x = origin.x + dir.x * t, y = origin.y + dir.y * t;
+  x = EYE.x + (x - EYE.x) / art.scale.x; y = EYE.y + (y - EYE.y) / art.scale.y;   // 头显里画收窄过，换回画的坐标
   gazeUV.set(x / PIC_W + 0.5, (y - PIC_Y0) / PIC_H);
   return true;
 }
@@ -487,9 +495,11 @@ $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
   room.visible = opaque; plaque.visible = false;
+  art.scale.set(XR_NARROW, XR_NARROW, 1); art.position.set(EYE.x * (1 - XR_NARROW), EYE.y * (1 - XR_NARROW), 0);
+  if (pointMat) pointMat.uniforms.uSizeK.value = XR_NARROW;          // 点距跟着收窄，点也跟着变小
   renderer.setClearColor(0xf4f0e6, opaque ? 1 : 0);
 });
-renderer.xr.addEventListener('sessionend', () => { room.visible = true; plaque.visible = false; renderer.setClearColor(0xf4f0e6, 1); });
+renderer.xr.addEventListener('sessionend', () => { room.visible = true; plaque.visible = false; art.scale.set(1, 1, 1); art.position.set(0, 0, 0); if (pointMat) pointMat.uniforms.uSizeK.value = 1; renderer.setClearColor(0xf4f0e6, 1); });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 // 测试钩子

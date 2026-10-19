@@ -611,7 +611,7 @@ function updateGaze(dt) {
   const headMove = renderer.xr.isPresenting ? moved : (rotating ? 0.05 : moved * 0.5);
   still += ((headMove < 0.01 ? 1 : 0) - still) * Math.min(1, dt * 0.8);
   if (forcedDawn !== null) dawn = forcedDawn;
-  else if (entered) dawn = Math.min(1, dawn + dt * (0.011 + 0.025 * still));   // 全静止约 28 秒日出，一直在动约 90 秒
+  else if (entered) dawn = Math.min(1, dawn + dt * (0.030 + 0.050 * still));   // 全静止约 12 秒日出，一直在动约 33 秒（戴着眼镜头总在微动，之前要等一分半）
   W.uDawn.value = dawn;
   // 天亮时整片雾自己也慢慢沉回画里的雾海面（第 2 层）；太阳出来以后（约 90 秒）继续沉到半山、变薄、散开，露出谷底
   if (dawn >= 0.95) sunUp = Math.min(1, sunUp + dt / 45);
