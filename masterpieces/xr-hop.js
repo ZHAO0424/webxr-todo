@@ -4,8 +4,9 @@
 // 监听、定时器、声音、麦克风和显存资源，换画时一并释放。
 // 画廊主页（index.html）也走这套：在主页进一次 VR，画在眼前排成轮牌，捏住左右拖换画、对准正中那幅捏合走进去，
 // 之后换画、回画廊都不出 VR。
-// 头显里怎么换：低头看视野下方的「‹ 上一幅 · 回画廊 · 下一幅 ›」，看住一会儿、或用射线指着扣扳机 / 捏合；手柄 A/X 下一幅，B/Y 上一幅；
-// 头显连着电脑时，也可以在电脑键盘上按（见 nav.js）。
+// 头显里怎么换：只从电脑端换 —— 点网页上的上一幅 / 下一幅，或按键盘（见 nav.js）。
+// 场景里不再有任何会换画的东西：以前视野下方有一条切换栏，进场自动露出 7 秒、看住 1.4 秒就换，
+// 捏合作品自己的交互时射线扫过它也会换，观众不知道是什么触发的。XR_SWITCH 打开可以恢复。
 import * as THREE from 'three';
 
 const works = () => window.WORKS || [];
@@ -70,7 +71,8 @@ function buildOverlay() {
   const sg = new THREE.SphereGeometry(5, 24, 16), sm = new THREE.MeshBasicMaterial({ color: 0x0b0a0d, side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: false });
   keep.add(sg); keep.add(sm);
   ov.veil = new THREE.Mesh(sg, sm); ov.veil.renderOrder = 1000; ov.veil.frustumCulled = false; ov.scene.add(ov.veil);
-  ov.title = canvasPlane(1.2, 0.36, 2048, 616, 1001); ov.scene.add(ov.title.m);
+  // 换画时的卡片：载入一件作品要好几秒到十几秒，卡片上放原画、介绍和载入进度，等的时候有东西可读
+  ov.title = canvasPlane(1.4, 0.784, 2048, 1146, 1001); ov.scene.add(ov.title.m);
   ov.strip = canvasPlane(0.6, 0.15, 1600, 400, 1002); ov.scene.add(ov.strip.m);
 }
 
@@ -81,25 +83,66 @@ function fitText(g, txt, x, y, maxW, size, font, spacing = 0) {
   for (let k = 0; k < 8; k++) { g.font = `${font.replace('$', size)}`; if (g.measureText(txt).width <= maxW) break; size *= 0.9; spacing *= 0.9; g.letterSpacing = `${spacing}px`; }
   g.fillText(txt, x, y);
 }
-function drawTitle(w, idx) {
+// 中文按字折行（英文单词也不会太长，按字折也看得过去），最多 maxLines 行，超出用省略号
+function wrapText(g, txt, maxW, maxLines) {
+  const lines = []; let cur = '';
+  for (const ch of txt) {
+    if (g.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ch.trim() ? ch : ''; if (lines.length === maxLines) break; }
+    else cur += ch;
+  }
+  if (lines.length < maxLines && cur) lines.push(cur);
+  else if (lines.length === maxLines) lines[maxLines - 1] = lines[maxLines - 1].replace(/.$/, '…');
+  return lines;
+}
+const thumbs = new Map();                 // 缩略图：载入后若卡片还是这一幅，就重画一次
+let cardNow = null;
+function drawTitle(w, idx, status = '正在载入…') {
+  cardNow = { w, idx, status };
   const { g, cv, tex } = ov.title, W = cv.width, H = cv.height;
-  g.clearRect(0, 0, W, H); g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 12;
-  g.fillStyle = 'rgba(201,164,92,.95)'; fitText(g, `${idx + 1} / ${works().length}   ·   AFTER ${w.after.toUpperCase()} · ${w.year}`, W / 2, 96, W - 120, 40, `500 $px ${SANS}`, 10);
-  g.fillStyle = '#f3ede2'; fitText(g, w.zh, W / 2, 290, W - 160, 190, `400 $px ${SERIF}`, 30);
-  g.fillStyle = 'rgba(232,224,210,.78)'; fitText(g, w.en, W / 2, 452, W - 200, 64, `italic $px ${SERIF}`, 3);
-  g.shadowBlur = 0; g.fillStyle = 'rgba(201,164,92,.85)'; g.fillRect(W / 2 - 60, 548, 120, 4);
+  g.clearRect(0, 0, W, H); g.shadowBlur = 0;
+  g.fillStyle = 'rgba(14,13,18,.92)'; g.beginPath(); g.roundRect(8, 8, W - 16, H - 16, 36); g.fill();
+  g.lineWidth = 3; g.strokeStyle = 'rgba(201,164,92,.45)'; g.stroke();
+  // 左：原画（画框一道金线）
+  let im = thumbs.get(w.slug);
+  if (!im) { im = new Image(); im.onload = () => { if (cardNow && cardNow.w === w) untracked(() => drawTitle(w, idx, cardNow.status)); }; im.src = `data/thumbs/${w.slug}.jpg`; thumbs.set(w.slug, im); }
+  const bx = 70, by = 90, bw = 860, bh = H - 180;
+  if (im.complete && im.naturalWidth) {
+    const k = Math.min(bw / im.naturalWidth, bh / im.naturalHeight), iw = im.naturalWidth * k, ih = im.naturalHeight * k;
+    const ix = bx + (bw - iw) / 2, iy = by + (bh - ih) / 2;
+    g.drawImage(im, ix, iy, iw, ih);
+    g.lineWidth = 8; g.strokeStyle = 'rgba(201,164,92,.85)'; g.strokeRect(ix - 6, iy - 6, iw + 12, ih + 12);
+  } else { g.fillStyle = 'rgba(255,255,255,.04)'; g.fillRect(bx, by, bw, bh); }
+  // 右：标题、介绍、标签、进度
+  const x = 1000, cw = W - x - 80;
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillStyle = 'rgba(201,164,92,.95)'; fitText(g, `${idx + 1} / ${works().length}  ·  AFTER ${w.after.toUpperCase()} · ${w.year}`, x, 150, cw, 38, `500 $px ${SANS}`, 8);
+  g.fillStyle = '#f3ede2'; fitText(g, w.zh, x, 300, cw, 120, `400 $px ${SERIF}`, 16);
+  g.fillStyle = 'rgba(232,224,210,.75)'; fitText(g, w.en, x, 385, cw, 50, `italic $px ${SERIF}`, 2);
+  g.fillStyle = 'rgba(201,164,92,.85)'; g.fillRect(x, 430, 90, 4);
+  g.fillStyle = 'rgba(236,231,220,.92)'; g.font = `400 46px ${SERIF}`; g.letterSpacing = '2px';
+  wrapText(g, w.blurb || '', cw, 6).forEach((ln, k) => g.fillText(ln, x, 515 + k * 76));
+  let tx = x; g.font = `500 32px ${SANS}`; g.letterSpacing = '2px';
+  for (const t of w.tags || []) {
+    const tw = g.measureText(t).width + 44; if (tx + tw > W - 80) break;
+    g.lineWidth = 2; g.strokeStyle = 'rgba(236,231,220,.35)'; g.beginPath(); g.roundRect(tx, 990, tw, 58, 29); g.stroke();
+    g.fillStyle = 'rgba(236,231,220,.75)'; g.fillText(t, tx + 22, 1030); tx += tw + 14;
+  }
+  g.fillStyle = 'rgba(201,164,92,.9)'; g.font = `500 34px ${SANS}`; g.letterSpacing = '4px'; g.textAlign = 'right';
+  g.fillText(status, W - 80, 150 - 70);
   tex.needsUpdate = true;
 }
 
 function drawHome() {
+  cardNow = null;
   const { g, cv, tex } = ov.title, W = cv.width;
   g.clearRect(0, 0, W, cv.height); g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.save(); g.translate(0, 265);                                // 卡片画布比原来高，内容挪到正中
   g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 12;
   g.fillStyle = 'rgba(201,164,92,.95)'; fitText(g, `INTO THE PAINTING · ${works().length} ROOMS`, W / 2, 96, W - 120, 40, `500 $px ${SANS}`, 10);
   g.fillStyle = '#f3ede2'; fitText(g, '入画', W / 2, 290, W - 160, 200, `400 $px ${SERIF}`, 60);
   g.fillStyle = 'rgba(232,224,210,.78)'; fitText(g, '回到画廊', W / 2, 452, W - 200, 64, `italic $px ${SERIF}`, 12);
   g.shadowBlur = 0; g.fillStyle = 'rgba(201,164,92,.85)'; g.fillRect(W / 2 - 60, 548, 120, 4);
+  g.restore();
   tex.needsUpdate = true;
 }
 
@@ -107,7 +150,8 @@ function drawHome() {
 // 条宽 0.6 米、离眼 0.9 米：主字约 3°，在头显里读得清
 const ZONES = [[0, 0.31], [0.69, 1], [0.31, 0.69]];    // 上一幅、下一幅、回画廊在条上的横向范围（uv）
 const ACT = ['prev', 'next', 'home'];
-const DWELL = [1.4, 1.4, 1.8];                           // 回画廊多看一会儿才算，免得低头读字时误触
+const DWELL = [1.4, 1.4, 1.8];
+const XR_SWITCH = false;                                // 场景里的切换栏 / 手柄换画：关                           // 回画廊多看一会儿才算，免得低头读字时误触
 let stripKey = '';
 function drawStrip(hot, prog) {
   const W = works(), i = W.findIndex(w => w.slug === slugNow()); if (i < 0) return;
@@ -179,7 +223,7 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
   ov.veil.position.copy(head); ov.veil.material.opacity = fade; ov.veil.visible = fade > 0.001;
   titleA += (titleTarget - titleA) * Math.min(1, dt * 3);
   const tm = ov.title.m; tm.visible = titleA > 0.01; tm.material.opacity = titleA;
-  if (tm.visible) { tmp.copy(fwd).setY(0).normalize().multiplyScalar(1.7).add(head); tmp.y = head.y + 0.05; tm.position.lerp(tmp, titleA < 0.05 ? 1 : Math.min(1, dt * 2)); tm.lookAt(head); }
+  if (tm.visible) { tmp.copy(fwd).setY(0).normalize().multiplyScalar(2.1).add(head); tmp.y = head.y + 0.05; tm.position.lerp(tmp, titleA < 0.05 ? 1 : Math.min(1, dt * 2)); tm.lookAt(head); }   // 卡片 1.4 米宽，2.1 米外约占 37°，在眼镜视场里
 
   // 切换条：身体朝向锁定，在视线下方约 30°；转身超过 50° 时慢慢转回到正前方
   const yaw = Math.atan2(-fwd.x, -fwd.z);
@@ -203,7 +247,7 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
   linger = near ? linger + dt : 0;
   let vis = linger > 0.35 || (sm.material.opacity > 0.3 && near) ? 1 : 0;
   if (performance.now() < teaserUntil) vis = Math.max(vis, 0.7);
-  if (hold || fade > 0.05 || busy || !onWork()) vis = 0;           // 画廊里不用这条：轮牌自己能换画、能进
+  if (hold || fade > 0.05 || busy || !onWork() || !XR_SWITCH) vis = 0;           // 画廊里不用这条：轮牌自己能换画、能进
   sm.material.opacity += (vis - sm.material.opacity) * Math.min(1, dt * (vis ? 5 : 3));
   sm.visible = sm.material.opacity > 0.01;
 
@@ -223,7 +267,7 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
     const gp = src.gamepad; if (!gp) continue;
     const was = pads.get(src) || [];
     const now = [gp.buttons[4] && gp.buttons[4].pressed, gp.buttons[5] && gp.buttons[5].pressed];
-    if (onWork()) { if (now[0] && !was[0]) request('next'); if (now[1] && !was[1]) request('prev'); }
+    if (onWork() && XR_SWITCH) { if (now[0] && !was[0]) request('next'); if (now[1] && !was[1]) request('prev'); }
     pads.set(src, now);
   }
   cooldown = Math.max(0, cooldown - dt);
@@ -270,7 +314,11 @@ export async function go(dir, force = false, to = null) {
     await mount(slug, src, query);
     // 作品：等它载完画（「进入」按钮亮起），再替观众按下它。画廊主页的「进入」是走进画，不能按
     const enter = !home && document.getElementById('enter');
-    for (let k = 0; enter && enter.disabled && k < 600; k++) await sleep(100);
+    for (let k = 0; enter && enter.disabled && k < 600; k++) {
+      if (k % 10 === 0) untracked(() => drawTitle(target, j, `正在载入场景 · ${Math.round((performance.now() - t0) / 1000)} 秒`));
+      await sleep(100);
+    }
+    if (!home) untracked(() => drawTitle(target, j, '载入完成'));
     if (enter && enter.disabled) throw new Error('载入超时');
     if (enter) enter.click();
     if (R.xr.isPresenting) R.xr.dispatchEvent({ type: 'sessionstart' });   // 补发一次，让新页面切到头显模式
@@ -361,7 +409,7 @@ export const hop = {
         if (s && !s.__hop) {
           s.__hop = true;
           // 射线指着条上的一格扣扳机 / 捏合，立刻换
-          s.addEventListener('select', e => { const r = rays.find(x => x.src === e.inputSource); if (r && r.zone >= 0) act(ACT[r.zone]); });
+          s.addEventListener('select', e => { if (!XR_SWITCH) return; const r = rays.find(x => x.src === e.inputSource); if (r && r.zone >= 0) act(ACT[r.zone]); });
         }
       });
       R.xr.addEventListener('sessionend', () => {

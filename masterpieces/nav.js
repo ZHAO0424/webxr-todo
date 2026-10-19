@@ -83,7 +83,31 @@
   const dock = document.createElement('div'); dock.id = 'st-xr';
   const isXRBtn = el => el.nodeType === 1 && el.parentNode === document.body &&
     (el.id === 'VRButton' || el.id === 'ARButton' || (el.tagName === 'A' && /immersive-web|webxr/i.test(el.href + el.textContent)));
-  const collect = () => { for (const el of [...document.body.children]) if (isXRBtn(el)) { el.classList.add('st-xrbtn'); dock.appendChild(el); } };
+  // 只留一个「进入 XR」：作品自己按 environmentBlendMode 判断要不要画背景，所以 VR / AR 两个入口在眼镜上
+  // 进去是一样的（光学透视的眼镜上黑 = 透明，两种都等于把画挂在房间里）。优先 VR；设备只支持 AR 时
+  // （手机）才换成 AR 那个按钮。three 的按钮会自己改字、改 display，这里每次按状态改回来
+  const relabel = () => {
+    const vr = dock.querySelector('#VRButton'), ar = dock.querySelector('#ARButton');
+    const ok = b => b && b.tagName === 'BUTTON' && !/NOT|不支持/i.test(b.textContent);
+    const use = ok(vr) ? vr : ok(ar) ? ar : vr || ar;
+    for (const b of [vr, ar]) if (b) {
+      const want = b === use ? '' : 'none';
+      if (b.style.display !== want || (want && b.style.getPropertyPriority('display'))) b.style.setProperty('display', want, want ? '' : 'important');
+    }
+    if (use && use.tagName === 'BUTTON') {
+      const s = use.textContent;
+      const t = /EXIT|STOP/i.test(s) ? '退出 XR' : /NOT/i.test(s) ? '此设备不支持 XR' : /ENTER|START/i.test(s) ? '进入 XR' : null;
+      if (t && s !== t) use.textContent = t;
+    }
+  };
+  const watch = new MutationObserver(relabel);
+  const collect = () => {
+    for (const el of [...document.body.children]) if (isXRBtn(el)) {
+      el.classList.add('st-xrbtn'); dock.appendChild(el);
+      watch.observe(el, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    }
+    relabel();
+  };
   const plate = () => {
     // 入场页：左边挂上原画（带画框），背后铺一层虚化的画
     const intro = document.getElementById('intro');
