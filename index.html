@@ -71,7 +71,22 @@
   #err { position: fixed; inset: 0; display: none; place-items: center; padding: 24px;
          background: #EFE9DC; text-align: center; font-size: 14px; line-height: 1.8; }
 
-  @media (max-width: 560px) { .hint { display: none; } h1 { font-size: 18px; } }
+  #chap { flex-basis: 100%; max-width: 46ch; margin-top: 6px; transition: opacity .45s ease; display: none; }
+  body.math #chap { display: block; }
+  #chap.fade { opacity: 0; }
+  #chap .dots { display: flex; gap: 7px; margin-bottom: 10px; }
+  #chap .dots i { width: 18px; height: 2px; background: currentColor; opacity: .18; cursor: pointer;
+                  transition: opacity .3s; }
+  #chap .dots i:hover { opacity: .45; }
+  #chap .dots i.on { opacity: .85; }
+  #chap .num { font-size: 12px; opacity: .45; margin-right: 10px; letter-spacing: .1em; }
+  #chap .nm  { font-size: 15px; letter-spacing: .18em; }
+  #chap .en  { font-size: 11px; opacity: .45; margin-left: 10px; letter-spacing: .06em; }
+  #chap .eq  { font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif; font-size: 14px;
+               opacity: .78; margin: 6px 0 4px; letter-spacing: .02em; }
+  #chap .note { font-size: 12px; opacity: .5; line-height: 1.75; }
+
+  @media (max-width: 560px) { .hint { display: none; } h1 { font-size: 18px; } #chap .note { display: none; } }
 </style>
 </head>
 <body>
@@ -81,11 +96,18 @@
   <header>
     <h1 id="title">渐变</h1>
     <span class="sub">伸手搅动 · WebXR</span>
+    <div id="chap" class="fade">
+      <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div><span class="num"></span><span class="nm"></span><span class="en"></span></div>
+      <div class="eq"></div>
+      <div class="note"></div>
+    </div>
   </header>
   <footer>
     <div class="hint">
       <b>桌面</b>：移动鼠标搅动 · 按住左键注入 · 右键拖拽转视角 · 滚轮远近 · <b>R</b> 重置 · <b>H</b> 面板<br>
       <b>头显</b>：双手伸进去搅 · <b>握拳</b>吸拢并拖动整团 · 任一手捏合注入 · 摆位/退出用左边按钮<br>
+      <b>渐变</b>：六种数学轮流接管同一团粒子 · <b>←/→</b> 或 <b>1–6</b> 换章<br>
       <b>极光</b>：水流朝你涌来，人不动 · <b>握拳</b>=把水聚成一条亮索 + 减速 · 流速在面板里调
     </div>
     <div class="btns">
@@ -103,7 +125,7 @@
   <div class="row">
     <label>风格 <span></span></label>
     <select id="p_style">
-      <option value="auto" selected>渐变</option>
+      <option value="auto" selected>渐变 · 六章数学</option>
       <option value="blackhole">黑洞 · 吸积盘</option>
       <option value="tunnel">极光 · 水流</option>
     </select>
@@ -199,34 +221,104 @@ const STYLES = {
 };
 let ST = STYLES[P.style];
 
-// 自动渐变：在 plasma / core / ferro 之间连续插值。这三种不只是颜色不同 ——
-// 黏滞 0.34/0.9/1.6、湍动 0.26/0.13/0.05 差到五倍，所以数值全都一起插，
-// 形态是真的在变，不是换个色板。黑洞有结构性开关(bh/lens/rings)，不参与循环。
-const CYCLE = ["plasma", "core", "ferro"];
-const CYCLE_SEC = 20;
+// 渐变：六章数学轮流接管同一团粒子。之前只是在三组参数之间插值 —— 黏滞、湍动再怎么差，
+// 底下都是同一个旋度噪声，看久了是一种东西。现在每一章换的是力本身的来源（见 GLSL_MATH），
+// 参数只跟着各章走。交接时两章的力按权重叠加，粒子自己从一种秩序流进另一种。
+const CHAPTERS = [
+  { num: "Ⅰ", name: "旋度噪声", en: "Curl Noise",
+    eq: "v = ∇ × ψ　　∇ · v = 0",
+    note: "无散度的流：粒子不会堆积，也不会凭空消失，只会卷。湍流的样子来自势场 ψ 自己。",
+    op: 0.075, size: 0.0054, damp: 0.34, turb: 0.26, dry: 1.5, stir: 1.5, srad: 0.09, attract: 0.5,
+    sharp: 0.92, tail: 6, exposure: 2.6, bloom: 0.28 },
+  { num: "Ⅱ", name: "洛伦兹吸引子", en: "Lorenz, 1963",
+    eq: "ẋ = σ(y − x)　ẏ = x(ρ − z) − y　ż = xy − βz",
+    note: "σ = 10，ρ = 28，β = 8/3。轨迹永不重复，也永不离开这对翅膀。伸手碰一下，挨着的两粒很快分道扬镳。",
+    op: 0.055, size: 0.0042, damp: 0.15, turb: 0.06, dry: 1.0, stir: 1.2, srad: 0.08, attract: 0.15,
+    sharp: 0.94, tail: 10, exposure: 2.5, bloom: 0.35 },
+  { num: "Ⅲ", name: "霍普夫纤维化", en: "Hopf Fibration",
+    eq: "S¹ → S³ → S²　　v = (2(xz − y), 2(yz + x), 1 − x² − y² + z²)",
+    note: "三维球面被拆成一族圆，任意两个圆都恰好扣在一起一次；同一纬度上的圆铺成一层环面。颜色 = 圆在 S² 上的底点。",
+    op: 0.060, size: 0.0046, damp: 0.15, turb: 0.05, dry: 0.9, stir: 1.1, srad: 0.08, attract: 0.15,
+    sharp: 0.93, tail: 10, exposure: 2.4, bloom: 0.32 },
+  { num: "Ⅳ", name: "叶序", en: "Phyllotaxis · Vogel, 1979", key: "phyllo",
+    eq: "θₙ = n · α　　yₙ = 1 − 2n / N　　α → 137.508°",
+    note: "每一粒比上一粒多转一个角 α。黄金角是最难用分数逼近的数，所以点铺得最匀、看不出任何线；让 α 偏开不到千分之一，点立刻排成一道道螺线，回到黄金角，线又消失。",
+    // 点要小、尾要短：点阵的线间距只有几毫米，点一大、尾一拖，缝就被填平，螺线看不出来
+    op: 0.170, size: 0.0034, damp: 0.20, turb: 0.04, dry: 0.6, stir: 1.6, srad: 0.09, attract: 0.10,
+    sharp: 0.95, tail: 2, exposure: 2.3, bloom: 0.22 },
+  { num: "Ⅴ", name: "克拉尼图形", en: "Chladni Figures",
+    eq: "f = Pₗᵐ(cos θ) · cos mφ　　沙落向 f = 0",
+    note: "球面在振。振得最凶的地方把沙抛开，沙只在不动的节线上停得住。每隔几秒换一个振型 (l, m)。",
+    op: 0.065, size: 0.0040, damp: 0.20, turb: 0.03, dry: 0.4, stir: 1.4, srad: 0.09, attract: 0.10,
+    sharp: 0.95, tail: 3, exposure: 2.4, bloom: 0.22 },
+  { num: "Ⅵ", name: "密度波", en: "Density Wave · Kalnajs, 1973",
+    eq: "x(E) = R(φ₀ + k·a) · (a cos E, 0.55 a sin E)",
+    note: "每颗星只走自己的椭圆，椭圆一圈比一圈多转一点，旋臂就从拥挤里出现。没有哪颗星属于旋臂。",
+    op: 0.050, size: 0.0048, damp: 0.15, turb: 0.04, dry: 0.8, stir: 1.3, srad: 0.09, attract: 0.15,
+    sharp: 0.92, tail: 6, exposure: 2.6, bloom: 0.45 },
+];
+const CHAP_HOLD = 16, CHAP_BLEND = 6, CHAP_LEN = CHAP_HOLD + CHAP_BLEND;
 const LERP_KEYS = ["op", "size", "damp", "turb", "dry", "stir", "srad", "attract", "sharp",
                    "tail", "exposure", "bloom"];
-const AUTO = { label: "渐变", additive: 1, dark: 1, cool: [0, 0, 0], warm: [0, 0, 0] };
-let autoUiT = 0;
+const AUTO = { label: "渐变", additive: 1, dark: 1, cool: [0.16, 0.62, 1.0], warm: [0.72, 0.30, 1.0] };
+const chapW = new Float32Array(6);
+const chl = new Float32Array(3);
+// 克拉尼的振型序列：(l, m)。m = 0 是纬线圈，m = l 是经线瓣，中间是棋盘
+const CHL_MODES = [[4, 2], [6, 3], [5, 5], [8, 4], [7, 1], [9, 6], [6, 0], [10, 5]];
+const GOLDEN_F = 0.3819660113;          // 黄金角 / 2π = 2 − φ
+let alphaF = GOLDEN_F;
+let chapT = 0, autoUiT = 0;
 
 function updateAuto(dt) {
   if (P.style !== "auto") return;
-  const nS = CYCLE.length, span = CYCLE_SEC * nS;
-  const u = (((tSec % span) + span) % span) / CYCLE_SEC;   // 正模：tSec 万一为负也不越界
-  const i = Math.floor(u) % nS, j = (i + 1) % nS;
-  const A0 = STYLES[CYCLE[i]], B0 = STYLES[CYCLE[j]];
-  if (!A0 || !B0) return;
-  let f = u - Math.floor(u);
-  f = f * f * (3.0 - 2.0 * f);                       // smoothstep，切换处没有折角
-  const A = A0, B = B0;
+  chapT += dt;
+  const nC = CHAPTERS.length;
+  const blk = Math.floor(chapT / CHAP_LEN);
+  const i = ((blk % nC) + nC) % nC, j = (i + 1) % nC;
+  let f = Math.max(0, (chapT - blk * CHAP_LEN - CHAP_HOLD) / CHAP_BLEND);
+  f = f * f * (3 - 2 * f);                           // smoothstep，交接处没有折角
+  chapW.fill(0); chapW[i] = 1 - f; chapW[j] += f;
+  const A = CHAPTERS[i], B = CHAPTERS[j];
   for (const k of LERP_KEYS) P[k] = A[k] + (B[k] - A[k]) * f;
-  for (let c = 0; c < 3; c++) {
-    AUTO.cool[c] = A.cool[c] + (B.cool[c] - A.cool[c]) * f;
-    AUTO.warm[c] = A.warm[c] + (B.warm[c] - A.warm[c]) * f;
-  }
+  const m = CHL_MODES[Math.floor(tSec / 5.5) % CHL_MODES.length];
+  chl[0] = m[0]; chl[1] = m[1]; chl[2] = tSec * 0.05;
+  // 叶序这一章的发散角：从黄金角出发，偏到 +0.00105 圈再回来。黄金角是"最无理"的数，
+  // 点阵最匀、看不出任何线；α 一靠近某个分数，点就沿着它排成一道道螺线。离线撒点比过：
+  // 图案不是单调的 —— +0.0003 有细线，+0.0006 又变匀，+0.001（≈ 18/47）线最粗最清楚。
+  // 一路扫过去会先后经过这几档。章外保持黄金角，进场时是一层均匀的金粉
+  const ph = CHAPTERS[i].key === "phyllo" ? (chapT - blk * CHAP_LEN) / CHAP_LEN : 0;
+  alphaF = GOLDEN_F + 0.00105 * Math.pow(Math.sin(Math.PI * Math.min(1, ph * 1.15)), 2);
   ST = AUTO;
+  showChapter(f < 0.5 ? i : j);
   autoUiT += dt;                                     // 滑块跟着走，但不必每帧刷
   if (autoUiT > 0.25) { autoUiT = 0; syncSliders(); }
+}
+
+// 跳到第 k 章：直接从该章开头开始。力是瞬间换的，但粒子自己会流过去，不会闪
+function gotoChapter(k) {
+  const nC = CHAPTERS.length;
+  const blk = Math.floor(chapT / CHAP_LEN);
+  const base = blk - (((blk % nC) + nC) % nC);
+  k = ((k % nC) + nC) % nC;
+  chapT = (base + k) * CHAP_LEN + 0.001;
+}
+let chapShown = -1;
+function showChapter(k) {
+  if (k === chapShown) return;
+  chapShown = k;
+  const el = document.getElementById("chap");
+  if (!el) return;
+  const c = CHAPTERS[k];
+  el.classList.add("fade");
+  setTimeout(() => {
+    el.querySelector(".num").textContent = c.num;
+    el.querySelector(".nm").textContent = c.name;
+    el.querySelector(".en").textContent = c.en;
+    el.querySelector(".eq").textContent = c.eq;
+    el.querySelector(".note").textContent = c.note;
+    el.querySelectorAll(".dots i").forEach((d, i) => d.classList.toggle("on", i === k));
+    el.classList.remove("fade");
+  }, 450);
 }
 
 const canvas = document.getElementById("c");
@@ -396,6 +488,142 @@ vec2 ribbonCenter(float c, float z, float tm){
               ay * sin(z * 0.13 + ph * 1.7) * 0.6);    // 竖向压扁 = 更水平规整
 }`;
 
+// ── 渐变：六章数学 ───────────────────────────────────────────────────────────
+// 每一章是一种不同的"力的来源"，对应粒子系统里三种根本不同的写法：
+//   速度场（旋度噪声 / 洛伦兹 / 霍普夫）—— 粒子沿着一个处处有定义的场流动
+//   目标点（叶序 / 密度波）            —— 每个粒子有自己的位置公式，弹簧拉过去
+//   势能梯度（克拉尼）                 —— 粒子沿 −∇(f²) 滑进一个函数的零点集
+// 同一个手：在混沌里一碰就分道扬镳，在秩序里被搅乱之后会自己回来。
+const GLSL_MATH = `
+uniform float uMath;          // 1 = 渐变：六章数学轮流接管
+uniform float uW[6];          // 每章权重；同一时刻最多两章非零（交接时）
+uniform vec3  uChl;           // 克拉尼振型 l, m, 经度相位
+uniform float uAlphaF;        // 叶序发散角 / 2π（黄金角 ≈ 0.381966）
+uniform float uNum;           // 粒子总数
+
+// Ⅱ 洛伦兹（1963）：σ=10 ρ=28 β=8/3。吸引子的 z 轴立起来当世界 y，中心挪到 z=25。
+// 散度 −(σ+1+β) ≈ −13.7：体积飞快塌缩，所以球里的粒子一两秒就全被收到那对翅膀上。
+vec3 lorenzVel(vec3 rel){
+  const float S = 26.0;                       // 吸引子坐标 / 球半径
+  vec3 q = rel / uRadius * S;
+  float x = q.x, y = q.z, z = q.y + 25.0;
+  vec3 d = vec3(10.0 * (y - x), x * (28.0 - z) - y, x * y - 2.6666667 * z);
+  vec3 v = vec3(d.x, d.z, d.y) / S * uRadius * 0.11;
+  float sp = length(v);
+  return sp > 0.6 ? v * (0.6 / sp) : v;
+}
+
+// Ⅲ 霍普夫纤维化：S³ 上的流 (z1,z2) → (e^{it}z1, e^{it}z2) 经球极投影推到 R³，
+// 推出来是 v = (2(xz−y), 2(yz+x), 1−x²−y²+z²) / 2。每条流线都是一个圆，
+// 任意两条扣在一起恰好一次。世界 y 当霍普夫的 z 轴，环面水平躺着。
+float hopfA(vec3 q){                          // |z1|²：0 = 轴线，1 = 核心圆；等值面是一层环面
+  float r2 = dot(q, q);
+  return 4.0 * dot(q.xz, q.xz) / ((1.0 + r2) * (1.0 + r2));
+}
+vec3 rotX(vec3 v, float a){ float c = cos(a), s = sin(a); return vec3(v.x, v.y * c - v.z * s, v.y * s + v.z * c); }
+const float HOPF_TILT = 0.6;                  // 轴朝观众倾 0.6 rad：水平躺着的环面从正前方看只是一条缝
+vec3 hopfAcc(vec3 relW, vec3 velW, float tid){
+  vec3 rel = rotX(relW, -HOPF_TILT), vel = rotX(velW, -HOPF_TILT);
+  float s = uRadius * 0.42;
+  vec3 q = rel / s;
+  float x = q.x, y = q.z, z = q.y;
+  vec3 V = vec3(2.0 * (x * z - y), 2.0 * (y * z + x), 1.0 - x * x - y * y + z * z);
+  vec3 v = vec3(V.x, V.z, V.y) * 0.5 * 0.55 * s;          // ω = 0.55 rad/s：所有纤维同一个周期
+  float sp = length(v); if (sp > 0.45) v *= 0.45 / sp;
+  // 每个粒子固定落在三层环面之一（|z1|² = 0.55 / 0.75 / 0.92）。不分层的话一整团实心的圆
+  // 叠在一起，看不出"一层套一层"。之前最外层取 0.30，那层环面的内圈贴到轴上、外圈甩到
+  // 1.3 倍球径，投影出来是一团乱麻；收到 0.55 以上，三层都是规整的甜甜圈。
+  float aT = 0.55 + 0.185 * tid;
+  float a = hopfA(q);
+  const float e = 0.02;
+  vec3 g = vec3(hopfA(q + vec3(e, 0, 0)) - a, hopfA(q + vec3(0, e, 0)) - a, hopfA(q + vec3(0, 0, e)) - a) / e;
+  vec3 pull = -(a - aT) * g / (dot(g, g) + 1e-3);           // 牛顿步：到目标环面的位移
+  float pl = length(pull); if (pl > 0.6) pull *= 0.6 / pl;
+  return rotX((v - vel) * 6.0 + pull * s * 30.0, HOPF_TILT);
+}
+
+// Ⅳ 叶序（Vogel 1979 的球面版）：第 n 粒在 θ = n·α、y = 1 − 2n/N。
+// α 是黄金角时斜列线最匀；α 偏一点点，整张网就重新组织。
+vec3 phylloTarget(float n){
+  float y  = 1.0 - 2.0 * (n + 0.5) / uNum;
+  float rr = sqrt(max(0.0, 1.0 - y * y));
+  // 序号以赤道为零点：α 变化时第 n 粒转过 (n − N/2)·Δα 圈。从 0 数起的话南极那一端
+  // 每秒要转好几圈，弹簧跟不上，整个下半球被搅成一团
+  float th = 6.2831853 * fract((n - 0.5 * uNum) * uAlphaF) + uTime * 0.06;
+  float R0 = uRadius * 0.80 * (1.0 + 0.035 * sin(y * 9.0 - uTime * 0.9));
+  return vec3(cos(th) * rr, y, sin(th) * rr) * R0;
+}
+
+// Ⅴ 克拉尼：球面上的驻波 f = P_l^m(cosθ)·cos(mφ)。振得最凶的地方把沙抛开，
+// 沙只在 f = 0 的节线上停得住。
+float legendre(int l, int m, float x){        // 连带勒让德函数（不归一化：只用它的零点）
+  float s = sqrt(max(0.0, 1.0 - x * x));
+  float pmm = 1.0;
+  for (int i = 1; i <= m; i++) pmm *= -(2.0 * float(i) - 1.0) * s;
+  if (l == m) return pmm;
+  float pm1 = x * (2.0 * float(m) + 1.0) * pmm;
+  if (l == m + 1) return pm1;
+  float pll = 0.0;
+  for (int ll = m + 2; ll <= l; ll++){
+    pll = (x * (2.0 * float(ll) - 1.0) * pm1 - float(ll + m - 1) * pmm) / float(ll - m);
+    pmm = pm1; pm1 = pll;
+  }
+  return pll;
+}
+float sph(vec3 n){
+  int l = int(uChl.x + 0.5), m = int(uChl.y + 0.5);
+  return legendre(l, m, n.y) * cos(float(m) * atan(n.z, n.x) + uChl.z);
+}
+vec3 chladniAcc(vec3 rel, vec3 vel, float seed){
+  float R0 = uRadius * 0.80;
+  float r = max(length(rel), 1e-4);
+  vec3 n = rel / r;
+  vec3 t1 = normalize(cross(n, abs(n.y) < 0.95 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+  vec3 t2 = cross(n, t1);
+  const float e = 0.012;
+  float f = sph(n);
+  vec2  g = vec2(sph(normalize(n + t1 * e)) - f, sph(normalize(n + t2 * e)) - f) / e;
+  // 牛顿步 −f∇f/|∇f|²：直接是到最近节线的位移，和振型的量纲无关 ——
+  // P_l^m 的幅度随 m 差几个数量级，用 −∇(f²) 的话每个振型都得单独调力度
+  vec2 stp = -f * g / (dot(g, g) + 1e-6);
+  float sl = length(stp); if (sl > 0.30) stp *= 0.30 / sl;
+  vec3 acc = (t1 * stp.x + t2 * stp.y) * R0 * 28.0 - vel * 5.0;
+  acc += n * (R0 - r) * 30.0;                             // 贴在球壳上
+  // 振动：离节线越远抖得越凶 —— 沙就是这样被"筛"到节线上去的
+  float amp = clamp(sl / 0.30, 0.0, 1.0);
+  acc += (hash31(seed) - 0.5) * amp * uRadius * 60.0;
+  return acc;
+}
+
+// Ⅵ 密度波（Kalnajs 1973 的运动学图示）：每颗星只走自己的椭圆（中心在盘心，b/a = 0.72），
+// 椭圆朝向随半长轴多转一点 φ = 3.4·a/R。没有哪颗星属于旋臂 —— 臂只是椭圆挤在一起的地方，
+// 星从臂里穿过去，臂本身转得慢得多。
+vec3 galaxyTarget(float sd){
+  float h1 = hash11(sd * 1.31 + 0.11), h2 = hash11(sd * 2.71 + 0.43);
+  float h3 = hash11(sd * 5.13 + 0.97), h4 = hash11(sd * 7.37 + 0.21);
+  vec3 P;
+  if (h4 < 0.13) {                                         // 核球
+    vec3 d = normalize(hash31(sd * 3.3) * 2.0 - 1.0 + 1e-4);
+    P = d * uRadius * 0.17 * pow(h1, 0.7) * vec3(1.0, 0.62, 1.0);
+    float c = cos(uTime * 0.5), s = sin(uTime * 0.5);
+    P.xz = mat2(c, -s, s, c) * P.xz;
+  } else {
+    // 参数先离线撒点比过：b/a 0.72 + 扭转 3.4 时臂几乎看不出来（椭圆太圆，挤不出密度差），
+    // 0.55 + 3.0 才是两条干净的臂；半长轴取 h^0.8 让外盘稍密，臂能一直延伸到边上
+    float an = 0.10 + 0.88 * pow(h1, 0.8);
+    float a  = uRadius * an;
+    float E  = h2 * 6.2831853 + uTime * 0.30 / (an + 0.12);   // 平坦自转曲线：Ω ∝ 1/r
+    float ph = an * 3.0 + uTime * 0.04;                       // 图样速度：比星慢得多
+    vec2 e2 = vec2(a * cos(E), a * 0.55 * sin(E));
+    float c = cos(ph), s = sin(ph);
+    e2 = mat2(c, -s, s, c) * e2;
+    P = vec3(e2.x, (h3 - 0.5) * uRadius * 0.05 * (1.0 - 0.6 * an), e2.y);
+  }
+  const float ct = 0.4976, st = 0.8674;                     // 绕 x 转 1.05 rad：盘面朝观众立起来
+  return vec3(P.x, P.y * ct - P.z * st, P.y * st + P.z * ct);
+}
+`;
+
 const FS_UPDATE = `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -419,6 +647,8 @@ ${GLSL_NOISE}
 
 ${GLSL_RIBBON}
 
+${GLSL_MATH}
+
 void main(){
   vec4 dp = texture(uPos, vUv);
   vec3 p = dp.xyz;
@@ -434,12 +664,14 @@ void main(){
   vec3 acc = (ambient - vel) * 1.2;
 
   // 2. 手：cross(手速, 相对位置) = 绕着手的运动轴旋转 —— 这是「搅」而不是「吹」
+  // 手单独累加：渐变模式下场会被数学章节整个换掉，手的作用必须留在外面
+  vec3 accHand = vec3(0.0);
   for (int i = 0; i < ${MAX_STIR}; i++){
     vec3 r = p - uStirPos[i];
     float d2 = dot(r, r);
     float fall = exp(-d2 / (uStirRadius * uStirRadius)) * uStirW[i];
-    acc += cross(uStirVel[i], r) / (d2 + 0.0006) * fall * uStirStrength;
-    acc += uStirVel[i] * fall * 2.5;         // 一点直推，否则纯旋转会显得粘手
+    accHand += cross(uStirVel[i], r) / (d2 + 0.0006) * fall * uStirStrength;
+    accHand += uStirVel[i] * fall * 2.5;     // 一点直推，否则纯旋转会显得粘手
     // 远程吸附：电弧丝从远处伸过来追着手走。用比高斯更长的尾巴。
     // near 这一项是关键：靠得太近就撤掉吸引力，否则粒子会全部塌缩到手上糊成一团。
     // 撤掉之后近处只剩上面的 cross 涡旋项，粒子转为绕着手公转。
@@ -448,7 +680,7 @@ void main(){
     float nearR = mix(0.030, 0.004, g);           // 攥紧时允许光点一直被收到掌心
     float near = smoothstep(nearR, nearR + 0.045, dist1);
     float wide = uStirW[i] / (1.0 + d2 * mix(80.0, 18.0, g));   // 攥紧时够得更远
-    acc -= r / (dist1 + 0.02) * wide * (uAttract + 1.6 * g) * near;
+    accHand -= r / (dist1 + 0.02) * wide * (uAttract + 1.6 * g) * near;
   }
 
   // 3. 容器
@@ -515,6 +747,21 @@ void main(){
     acc.y -= 0.012;                           // 极轻的下沉
   }
 
+  // 渐变：六章数学轮流接管同一团粒子。交接时两章按权重叠加，粒子自己流过去，
+  // 不需要任何"变形动画" —— 换的是力，不是位置。
+  if (uMath > 0.5) {
+    float pidF = floor(vUv.y * uRows) * 256.0 + floor(vUv.x * 256.0);
+    vec3 m = acc * uW[0];                                        // Ⅰ 旋度噪声 = 原来那套
+    if (uW[1] > 0.001) m += uW[1] * (lorenzVel(rel) - vel) * 8.0;
+    if (uW[2] > 0.001) m += uW[2] * hopfAcc(rel, vel, floor(hash11(pidF * 0.917 + 3.1) * 3.0));
+    if (uW[3] > 0.001) m += uW[3] * ((phylloTarget(pidF) - rel) * 30.0 - vel * 10.0);
+    if (uW[4] > 0.001) m += uW[4] * chladniAcc(rel, vel, pidF * 1.7 + uTime * 61.0);
+    if (uW[5] > 0.001) m += uW[5] * ((galaxyTarget(pidF + 0.5) - rel) * 12.0 - vel * 5.5);
+    m += ambient * 0.25 * (1.0 - uW[0]);                         // 秩序里也留一口气
+    acc = m;
+  }
+  acc += accHand;
+
   vel += acc * uDt;
   vel *= exp(-uDamp * uDt);                   // 黏滞：手停下后墨继续旋，慢慢停
   p   += vel * uDt;
@@ -531,7 +778,13 @@ void main(){
   // 4. 轮回：寿命到了就重生；捏合/按住左键时从指尖注入新墨
   life -= uDt;
   bool eaten = uBH > 0.5 && length(rel.xz) < uRadius * 0.14;   // 掉进事件视界
-  if (life <= 0.0 || eaten){
+  // 渐变的有序几章：寿命到了原地续命，不瞬移回球心 —— 否则叶序、星系上会不停冒出飞线
+  bool keep = false;
+  if (life <= 0.0 && uMath > 0.5 && uInjectN < 0.5) {
+    float ks = vUv.x * 7919.0 + vUv.y * 104729.0 + uTime * 131.0;
+    if (hash11(ks + 31.7) > uW[0]) { keep = true; life = 7.0 + hash11(ks + 9.1) * 17.0; }
+  }
+  if (!keep && (life <= 0.0 || eaten)){
     float seed = vUv.x * 7919.0 + vUv.y * 104729.0 + uTime * 131.0;
     vec3 dir = normalize(hash31(seed) * 2.0 - 1.0 + vec3(1e-4));
     float rr = pow(hash11(seed + 3.7), 0.3333);
@@ -588,7 +841,9 @@ uniform int  uN, uRows, uHead, uSlots, uTail;
 uniform float uSize, uVpH, uDry, uDoppler, uRadius, uLens, uPhotonAng, uPass, uTilt, uRingIdx;
 uniform mat3 uRingRot;
 uniform vec3 uCamPos, uCenter;
+uniform float uMath, uW[6];
 out float vFade, vSeed, vDry, vDop, vRing;
+out vec3 vTint;
 
 float h11(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 
@@ -657,6 +912,40 @@ void main(){
     vRing = exp(-pow((r0 / uRadius - 0.21) / 0.030, 2.0));
   }
 
+  // 渐变：每一章的颜色都从它自己的数学里来，而不是一张随手挑的色板
+  vTint = vec3(0.0);
+  if (uMath > 0.5) {
+    // Ⅰ 旋度噪声：冷蓝 → 紫（原来的等离子）
+    vec3 c0 = mix(vec3(0.16, 0.62, 1.00), vec3(0.72, 0.30, 1.00), vSeed * vSeed);
+    // Ⅱ 洛伦兹：左右两只翅膀两种颜色。粒子什么时候换翅膀是不可预测的 —— 颜色把这件事画出来
+    float wing = smoothstep(-0.12, 0.12, rel0.x / uRadius);
+    vec3 c1 = mix(vec3(0.20, 0.78, 1.00), vec3(1.00, 0.42, 0.30), wing);
+    c1 = mix(c1, vec3(1.0), clamp(d.w / 0.35, 0.0, 1.0) * 0.35);
+    // Ⅲ 霍普夫：按纤维在 S² 上的底点 arg(z1·z̄2) 着色 —— 沿一个圆两个相位一起转，差不变，
+    // 所以同一个圆永远同一个颜色
+    vec3 rh = rel0;                                         // 转回霍普夫的局部坐标（轴倾 0.6 rad）
+    rh = vec3(rh.x, rh.y * 0.8253 + rh.z * 0.5646, -rh.y * 0.5646 + rh.z * 0.8253);
+    vec3 q = rh / (uRadius * 0.42);
+    float hr2 = dot(q, q);
+    float hue = (atan(q.z, q.x) - atan(hr2 - 1.0, 2.0 * q.y)) / 6.2831853;
+    vec3 c2 = 0.55 + 0.45 * cos(6.2831853 * (hue + vec3(0.0, 0.33, 0.67)));
+    c2 = mix(c2, vec3(dot(c2, vec3(0.333))), 0.25);
+    // Ⅳ 叶序：α ≈ 8/21 ≈ 13/34，所以 n·8 mod 21 和 n·13 mod 34 正好是粒子在
+    // 两族斜列线里的空间序号。隔一条亮一条，21 与 34 两族螺线就交叉着浮出来
+    // Ⅳ 叶序：图案全靠点阵自己（发散角偏离黄金角时裂出螺线），颜色只给一点南北向的金色渐变。
+    // 试过按斐波那契族给斜列线上色：黄金角的点阵太匀，上了色也只是几道若有若无的波纹
+    vec3 c3 = mix(vec3(0.95, 0.46, 0.12), vec3(1.00, 0.84, 0.50), 0.5 + 0.5 * rel0.y / uRadius)
+            * (0.8 + 0.4 * vSeed);
+    // Ⅴ 克拉尼：沙 —— 暖白，偶尔一粒冷色
+    vec3 c4 = mix(vec3(1.00, 0.90, 0.76), vec3(0.55, 0.72, 1.00), step(0.85, vSeed));
+    // Ⅵ 密度波：核球暖黄 → 盘外蓝白，少量 HII 区的粉
+    float rn = length(rel0) / uRadius;
+    vec3 c5 = mix(vec3(1.00, 0.72, 0.38), vec3(0.55, 0.72, 1.00), smoothstep(0.12, 0.60, rn));
+    if (vSeed > 0.965) c5 = vec3(1.00, 0.36, 0.58);
+    c5 *= 1.0 - 0.75 * smoothstep(0.70, 0.98, rn);   // 最外一圈椭圆挤在一起会描出一道硬边，压暗
+    vTint = c0 * uW[0] + c1 * uW[1] + c2 * uW[2] + c3 * uW[3] + c4 * uW[4] + c5 * uW[5];
+  }
+
   vec4 vp = uView * vec4(P, 1.0);
   gl_Position = uProj * vp;
   float dist = max(-vp.z, 0.02);
@@ -670,8 +959,9 @@ void main(){
 const FS_INK = `#version 300 es
 precision highp float;
 in float vFade, vSeed, vDry, vDop, vRing;
+in vec3 vTint;
 out vec4 frag;
-uniform float uOpacity, uAdditive, uSharp, uDoppler;
+uniform float uOpacity, uAdditive, uSharp, uDoppler, uMath;
 uniform vec3 uInkCool, uInkWarm;
 void main(){
   vec2 c = gl_PointCoord * 2.0 - 1.0;
@@ -682,6 +972,7 @@ void main(){
   // 指数拉高会把能量收进中心、整体变暗，所以同步补一点增益，锐度滑块才只改"锐"不改"亮"
   float a = (core * mix(0.70, 1.45, uSharp) + halo * mix(0.30, 0.0, uSharp)) * vFade * uOpacity;
   vec3 tint = mix(uInkCool, uInkWarm, vSeed * vSeed);
+  if (uMath > 0.5) tint = vTint;
   if (uDoppler > 0.0) {
     tint = mix(uInkWarm, uInkCool, clamp(vDop * 0.5 + 0.5, 0.0, 1.0));  // 迎面蓝移,背向红移
     // 变暗那侧只用一半强度 —— 全强度下 exp(-1.15)=0.32，背向侧注入的粒子直接看不见了
@@ -1619,6 +1910,11 @@ function simulate(dt) {
   gl.uniformMatrix3fv(U.uRingInv, false, ringInvMats());
   gl.uniform3fv(U.uInjectPos, injectPos);
   gl.uniform1f(U.uInjectN, injectN);
+  gl.uniform1f(U.uMath, P.style === "auto" ? 1 : 0);
+  gl.uniform1fv(U.uW, chapW);
+  gl.uniform3fv(U.uChl, chl);
+  gl.uniform1f(U.uAlphaF, alphaF);
+  gl.uniform1f(U.uNum, N);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   cur = 1 - cur;
 
@@ -1767,7 +2063,8 @@ function drawScene(proj, view, camPos, vpH) {
   gl.uniform1f(K.uPhotonAng, Math.asin(Math.min(0.99, (P.radius * 0.26) / Math.max(dCam, 0.05))));
   gl.uniform3fv(K.uInkCool, ST.cool);
   gl.uniform3fv(K.uInkWarm, ST.warm);
-  // 三环：同一批粒子，倾角 0 / +60 / -60 各画一遍
+  gl.uniform1f(K.uMath, P.style === "auto" ? 1 : 0);
+  gl.uniform1fv(K.uW, chapW);  // 三环：同一批粒子，倾角 0 / +60 / -60 各画一遍
   const TILTS = ST.rings ? RING_TILTS : [0];
   const nPts = N * Math.round(P.tail);
   for (let ti = 0; ti < TILTS.length; ti++) {
@@ -2127,6 +2424,7 @@ function applyStyle(name) {
   if (name === "tunnel") { initRide(); initParticles(P.count); }
   // 换形态要重新摆位：隧道的原点是头本身（要穿过去），其它形态是头前方 0.55 米
   if (xrSession) needPlace = true;
+  document.body.classList.toggle("math", name === "auto");
   document.documentElement.toggleAttribute("data-dark", !!ST.dark);
   document.documentElement.style.background = ST.dark ? "#05070C" : "#EFE9DC";
   document.body.style.background = ST.dark ? "#05070C" : "#EFE9DC";
@@ -2151,7 +2449,13 @@ window.addEventListener("keydown", e => {
   if (e.key === "r" || e.key === "R") initParticles(P.count);
   if (e.key === "h" || e.key === "H") setPanel(!document.getElementById("panel").classList.contains("open"));
   if (e.key === "Escape") setPanel(false);
+  if (P.style === "auto") {
+    if (e.key === "ArrowRight") gotoChapter(chapShown + 1);
+    if (e.key === "ArrowLeft")  gotoChapter(chapShown - 1);
+    if (/^[1-6]$/.test(e.key))  gotoChapter(+e.key - 1);
+  }
 });
+document.querySelectorAll("#chap .dots i").forEach((d, i) => d.addEventListener("click", () => gotoChapter(i)));
 
 const xrBtn = document.getElementById("xr");
 if (navigator.xr) {
