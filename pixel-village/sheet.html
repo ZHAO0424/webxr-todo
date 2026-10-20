@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>角色表</title>
+  <style>
+    body { margin: 0; padding: 12px; background: #3a3450; color: #f0e0d0; font: 12px system-ui, sans-serif; }
+    .row { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 6px; }
+    .name { width: 70px; flex: none; }
+    canvas { image-rendering: pixelated; }
+  </style>
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <script type="module">
+    // 调试页：把每个村民的 16 帧图集放大 3 倍排出来，用来检查画质（node check.mjs sheet）
+    import { RESIDENTS } from './src/residents.js';
+    import { characterAtlas } from './src/characters.js';
+    const scale = Number(new URLSearchParams(location.search).get('s') ?? 3);
+    for (const p of RESIDENTS) {
+      const src = characterAtlas(p);
+      const c = document.createElement('canvas');
+      c.width = src.width * scale; c.height = src.height * scale;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(src, 0, 0, c.width, c.height);
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<div class="name">${p.name}</div>`;
+      row.append(c);
+      document.body.append(row);
+    }
+    document.documentElement.dataset.ready = '1';
+  </script>
+</body>
+</html>

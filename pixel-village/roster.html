@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>石峪村村民档案</title>
+  <style>
+    :root { --bg: #1e1a2a; --card: #2a2438; --ink: #eadccc; --dim: #b0a090; --accent: #ffcf8a; --green: #a8d898; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.6 system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 60px; }
+    h1 { margin: 0 0 6px; color: var(--accent); font-size: 26px; }
+    .intro { color: var(--dim); max-width: 760px; }
+    a { color: var(--accent); }
+    section { margin-top: 28px; }
+    section > h2 { margin: 0 0 2px; font-size: 18px; }
+    section > h2 small { margin-left: 10px; font-size: 12px; color: var(--dim); font-weight: 400; }
+    section > p { margin: 0 0 10px; color: var(--dim); font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+    .card { background: var(--card); border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: 72px 1fr; gap: 12px; }
+    .card canvas { width: 72px; image-rendering: pixelated; align-self: start; }
+    .card h3 { margin: 0; font-size: 16px; color: var(--accent); }
+    .card h3 small { margin-left: 6px; font-size: 12px; color: var(--dim); font-weight: 400; }
+    .job { color: #d8b890; font-size: 13px; }
+    .bio { margin: 6px 0; }
+    .meta { color: var(--dim); font-size: 12px; margin: 2px 0; }
+    .day { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; color: #c8b8a8; }
+    .day b { color: var(--green); font-weight: 500; margin-right: 6px; font-family: ui-monospace, monospace; }
+  </style>
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <main id="main"></main>
+  <script type="module">
+    // 村民档案：数据全部来自 src/residents.js，头像用 characters.js 的正面待机帧
+    import { VILLAGE, HOUSEHOLDS } from './src/residents.js';
+    import { LABELS } from './src/labels.js';
+    import { characterAtlas, CELL_W, CELL_H } from './src/characters.js';
+
+    const main = document.getElementById('main');
+    const total = HOUSEHOLDS.reduce((n, h) => n + h.people.length, 0);
+    main.innerHTML = `<h1>${VILLAGE.name} · 村民档案</h1><p class="intro">${VILLAGE.intro}全村 ${HOUSEHOLDS.length} 户（含村口），${total} 口人。<a href="./">← 回到村子</a></p>`;
+    const hh = (h) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+    for (const h of HOUSEHOLDS) {
+      const sec = document.createElement('section');
+      sec.innerHTML = `<h2>${h.name}<small>${h.kind}</small></h2><p>${h.note}</p><div class="grid"></div>`;
+      const grid = sec.querySelector('.grid');
+      for (const p of h.people) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const atlas = characterAtlas(p);
+        const face = document.createElement('canvas');
+        face.width = CELL_W; face.height = CELL_H;
+        face.getContext('2d').drawImage(atlas, 0, 0, CELL_W, CELL_H, 0, 0, CELL_W, CELL_H);
+        const day = p.day.map(([t, a, arg]) => `<li><b>${hh(t)}</b>${LABELS[a] ?? a}${arg && LABELS[`${a}:${arg}`] ? `（${LABELS[`${a}:${arg}`]}）` : ''}</li>`).join('');
+        card.innerHTML = `<div></div><div>
+          <h3>${p.name}<small>${p.nick} · ${p.sex} · ${p.age} 岁</small></h3>
+          <div class="job">${p.job} · ${p.relation}</div>
+          <p class="bio">${p.bio}</p>
+          <p class="meta">性格：${p.traits.join('、')}</p>
+          <p class="meta">手艺：${p.skills.join('、')}　喜欢：${p.likes}</p>
+          ${p.owns.length ? `<p class="meta">家当：${p.owns.join('、')}</p>` : ''}
+          <ul class="day">${day}</ul></div>`;
+        card.firstElementChild.append(face);
+        grid.append(card);
+      }
+      main.append(sec);
+    }
+    document.documentElement.dataset.ready = '1';
+  </script>
+</body>
+</html>

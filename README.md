@@ -10,6 +10,8 @@
 
 **▶ [三境圆筒沙盘](https://zhao0424.github.io/webxr-todo/jelly-harbor/)** — 工业港口 / 生态研究园区 / 废土配给站，原地翻转圆盘、自动运输、玻璃罩与蒸汽动力（见 `jelly-harbor/`）。
 
+**▶ [像素村落](https://zhao0424.github.io/webxr-todo/pixel-village/)** — 太行山里的石头村，2.5D 像素风体素沙盘：28 个村民按职业和日程过日子，院门开合、天黑点灯点火把，傍晚村口轮着唱戏 / 篝火讲古 / 开村会（见 `pixel-village/`）。
+
 ## 操作
 
 | | 电脑 | 头显 |

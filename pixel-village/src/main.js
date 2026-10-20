@@ -1,0 +1,202 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { buildVillage } from './village.js';
+import { buildBackdrop, skyTexture } from './backdrop.js';
+import { createAnchor } from './xr.js';
+import { LABELS } from './labels.js';
+import { EVENT_NAMES } from './life.js';
+
+const params = new URLSearchParams(location.search);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.xr.enabled = true;
+document.body.append(renderer.domElement, VRButton.createButton(renderer));
+
+const scene = new THREE.Scene();
+let sky = skyTexture();
+scene.background = sky;
+
+const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.01, 20);
+camera.position.set(0, 0.5, 1.15); // 接近 XR 里的标准视点
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.02, 0);
+// ?cam=x,y,z,tx,ty,tz 指定桌面相机（米，沙盘坐标），用来截近景检查细节
+if (params.has('cam')) {
+  const [x, y, z, tx, ty, tz] = params.get('cam').split(',').map(Number);
+  camera.position.set(x, y, z);
+  controls.target.set(tx, ty, tz);
+}
+controls.enableDamping = true;
+
+// 整个场景挂在 stage 下：桌面模式在原点，XR 模式被摆到头前方
+const stage = new THREE.Group();
+scene.add(stage);
+
+const t0 = performance.now();
+const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event') }); // ?time=19.5 从晚上七点半开始；?event=opera|bonfire|meeting 指定今晚的活动
+document.documentElement.dataset.buildMs = String(Math.round(performance.now() - t0));
+const backdrop = buildBackdrop();
+stage.add(village.object, backdrop.object);
+
+const sun = new THREE.DirectionalLight('#ffb27a', 3.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -0.5, right: 0.5, top: 0.5, bottom: -0.5, near: 0.1, far: 2.5 });
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.002;
+const hemi = new THREE.HemisphereLight('#8a84c8', '#6a4250', 1.5);
+stage.add(sun, sun.target, hemi);
+
+const backdropMats = [];
+const glowMats = [];
+backdrop.object.traverse((o) => { if (o.material) (o.material.blending === THREE.AdditiveBlending ? glowMats : backdropMats).push(o.material); });
+let skyKey = '';
+const inXR = () => renderer.xr.isPresenting;
+
+/** 按村里的钟调太阳、天光、远山、天空。 */
+function applyLight(L) {
+  sun.color.set(L.sun);
+  sun.intensity = L.sunIntensity;
+  sun.position.set(...L.sunPos);
+  hemi.color.set(L.sky);
+  hemi.groundColor.set(L.ground);
+  hemi.intensity = L.hemiIntensity;
+  for (const m of backdropMats) m.color.setScalar(1 - 0.62 * L.night);
+  for (const m of glowMats) m.color.setRGB(1 - 0.55 * L.night, 1 - 0.5 * L.night, 1 - 0.3 * L.night); // 夕阳 → 淡淡的月亮
+  const key = L.bands.join();
+  if (key !== skyKey) {
+    skyKey = key;
+    sky.dispose();
+    sky = skyTexture(L.bands);
+    if (!inXR() || params.has('sky')) scene.background = sky;
+  }
+}
+
+// 光学透视眼镜上黑色 = 透明：XR 里去掉天空，让沙盘直接浮在真实桌面上（?sky=1 可保留）
+const anchor = createAnchor(renderer, stage, {
+  onSession(active) { scene.background = active && !params.has('sky') ? null : sky; },
+});
+renderer.setClearColor(0x000000, 1);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ---------------------------------------------------------------- 桌面：时钟 + 点人看档案
+
+const clockEl = document.getElementById('clock');
+const card = document.getElementById('card');
+const ray = new THREE.Raycaster();
+let down = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return; // 拖动视角不算点击
+  ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
+  const people = village.life.people.filter((v) => !v.inside);
+  const hit = ray.intersectObjects(people.map((v) => v.object), true)[0];
+  if (!hit) { card.hidden = true; selected = null; return; }
+  let o = hit.object;
+  while (o && !o.userData.resident) o = o.parent;
+  selected = people.find((v) => v.object === o) ?? null;
+  showCard();
+});
+let selected = null;
+function showCard() {
+  if (!selected) { card.hidden = true; return; }
+  const p = selected.p;
+  const day = p.day.map(([h, a, arg]) => `<li><b>${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}</b> ${LABELS[a] ?? a}${arg && LABELS[`${a}:${arg}`] ? `（${LABELS[`${a}:${arg}`]}）` : ''}</li>`).join('');
+  card.innerHTML = `<h3>${p.name}<small>${p.nick} · ${p.sex} · ${p.age} 岁</small></h3>
+    <p class="job">${p.job} · ${p.household} · ${p.relation}</p>
+    <p class="now">正在：${selected.inside ? '在屋里' : LABELS[selected.doing] ?? selected.doing}</p>
+    <p>${p.bio}</p>
+    <p class="meta">性格：${p.traits.join('、')}　喜欢：${p.likes}</p>
+    ${p.owns.length ? `<p class="meta">家当：${p.owns.join('、')}</p>` : ''}
+    <ul class="day">${day}</ul>`;
+  card.hidden = false;
+}
+
+// ---------------------------------------------------------------- 主循环
+
+const clock = new THREE.Clock();
+const viewer = new THREE.Vector3();
+let lastLabel = '';
+const first = village.update(0, camera.position);
+applyLight(first.light);
+renderer.setAnimationLoop((_, frame) => {
+  const t = clock.getElapsedTime();
+  if (!(frame && anchor.update(frame, viewer))) {
+    controls.update();
+    viewer.copy(camera.position);
+  }
+  const s = village.update(t, viewer);
+  applyLight(s.light);
+  backdrop.update(t);
+  if (clockEl && s.clock.label !== lastLabel) {
+    lastLabel = s.clock.label;
+    clockEl.textContent = `${s.clock.night ? '夜里' : ''} ${lastLabel}　今晚村口：${EVENT_NAMES[village.life.event()]}`;
+    if (selected) showCard();
+  }
+  renderer.render(scene, camera);
+});
+
+// ---------------------------------------------------------------- 无头检查
+
+// ?sim=秒：先在后台把村子快进这么多秒，统计有没有人 / 动物站进障碍（穿模）
+if (params.has('sim')) {
+  const total = Number(params.get('sim'));
+  const nav = village.nav;
+  let samples = 0, clipP = 0, clipA = 0, stuck = 0, escaped = 0, gateOpenSamples = 0, strolls = 0, ajarSamples = 0;
+  const attended = {};
+  const esc = {};
+  const why = {};
+  const lastPos = new Map();
+  for (let i = 1; i <= total * 10; i++) {
+    village.update(i / 10, camera.position);
+    if (i % 5) continue;
+    for (const v of village.life.people) {
+      if (v.inside) continue;
+      samples++;
+      if (v.perched || v.lift > 0) continue; // 台上、凳上不算
+      if (!nav.freeAt(v.pos.x, v.pos.z, false, true)) { clipP++; const k = `${v.p.id}/${v.doing}/${v.state}`; why[k] = (why[k] ?? 0) + 1; }
+      const lp = lastPos.get(v);
+      if (v.state === 'walk' && lp && Math.hypot(lp[0] - v.pos.x, lp[1] - v.pos.z) < 0.01) stuck++;
+      lastPos.set(v, [v.pos.x, v.pos.z]);
+    }
+    for (const b of village.life.beasts) {
+      if (b.home || b.s.perches || b.s.role === 'pigeon' || b.circling) continue;
+      if (!nav.freeAt(b.pos.x, b.pos.z, b.swim) && !nav.door[nav.index(b.pos.x, b.pos.z)]) clipA++;
+      // 逃逸：没人赶、没人喂的时候，圈养的牲口跑出了自己的院子
+      if (b.stroll) strolls++;
+      if (b.c && b.s.area && !b.follow && !b.graze && !b.stroll && !b.returning && ['chicken', 'pig', 'sheep'].includes(b.s.role)) {
+        const c = b.c, dx = b.pos.x - c.object.position.x, dz = b.pos.z - c.object.position.z;
+        const cs = Math.cos(c.rot), sn = Math.sin(c.rot);
+        const lx = cs * dx - sn * dz, lz = sn * dx + cs * dz;
+        if (Math.abs(lx) > c.w / 2 || Math.abs(lz) > c.d / 2) { escaped++; esc[b.s.role + '@' + c.id] = (esc[b.s.role + '@' + c.id] ?? 0) + 1; if (escaped % 25 === 1) esc['x' + escaped] = `${village.life.clock.label} ${lx.toFixed(1)},${lz.toFixed(1)} t=${b.target ? 1 : 0} p=${b.path?.length ?? '-'} w=${b.wait.toFixed(1)}`; }
+      }
+    }
+    for (const g of village.gates) { if (g.open > 0.8) gateOpenSamples++; if (g.state.ajar) ajarSamples++; }
+    for (const v of village.life.people) if (!v.inside && /^(opera|bonfire|meeting)/.test(v.doing)) attended[v.p.id] = v.doing;
+  }
+  const sqc = village.life.people[0].V.C.square, cs = Math.cos(sqc.rot), sn = Math.sin(sqc.rot);
+  const eve = village.life.people.filter((v) => !v.inside && /^(opera|bonfire|meeting)/.test(v.doing)).map((v) => { const dx = v.pos.x - sqc.object.position.x, dz = v.pos.z - sqc.object.position.z; return `${v.p.id}:${v.doing}:${v.state}:${v.tasks[0]?.type ?? '-'}:${(cs * dx - sn * dz).toFixed(1)},${(sn * dx + cs * dz).toFixed(1)}:lift${v.lift.toFixed(1)}:${v.V.claimed(v) ?? ''}`; });
+  const out = village.life.people.filter((v) => !v.inside);
+  const close = [];
+  for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) { const d = Math.hypot(out[i].pos.x - out[j].pos.x, out[i].pos.z - out[j].pos.z); if (d < 0.7) close.push(`${out[i].p.id}(${out[i].state},${out[i].tasks[0]?.type ?? '-'})~${out[j].p.id}(${out[j].state},${out[j].tasks[0]?.type ?? '-'})=${d.toFixed(2)}`); }
+  eve.push(...close.map((c) => 'CLOSE ' + c));
+  document.documentElement.dataset.eve = JSON.stringify(eve);
+  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, escaped, esc, gateOpenSamples, ajarSamples, strolls, event: village.life.event(), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
+}
+
+let drawables = 0;
+scene.traverse((o) => { if (o.isMesh || o.isSprite) drawables++; });
+document.documentElement.dataset.calls = String(drawables); // 每只眼大约这么多 draw call（不含阴影）
+document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);
+document.documentElement.dataset.audit = JSON.stringify({ floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
+document.documentElement.dataset.ready = '1';
