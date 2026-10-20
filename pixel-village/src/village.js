@@ -12,6 +12,7 @@ import { populate } from './life.js';
 import { voxelTree } from './voxel.js';
 import { NavGrid } from './nav.js';
 import { buildFarmland } from './farmland.js';
+import { buildRoadside } from './roadside.js';
 import { daylight } from './daylight.js';
 import { Smoke, Embers, Fireflies } from './fx.js';
 
@@ -139,6 +140,8 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
   });
   const farm = buildFarmland(M, terrain, nodes);
   root.add(farm.extras);
+  const road = buildRoadside(M, terrain, nodes, C); // 路边的野花野草、土地庙、石敢当、花盆
+  root.add(road.props);
 
   // 5. 导航网格：把房子、墙、栅栏、道具、树干都投影成障碍（门扇、灯笼这些会动的不算）
   const nav = new NavGrid(terrain);
@@ -207,7 +210,8 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
 
   // 7. 静态几何合批
   root.userData.bake = bakeStatic(root);
-  root.add(farm.object); // 实例化的庄稼不参与合批
+  root.add(farm.object, road.flora); // 实例化的庄稼、野花野草不参与合批
+  root.userData.flora = road.flora.userData.count;
 
   // 8. 给生活系统的接口：院落上的去处、房门、门外
   for (const c of Object.values(C)) {
@@ -241,6 +245,7 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
         if (!seen[n] && nav.step(k, n, false, true)) { seen[n] = 1; q.push(n); }
       }
     }
+    nav.reach = seen; // 从村里能走到的格子：动物溜达、吃草只挑这些地方（坡上被石堰围死的小块平地不去）
     root.userData.brokenEdges = EDGES.filter(([a, b]) => !nav.find(nodes[a].x, nodes[a].z, nodes[b].x, nodes[b].z, { person: true, maxNodes: 20000 })).map(([a, b]) => {
       const A = nodes[a], B = nodes[b], L = Math.hypot(B.x - A.x, B.z - A.z);
       const prof = [];
@@ -254,9 +259,19 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
   const V = {
     M, root, nav, C, nodes, torches,
     fields: farm.fields,
-    pasture: farm.pasture.filter((p) => nav.freeAt(p[0], p[1])),
+    pasture: farm.pasture.filter((p) => nav.freeAt(p[0], p[1]) && nav.reachable(p[0], p[1])),
     well: { center: [WELL.x, WELL.z], spot: () => nav.nearestFree(WELL.x + 1.4, WELL.z + 0.6) },
     duckWater: nav.nearestFree(-12, 28.5),
+    // 小孩玩耍的去处：溪北岸能站的地方（脸朝水），村口附近的庄稼地
+    streamBank: (() => {
+      const out = [];
+      for (let x = -22; x <= 30; x += 1.5) {
+        const z = streamZ(x) - 2.3;
+        if (nav.freeAt(x, z) && nav.reachable(x, z) && !terrain.isWater(x, z) && terrain.isWater(x, z + 1.2)) out.push([x, z]);
+      }
+      return out;
+    })(),
+    playFields: [...farm.fields.fieldS, ...terrain.fieldCells.filter((c, i) => i % 5 === 0 && Math.hypot(c.x - 2, c.z - 10) < 28 && nav.freeAt(c.x, c.z) && nav.reachable(c.x, c.z)).map((c) => [c.x, c.z])],
   };
   const extraAnimals = [
     ...Array.from({ length: 4 }, () => ({ kind: 'goose', role: 'goose', worldArea: ducks })),
@@ -274,7 +289,7 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
   for (const c of Object.values(C)) for (const e of c.emitters) {
     const [x, z] = c.at(e.pos.x, e.pos.z);
     const pos = new THREE.Vector3(x, e.pos.y + c.level, z);
-    if (e.kind === 'smoke') smokes.push(Object.assign(new Smoke(root, sprites, pos, s++, { size: 0.8, rise: 3.2, drift: 2.4 }), { home: c.id }));
+    if (e.kind === 'smoke') smokes.push(Object.assign(new Smoke(root, sprites, pos, s++, { size: 0.8, rise: 3.2, drift: 2.4 }), { home: c.id, forge: e.forge }));
     if (e.kind === 'steam') smokes.push(Object.assign(new Smoke(root, sprites, pos, s++, { size: 0.7, rise: 2.5, drift: 0.8, life: 0.3 }), { home: c.id, steam: true }));
     if (e.kind === 'ember') embers.push(new Embers(root, M.emberSprite, pos));
   }
@@ -338,8 +353,11 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
       bonfireLight.base = V.bonfire.lit ? 0.09 : 0;
       pitFire.userData.flames.forEach((f, i) => { f.scale.y = (Math.floor(t * 7 + i * 1.7) % 3 === 0 ? 0.95 : 0.8) * (1 - i * 0.12); f.position.x = (i ? (i === 1 ? 0.18 : -0.16) : 0) + (Math.floor(t * 5 + i) % 2 ? 0.03 : -0.03); });
       for (const { l, base } of lights) l.intensity = base * n * (0.92 + (Math.floor(t * 9 + l.position.x) % 3) * 0.04);
-      for (const sm of smokes) {
-        sm.update(dt * (sm.steam && life.people.some((v) => v.doing === 'boil' && v.p.home === sm.home) ? 1.8 : 1));
+      for (const sm of smokes) { // 屋里有人（烧炕、做饭）才冒烟；豆腐坊的蒸汽只在煮浆时冒
+        const boiling = sm.steam && life.people.some((v) => !v.inside && v.doing === 'boil' && v.p.home === sm.home);
+        const home = life.people.some((v) => v.inside && (v.p.home === sm.home || (v.p.sleepAt ?? v.p.home) === sm.home));
+        const forging = sm.forge && life.people.some((v) => !v.inside && v.doing === 'work' && v.p.home === sm.home); // 炉子：有人打铁才冒
+        sm.update(dt * (boiling ? 1.8 : 1), sm.steam ? boiling : sm.forge ? forging : home);
         for (const fm of sm.frames) fm.color.setScalar(1 - 0.6 * n);
       }
       for (const e of embers) e.update(dt);

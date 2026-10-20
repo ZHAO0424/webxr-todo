@@ -70,6 +70,17 @@ export class NavGrid {
     }
   }
 
+  /** 圆里的格子（不改障碍，只返回下标）。 */
+  discCells(x, z, r) {
+    const out = [];
+    for (let dz = -r; dz <= r + 1e-6; dz += CELL / 2) for (let dx = -r; dx <= r + 1e-6; dx += CELL / 2) {
+      if (dx * dx + dz * dz > r * r + 1e-6) continue;
+      const k = this.index(x + dx, z + dz);
+      if (k >= 0) out.push(k);
+    }
+    return out;
+  }
+
   blockDisc(x, z, r) {
     for (let dz = -r; dz <= r + 1e-6; dz += CELL / 2) for (let dx = -r; dx <= r + 1e-6; dx += CELL / 2) {
       if (dx * dx + dz * dz > r * r + 1e-6) continue;
@@ -133,7 +144,12 @@ export class NavGrid {
   }
 
   /** A* 找路，返回拉直后的折线 [[x,z], …]（不含起点）；找不到返回 null。 */
-  find(ax, az, bx, bz, { swim = false, person = false, maxNodes = 60000 } = {}) {
+  find(ax, az, bx, bz, { swim = false, person = false, maxNodes = 60000, avoid = null } = {}) {
+    if (avoid?.length) { // 临时障碍（挡路的人）：标成堵住再找，找完还原
+      const was = avoid.map((k) => this.blocked[k]);
+      for (const k of avoid) this.blocked[k] = 1;
+      try { return this.find(ax, az, bx, bz, { swim, person, maxNodes }); } finally { avoid.forEach((k, i) => { this.blocked[k] = was[i]; }); }
+    }
     [bx, bz] = this.nearestFree(bx, bz, swim, 4, person);
     let start = this.index(ax, az);
     if (!this.free(start, swim, person)) { const [fx, fz] = this.nearestFree(ax, az, swim, 4, person); start = this.index(fx, fz); }
@@ -185,11 +201,14 @@ export class NavGrid {
   }
 
   /** 在矩形区域里随机找一格能站的点（矩形可以带转角，用 toWorld 把本地坐标变到世界）。 */
+  /** 从村里走得到这儿吗（没算连通区域之前一律算能）。 */
+  reachable(x, z) { const k = this.index(x, z); return !this.reach || (k >= 0 && this.reach[k] === 1); }
+
   randomIn(area, toWorld, rand, swim = false) {
     const [x0, z0, x1, z1] = area;
     for (let tries = 0; tries < 30; tries++) {
       const [x, z] = toWorld(x0 + rand() * (x1 - x0), z0 + rand() * (z1 - z0));
-      if (this.freeAt(x, z, swim)) return [x, z];
+      if (this.freeAt(x, z, swim) && (swim || this.reachable(x, z))) return [x, z];
     }
     return null;
   }

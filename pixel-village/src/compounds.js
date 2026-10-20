@@ -370,7 +370,7 @@ function smith(M) {
   return result(w, d, g, {
     ...gt, doors,
     spots: { anvil: [-1.6, 3.9, -1.6, 3.0], bellows: [-5.3, 3.5, -5.3, 2.4], yard: [3.4, 2.4] },
-    emitters: [{ kind: 'smoke', pos: at(home, home.chimney) }, { kind: 'smoke', pos: new THREE.Vector3(-3.4, 3.4, 2.2) }, { kind: 'ember', pos: f.fire.clone() }],
+    emitters: [{ kind: 'smoke', pos: at(home, home.chimney) }, { kind: 'smoke', pos: new THREE.Vector3(-3.4, 3.4, 2.2), forge: true }, { kind: 'ember', pos: f.fire.clone() }],
     windows: windowsOf(home),
     trees: [['poplar', w / 2 - 1.2, -d / 2 + 1.2, { seed: 51 }]],
     animals: [{ kind: 'dog', role: 'dog', area: [2, 0.8, 6, 4.4], owner: 'zhang_tiechui' }],

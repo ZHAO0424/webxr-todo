@@ -130,23 +130,56 @@ class Villager {
   }
 
   /**
-   * 前面 0.6 米内有人：迎面 / 同向都在走的，id 小的先走；前面站着不动的，停一下，等 1 秒还不让就侧身挤过去。
-   * （以前站着的人挡路时只放行一帧，后面的人排成一串堵死。）
+   * 前面 0.6 米内挡着的人（没有返回 null）。迎面 / 同向都在走的，id 小的先走；站着不动的一律算挡路。
    */
   blocked(nx, nz) {
-    if (this.passing > 0) return false;
+    if (this.passing > 0) return null;
     for (const o of this.V.people) {
       if (o === this || o.inside || o.perched) continue;
       const dx = o.pos.x - this.pos.x, dz = o.pos.z - this.pos.z;
       const d = Math.hypot(dx, dz);
       if (d >= 0.6 || d < 0.01 || (dx * nx + dz * nz) / d <= 0.6) continue;
-      if (o.tasks[0]?.type !== 'go' || o.p.id < this.p.id) return true;
+      if (o.tasks[0]?.type !== 'go' || o.p.id < this.p.id) return o;
     }
+    return null;
+  }
+
+  /**
+   * 有人要过，自己站着挡了路：往旁边让一步（朝自己本来就偏的那一侧，0.8 米），站一会儿再回原位接着干。
+   * 坐着的、在台上 / 凳上的不让（后面的人会绕）。
+   */
+  makeWay(walker, nx, nz) {
+    if (this.inside || this.perched || (this.madeWay ?? 0) > 0 || this.tasks[0]?.type === 'go' || ['sit', 'fiddle'].includes(this.state)) return;
+    const nav = this.V.nav;
+    const side = Math.sign(-nz * (this.pos.x - walker.pos.x) + nx * (this.pos.z - walker.pos.z)) || 1;
+    for (const sd of [side, -side]) {
+      const x = this.pos.x - nz * sd * 0.8, z = this.pos.z + nx * sd * 0.8;
+      if (!nav.freeAt(x, z, false, true) || !nav.line(this.pos.x, this.pos.z, x, z, false, true)) continue;
+      const home = [this.pos.x, this.pos.z];
+      this.madeWay = 4;
+      this.V.stats.madeWay++;
+      this.tasks.unshift({ type: 'go', to: [x, z] }, { type: 'do', state: 'idle', dur: 1.6, face: [walker.pos.x, walker.pos.z] }, { type: 'go', to: home });
+      return;
+    }
+  }
+
+  /** 绕路：把附近站着的人当成临时障碍，重新找一条路。 */
+  detour(task, target) {
+    const nav = this.V.nav, avoid = [];
+    for (const o of this.V.people) {
+      if (o === this || o.inside || o.tasks[0]?.type === 'go') continue;
+      const d = Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z);
+      if (d < 4 && Math.hypot(o.pos.x - target[0], o.pos.z - target[1]) > 0.8) avoid.push(...nav.discCells(o.pos.x, o.pos.z, 0.45));
+    }
+    const mine = nav.index(this.pos.x, this.pos.z);
+    const path = nav.find(this.pos.x, this.pos.z, target[0], target[1], { person: true, maxNodes: 20000, avoid: avoid.filter((k) => k !== mine) });
+    if (path?.length) { task.path = path; this.V.stats.detours++; return true; }
     return false;
   }
 
   update(t, dt, hour) {
     this.dt = dt;
+    this.madeWay = Math.max(0, (this.madeWay ?? 0) - dt);
     if (hour < DAY_END) this.schedule(hour);
     else if (!this.inside) { this.inside = true; this.object.visible = false; } // 夜里都睡了
     if (!this.tasks.length && this.loop) this.loop();
@@ -216,11 +249,16 @@ class Villager {
       // 前面有人就站住让一让；一旦停下至少停 0.4 秒（不然两人擦肩时每帧在走 / 停之间来回切，看着像在发抖）
       this.passing = Math.max(0, (this.passing ?? 0) - dt);
       if (this.pause > 0) { this.pause -= dt; this.wait += dt; this.state = 'idle'; return; }
-      if (this.blocked(nx, nz)) {
-        if (this.wait < 1.0) { this.pause = 0.35; this.wait += dt; this.state = 'idle'; return; }
-        this.passing = 1.2; // 等不及了，挤过去
+      const o = this.blocked(nx, nz);
+      if (o) {
+        // 先请前面站着的人让一让；等一会儿还挡着就绕路；绕不开才侧身挤过去
+        if (this.wait === 0) o.makeWay(this, nx, nz);
+        if (this.wait > 0.8 && !task.detoured) { task.detoured = true; if (this.detour(task, target)) { this.wait = 0; return; } }
+        if (this.wait < 2.5) { this.pause = 0.35; this.wait += dt; this.state = 'idle'; return; }
+        this.passing = 1.2;
       }
       this.wait = 0;
+      task.detoured = false;
     }
     const step = this.speed * (run ? 1.8 : 1) * dt;
     if (d <= step) { this.pos.x = tx; this.pos.z = tz; task.path.shift(); if (!task.path.length) this.tasks.shift(); }
@@ -445,22 +483,35 @@ const ACTIVITIES = {
 
   read(v) { v.char.setItem('book'); v.go((v.p.home === 'school' ? v.home : v.home).spot('yard')); v.loop = () => v.do('idle', 10); },
 
-  play(v) { // 孩子们：围着货郎、追着别的孩子、在村口空场上疯跑
+  play(v) { // 孩子们：围着货郎、追着别的孩子，在村口空场疯跑，去溪边玩水、去地里逮蚂蚱
     v.char.setItem(v.p.item === 'kite' ? 'kite' : null);
     const sq = v.V.C.square;
     v.loop = () => {
       const peddler = v.V.byId.qian_xiaoer;
-      if (peddler && !peddler.inside && peddler.state !== 'walk' && peddler.doing === 'peddle' && v.rand() < 0.4) {
+      if (peddler && !peddler.inside && peddler.state !== 'walk' && peddler.doing === 'peddle' && v.rand() < 0.3) {
         v.go(() => [peddler.pos.x + (v.rand() - 0.5) * 2, peddler.pos.z + 1 + v.rand()], { run: true });
         v.do('idle', 6, { face: [peddler.pos.x, peddler.pos.z] });
         return;
       }
       const mates = v.V.people.filter((o) => o !== v && o.doing === 'play' && !o.inside);
-      if (mates.length && v.rand() < 0.35) {
+      const r = v.rand();
+      if (mates.length && r < 0.3) { // 跟着别的孩子跑
         const m = R(mates);
-        v.go(() => [m.pos.x, m.pos.z + 0.8], { run: true });
-      } else v.go(sq.randomPoint(sq.playArea), { run: true });
-      v.do('idle', 1 + v.rand() * 3);
+        v.go(() => [m.pos.x + 0.8, m.pos.z + 0.6], { run: true });
+        v.do('idle', 1 + v.rand() * 2);
+      } else if (r < 0.55 && v.V.streamBank.length) { // 溪边：蹲着玩水、扔石子
+        const [x, z] = R(v.V.streamBank);
+        v.go([x, z], { run: true });
+        v.do('squat', 5 + v.rand() * 5, { face: [x, z + 3] });
+        if (v.rand() < 0.5) v.do('scatter', 2, { face: [x, z + 3] }); // 打水漂
+      } else if (r < 0.75 && v.V.playFields.length) { // 地里：在庄稼垄里钻来钻去、蹲下逮蚂蚱
+        v.go(R(v.V.playFields), { run: true });
+        v.do(v.rand() < 0.5 ? 'squat' : 'idle', 2 + v.rand() * 3);
+        v.go(R(v.V.playFields), { run: true });
+      } else {
+        v.go(sq.randomPoint(sq.playArea), { run: true });
+        v.do('idle', 1 + v.rand() * 3);
+      }
     };
   },
 
@@ -659,7 +710,25 @@ class Beast {
     if (d < 0.08) return true;
     let nx = tx, nz = tz;
     if (!this.V.nav.line(this.pos.x, this.pos.z, tx, tz, this.swim, this.push)) { // 挡着了：A* 绕过去（会拱门的把门当路）
-      if (!this.path || this.pathFor !== `${tx | 0},${tz | 0}`) { this.path = this.V.nav.find(this.pos.x, this.pos.z, tx, tz, { swim: this.swim, person: this.push, maxNodes: 8000 }) ?? []; this.pathFor = `${tx | 0},${tz | 0}`; }
+      if (!this.path || this.pathFor !== `${tx | 0},${tz | 0}`) {
+        const opts = { swim: this.swim, person: this.push };
+        this.path = this.V.nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: 8000 });
+        if (!this.path && Math.hypot(tx - this.pos.x, tz - this.pos.z) > 6 && !(this.lostFor > 0)) { // 离家远的（掉队的羊）搜全图再找一次；还找不到就 10 秒内别再试
+          this.path = this.V.nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: Infinity });
+          if (!this.path) { // 困在和村子不连通的小角落里了：就近跳到走得通的一格（像跳下一道坎），再接着回家
+            this.lostFor = 10;
+            const nav = this.V.nav;
+            for (let r = 0.25; r <= 2 && !this.path; r += 0.25) for (let a = 0; a < 16; a++) {
+              const x = this.pos.x + Math.cos(a * 0.3927) * r, z = this.pos.z + Math.sin(a * 0.3927) * r;
+              if (nav.freeAt(x, z, this.swim) && nav.reachable(x, z)) { this.pos.x = x; this.pos.z = z; this.path = []; this.lostFor = 0; break; }
+            }
+            this.path = null;
+            if (!this.lostFor) return false;
+          }
+        }
+        this.path ??= [];
+        this.pathFor = `${tx | 0},${tz | 0}`;
+      }
       if (!this.path.length) return true;
       [nx, nz] = this.path[0];
       if (Math.hypot(nx - this.pos.x, nz - this.pos.z) < 0.1) { this.path.shift(); return false; }
@@ -680,6 +749,7 @@ class Beast {
   update(t, dt, hour) {
     const s = this.s, V = this.V;
     this.moving = false;
+    this.lostFor = (this.lostFor ?? 0) - dt;
     let y = null;
     if (s.perches) { y = this.perchUpdate(t, dt); }
     else if (s.role === 'pigeon') {
@@ -755,8 +825,12 @@ class Beast {
       if (this.stroll && (this.stroll.left-- <= 0 || hour >= 19.6)) { this.stroll = null; this.returning = true; }
       if (this.stroll) {
         const [gx, gz] = this.c.gateOut();
-        this.target = V.nav.nearestFree(gx + (this.rand() - 0.5) * 5, gz + (this.rand() - 0.5) * 5);
-      } else this.target = this.graze ? V.nav.nearestFree(this.graze[0] + (this.rand() - 0.5) * 8, this.graze[1] + (this.rand() - 0.5) * 8) : this.areaPoint();
+        const t = V.nav.nearestFree(gx + (this.rand() - 0.5) * 5, gz + (this.rand() - 0.5) * 5);
+        this.target = V.nav.reachable(...t) ? t : [gx, gz];
+      } else if (this.graze) { // 吃草：在羊倌附近挑一块走得到的草地
+        const g = V.nav.nearestFree(this.graze[0] + (this.rand() - 0.5) * 8, this.graze[1] + (this.rand() - 0.5) * 8);
+        this.target = V.nav.reachable(...g) ? g : V.nav.nearestFree(...this.graze);
+      } else this.target = this.areaPoint();
       this.wait = 1.5 + this.rand() * 5;
       if (!this.target) return;
     }
@@ -804,6 +878,7 @@ export function populate(V, residents, extraAnimals, startHour, forcedEvent = nu
   V.cooking = new Set();
   V.steaming = new Set();
   V.spin = new Set();
+  V.stats = { madeWay: 0, detours: 0 };
   const claims = new Map(); // 公共位置有人占了就换一个
   V.claim = (v, c, names, { ordered = false, strict = false } = {}) => { // ordered：从前往后占（里圈先坐满）；strict：占满了返回 null，不跟人挤
     const mine = claims.get(v);

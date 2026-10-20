@@ -35,10 +35,11 @@ export class Smoke {
     });
   }
 
-  update(dt) {
+  /** active = false：不再冒新的，已经飘出去的那几团照样飘完、散掉。 */
+  update(dt, active = true) {
     for (const m of this.puffs) {
       let a = m.userData.age + dt * this.life;
-      if (a > 1) { a -= 1; m.userData.drift = (this.rand() - 0.5) * 0.5; }
+      if (a > 1) { a -= 1; m.userData.drift = (this.rand() - 0.5) * 0.5; m.visible = active; }
       m.userData.age = a;
       m.position.set(
         snap(this.origin.x + a * a * this.drift + Math.sin(a * 6) * 0.2 + m.userData.drift),
