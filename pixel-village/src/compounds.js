@@ -134,7 +134,7 @@ function shepherd(M) {
   const gt = withGate(g, M, 'brush', gx, d);
   const home = house(M, { w: 7.5, d: 4.5, h: 3.0, wall: 'rubble', roof: 'flat', chimney: true, cornOnRoof: true });
   put(g, home.object, -4.5, -d / 2 + 3.2);
-  const pen = P.fence(M, 0.5, -d / 2 + 1.2, 8.5, d / 2 - 1.5, { gap: [0.1, 0.32] });
+  const pen = P.fence(M, 0.5, -d / 2 + 1.2, 8.5, d / 2 - 1.5, { gap: [0.66, 0.84], gapSide: 'west' }); // 圈门开在西边，正对院子和院门
   g.add(pen);
   put(g, P.shed(M, 0, 0, 3.4, 2.4), 6.2, -4.2); // 羊棚
   put(g, P.trough(M, 0, 0), 4.2, 0.6);
@@ -145,8 +145,8 @@ function shepherd(M) {
   const pg = pen.userData.gate;
   return result(w, d, g, {
     ...gt, doors,
-    gates: [...gt.gates, { leaves: pg.leaves, center: pg.center, w: pg.w }],
-    spots: { penGate: [pg.center[0], pg.center[1] + 1.0], pen: [3.2, 3.0], yard: [-3, 3.2] },
+    gates: [...gt.gates, { leaves: pg.leaves, center: pg.center, w: pg.w, rot: pg.rot }],
+    spots: { penGate: [pg.center[0] - 1.0, pg.center[1]], pen: [3.2, 3.0], yard: [-3, 3.2] },
     windows: windowsOf(home),
     emitters: [{ kind: 'smoke', pos: at(home, home.chimney) }],
     animals: [
@@ -389,7 +389,7 @@ function tofu(M) {
   const gt = withGate(g, M, 'wall', 0, d);
   const home = house(M, { w: 10, d: 4.3, h: 3.0, wall: 'adobe', rise: 1.4, chimney: true });
   put(g, home.object, 0, -d / 2 + 3.0);
-  const mill = P.millstone(M, -3.2, 1.6);
+  const mill = P.millstone(M, -3.2, 2.0);
   g.add(mill);
   const st = P.stove(M, 3.6, 0.9);
   g.add(st.object);
@@ -401,12 +401,12 @@ function tofu(M) {
   walkways(g, M, gt.inside, [doors.house]);
   return result(w, d, g, {
     ...gt, doors,
-    spots: { stove: [3.6, 2.1, 3.6, 0.9], mill: [-3.2, 4.6, -3.2, 1.6], yard: [0.6, 3.0], feedChickens: [-1.4, 4.6] },
+    spots: { stove: [3.6, 2.1, 3.6, 0.9], mill: [-3.2, 4.4, -3.2, 2.0], yard: [0.6, 3.0], feedChickens: [-1.4, 4.6] },
     windows: windowsOf(home),
     emitters: [{ kind: 'smoke', pos: at(home, home.chimney) }, { kind: 'steam', pos: st.steam.clone() }],
     spinners: [{ object: mill, id: 'mill' }],
     animals: [
-      { kind: 'donkey', role: 'donkey', mill: { cx: -3.2, cz: 1.6, r: 2.5 }, stall: [5.0, 4.0], area: [4.4, 3.6, 5.6, 4.6] },
+      { kind: 'donkey', role: 'donkey', mill: { cx: -3.2, cz: 2.0, r: 1.6 }, stall: [5.0, 4.0], area: [4.4, 3.6, 5.6, 4.6] },
       ...chickens([-5.6, 3.2, -1.2, 4.8], [-4.8, 4.6]).slice(0, 2),
     ],
     trees: [['jujube', w / 2 - 1.6, -1.6, { seed: 61 }]],
@@ -527,7 +527,7 @@ function threshing(M) {
     harvestSpots: Object.keys(harvest),
     spots: { work: [-4.6, 1.7, 0, 0], work2: [5.8, 0.4, 0, 0], center: [-3.6, 0.2, 0, 0], ...harvest },
     spinners: [{ object: roller, id: 'roller' }],
-    roller: { cx: 0, cz: 0, r: 3.0 },
+    roller: { cx: 0, cz: 0, r: 2.2 },
   });
 }
 

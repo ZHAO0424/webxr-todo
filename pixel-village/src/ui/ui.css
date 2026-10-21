@@ -113,8 +113,8 @@ details.fold > summary .count { margin-left: auto; color: var(--dim); }
 details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 
 /* ---------------------------------------------------------------- 卡片（村民 / 动物） */
-.card { width: calc(124 * var(--p)); }
-.card .head { display: flex; gap: calc(4 * var(--p)); align-items: flex-start; }
+.card { width: calc(104 * var(--p)); }
+.card .head { display: flex; gap: calc(3 * var(--p)); align-items: flex-start; }
 .card .face {
   flex: none;
   border-style: solid;
@@ -162,3 +162,8 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 .card .who-now { margin-top: calc(2 * var(--p)); }
 .card .follow { display: block; margin-top: var(--p); }
 #sound { margin-right: calc(2 * var(--p)); }
+/* 位置：小图钉 + 地名，另起一行 */
+.card .now .doing { min-width: 0; }
+.card .loc { display: block; color: var(--dim); }
+.card .pin { display: inline-block; width: calc(5 * var(--f)); height: calc(7 * var(--f)); margin-right: calc(2 * var(--f)); vertical-align: calc(-1 * var(--f));
+  background: var(--gold); clip-path: polygon(50% 100%, 0 45%, 0 20%, 20% 0, 80% 0, 100% 20%, 100% 45%); }

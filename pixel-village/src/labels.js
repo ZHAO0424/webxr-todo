@@ -1,22 +1,24 @@
-// 活动的中文名（档案卡、档案页用）。键是 residents.js 日程里的活动名，"活动:参数" 是带参数时的补充说明。
+// 活动的中文名（卡片"此刻"、一天的安排、档案页用）。键是 residents.js 日程里的活动名，"活动:参数" 是带参数时的补充说明。
+// 写法：简短的动宾短语，像游戏里的状态栏，不用口语。
 export const LABELS = {
-  home: '回屋歇着', cook: '在灶房做饭', work: '干活', fetchWater: '去井上挑水', feedChickens: '喂鸡', feedPigs: '喂猪',
-  feedRabbits: '喂兔子', yardWork: '扫院子', shopping: '去杂货铺买东西', visit: '串门', patrol: '在村里转转', chess: '在大槐树下下棋',
-  dinner: '端着碗在门口吃饭（饭场）', evening: '吃过晚饭出来串串（今天有晚上的活动就去，没有就到大槐树下闲聊）',
-  chat: '在大槐树下围着闲聊', barber: '守着剃头挑子', haircut: '来剃头',
-  market: '赶集', 'market:tofu': '在集上卖豆腐', 'market:goods': '在集上摆杂货摊', 'market:veg': '在集上卖菜',
-  harvest: '去场院打场', 'harvest:ox': '赶牛拉碾子轧场', movie: '看露天电影', 'movie:projectionist': '放电影',
-  shrine: '去土地庙上香', 'shrine:leader': '领头上头一炷香',
-  opera: '在戏台前看戏', 'opera:singer': '在台上唱梆子', 'opera:fiddler': '在台上拉板胡',
-  bonfire: '围着火堆拉家常', 'bonfire:storyteller': '在火堆边讲古', meeting: '开村会', 'meeting:speaker': '在台上主持村会', 'meeting:clerk': '在台上记账', school: '在学堂念书', teach: '教书', read: '看书',
-  play: '跟孩子们疯玩（村口、溪边、地里）', chore: '帮家里干活', field: '下地', haul: '往家挑谷子', thresh: '去场院轧场', oxHome: '把牛牵回家',
-  herd: '赶羊上坡吃草', herdHome: '把羊赶回圈', grind: '赶驴磨豆子', boil: '煮浆点豆腐', sellTofu: '端豆腐去村口卖',
-  tendBees: '侍弄蜂箱', peddle: '摇着拨浪鼓串村', peddlerChat: '找货郎聊外面的事', deliver: '给人送货上门',
-  gatherDucks: '去溪边赶鸭子回家', sitGate: '坐在自家门口', garden: '侍弄菜园', lightTorches: '挨个点路口的火把', putOutTorches: '天亮了挨个熄火把', nightWatch: '提着灯笼打更', idle: '歇着',
-  'work:bellows': '拉风箱', 'work:stove': '看灶', 'work:sweep': '扫街', 'work:work': '看驴推磨',
-  'visit:tofu': '去豆腐坊', 'visit:doctor': '去药铺', 'visit:farmA': '去陈家看病', 'deliver:headman': '给村长家',
-  'field:fieldW': '西坡', 'field:fieldE': '东坡', 'thresh:help': '帮着扫场', 'chore:yardWork': '扫院子', 'chore:fetchWater': '挑水',
-  'chore:feedChickens': '喂鸡', 'chore:feedRabbits': '喂兔子', 'chore:work': '看驴推磨',
+  home: '回屋休息', cook: '灶房做饭', work: '劳作', fetchWater: '井边挑水', feedChickens: '喂鸡', feedPigs: '喂猪',
+  feedRabbits: '喂兔', yardWork: '洒扫庭院', shopping: '杂货铺采买', visit: '登门拜访', patrol: '巡视村子', chess: '槐树下对弈',
+  dinner: '门口用饭', evening: '晚间闲游',
+  chat: '槐树下闲谈', barber: '照看剃头挑子', haircut: '剃头',
+  market: '赶集', 'market:tofu': '集上卖豆腐', 'market:goods': '集上摆杂货摊', 'market:veg': '集上卖菜',
+  harvest: '场院打场', 'harvest:ox': '赶牛碾场', movie: '观看露天电影', 'movie:projectionist': '放映电影',
+  shrine: '土地庙上香', 'shrine:leader': '主持祭土地',
+  opera: '戏台前看戏', 'opera:singer': '登台唱梆子', 'opera:fiddler': '台上拉板胡',
+  bonfire: '围火夜话', 'bonfire:storyteller': '火堆旁讲古', meeting: '参加村会', 'meeting:speaker': '主持村会', 'meeting:clerk': '记录村会', school: '学堂念书', teach: '授课', read: '读书',
+  play: '和伙伴嬉戏', chore: '帮家里做事', field: '下地', haul: '挑谷子回家', thresh: '场院碾场', oxHome: '牵牛回家',
+  herd: '赶羊上坡', herdHome: '赶羊回圈', grind: '赶驴磨豆', boil: '煮浆点豆腐', sellTofu: '村口卖豆腐',
+  tendBees: '照料蜂箱', peddle: '摇鼓沿村叫卖', peddlerChat: '向货郎打听外面的事', deliver: '送货上门',
+  gatherDucks: '溪边收鸭', sitGate: '门前小坐', garden: '照料菜园', lightTorches: '点亮路口火把', putOutTorches: '熄灭路口火把', nightWatch: '提灯打更', idle: '休息',
+  laundry: '溪边洗衣', firewood: '上山砍柴', visitFriend: '探望老友',
+  'work:bellows': '拉风箱', 'work:stove': '看守灶火', 'work:sweep': '清扫街道', 'work:work': '照看驴拉磨',
+  'visit:tofu': '去豆腐坊', 'visit:doctor': '去药铺', 'visit:farmA': '去陈家出诊', 'deliver:headman': '送往村长家',
+  'field:fieldW': '西坡', 'field:fieldE': '东坡', 'thresh:help': '帮忙扫场', 'chore:yardWork': '洒扫庭院', 'chore:fetchWater': '挑水',
+  'chore:feedChickens': '喂鸡', 'chore:feedRabbits': '喂兔', 'chore:work': '照看驴拉磨',
 };
 
 /** 各个院子 / 地方的叫法（卡片上显示"在哪儿"）。 */

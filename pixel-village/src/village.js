@@ -193,7 +193,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   // 门：院门、栅栏门登记成门格子（关着时动物过不去，人走到跟前会推开）
   const gates = Object.values(C).flatMap((c) => c.gates.map((gt) => {
     const [x, z] = c.at(...gt.center);
-    return { c, leaves: gt.leaves, at: [x, z], open: 0, state: nav.addDoor(x, z, gt.w, c.rot) };
+    return { c, leaves: gt.leaves, at: [x, z], open: 0, state: nav.addDoor(x, z, gt.w, c.rot + (gt.rot ?? 0)) };
   }));
 
   // 自检 1：悬空（见 audit.js）
@@ -345,7 +345,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   for (const st of C.square.market.stalls) st.obj.visible = false;
 
   const lanternBase = M.lantern.color.clone();
-  const spinners = Object.values(C).flatMap((c) => c.spinners);
+  const spinners = Object.values(C).flatMap((c) => c.spinners.map((sp) => ({ ...sp, c })));
+  const spinLocal = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
   let waterStep = 0;
   let last = 0;
 
@@ -444,7 +445,16 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
         for (const lf of g.leaves) lf.pivot.rotation.y = lf.sign * a;
       }
       for (const lt of Object.values(C).flatMap((c) => c.lanterns)) lt.rotation.z = Math.round(Math.sin(t * 1.3 + lt.id) * 2) * 0.04;
-      for (const sp of spinners) if (life.beasts && (sp.id === 'mill' ? [...life.beasts].some((b) => b.s.role === 'donkey' && b.circling) : life.beasts.some((b) => b.s.role === 'ox' && b.circling))) (sp.object.userData.spin ?? sp.object).rotation.y = -t * (sp.id === 'mill' ? 0.35 : 0.2);
+      // 石磨、碾子：杆子跟着套在上面的牲口转（牲口还没走到圈上就不动，不会自己先转）
+      for (const sp of spinners) {
+        const b = life.beasts?.find((x) => x.circling && x.s.role === (sp.id === 'mill' ? 'donkey' : 'ox'));
+        if (!b) continue;
+        const m = sp.id === 'mill' ? b.s.mill : sp.c.roller;
+        spinLocal.set(b.pos.x, 0, b.pos.z).sub(sp.c.object.position).applyAxisAngle(UP, -sp.c.object.rotation.y); // 牲口在院子本地坐标里的位置
+        const dx = spinLocal.x - m.cx, dz = spinLocal.z - m.cz;
+        if (Math.abs(Math.hypot(dx, dz) - m.r) > 0.6) continue;
+        (sp.object.userData.spin ?? sp.object).rotation.y = -Math.atan2(dz, dx);
+      }
       sprites.face(viewerWorld);
       return { hour, light: L, clock: life.clock };
     },

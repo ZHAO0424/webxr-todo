@@ -127,7 +127,7 @@
           <div class="meta"><b>喜欢</b>${esc(p.likes)}</div>
           <div class="meta"><b>手艺</b>${esc(p.skills.join('、'))}</div>
           ${p.owns.length ? `<div class="meta"><b>家当</b>${esc(p.owns.join('、'))}</div>` : ''}
-          <div class="more">→ 亲近的人、一天的安排</div></div>`;
+          <div class="more">→ 亲友 · 日常安排</div></div>`;
         t.querySelector('.face').append(portrait(characterAtlas(p), 0, 0, CELL_W, CELL_H, 1)); // 全身像
         t.addEventListener('click', () => open(p.id));
         tiles.append(t);

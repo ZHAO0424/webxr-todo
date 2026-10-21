@@ -201,8 +201,8 @@ function refreshPlace() {
     const c = sel.c;
     const here = people.filter((v) => village.compoundAt(v.pos.x, v.pos.z) === c);
     const out = here.filter((v) => !v.inside), inn = here.filter((v) => v.inside);
-    const lines = [here.length ? `院里 ${out.length} 人，屋里 ${inn.length} 人` : '院里没人'];
-    if (c.lit !== undefined && night) lines.push(c.lit ? '窗户还亮着灯' : '灯都熄了');
+    const lines = [here.length ? `院中 ${out.length} 人 · 屋内 ${inn.length} 人` : '院中无人'];
+    if (c.lit !== undefined && night) lines.push(c.lit ? '灯火未熄' : '灯火已熄');
     sel.card.update({ lines, kind: here.length ? '' : 'rest', who: who(here) });
     return;
   }
@@ -211,13 +211,13 @@ function refreshPlace() {
   if (t.thing === 'house') {
     const inn = people.filter((v) => v.inside && dist(v) < 1.6);
     const c = village.C[t.cid];
-    const lines = [inn.length ? `屋里有 ${inn.length} 个人` : '屋里没人'];
-    if (c?.lit !== undefined && night) lines.push(c.lit ? '窗户亮着灯' : '灯熄了，睡下了');
+    const lines = [inn.length ? `屋内 ${inn.length} 人` : '屋内无人'];
+    if (c?.lit !== undefined && night) lines.push(c.lit ? '灯火未熄' : '灯火已熄，主人已歇下');
     sel.card.update({ lines, kind: inn.length ? (night ? 'sleep' : 'rest') : '', who: who(inn) });
     return;
   }
   const near = people.filter((v) => !v.inside && dist(v) < 0.9);
-  sel.card.update({ lines: [near.length ? `${near.length} 个人在这儿` : '这会儿没人用'], kind: near.length ? '' : 'rest', who: who(near) });
+  sel.card.update({ lines: [near.length ? `${near.length} 人正在使用` : '暂无人使用'], kind: near.length ? '' : 'rest', who: who(near) });
 }
 
 function selectPerson(v) {
@@ -252,10 +252,10 @@ function refreshCard() {
   const night = village.life.clock.night || cur < 0;
   const key = v.doing.split(':')[0];
   sel.card.update({
-    doing: v.inside ? (night ? '睡了' : '在屋里') : LABELS[v.doing] ?? v.doing,
+    doing: v.inside ? (night ? '已入睡' : '屋内') : LABELS[v.doing] ?? v.doing,
     where: v.inside ? PLACES[v.p.sleepAt ?? v.p.home] : village.whereAt(v.pos.x, v.pos.z),
     kind: v.inside && night ? 'sleep' : EVENTS[key] ? 'event' : REST.has(v.doing) || v.inside ? 'rest' : '',
-    nextText: nxt ? `接下来 ${hm(nxt[0])}　${label(nxt[1], nxt[2])}` : '今天的事都做完了',
+    nextText: nxt ? `下一项 ${hm(nxt[0])}　${label(nxt[1], nxt[2])}` : '今日安排已全部完成',
     cur,
   });
 }
@@ -338,7 +338,7 @@ renderer.setAnimationLoop((_, frame) => {
     lastLabel = s.clock.label;
     const e = EVENTS[village.life.today()], w = village.life.weather();
     clockEl.innerHTML = `<div class="date">${lunarLabel(s.clock.day)} · ${WEATHER[w]}</div><div class="time">${s.clock.night ? '夜 ' : ''}${lastLabel}</div>`
-      + `<div class="ev"><span class="chip" style="--c:${w === 'rain' ? 'var(--c-child)' : 'var(--c-craft)'}">今天</span>${e.name}<br><span class="sub">${w === 'rain' ? '下雨，改天再办' : `${fmt(e.from)}–${fmt(e.to)} · ${e.place}`}</span></div>`;
+      + `<div class="ev"><span class="chip" style="--c:${w === 'rain' ? 'var(--c-child)' : 'var(--c-craft)'}">今日</span>${e.name}<br><span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} · ${e.place}`}</span></div>`;
     refreshCard();
   }
   renderer.render(scene, camera);

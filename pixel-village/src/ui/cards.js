@@ -2,7 +2,7 @@ import { characterAtlas, CELL_W, CELL_H } from '../characters.js';
 import { animalAtlas } from '../animals.js';
 import { LABELS } from '../labels.js';
 import { friendsOf, RESIDENTS } from '../residents.js';
-import { portrait } from './frame.js';
+import { portrait, headCrop } from './frame.js';
 
 /*
  * 村民卡片 / 动物卡片（村子页面点人、点动物弹出；村民档案页也用同一张卡）。
@@ -20,17 +20,17 @@ const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt
 const JOB_COLOR = (p) => (p.body === 'child' ? 'var(--c-child)' : /匠|郎中|掌柜|剃头|货郎|先生|伙计|徒弟|豆腐/.test(p.job) ? 'var(--c-craft)' : /村长/.test(p.job) ? 'var(--c-chief)' : 'var(--c-farm)');
 const SEGS = [[0, '清早'], [7, '上午'], [11.5, '中午'], [13.5, '下午'], [18, '晚上']];
 
-/** 村民头像：正面待机帧。 */
+/** 村民头像：正面待机帧的上半身。 */
 function residentFace(p) {
-  const c = portrait(characterAtlas(p), 0, 0, CELL_W, CELL_H, 1);
-  c.style.width = `calc(${CELL_W * 2} * var(--f))`; // 一个像素 = 2 个字点
+  const c = headCrop(characterAtlas(p), CELL_W, CELL_H, 20, 22);
+  c.style.width = `calc(${20 * 2} * var(--f))`; // 一个像素 = 2 个字点
   return c;
 }
 
 function animalFace(kind) {
   const a = animalAtlas(kind);
   const c = portrait(a.canvas, 0, 0, a.cellW, a.cellH, 1);
-  const s = Math.max(2, Math.min(5, Math.floor(56 / a.cellW))); // 小动物放大一些，和人的头像差不多大
+  const s = Math.max(1, Math.min(4, Math.floor(40 / a.cellW))); // 小动物放大一些，和人的头像差不多大
   c.style.width = `calc(${a.cellW * s} * var(--f))`;
   return c;
 }
@@ -71,10 +71,10 @@ export function residentCard(p, { live = true, onPick, onClose } = {}) {
     <details class="fold"><summary>手艺 · 家当</summary><div>
       <div class="row"><b>手艺</b>${esc(p.skills.join('、'))}</div>
       ${p.owns.length ? `<div class="row"><b>家当</b>${esc(p.owns.join('、'))}</div>` : ''}</div></details>
-    <details class="fold"><summary>亲近的人<span class="count">${family.length + friends.length}</span></summary><div>
-      ${family.length ? `<div class="row"><b>一家人</b></div><div class="row">${chips(family, 'var(--c-craft)')}</div>` : ''}
-      ${friends.length ? `<div class="row"><b>要好的</b></div><div class="row">${chips(friends, 'var(--c-child)')}</div>` : ''}</div></details>
-    <details class="fold"><summary>${live ? '今天的安排' : '一天的安排'}<span class="count">${p.day.length} 项</span></summary><div><ul class="plan">${planHTML(p.day, -1)}</ul></div></details>`;
+    <details class="fold"><summary>亲友<span class="count">${family.length + friends.length}</span></summary><div>
+      ${family.length ? `<div class="row"><b>家人</b></div><div class="row">${chips(family, 'var(--c-craft)')}</div>` : ''}
+      ${friends.length ? `<div class="row"><b>好友</b></div><div class="row">${chips(friends, 'var(--c-child)')}</div>` : ''}</div></details>
+    <details class="fold"><summary>${live ? '今日安排' : '日常安排'}<span class="count">${p.day.length} 项</span></summary><div><ul class="plan">${planHTML(p.day, -1)}</ul></div></details>`;
   el.querySelector('.face').append(residentFace(p));
   el.querySelector('.close')?.addEventListener('click', onClose);
   if (onPick) el.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => onPick(c.dataset.id)));
@@ -84,7 +84,7 @@ export function residentCard(p, { live = true, onPick, onClose } = {}) {
     el,
     update({ doing: d, where, kind, nextText, cur }) {
       if (!live) return;
-      doing.textContent = where ? `${d}　@${where}` : d;
+      doing.innerHTML = esc(d) + (where ? `<span class="loc"><i class="pin"></i>${esc(where)}</span>` : '');
       dot.className = `dot ${kind ?? ''}`;
       next.textContent = nextText ?? '';
       if (cur !== lastCur) { lastCur = cur; plan.innerHTML = planHTML(p.day, cur); }
@@ -102,7 +102,7 @@ export function animalCard(info, kind, { onClose, onPick, ownerId } = {}) {
     <div class="head"><div class="face"></div><div class="who">
       <div class="name title">${esc(info.name)}</div>
       <div><span class="chip" style="--c:var(--c-craft)">${esc(info.kind)}</span><span class="chip soft">${esc(info.owner)}</span>
-      ${owner ? `<span class="chip link" style="--c:var(--c-child)" data-id="${owner.id}">主人 ${esc(owner.nick)}</span>` : ''}</div>
+      ${owner ? `<span class="chip link" style="--c:var(--c-child)" data-id="${owner.id}">主人 · ${esc(owner.nick)}</span>` : ''}</div>
     </div></div>
     <div class="paper now"><span class="dot"></span><span class="doing"></span></div>
     <p style="margin-top:calc(3 * var(--p))">${esc(info.about)}</p>`;
@@ -113,7 +113,7 @@ export function animalCard(info, kind, { onClose, onPick, ownerId } = {}) {
   return {
     el,
     update({ doing: d, where, kind: k }) {
-      doing.textContent = where ? `${d}　@${where}` : d;
+      doing.innerHTML = esc(d) + (where ? `<span class="loc"><i class="pin"></i>${esc(where)}</span>` : '');
       dot.className = `dot ${k ?? ''}`;
     },
   };
@@ -134,7 +134,7 @@ export function thingCard(info, { onClose, onPick } = {}) {
     <div class="paper now"><span class="dot"></span><span class="doing"></span></div>
     <div class="who-now row"></div>
     ${info.about ? `<p style="margin-top:calc(3 * var(--p))">${esc(info.about)}</p>` : ''}
-    ${info.people?.length ? `<details class="fold" open><summary>住在这儿的<span class="count">${info.people.length}</span></summary><div><div class="row">${chips(info.people, 'var(--c-farm)')}</div></div></details>` : ''}`;
+    ${info.people?.length ? `<details class="fold" open><summary>住户<span class="count">${info.people.length}</span></summary><div><div class="row">${chips(info.people, 'var(--c-farm)')}</div></div></details>` : ''}`;
   el.querySelector('.close')?.addEventListener('click', onClose);
   const bind = (root) => { if (onPick) root.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => onPick(c.dataset.id))); };
   bind(el);

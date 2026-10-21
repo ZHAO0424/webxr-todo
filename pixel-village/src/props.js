@@ -70,13 +70,13 @@ export function well(M, x, z) {
 /** 石磨（豆腐坊）：底座 + 两扇磨盘 + 推杆。 */
 export function millstone(M, x, z) {
   const g = new THREE.Group();
-  g.add(block(-1.0, 0, -1.0, 1.0, 0.6, 1.0, M.stone));
-  const low = prism(0.75, 0.8, 0.3, M.stone, 10);
-  low.position.y = 0.75;
-  const up = prism(0.7, 0.7, 0.35, M.stone, 10);
-  up.position.y = 1.07;
-  const spin = new THREE.Group(); // 只有上扇磨盘和推杆转，底座、下扇不动
-  spin.add(up, block(0.6, 1.0, -0.06, 2.4, 1.1, 0.06, M.wood));
+  g.add(block(-0.7, 0, -0.7, 0.7, 0.5, 0.7, M.stone));
+  const low = prism(0.55, 0.58, 0.25, M.stone, 10);
+  low.position.y = 0.62;
+  const up = prism(0.5, 0.5, 0.3, M.stone, 10);
+  up.position.y = 0.9;
+  const spin = new THREE.Group(); // 只有上扇磨盘和推杆转，底座、下扇不动；推杆朝 +x，驴套在杆头上
+  spin.add(up, block(0.45, 0.85, -0.05, 1.5, 0.95, 0.05, M.wood));
   g.add(low, spin);
   g.userData.dynamic = true; // 驴拉着转
   g.userData.spin = spin;
@@ -86,13 +86,13 @@ export function millstone(M, x, z) {
 /** 碾子（场院）：大碾盘 + 横着的碾滚 + 木框。 */
 export function roller(M, x, z) {
   const g = new THREE.Group();
-  const plate = prism(2.2, 2.3, 0.45, M.stone, 12);
-  plate.position.y = 0.22;
-  const roll = prism(0.4, 0.4, 1.2, M.stone, 8);
+  const plate = prism(1.6, 1.7, 0.4, M.stone, 12);
+  plate.position.y = 0.2;
+  const roll = prism(0.32, 0.32, 1.0, M.stone, 8);
   roll.rotation.x = Math.PI / 2;
-  roll.position.set(1.1, 0.85, 0);
-  const spin = new THREE.Group(); // 碾盘不动，碾滚、中轴和拉杆跟着牛转
-  spin.add(roll, block(-0.1, 0.45, -0.1, 0.1, 1.4, 0.1, M.wood), block(0, 1.2, -0.06, 3.0, 1.3, 0.06, M.wood));
+  roll.position.set(0.85, 0.72, 0);
+  const spin = new THREE.Group(); // 碾盘不动，碾滚、中轴和拉杆跟着牛转；拉杆朝 +x
+  spin.add(roll, block(-0.08, 0.4, -0.08, 0.08, 1.2, 0.08, M.wood), block(0, 1.0, -0.05, 2.1, 1.1, 0.05, M.wood));
   g.add(plate, spin);
   g.userData.dynamic = true;
   g.userData.spin = spin;
@@ -167,10 +167,10 @@ export function cart(M, x, z, rotY = 0) {
 }
 
 /**
- * 木栅栏围成的圈（羊圈、菜园）。gap = [起点比例, 终点比例] 在南边留口，口上装一扇能开的栅栏门。
- * 返回 Group，userData.gate = { leaves, center: [x, z], w }（门扇转轴在口子西边，往圈里推开）。
+ * 木栅栏围成的圈（羊圈、菜园）。gap = [起点比例, 终点比例] 留口，口上装一扇能开的栅栏门；gapSide = 'south'（默认）| 'west'。
+ * 返回 Group，userData.gate = { leaves, center: [x, z], w, rot }（rot：门在院子里转了多少，西边的门是 π/2）。
  */
-export function fence(M, x0, z0, x1, z1, { h = 1.1, gap = null } = {}) {
+export function fence(M, x0, z0, x1, z1, { h = 1.1, gap = null, gapSide = 'south' } = {}) {
   const g = new THREE.Group();
   const post = (x, z) => g.add(block(x - 0.08, 0, z - 0.08, x + 0.08, h + 0.15, z + 0.08, M.wood));
   const rail = (ax, az, bx, bz) => {
@@ -186,8 +186,21 @@ export function fence(M, x0, z0, x1, z1, { h = 1.1, gap = null } = {}) {
     rail(ax, az, bx, bz);
   };
   side(x0, z0, x1, z0);
-  side(x0, z0, x0, z1);
   side(x1, z0, x1, z1);
+  if (gap && gapSide === 'west') { // 西边留门：门扇转 90°，沿 z 方向
+    side(x0, z1, x1, z1);
+    const gz0 = z0 + (z1 - z0) * gap[0], gz1 = z0 + (z1 - z0) * gap[1];
+    side(x0, z0, x0, gz0);
+    side(x0, gz1, x0, z1);
+    const W = gz1 - gz0 - 0.1;
+    const leaf = doorLeaves(M, 'fenceGate', W, h * 1.05, 0.05, { single: true });
+    leaf.group.position.set(x0, 0, (gz0 + gz1) / 2);
+    leaf.group.rotation.y = Math.PI / 2;
+    g.add(leaf.group);
+    g.userData.gate = { leaves: leaf.leaves, center: [x0, (gz0 + gz1) / 2], w: W, rot: Math.PI / 2 };
+    return g;
+  }
+  side(x0, z0, x0, z1);
   if (gap) {
     const gx0 = x0 + (x1 - x0) * gap[0], gx1 = x0 + (x1 - x0) * gap[1];
     if (gx0 - x0 > 0.05) side(x0, z1, gx0, z1);
