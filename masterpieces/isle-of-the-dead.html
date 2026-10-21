@@ -528,38 +528,58 @@ function startAudio() {
   const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
   master.gain.linearRampToValueAtTime(muted ? 0 : 0.5, ctx.currentTime + 5);
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; lp.connect(master);
-  const drone = ctx.createGain(); drone.gain.value = 0.05; drone.connect(lp);
-  [55, 82.41, 110.0, 130.81].forEach((f, i) => {
+  const drone = ctx.createGain(); drone.gain.value = 0; drone.connect(lp);   // 嗡鸣关掉：底子交给配乐（Choir Ambience）
+  [55, 82.41, 110.0, 130.81].map(f => f * hop.ratio(55)).forEach((f, i) => {
     const o = ctx.createOscillator(); o.type = i < 2 ? 'sawtooth' : 'sine'; o.frequency.value = f; o.detune.value = (i - 1.5) * 4;
     const g = ctx.createGain(); g.gain.value = i < 2 ? 0.35 : 0.5; o.connect(g).connect(drone); o.start();
   });
   const buf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  const water = ctx.createBufferSource(); water.buffer = buf; water.loop = true;
-  const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 380; wf.Q.value = 0.8;
+  // 火焰的呼呼声：噪声过低通 + 一个慢慢游动的带通（火苗一阵一阵地窜），音量跟着火势
+  const roar = ctx.createBufferSource(); roar.buffer = buf; roar.loop = true;
+  const rl = ctx.createBiquadFilter(); rl.type = 'lowpass'; rl.frequency.value = 700;
+  const rb = ctx.createBiquadFilter(); rb.type = 'peaking'; rb.frequency.value = 260; rb.Q.value = 1.2; rb.gain.value = 8;
   const wg = ctx.createGain(); wg.gain.value = 0.0;
-  water.connect(wf).connect(wg).connect(master); water.start();
+  roar.connect(rl).connect(rb).connect(wg).connect(master); roar.start();
   const crack = ctx.createGain(); crack.gain.value = 0.6; crack.connect(master);
-  audio = { ctx, master, wg, buf, crack, nextBeat: ctx.currentTime + 0.5, beat: 0 };
+  audio = { ctx, master, wg, rl, rb, buf, crack, nextBeat: ctx.currentTime + 0.5, beat: 0, fire: 0 };
 }
+let gazeWas = false;
 function scheduleAudio(activity) {
   if (!audio) return;
   const { ctx } = audio;
   // 5/8：3 + 2，每拍 0.42 秒，第 1、4 拍重
   while (audio.nextBeat < ctx.currentTime + 0.2) {
     const t = audio.nextBeat, strong = audio.beat === 0 || audio.beat === 3;
-    audio.wg.gain.setTargetAtTime(strong ? 0.09 : 0.035, t, 0.05);
-    audio.wg.gain.setTargetAtTime(0.015, t + 0.18, 0.15);
+    // 水声脉动关掉（听起来像机器），只留节拍计数
     audio.beat = (audio.beat + 1) % 5; audio.nextBeat += 0.42;
   }
-  // 生长：细碎的爆裂声，密度跟着凝视处的"时间"
-  if (!muted && Math.random() < activity * 0.6) {
-    const t = ctx.currentTime;
+  // 火势：目光停着就旺起来，移开后慢慢小下去（火线自己还在烧一阵）
+  audio.fire += ((activity > 0 ? Math.min(1, 0.35 + activity) : 0) - audio.fire) * (activity > 0 ? 0.04 : 0.008);
+  const at = ctx.currentTime, f = audio.fire;
+  audio.wg.gain.setTargetAtTime(0.32 * f * (0.8 + 0.3 * Math.random()), at, 0.12);
+  audio.rl.frequency.setTargetAtTime(450 + 900 * f + 300 * Math.random(), at, 0.1);
+  audio.rb.frequency.setTargetAtTime(180 + 200 * Math.random(), at, 0.2);
+  // 噼啪：大大小小的爆裂，密度跟着火势；偶尔一声大的
+  if (!muted && Math.random() < f * 0.7) {
+    const big = Math.random() < 0.12, t = at + Math.random() * 0.03;
     const src = ctx.createBufferSource(); src.buffer = audio.buf;
-    const hp = ctx.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = 1800 + Math.random() * 3500; hp.Q.value = 6;
-    const g = ctx.createGain(); g.gain.setValueAtTime(0.0, t); g.gain.linearRampToValueAtTime(0.05 + 0.08 * Math.random(), t + 0.003); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.05);
-    src.connect(hp).connect(g).connect(audio.crack); src.start(t, Math.random() * 2.5); src.stop(t + 0.06);
+    const hp = ctx.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = big ? 600 + Math.random() * 900 : 1500 + Math.random() * 3500; hp.Q.value = big ? 2 : 5;
+    const len = big ? 0.12 : 0.04 + Math.random() * 0.03;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0, t); g.gain.linearRampToValueAtTime((big ? 0.22 : 0.06 + 0.1 * Math.random()) * (0.5 + f), t + 0.002); g.gain.exponentialRampToValueAtTime(0.0005, t + len);
+    src.connect(hp).connect(g).connect(audio.crack); src.start(t, Math.random() * 2.5); src.stop(t + len + 0.02);
   }
+}
+// 点燃：一声"呼"——噪声的带通从低往上扫，像火苗窜起来
+function ignite() {
+  if (!audio || muted) return;
+  const { ctx } = audio, t = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = audio.buf;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+  bp.frequency.setValueAtTime(220, t); bp.frequency.exponentialRampToValueAtTime(1400, t + 0.5); bp.frequency.exponentialRampToValueAtTime(500, t + 1.4);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.35, t + 0.15); g.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+  src.connect(bp).connect(g).connect(audio.master); src.start(t, Math.random() * 1.2); src.stop(t + 1.6);
+  audio.fire = Math.max(audio.fire, 0.5);
 }
 $('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.5, audio.ctx.currentTime, 0.3); };
 
@@ -642,6 +662,8 @@ renderer.setAnimationLoop(() => {
   dwell = gazeUV[0] && entered ? Math.min(1, dwell + dt / 12) : Math.max(0, dwell - dt / 40);
   if (entered) $('ageBar').style.width = `${dwell * 100}%`;
   scheduleAudio(gazeUV[0] ? 0.15 + dwell : 0);
+  if (gazeUV[0] && !gazeWas && entered) ignite();   // 点火
+  gazeWas = !!gazeUV[0];
   paintMat.uniforms.uTime.value = time;
   emberMat.uniforms.uTime.value = time; emberMat.uniforms.uPx.value = renderer.domElement.height;
   renderer.render(scene, camera);

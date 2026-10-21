@@ -118,6 +118,14 @@
       fig.innerHTML = `<img src="${thumb}" alt=""><figcaption>${W[i].after} · ${W[i].year} · ${i + 1} / ${W.length}</figcaption>`;
       intro.prepend(fig);
     }
+    // 配乐署名（Monument Studios 的曲子是 CC BY 4.0，要求署名）
+    const m = i >= 0 && W[i].music, card = intro && intro.querySelector('.card');
+    if (m && card && !card.querySelector('.st-credit')) {
+      const c = document.createElement('div'); c.className = 'st-credit';
+      c.style.cssText = 'font:11px/1.6 system-ui,sans-serif;opacity:.55;margin-top:10px;letter-spacing:.04em';
+      c.textContent = `配乐：${m.title} — ${m.by}（${m.lic}）`;
+      card.appendChild(c);
+    }
   };
   // 头显里换了画之后（xr-hop.js），按新的地址把上一幅 / 下一幅和入场页的画重新挂好
   window.mpNav = { rebuild() { locate(); fill(); plate(); } };

@@ -582,6 +582,7 @@ const raycaster = new THREE.Raycaster();
 const gazeO = new THREE.Vector3(), gazeD = new THREE.Vector3(), lastGaze = new THREE.Vector3(0, -0.3, -1), tmp = new THREE.Vector3();
 const hands = [0, 1].map(i => { const h = renderer.xr.getHand(i); scene.add(h); return h; });
 const ctrls = [0, 1].map(i => { const c = renderer.xr.getController(i); scene.add(c); return c; });
+let gazeSounded = false, sunFull = false;
 let sunUp = 0, gazeHold = 0, still = 0, dawn = 0, sunrisePlayed = false, entered = false, forcedDawn = null;
 const landXZ = new THREE.Vector2(), gdir = new THREE.Vector3();
 // 视线走廊的终点：往下看就是视线落到谷底的地方（最远 40 米）；平视 / 仰视就是身前 9 米（仰视时就缩到头顶那一片）
@@ -602,6 +603,8 @@ function updateGaze(dt) {
   if (has) lastGaze.lerp(gazeD, Math.min(1, dt * 6));
   gazeHold = clamp01(gazeHold + dt * (has && moved < 0.05 ? 1.4 : -2.5));   // 眼镜里头总在微动：放宽到 0.05 弧度
   const gw = Math.max(0, gazeHold - 0.25) / 0.75;
+  if (gw > 0 && !gazeSounded) { gazeSounded = true; hop.sfx('note', { deg: 4 + (Math.random() * 4 | 0), gain: 0.7 }); hop.sfx('swell', { degs: [0, 2], gain: 0.5, dur: 1.5 }); }   // 雾开始退：一声琴音，弦乐垫进来
+  else if (gw === 0) gazeSounded = false;
   if (gw > 0) {
     const dist = landOn(gazeO, gdir.copy(lastGaze).normalize(), landXZ);
     brushes[0].set(landXZ.x, landXZ.y, 7.5 + 0.3 * dist, 0.65 * gw);
@@ -614,6 +617,7 @@ function updateGaze(dt) {
   else if (entered) dawn = Math.min(1, dawn + dt * (0.020 + 0.030 * still));   // 全静止约 20 秒日出，一直在动约 50 秒
   W.uDawn.value = dawn;
   // 天亮时整片雾自己也慢慢沉回画里的雾海面（第 2 层）；太阳出来以后（约 90 秒）继续沉到半山、变薄、散开，露出谷底
+  if (dawn >= 0.95 && !sunFull) { sunFull = true; hop.sfx('bloom'); }   // 日出：音乐反馈
   if (dawn >= 0.95) sunUp = Math.min(1, sunUp + dt / 45);
   W.uBaseC.value = 2.0 * THREE.MathUtils.smoothstep(dawn, 0.3, 0.95) + 0.55 * THREE.MathUtils.smoothstep(sunUp, 0.0, 1.0);
   W.uThin.value = 0.8 * THREE.MathUtils.smoothstep(sunUp, 0.1, 1.0);
@@ -662,7 +666,7 @@ function startAudio() {
   const wg = ctx.createGain(); wg.gain.value = 0.3;
   wind.connect(wf).connect(wg).connect(master); wind.start();
   const pad = ctx.createGain(); pad.gain.value = 0.03; pad.connect(master);
-  [65.41, 98, 130.81, 196].forEach(f => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(pad); o.start(); });
+  [65.41, 98, 130.81, 196].map(f => f * hop.ratio(65.41)).forEach(f => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(pad); o.start(); });
   const delay = ctx.createDelay(); delay.delayTime.value = 0.5; const fb = ctx.createGain(); fb.gain.value = 0.45;
   delay.connect(fb).connect(delay); delay.connect(master);
   audio = { ctx, master, wf, wg, pad, delay };
@@ -670,7 +674,7 @@ function startAudio() {
 function sunriseTone() {
   if (!audio || muted) return;
   const { ctx } = audio, t = ctx.currentTime;
-  [261.63, 392, 523.25, 659.25].forEach((f, i) => {
+  [261.63, 392, 523.25, 622.25].map(f => f * hop.ratio(261.63)).forEach((f, i) => {   // 小三和弦：配乐 Mountains 是 A 小调
     const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f * 0.5, t + i * 1.2); o.frequency.exponentialRampToValueAtTime(f, t + i * 1.2 + 4);
     const g = ctx.createGain(); g.gain.setValueAtTime(0, t + i * 1.2); g.gain.linearRampToValueAtTime(0.07, t + i * 1.2 + 3); g.gain.exponentialRampToValueAtTime(0.0005, t + i * 1.2 + 14);
     o.connect(g); g.connect(audio.master); g.connect(audio.delay); o.start(t + i * 1.2); o.stop(t + i * 1.2 + 14.5);

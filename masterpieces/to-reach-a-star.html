@@ -466,7 +466,8 @@ function startAudio() {
   const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
   master.gain.linearRampToValueAtTime(muted ? 0 : 0.16, ctx.currentTime + 5);
   const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 420; filter.connect(master);
-  [155.56, 233.08, 311.13, 392.0].forEach((f, i) => {
+  const KR = hop.ratio(155.56);            // 和弦垫底移到配乐的调上
+  [155.56, 233.08, 311.13, 392.0].map(f => f * KR).forEach((f, i) => {
     for (const det of [-7, 7]) {
       const o = ctx.createOscillator(); o.type = i < 2 ? 'triangle' : 'sine'; o.frequency.value = f; o.detune.value = det;
       const g = ctx.createGain(); g.gain.value = i < 2 ? 0.08 : 0.07;
@@ -495,7 +496,7 @@ function chime(n, gain = 0.22) {
   if (!audio || muted) return;
   const { ctx } = audio, t = ctx.currentTime;
   // 钟片：基音 + 2.76 倍的非谐泛音（很快消失），像星光一闪
-  const f = PENTA[n % PENTA.length];
+  const f = PENTA[n % PENTA.length] * hop.ratio(622.25);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0008, t + 3.5);
   g.connect(audio.master); g.connect(audio.delay);

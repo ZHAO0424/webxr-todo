@@ -345,7 +345,7 @@ function updateAmbient(dt, t) {
 
 // ---------- 声音：午后公园里柔和的和弦（慢慢地呼吸）；某块画面聚拢时，响一颗钢片琴一样的"声音的点"——点彩的声音版 ----------
 let audio = null, muted = false;
-const SCALE = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99, 880.0];
+const SCALE = [261.63, 311.13, 349.23, 392.0, 466.16, 523.25, 622.25, 698.46, 783.99, 932.33];   // C 小调五声：和配乐同调
 function startAudio() {
   if (audio) { audio.ctx.resume(); return; }
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -353,7 +353,7 @@ function startAudio() {
   master.gain.linearRampToValueAtTime(muted ? 0 : 0.35, ctx.currentTime + 4);
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(master);
   const pad = ctx.createGain(); pad.gain.value = 0.05; pad.connect(lp);
-  [130.81, 196.0, 246.94, 329.63, 392.0].forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; const og = ctx.createGain(); og.gain.value = 0.8;
+  [130.81, 196.0, 233.08, 311.13, 392.0].map(f => f * hop.ratio(130.81)).forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; const og = ctx.createGain(); og.gain.value = 0.8;
     const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07 + i * 0.023; const lg = ctx.createGain(); lg.gain.value = 0.35; lfo.connect(lg).connect(og.gain); lfo.start();
     o.connect(og).connect(pad); o.start(); });
   const delay = ctx.createDelay(); delay.delayTime.value = 0.31; const fb = ctx.createGain(); fb.gain.value = 0.35;
@@ -369,7 +369,7 @@ function pluck(hue) {
   // 暖色低、冷色高
   const idx = Math.min(SCALE.length - 1, Math.floor(((hue + 0.92) % 1) * SCALE.length));
   // 钢片琴：高一个八度的基音 + 4 倍泛音（一下就没），短促、干净，像一个色点
-  const f = SCALE[idx] * 2;
+  const f = SCALE[idx] * 2 * hop.ratio(261.63);
   const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.07, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0005, t + 1.2);
   g.connect(audio.master); g.connect(audio.delay);
   const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(g); o.start(t); o.stop(t + 1.3);

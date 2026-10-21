@@ -329,18 +329,18 @@ function startAudio() {
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
   const bp = ctx.createBiquadFilter(); bp.type = 'lowpass'; bp.frequency.value = 600;
-  const ng = ctx.createGain(); ng.gain.value = 0.025;
+  const ng = ctx.createGain(); ng.gain.value = 0;   // 底噪关掉：底子交给配乐
   src.connect(bp).connect(ng).connect(master); src.start();
   // 很淡的和弦铺底（D 大调九和弦）
-  const pad = ctx.createGain(); pad.gain.value = 0.018; pad.connect(master); pad.connect(verb);
-  [146.83, 220, 277.18, 329.63].forEach(f => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(pad); o.start(); });
+  const pad = ctx.createGain(); pad.gain.value = 0; pad.connect(master); pad.connect(verb);
+  [146.83, 220, 277.18, 329.63].map(f => f * hop.ratio(146.83)).forEach(f => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(pad); o.start(); });
   audio = { ctx, master, verb, buf };
 }
 const PENTA = [587.33, 659.25, 739.99, 880, 987.77, 1174.66, 1318.51];
 function plink(dist, strength) {
   if (!audio || muted) return;
   const { ctx } = audio, t = ctx.currentTime;
-  const f = PENTA[Math.min(PENTA.length - 1, Math.max(0, Math.floor((1 - clamp01(dist / 8)) * PENTA.length)))] * (0.98 + Math.random() * 0.04);
+  const f = PENTA[Math.min(PENTA.length - 1, Math.max(0, Math.floor((1 - clamp01(dist / 8)) * PENTA.length)))] * hop.ratio(587.33) * (0.995 + Math.random() * 0.01);
   // 水滴：正弦的音高快速往上滑（气泡共振）+ 一点水花噪声
   const o = ctx.createOscillator(); o.type = 'sine';
   o.frequency.setValueAtTime(f * 0.55, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.06);

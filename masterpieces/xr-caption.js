@@ -9,9 +9,10 @@ export function xrCaption({ renderer, scene, camera }) {
   const tex = new THREE.CanvasTexture(cv);
   tex.anisotropy = 4;   // 各页都关了色彩管理、线性输出：画布颜色原样显示
   const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0, toneMapped: false });
-  // 0.9 米外、比视线低约 13°：在视野里偏下居中，不挡住正前方
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62 * H / W), mat);
-  mesh.position.set(0, -0.21, -0.9); mesh.rotation.x = 0.2;
+  // 0.9 米外、比视线低约 6°，宽约 29°、高约 6°：眼镜的视场只有约 40° × 24°（竖直 ±12°），
+  // 以前 38° 宽、低 13° 时左右贴边、下半截掉出视场
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46 * H / W), mat);
+  mesh.position.set(0, -0.095, -0.9); mesh.rotation.x = 0.1;
   mesh.renderOrder = 999; mesh.frustumCulled = false; mesh.visible = false;
   camera.add(mesh);
   if (!camera.parent) scene.add(camera);

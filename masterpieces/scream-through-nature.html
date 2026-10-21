@@ -51,7 +51,7 @@
     <p>这里，《绝望》《呐喊》《焦虑》《卡尔约翰街的夜晚》《忧郁》五幅画共用同一群几十万条笔触，像鱼群顺着蒙克的线条绕着你游。安静时只有游动的颜色；<b>只有你发出声音</b>，它们才游回来，聚成环绕你的画。声音越大，看得越清；你一停，它们又散开。安静得足够久，自然会把那声尖叫还给你。</p>
     <blockquote>我站在那里，因焦虑而颤抖——我感到一声巨大的、无尽的尖叫穿过了自然。<small>— 蒙克的笔记，1892 年</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how" data-xr="发出声音，画才游回来"><em>声音</em><span>哼、说话、喊都可以；麦克风只在本地测音量，不录音、不上传</span><em>没有麦克风</em><span>按住空格或鼠标</span><em>耳机</em><span>建议戴上，免得扬声器的声音被麦克风收回去</span></div>
+    <div class="how" data-xr="发出声音或捏住手指，画才游回来"><em>声音</em><span>哼、说话、喊都可以；麦克风只在本地测音量，不录音、不上传</span><em>没有麦克风</em><span>按住空格或鼠标</span><em>耳机</em><span>建议戴上，免得扬声器的声音被麦克风收回去</span></div>
   </div>
 </div>
 <div id="hud"><span id="micState">麦克风：未开启</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>发出声音才看得见画；安静时它散成一群游动的颜色，过一会儿自然会回应</div>
@@ -543,6 +543,14 @@ addEventListener('keydown', e => { if (e.code === 'Space') { keyVoice = true; e.
 addEventListener('keyup', e => { if (e.code === 'Space') keyVoice = false; });
 renderer.domElement.addEventListener('pointerdown', () => { keyVoice = true; });
 addEventListener('pointerup', () => { keyVoice = false; });
+// 头显里：捏住手指（或扣住扳机）= 在发声，松开 = 安静
+let pinchVoice = 0;
+for (let i = 0; i < 2; i++) {
+  const c = renderer.xr.getController(i); scene.add(c);
+  c.addEventListener('selectstart', () => { pinchVoice++; });
+  c.addEventListener('selectend', () => { pinchVoice = Math.max(0, pinchVoice - 1); });
+}
+renderer.xr.addEventListener('sessionend', () => { pinchVoice = 0; });
 
 function startAudio() {
   if (audio) { audio.ctx.resume(); return; }
@@ -594,7 +602,7 @@ function voiceLevel() {
     const rms = Math.sqrt(sum / micBuf.length);
     lvl = clamp01((rms - 0.015) / 0.18);
   }
-  if (keyVoice) lvl = Math.max(lvl, 0.65 + 0.2 * Math.sin(performance.now() * 0.02));
+  if (keyVoice || pinchVoice > 0) lvl = Math.max(lvl, 0.65 + 0.2 * Math.sin(performance.now() * 0.02));
   return lvl;
 }
 
@@ -620,6 +628,7 @@ function stepVoice(dt, t) {
       const k = Math.min(1.4, 0.5 + energy / 3);
       for (let j = 0; j < 3; j++) pending.push({ at: t + j * 0.45, k });
       natureScream(Math.min(1, k));
+      hop.sfx('swell', { degs: [0, 1, 4], gain: 0.7, dur: 2 });
       anxiety = Math.min(1, anxiety + 0.35 * k);
       energy = 0; returns++;
       U.uEcho.value = 1;

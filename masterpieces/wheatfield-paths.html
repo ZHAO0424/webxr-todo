@@ -450,10 +450,10 @@ function startAudio() {
   let last = 0; for (let i = 0; i < d.length; i++) { last = (last + 0.04 * (Math.random() * 2 - 1)) / 1.04; d[i] = last * 3; }
   const wind = ctx.createBufferSource(); wind.buffer = buf; wind.loop = true;
   const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 700; wf.Q.value = 0.8;
-  const wg = ctx.createGain(); wg.gain.value = 0.25;
+  const wg = ctx.createGain(); wg.gain.value = 0;   // 风噪关掉：底子交给配乐
   wind.connect(wf).connect(wg).connect(master); wind.start();
-  const pad = ctx.createGain(); pad.gain.value = 0.04; pad.connect(master);
-  [73.42, 110, 146.83, 174.61].forEach(f => { const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.connect(pad); o.start(); });
+  const pad = ctx.createGain(); pad.gain.value = 0; pad.connect(master);
+  [73.42, 110, 146.83, 174.61].map(f => f * hop.ratio(73.42)).forEach(f => { const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.connect(pad); o.start(); });
   const delay = ctx.createDelay(); delay.delayTime.value = 0.41; const fb = ctx.createGain(); fb.gain.value = 0.4;
   delay.connect(fb).connect(delay); delay.connect(master);
   audio = { ctx, master, wf, wg, buf, delay };
@@ -473,7 +473,7 @@ function caw() {   // 鸦叫：带共振峰的短噪声，音高往下掉
 function arrive() {
   if (!audio || muted) return;
   const { ctx } = audio, t = ctx.currentTime;
-  [587.33, 880, 1174.66].forEach((f, i) => {
+  [587.33, 880, 1174.66].map(f => f * hop.ratio(587.33)).forEach((f, i) => {
     const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
     const g = ctx.createGain(); g.gain.setValueAtTime(0, t + i * 0.15); g.gain.linearRampToValueAtTime(0.06, t + i * 0.15 + 0.01); g.gain.exponentialRampToValueAtTime(0.0005, t + i * 0.15 + 3);
     o.connect(g); g.connect(audio.master); g.connect(audio.delay); o.start(t + i * 0.15); o.stop(t + i * 0.15 + 3.1);
@@ -531,6 +531,7 @@ function updateGaze(dt) {
   food.y += (foodTarget.y - food.y) * Math.min(1, dt * 1.5);
   food.z = dwell;
   U.uFood.value.copy(food);
+  if (onPic && lampOn === 0) hop.sfx('note', { deg: 2 + (Math.random() * 4 | 0), gain: 0.6 });   // 提灯亮起
   if (onPic) { lampPos.lerp(new THREE.Vector2(g.u, g.v), Math.min(1, dt * 7)); lampOn = Math.min(1, lampOn + dt * 2.5); }
   else lampOn = Math.max(0, lampOn - dt * 0.8);
   U.uLamp.value.set(lampPos.x, lampPos.y, lampOn, 0.16 + 0.22 * dwell);   // 灯圈：起步约 15°，停久了约 35°

@@ -203,7 +203,7 @@ const paintings = W.map((w, k) => {
 const mod = (a, n) => ((a % n) + n) % n;
 const shortest = (a, b) => { let d = b - a; if (d > N / 2) d -= N; if (d < -N / 2) d += N; return d; };
 const from = new URLSearchParams(location.search).get('from');
-let target = Math.max(0, W.findIndex(w => w.slug === from)), cur = target, vel = 0;
+let target = Math.max(0, W.findIndex(w => w.slug === from)), cur = target, vel = 0, lastCi = null;
 let drag = null, moved = 0, hoverK = -1, entering = null, shown = -1;
 const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(9, 9);
 const cv = renderer.domElement;
@@ -253,6 +253,7 @@ function pick() {
 }
 // 走进画里：镜头朝那幅画推过去，画铺满视野，再黑下来换页
 function enter(kXR) {
+  hop.sfx('chord', { gain: 0.8 });
   if (renderer.xr.isPresenting) { hopGo(0, false, kXR !== undefined ? kXR : mod(Math.round(target), N)); return; }   // 头显里：不跳页，同一个会话里走进去
   if (entering) return;
   const k = mod(Math.round(target), N);
@@ -434,6 +435,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05); time += dt;
   // 弹簧：转到目标那一格
   vel += ((target - cur) * 38 - vel * 11) * dt; cur += vel * dt;
+  const ci = Math.round(cur); if (ci !== lastCi) { if (lastCi !== null) hop.sfx('note', { deg: mod(ci, 8), gain: 0.55 }); lastCi = ci; }   // 每转过一幅，一个琴音
   ring.rotation.y = cur * STEP; wallU.uRot.value = cur * STEP;
   showInfo(mod(Math.round(target), N));
   if (renderer.xr.isPresenting) { paintings.forEach(p => { p.u.uTime.value = time; }); xrStep(dt); renderer.render(scene, camera); return; }

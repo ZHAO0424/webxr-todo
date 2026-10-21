@@ -298,7 +298,7 @@ scene.add(snow);
 
 // ---------- 输入：手 / 手柄 / 鼠标 → 画面上的风 ----------
 const splats = [];
-let storm = 0, stirEnergy = 0;
+let storm = 0, stirEnergy = 0, stormUp = false, stormPeak = false;
 function dirToUV(dir) {                  // 从眼睛出发的方向 → 球面上的 uv（方位角、仰角线性展开）
   const d = dir.clone().normalize();
   const th = Math.atan2(d.x, -d.z), el = Math.asin(Math.max(-1, Math.min(1, d.y)));
@@ -357,7 +357,7 @@ function startAudio() {
     const flt = ctx.createBiquadFilter(); flt.type = type; flt.frequency.value = f; flt.Q.value = q;
     const gn = ctx.createGain(); gn.gain.value = g; s.connect(flt).connect(gn).connect(master); return { flt, gn };
   };
-  const wind = mk('bandpass', 500, 1.2, 0.12), howl = mk('bandpass', 900, 8, 0.02), sea = mk('lowpass', 180, 0.7, 0.35);
+  const wind = mk('bandpass', 500, 1.2, 0.12), howl = mk('bandpass', 900, 8, 0.02), sea = mk('lowpass', 180, 0.7, 0);
   audio = { ctx, master, wind, howl, sea, buf };
   // 汽笛：两支略微走调的锯齿波经过共鸣滤波，低沉、拖长，从风里冒出来
   const whistle = () => {
@@ -365,10 +365,10 @@ function startAudio() {
     const t = ctx.currentTime, dur = 2.2 + Math.random() * 1.6;
     const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 520; bp.Q.value = 3;
     const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.35); g.gain.setValueAtTime(0.05, t + dur - 0.6); g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
-    for (const f of [246, 249.5, 370]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 0.97, t); o.frequency.linearRampToValueAtTime(f, t + 0.3); o.connect(bp); o.start(t); o.stop(t + dur + 0.1); }
+    for (const f of [246, 249.5, 370].map(f => f * hop.ratio(246.94))) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 0.97, t); o.frequency.linearRampToValueAtTime(f, t + 0.3); o.connect(bp); o.start(t); o.stop(t + dur + 0.1); }
     bp.connect(g).connect(master);
   };
-  const loop = () => { whistle(); setTimeout(loop, 18000 + Math.random() * 22000); };
+  const loop = () => { if (storm > 0.3) whistle(); setTimeout(loop, 18000 + Math.random() * 22000); };
   setTimeout(loop, 7000);
 }
 // 滚雷：低通的噪声，慢慢涌上来、拖很长
@@ -446,16 +446,20 @@ renderer.setAnimationLoop(() => {
   stirEnergy *= Math.exp(-dt * 0.5);
   storm += (clamp01(stirEnergy) - storm) * Math.min(1, dt * 2);
   $('lvl').style.width = `${storm * 100}%`;
+  if (storm > 0.25 && !stormUp) { stormUp = true; hop.sfx('swell', { degs: [0, 1, 4], gain: 0.8, dur: 2 }); }
+  if (storm > 0.45) stormPeak = true;
+  if (storm < 0.08 && stormUp) { stormUp = false; if (stormPeak) hop.sfx('chord', { degs: [0, 2, 4, 7], gain: 0.7 }); stormPeak = false; }   // 平息：画又浮现
   if (storm > 0.7 && !quoteShown) { quoteShown = true; setTimeout(() => { $('quote').classList.add('on'); setTimeout(() => $('quote').classList.remove('on'), 10000); }, 4000); }
   screenMat.uniforms.storm.value = storm; snowMat.uniforms.storm.value = storm;
   snowMat.uniforms.uT.value = time; screenMat.uniforms.uT.value = time;
   if (paintTex) stepFluid(dt, time);
   if (audio) {
     const at = audio.ctx.currentTime;
-    audio.wind.gn.gain.setTargetAtTime(0.08 + 0.35 * storm, at, 0.3);
+    audio.wind.gn.gain.setTargetAtTime(0.35 * storm, at, 0.3);   // 静着时没有风噪，底子是配乐
+    audio.sea.gn.gain.setTargetAtTime(0.3 * storm, at, 0.5);
     if (storm > 0.55 && at - lastThunder > 9 && Math.random() < dt * 0.4) { lastThunder = at; thunder(storm); }
     audio.wind.flt.frequency.setTargetAtTime(380 + 900 * storm, at, 0.3);
-    audio.howl.gn.gain.setTargetAtTime(0.01 + 0.08 * storm * storm, at, 0.3);
+    audio.howl.gn.gain.setTargetAtTime(0.08 * storm * storm, at, 0.3);
     audio.howl.flt.frequency.setTargetAtTime(700 + 600 * storm + 120 * Math.sin(time * 0.7), at, 0.2);
   }
   if (!renderer.xr.isPresenting) {

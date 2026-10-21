@@ -72,7 +72,7 @@ function buildOverlay() {
   keep.add(sg); keep.add(sm);
   ov.veil = new THREE.Mesh(sg, sm); ov.veil.renderOrder = 1000; ov.veil.frustumCulled = false; ov.scene.add(ov.veil);
   // 换画时的卡片：载入一件作品要好几秒到十几秒，卡片上放原画、介绍和载入进度，等的时候有东西可读
-  ov.title = canvasPlane(1.4, 0.784, 2048, 1146, 1001); ov.scene.add(ov.title.m);
+  ov.title = canvasPlane(1.0, 0.56, 2048, 1146, 1001); ov.scene.add(ov.title.m);   // 2.1 米外约 27° × 15°：眼镜视场约 40° × 24°，四边都留出余量
   ov.strip = canvasPlane(0.6, 0.15, 1600, 400, 1002); ov.scene.add(ov.strip.m);
   // 作品里的「回画廊」按钮：视线下方，手的射线指着它捏合才回去（不看停留，免得低头时误触）
   ov.home = canvasPlane(0.2, 0.068, 640, 216, 1003); ov.scene.add(ov.home.m);
@@ -215,19 +215,19 @@ const rays = [];                      // 这一帧各个输入源的射线（叠
 // 前方对准你此刻面朝的方向。只取偏航，不取俯仰；之后人走动、转头照常跟踪。
 let baseRef = null, recenterIn = -1;
 let eyeOverride = null;                                   // 测试钩子：mpHop._eye([x,y,z]) 试别的观看点
-// 戴着眼镜在电脑键盘上微调：I / K 前后 25 厘米，U / O 高低 10 厘米，0 复位。按作品记在本机浏览器里
+// 戴着眼镜在电脑键盘上微调：W / S 前后、A / D 左右各 25 厘米，Q / E 低高 10 厘米，0 复位。按作品记在本机浏览器里
 const eyeKey = () => `mp-eye-${slugNow()}`;
 const eyeSaved = () => { try { const v = JSON.parse(localStorage.getItem(eyeKey())); return Array.isArray(v) && v.length === 3 ? v : null; } catch (e) { return null; } };
 const eyeDefault = () => { if (pageEye) return pageEye; const w = works().find(w => w.slug === slugNow()); return (w && w.xr && w.xr.eye) || (onWork() ? [0, 1.5, 0] : [0, 1.55, 0]); };
 function showEye(e) {
   let el = document.getElementById('mp-eye');
   if (!el) { el = document.createElement('div'); el.id = 'mp-eye'; el.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:70;font:12px/1.5 system-ui,sans-serif;color:#ece7dc;background:rgba(14,13,18,.75);padding:6px 10px;border-radius:6px;pointer-events:none'; document.body.appendChild(el); }
-  el.textContent = `观看点 (${e.map(v => v.toFixed(2)).join(', ')})　I/K 前后 · U/O 高低 · 0 复位`;
+  el.textContent = `观看点 (${e.map(v => v.toFixed(2)).join(', ')})　W/S 前后 · A/D 左右 · Q/E 低高 · 0 复位`;
   clearTimeout(showEye.t); el.style.display = ''; showEye.t = _st(() => { el.style.display = 'none'; }, 6000);
 }
 untracked(() => addEventListener('keydown', e => {
   if (!R || !R.xr.isPresenting || e.ctrlKey || e.metaKey || e.altKey) return;
-  const k = e.key.toLowerCase(), d = { i: [0, 0, -0.25], k: [0, 0, 0.25], u: [0, -0.1, 0], o: [0, 0.1, 0] }[k];
+  const k = e.key.toLowerCase(), d = { w: [0, 0, -0.25], s: [0, 0, 0.25], a: [-0.25, 0, 0], d: [0.25, 0, 0], q: [0, -0.1, 0], e: [0, 0.1, 0] }[k];
   if (!d && k !== '0') return;
   const cur = eyeOf(), next = k === '0' ? eyeDefault() : cur.map((v, n) => +(v + d[n]).toFixed(2));
   try { if (k === '0') localStorage.removeItem(eyeKey()); else localStorage.setItem(eyeKey(), JSON.stringify(next)); } catch (err) {}
@@ -277,7 +277,7 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
   ov.veil.position.copy(head); ov.veil.material.opacity = fade; ov.veil.visible = fade > 0.001;
   titleA += (titleTarget - titleA) * Math.min(1, dt * 3);
   const tm = ov.title.m; tm.visible = titleA > 0.01; tm.material.opacity = titleA;
-  if (tm.visible) { tmp.copy(fwd).setY(0).normalize().multiplyScalar(2.1).add(head); tmp.y = head.y + 0.05; tm.position.lerp(tmp, titleA < 0.05 ? 1 : Math.min(1, dt * 2)); tm.lookAt(head); }   // 卡片 1.4 米宽，2.1 米外约占 37°，在眼镜视场里
+  if (tm.visible) { tmp.copy(fwd).setY(0).normalize().multiplyScalar(2.1).add(head); tmp.y = head.y; tm.position.lerp(tmp, titleA < 0.05 ? 1 : Math.min(1, dt * 2)); tm.lookAt(head); }   // 卡片 1 米宽，2.1 米外约占 27°，四边都在眼镜视场里
 
   // 切换条：身体朝向锁定，在视线下方约 30°；转身超过 50° 时慢慢转回到正前方
   const yaw = Math.atan2(-fwd.x, -fwd.z);
@@ -305,8 +305,8 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
   sm.material.opacity += (vis - sm.material.opacity) * Math.min(1, dt * (vis ? 5 : 3));
   sm.visible = sm.material.opacity > 0.01;
 
-  // 回画廊按钮：身体朝向锁定，视线下方约 22°、偏左一点
-  const hm = ov.home.m, HP = -22 * Math.PI / 180, HD = 0.8, HY = anchorYaw + 0.12;
+  // 回画廊按钮：身体朝向锁定，视线下方约 17°（刚出视场下沿，微微低头就看见）、偏左一点
+  const hm = ov.home.m, HP = -17 * Math.PI / 180, HD = 0.8, HY = anchorYaw + 0.12;
   hm.position.set(head.x - Math.sin(HY) * Math.cos(HP) * HD, head.y + Math.sin(HP) * HD, head.z - Math.cos(HY) * Math.cos(HP) * HD);
   hm.lookAt(head); hm.updateMatrixWorld(true);
   const homeOn = onWork() && !hold && !busy && fade < 0.05;
@@ -369,6 +369,7 @@ export async function go(dir, force = false, to = null) {
   busy = true; cooldown = 1.5;
   untracked(() => home ? drawHome() : drawTitle(target, j));
   titleTarget = 0.0;
+  stopMusic(2.4);                        // 配乐跟着黑幕一起淡出
   await fadeTo(1, 2.4);
   hold = true; titleTarget = 1;
   try {
@@ -385,7 +386,9 @@ export async function go(dir, force = false, to = null) {
     }
     if (!home) untracked(() => drawTitle(target, j, '载入完成'));
     if (enter && enter.disabled) throw new Error('载入超时');
-    if (enter) enter.click();
+    setMuted(false);                     // 新作品的「静音」按钮是开着声音的
+    if (enter) enter.click();            // 点「进入」会顺带放这件作品的配乐
+    else if (home) playMusic('index');
     if (R.xr.isPresenting) R.xr.dispatchEvent({ type: 'sessionstart' });   // 补发一次，让新页面切到头显模式
     teaserUntil = home ? 0 : performance.now() + 7000; anchorYaw = null;
     await sleep(Math.max(0, 1400 - (performance.now() - t0)));   // 标题至少停一会儿
@@ -461,10 +464,133 @@ function autoEnterPage() {
   tick();
 }
 
+// ---------- 配乐与交互音效 ----------
+// 配乐是一个 <audio>，接在本模块自己的 AudioContext 上（不记账：头显里换画时不跟着作品一起被关掉，而是淡出、换曲、淡入）。
+// 小声垫在作品自己的声音后面。进作品（按下「进入」，或在介绍页直接进 XR）才开始放；画廊主页第一次点、按键时开始放。
+// 跟着作品的「静音」一起开关。
+// 交互音效（hop.sfx）也走这里：音高取配乐所在调的五声音阶，钢琴 / 弦乐一样的软音色，落在同一个混响里，和配乐不打架。
+// 作品自己合成的和弦垫底用 hop.ratio(原来的主音) 整体移到配乐的调上。
+const HOME_MUSIC = { key: 'D#', title: 'Prelude', by: 'Ovani Sound · Keys Music Pack', lic: 'Royalty-Free' };
+const PC = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
+const MUSIC_VOL = 0.18;                  // 曲子都已统一到 -23 LUFS；再压到约 -15 dB，只当背景，突出作品自己的交互声
+const musicOf = slug => slug === 'index' ? HOME_MUSIC : ((works().find(w => w.slug === slug) || {}).music || null);
+const snd = { ctx: null, el: null, mg: null, sg: null, master: null, verb: null, slug: null, muted: false, pending: false, tok: 0, vol: MUSIC_VOL };
+function sndInit() {
+  if (snd.ctx) return snd.ctx;
+  untracked(() => {
+    const ctx = snd.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    snd.master = ctx.createGain(); snd.master.connect(ctx.destination);
+    snd.mg = ctx.createGain(); snd.mg.gain.value = 0; snd.mg.connect(snd.master);
+    snd.sg = ctx.createGain(); snd.sg.gain.value = 0.6; snd.sg.connect(snd.master);   // 新加的提示音也压低，不盖过作品原有的声音
+    // 混响：2.6 秒指数衰减的立体声噪声
+    const n = ctx.sampleRate * 2.6 | 0, ir = ctx.createBuffer(2, n, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3.2); }
+    snd.verb = ctx.createConvolver(); snd.verb.buffer = ir;
+    const vg = ctx.createGain(); vg.gain.value = 0.55; snd.verb.connect(vg).connect(snd.sg);
+    snd.el = new Audio(); snd.el.loop = true; snd.el.preload = 'auto';
+    ctx.createMediaElementSource(snd.el).connect(snd.mg);
+  });
+  return snd.ctx;
+}
+const tryPlay = () => { snd.el.play().then(() => { snd.pending = false; }, () => { snd.pending = true; }); };
+function playMusic(slug) {
+  const ctx = sndInit(); if (ctx.state === 'suspended') ctx.resume();
+  const m = musicOf(slug), url = m ? new URL(`data/music/${slug}.mp3`, location.href).href : '';
+  if (snd.slug === slug && !snd.el.paused) return;
+  const tok = ++snd.tok, t = ctx.currentTime, swap = snd.el.src && snd.el.src !== url && !snd.el.paused;
+  snd.slug = slug;
+  snd.mg.gain.cancelScheduledValues(t); snd.mg.gain.setTargetAtTime(0, t, 0.25);
+  _st(() => {
+    if (tok !== snd.tok) return;
+    if (!url) { snd.el.pause(); return; }
+    if (snd.el.src !== url) { snd.el.src = url; snd.el.currentTime = 0; }
+    tryPlay();
+    snd.vol = m.vol || MUSIC_VOL;
+    const t1 = ctx.currentTime; snd.mg.gain.cancelScheduledValues(t1); snd.mg.gain.setValueAtTime(0, t1); snd.mg.gain.linearRampToValueAtTime(snd.vol, t1 + 4);
+  }, swap ? 1000 : 0);
+}
+function stopMusic(sec = 1.5) {
+  if (!snd.ctx) return;
+  const tok = ++snd.tok, t = snd.ctx.currentTime; snd.slug = null;
+  snd.mg.gain.cancelScheduledValues(t); snd.mg.gain.setTargetAtTime(0, t, sec / 3);
+  _st(() => { if (tok === snd.tok) snd.el.pause(); }, sec * 1000 + 300);
+}
+function setMuted(m) {
+  snd.muted = m;
+  if (snd.ctx) snd.master.gain.setTargetAtTime(m ? 0 : 1, snd.ctx.currentTime, 0.2);
+}
+// 当前作品配乐的调：主音（C4–B4 之间）和五声音阶
+function keyNow() {
+  const m = musicOf(slugNow()) || HOME_MUSIC;
+  return { tonic: 261.63 * Math.pow(2, PC[m.key] / 12), sc: m.minor ? [0, 3, 5, 7, 10] : [0, 2, 4, 7, 9], minor: !!m.minor };
+}
+const degHz = (k, deg) => k.tonic * Math.pow(2, (k.sc[((deg % 5) + 5) % 5] + 12 * Math.floor(deg / 5)) / 12);
+// 作品原来按 fromHz 这个主音写的和弦 → 乘上这个比例，就移到配乐的调上（最多移 ±6 个半音）
+function ratio(fromHz) {
+  const m = musicOf(slugNow()); if (!m) return 1;
+  const from = ((Math.round(12 * Math.log2(fromHz / 261.63)) % 12) + 12) % 12;
+  const shift = ((PC[m.key] - from + 18) % 12) - 6;
+  return Math.pow(2, shift / 12);
+}
+// kind：note 一个软钢琴音 · chord 上行琶音（完成、抵达）· bloom 高潮（弦乐铺开 + 琶音 + 配乐涌上来）· swell 弦乐铺进来（开始、苏醒）· low 低音（沉、点燃）· drop 水滴
+// o：deg 音阶第几级（可为负、可超过 5）、degs、gain、delay（秒）、pan、dur（swell 的长度）
+function sfx(kind = 'note', o = {}) {
+  if (!snd.ctx || snd.muted) return;
+  const ctx = snd.ctx; if (ctx.state === 'suspended') return;
+  untracked(() => {
+    const k = keyNow(), t = ctx.currentTime + (o.delay || 0), g0 = o.gain == null ? 1 : o.gain;
+    const out = ctx.createGain(); out.gain.value = 1;
+    let dst = out;
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = o.pan || 0; out.connect(p); dst = p; }
+    dst.connect(snd.sg); dst.connect(snd.verb);
+    const piano = (f, at, amp) => {
+      // 软钢琴：基音 + 三个泛音，高的衰减得快；低通让它不刺耳
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(5000, f * 6); lp.connect(out);
+      [[1, 1, 3.2], [2, 0.35, 1.6], [3, 0.14, 0.9], [4, 0.06, 0.5]].forEach(([h, a, d]) => {
+        const os = ctx.createOscillator(); os.type = 'sine'; os.frequency.value = f * h * (1 + (h - 1) * 0.0008);
+        const g = ctx.createGain(); g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(amp * a, at + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, at + d);
+        os.connect(g).connect(lp); os.start(at); os.stop(at + d + 0.05);
+      });
+    };
+    if (kind === 'note') piano(degHz(k, o.deg == null ? (Math.random() * 8 | 0) : o.deg), t, 0.16 * g0);
+    else if (kind === 'chord') {
+      (o.degs || [0, 2, 4, 5, 7]).forEach((d, i) => piano(degHz(k, d), t + i * 0.16, 0.12 * g0));
+      snd.mg.gain.setTargetAtTime(snd.vol * 0.6, t, 0.1); snd.mg.gain.setTargetAtTime(snd.vol, t + 1.6, 0.8);   // 配乐让一让
+    } else if (kind === 'bloom') {
+      sfx('swell', { degs: [0, 2, 4, 5], dur: 7, gain: 1.4 });
+      (o.degs || [0, 2, 4, 5, 7, 9, 10]).forEach((d, i) => piano(degHz(k, d), t + 0.8 + i * 0.22, 0.13 * g0));
+      snd.mg.gain.setTargetAtTime(Math.min(0.6, snd.vol * 2), t, 1.5); snd.mg.gain.setTargetAtTime(snd.vol, t + 14, 3);
+    } else if (kind === 'low') piano(degHz(k, o.deg || 0) / 4, t, 0.3 * g0);
+    else if (kind === 'drop') {
+      const f = degHz(k, o.deg == null ? 5 + (Math.random() * 5 | 0) : o.deg);
+      const os = ctx.createOscillator(); os.type = 'sine'; os.frequency.setValueAtTime(f * 0.6, t); os.frequency.exponentialRampToValueAtTime(f, t + 0.05);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12 * g0, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      os.connect(g).connect(out); os.start(t); os.stop(t + 1);
+    } else if (kind === 'swell') {
+      // 弦乐：每个音两支略微走调的锯齿波，低通，慢起慢收
+      const dur = o.dur || 2.5, lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100; lp.Q.value = 0.5; lp.connect(out);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05 * g0, t + 1.4); g.gain.setValueAtTime(0.05 * g0, t + 1.4 + dur); g.gain.linearRampToValueAtTime(0, t + 4.4 + dur); g.connect(lp);
+      (o.degs || [0, 2, 4]).forEach(d => { for (const det of [-6, 6]) { const os = ctx.createOscillator(); os.type = 'sawtooth'; os.frequency.value = degHz(k, d) / 2; os.detune.value = det; os.connect(g); os.start(t); os.stop(t + 4.6 + dur); } });
+    }
+  });
+}
+// 「静音」按钮：作品自己切换文字，这里随后读一下，配乐和音效跟着开关；「进入」/ 进 XR：开始放这件作品的配乐
+untracked(() => document.addEventListener('click', e => {
+  const el = e.target && e.target.closest ? e.target : null; if (!el) return;
+  if (el.closest('#mute')) { _st(() => { const b = document.getElementById('mute'); setMuted(!!b && /开声音/.test(b.textContent)); }, 0); return; }
+  if (el.closest('#enter, #VRButton, #ARButton') && onWork()) playMusic(slugNow());
+}, true));
+untracked(() => { for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, () => {
+  if (snd.ctx && snd.ctx.state === 'suspended') snd.ctx.resume();
+  if (snd.pending) tryPlay();
+  if (!busy && slugNow() === 'index' && snd.slug !== 'index') playMusic('index');   // 画廊主页：第一次点 / 按键
+}, true); });
+
 // ---------- 作品页调用：第一次建渲染器后挂上来；之后的作品直接拿到同一个渲染器 ----------
 export const hop = {
   get renderer() { return R; },
   set eye(v) { pageEye = v; },
+  sfx, ratio,                            // 交互音效（按配乐的调）/ 和弦垫底移调的比例
   attach(r) {
     if (R) return;
     R = r;
@@ -507,6 +633,7 @@ export const hop = {
   },
 };
 window.mpHop = { go, home: () => go(0, false, 'home'), presenting: () => !!(R && R.xr.isPresenting), _r: () => R,
+  _snd: () => ({ slug: snd.slug, paused: !snd.el || snd.el.paused, src: snd.el && snd.el.src.split('/').pop(), gain: snd.mg && +snd.mg.gain.value.toFixed(3), muted: snd.muted, t: snd.el && +snd.el.currentTime.toFixed(1) }),
   _eye: e => { eyeOverride = e; recenterIn = 1; },
   // 测试：不戴头显，按给定的头部朝向（度）把叠层逻辑跑 n 帧，返回条的状态和触发的换画方向
   _sim: (n, yaw, pitch, teaser = false) => {

@@ -657,7 +657,7 @@ const DUST_N = 6000;
 
 // ---------- 声音：两个声部，手越近音越近；相拥时合成同一个音 ----------
 let audio = null, muted = false;
-const BASE = 220;
+const BASE = 220 * hop.ratio(220);   // 移到配乐的调上
 function startAudio() {
   if (audio) { audio.ctx.resume(); return; }
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -673,7 +673,7 @@ function startAudio() {
   };
   const a = voice('sine', 0.09), b = voice('triangle', 0.06);
   const pad = ctx.createGain(); pad.gain.value = 0.025; pad.connect(lp);
-  [110, 165, 330].forEach(fq => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = fq; o.connect(pad); o.start(); });
+  [110, 165, 330].map(fq => fq * BASE / 220).forEach(fq => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = fq; o.connect(pad); o.start(); });
   // 风：很轻的、一阵阵的
   const buf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate), d = buf.getChannelData(0);
   let last = 0; for (let i = 0; i < d.length; i++) { last = (last + 0.03 * (Math.random() * 2 - 1)) / 1.03; d[i] = last * 3; }
@@ -732,7 +732,7 @@ function targetApart() {
 }
 
 // ---------- 状态 ----------
-let handSeenAt = -1e9, lastHandTa = 1;
+let handSeenAt = -1e9, lastHandTa = 1, moving = false;
 let apart = 1, union = 0, unionHold = 0, unions = 0, waveT = -1, quoteShown = false, forcedApart = null;
 function step(dt, t) {
   const ta = targetApart();
@@ -759,6 +759,8 @@ function step(dt, t) {
   if (waveT >= 0) { waveT += dt * 0.22; if (waveT > 1.3) waveT = -1; }
   U.uWave.value = waveT;
   updateFigures(apart, t);
+  if (apart < 0.55 && !moving) { moving = true; hop.sfx('swell', { degs: [0, 2, 4], gain: 0.8, dur: 2.5 }); }   // 两人开始走向对方
+  else if (apart > 0.8) moving = false;
   // 声音：第二个声部从五度（分开）滑到同度（相拥），中间的拍音越来越慢
   if (audio) {
     const at = audio.ctx.currentTime;
