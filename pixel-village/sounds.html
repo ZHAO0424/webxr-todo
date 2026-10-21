@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>村子声音试听</title>
+  <link rel="stylesheet" href="src/ui/ui.css">
+  <style>
+    html, body { background: #1a1624; }
+    body { margin: 0; min-height: 100vh; }
+    main { max-width: calc(380 * var(--p)); margin: 0 auto; padding: calc(8 * var(--p)) calc(4 * var(--p)) calc(30 * var(--p)); }
+    h1 { margin: 0; font-weight: normal; color: var(--gold); }
+    .intro { color: var(--dim); margin: calc(2 * var(--p)) 0; }
+    .top a { color: var(--gold); }
+    .vol { display: flex; align-items: center; gap: calc(3 * var(--p)); margin-top: calc(3 * var(--p)); }
+    .vol input { flex: 1; accent-color: #ffcc66; }
+    section { margin-top: calc(6 * var(--p)); }
+    h2 { margin: 0 0 calc(3 * var(--p)); font-weight: normal; color: var(--gold); display: flex; align-items: center; gap: calc(3 * var(--p)); }
+    h2::after { content: ''; flex: 1; height: var(--f); background: var(--line); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(84 * var(--p)), 1fr)); gap: calc(3 * var(--p)); }
+    .snd { text-align: left; padding: calc(2 * var(--p)) calc(4 * var(--p)); line-height: calc(16 * var(--f)); }
+    .snd b { display: block; color: var(--text); text-shadow: none; }
+    .snd small { display: block; color: var(--dim); font-size: inherit; }
+    .snd.on { --c: var(--gold); }
+    .snd.on b, .snd.on small { color: #2a1a10; }
+    .snd.flash { filter: brightness(1.4); }
+    .tip { color: var(--dim); margin-top: calc(2 * var(--p)); }
+  </style>
+  <script>
+    // 错误直接显示在页面上，并记到 data-errors，供无头检查读取
+    (() => {
+      const errors = [];
+      const show = (m) => {
+        errors.push(String(m));
+        document.documentElement.dataset.errors = String(errors.length);
+        const el = document.getElementById('err');
+        if (el) { el.style.display = 'block'; el.textContent = errors.join('\n'); }
+      };
+      addEventListener('error', (e) => show(`${e.message} @ ${e.filename}:${e.lineno}`));
+      addEventListener('unhandledrejection', (e) => show(`reject: ${e.reason?.stack ?? e.reason}`));
+      const ce = console.error.bind(console);
+      console.error = (...a) => { show(a.join(' ')); ce(...a); };
+    })();
+  </script>
+</head>
+<body>
+  <main class="px">
+    <div class="panel top">
+      <h1 class="big">村子声音试听</h1>
+      <p class="intro">村里所有声音都是浏览器现场合成的（振荡器 + 噪声 + 滤波器），没有音频文件。点一下播一次；"一直响的"点一下开、再点关。
+        在村子里它们还会按位置分左右、按远近变大小，这里统一放在正前方。</p>
+      <div class="vol">音量 <input id="vol" type="range" min="0" max="1.5" step="0.05" value="0.8"> <a href="./">← 回到村子</a></div>
+    </div>
+    <div id="list"></div>
+    <p class="tip">听着哪个不对劲（太刺耳、不像、太响），记下名字告诉我。</p>
+  </main>
+  <pre id="err" style="position:fixed;left:0;right:0;bottom:0;margin:0;padding:8px;background:#600;color:#fff;font:12px monospace;white-space:pre-wrap;display:none"></pre>
+  <script type="module">
+    import { setupPixelUI } from './src/ui/frame.js';
+    import { makeSynth } from './src/synth.js';
+
+    setupPixelUI();
+    let ctx = null, S = null, master = null;
+    function audio() {
+      if (!ctx) {
+        ctx = new AudioContext();
+        S = makeSynth(ctx);
+        master = new GainNode(ctx, { gain: Number(document.getElementById('vol').value) });
+        master.connect(new DynamicsCompressorNode(ctx, { threshold: -18, ratio: 4 })).connect(ctx.destination);
+      }
+      ctx.resume();
+      return ctx;
+    }
+    document.getElementById('vol').addEventListener('input', (e) => { if (master) master.gain.value = Number(e.target.value); });
+
+    // 一次性的声音：[名字, 说明, 播放]；when 是开始时间
+    const once = (name, ...a) => (t, out) => S.SFX[name](t, out, ...a);
+    const repeat = (fn, n, gap) => (t, out) => { for (let i = 0; i < n; i++) fn(t + i * gap, out); };
+    const GROUPS = [
+      ['动物', [
+        ['公鸡打鸣', '天快亮时', once('rooster')],
+        ['母鸡', '咯咯咯', once('hen')],
+        ['狗叫', '生人走近', once('dog')],
+        ['猪', '哼哼', once('pig')],
+        ['羊', '咩——', once('sheep')],
+        ['毛驴', '嗯昂嗯昂', once('donkey')],
+        ['黄牛', '哞——', once('ox')],
+        ['鸭子', '嘎嘎', once('duck')],
+        ['大白鹅', '昂', once('goose')],
+        ['鸽子', '咕咕', once('pigeon')],
+        ['喜鹊', '喳喳喳', once('magpie')],
+        ['猫', '喵', once('cat')],
+      ]],
+      ['干活', [
+        ['打铁', '锤子砸在砧子上', once('clang')],
+        ['打铁 ×4', '一锤接一锤', repeat((t, o) => S.SFX.clang(t, o), 4, 0.83)],
+        ['劈柴', '斧子劈下去', once('chop')],
+        ['锄地', '锄头落地', once('thud')],
+      ]],
+      ['响器', [
+        ['梆子', '打更、唱戏打板', once('block')],
+        ['打更', '梆、梆 + 小锣', (t, o) => { S.SFX.block(t, o); S.SFX.block(t + 0.35, o); S.SFX.gong(t + 0.8, o); }],
+        ['大锣', '唱戏开场', once('gong', true)],
+        ['小锣', '', once('gong', false)],
+        ['铃', '祭土地摇铃', once('bell')],
+      ]],
+      ['环境（一次）', [
+        ['鸟叫', '白天随机', once('chirp')],
+        ['蛐蛐', '夜里', repeat((t, o) => S.SFX.cricket(t, o), 3, 0.35)],
+        ['篝火噼啪', '一串', repeat((t, o) => S.SFX.crackle(t + Math.random() * 0.2, o), 12, 0.15)],
+      ]],
+    ];
+    // 一直响的：[名字, 说明, 接线(out) → 停止函数（可选）, 音量]
+    const LOOPS = [
+      ['风', '一阵大一阵小', (o) => S.LOOPS.wind(o), 0.12],
+      ['雨', '下雨天', (o) => S.LOOPS.rain(o), 0.16],
+      ['溪水', '沿溪几处', (o) => S.LOOPS.stream(o), 0.5],
+      ['磨盘 / 碾子', '牲口拉着转', (o) => S.LOOPS.rumble(o), 0.6],
+      ['篝火', '呼呼 + 噼啪', (o) => { S.LOOPS.fire(o); const id = setInterval(() => S.SFX.crackle(ctx.currentTime + 0.02, o), 180); return () => clearInterval(id); }, 0.3],
+      ['人声', '人多的地方', (o) => S.LOOPS.babble(o), 0.3],
+      ['放映机', '露天电影', (o) => S.LOOPS.projector(o), 0.1],
+      ['唱戏', '板胡 + 梆子 + 锣 + 唱腔', (o) => { const st = {}; const sing = new GainNode(ctx, { gain: 1 }); sing.connect(o); const id = setInterval(() => { while ((st.next ?? 0) < ctx.currentTime + 0.3) S.operaStep(st, o, sing); }, 100); return () => clearInterval(id); }, 1],
+    ];
+
+    const list = document.getElementById('list');
+    const section = (title) => { const s = document.createElement('section'); s.innerHTML = `<h2 class="title">${title}</h2><div class="grid"></div>`; list.append(s); return s.querySelector('.grid'); };
+    const button = (grid, name, note) => { const b = document.createElement('button'); b.className = 'btn snd'; b.innerHTML = `<b>${name}</b><small>${note || '　'}</small>`; grid.append(b); return b; };
+
+    for (const [title, items] of GROUPS) {
+      const g = section(title);
+      for (const [name, note, play] of items) {
+        const b = button(g, name, note);
+        b.addEventListener('click', () => {
+          audio();
+          play(ctx.currentTime + 0.03, master);
+          b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 150);
+        });
+      }
+    }
+    const lg = section('一直响的（点一下开 / 关）');
+    for (const [name, note, start, level] of LOOPS) {
+      const b = button(lg, name, note);
+      let g = null, stop = null;
+      b.addEventListener('click', () => {
+        audio();
+        if (g) { // 关：淡出后断开
+          const old = g, s = stop;
+          old.gain.setTargetAtTime(0, ctx.currentTime, 0.15);
+          setTimeout(() => { old.disconnect(); s?.(); }, 800);
+          g = stop = null;
+          b.classList.remove('on');
+          return;
+        }
+        g = new GainNode(ctx, { gain: 0 });
+        g.connect(master);
+        stop = start(g);
+        g.gain.setTargetAtTime(level, ctx.currentTime, 0.2);
+        b.classList.add('on');
+      });
+    }
+    // ?auto=1：把每个按钮都点一遍（无头检查有没有报错）
+    if (new URLSearchParams(location.search).has('auto')) for (const b of document.querySelectorAll('.snd')) { b.click(); if (b.classList.contains('on')) setTimeout(() => b.click(), 1500); }
+    document.documentElement.dataset.ready = '1';
+  </script>
+</body>
+</html>

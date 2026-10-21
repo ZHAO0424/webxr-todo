@@ -1,6 +1,8 @@
 /*
  * 村子的声音：全部用 Web Audio 现场合成，不带任何音频文件。
  *
+ * 音色在 synth.js（试听页 sounds.html 也用它），这里只管"什么时候、在哪儿响"。
+ *
  * - 位置：每个声源放在村子坐标（米）里，听者 = 相机（换算到村子坐标），用 HRTF 声像，离得越远越小、左右分得出。
  *   沙盘是缩小的，整村看过去大约一百多米远，所以参考距离取得大（REF）。
  * - 底噪（不分方向）：风；白天的鸟叫、夜里的蛐蛐；下雨。
@@ -13,37 +15,22 @@
  */
 
 import * as THREE from 'three';
+import { makeSynth } from './synth.js';
 
 const REF = 28; // 参考距离（米）：这么远的时候是原音量
 const AUDIBLE = 160; // 再远的一次性声音就不播了
 
 export function createSound(village, getCamera) {
-  let ctx = null, master = null, on = false;
+  let ctx = null, master = null, on = false, S = null;
   const V = village.life.people[0].V;
-  const loops = [];
   const prevK = new Map();
   const cool = new Map();
   let lp = { x: 0, y: 0, z: 0 };
-  let noise = null, brown = null;
-  let nextNote = 0, nextBeat = 0, beat = 0, note = 3, nextBird = 0, nextCricket = 0, nextCrackle = 0; // 鸟、蛐蛐、篝火、冷却按村子的秒数（t）算，排声音按音频时钟
+  const op = {}; // 唱戏的拍子
+  let nextBird = 0, nextCricket = 0, nextCrackle = 0; // 鸟、蛐蛐、篝火、冷却按村子的秒数（t）算，排声音按音频时钟
 
   const thing = (k) => village.things.find((t) => t.thing === k);
   const centerOf = (t) => t && [(t.box.min.x + t.box.max.x) / 2, t.box.min.y + 0.8, (t.box.min.z + t.box.max.z) / 2];
-
-  // ---------------------------------------------------------------- 底层
-
-  function buffers() {
-    const n = ctx.sampleRate * 2;
-    noise = ctx.createBuffer(1, n, ctx.sampleRate);
-    brown = ctx.createBuffer(1, n, ctx.sampleRate);
-    const a = noise.getChannelData(0), b = brown.getChannelData(0);
-    let last = 0;
-    for (let i = 0; i < n; i++) {
-      a[i] = Math.random() * 2 - 1;
-      last = (last + 0.02 * a[i]) / 1.02;
-      b[i] = last * 3.5;
-    }
-  }
 
   /** 一个声源的位置。life 秒后自动断开（一次性的声音用）。 */
   function panner([x, y, z] = [0, 0, 0], life = 0) {
@@ -55,71 +42,6 @@ export function createSound(village, getCamera) {
   }
   const near = ([x, y, z]) => Math.hypot(x - lp.x, y - lp.y, z - lp.z) < AUDIBLE;
 
-  const src = (buf = noise) => { const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.start(0, Math.random() * 1.9); return s; };
-  const filt = (type, frequency, Q = 1) => new BiquadFilterNode(ctx, { type, frequency, Q });
-  const gainNode = (v = 0) => new GainNode(ctx, { gain: v });
-  const chain = (...n) => { for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]); return n[n.length - 1]; };
-
-  /** 包络：attack 秒升到 peak，然后指数衰减 decay 秒。 */
-  function env(g, t, peak, attack, decay) {
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + attack);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
-  }
-  function osc(type, f, t, dur, out, peak = 0.3, attack = 0.005) {
-    const o = new OscillatorNode(ctx, { type, frequency: f });
-    const g = gainNode();
-    env(g, t, peak, attack, dur);
-    o.connect(g).connect(out);
-    o.start(t); o.stop(t + attack + dur + 0.05);
-    return o;
-  }
-  function burst(t, dur, out, type = 'lowpass', f = 1000, peak = 0.3, Q = 1) {
-    const s = ctx.createBufferSource(); s.buffer = noise;
-    const g = gainNode();
-    env(g, t, peak, 0.002, dur);
-    s.connect(filt(type, f, Q)).connect(g).connect(out);
-    s.start(t, Math.random()); s.stop(t + dur + 0.05);
-  }
-  /** 带共振峰的"嗓子"：锯齿波过一个带通，频率随时间走（叫声、唱腔用）。 */
-  function voice(t, freqs, dur, out, { form = 1000, Q = 3, peak = 0.25, vib = 0, type = 'sawtooth' } = {}) {
-    const o = new OscillatorNode(ctx, { type, frequency: freqs[0] });
-    freqs.forEach((f, i) => o.frequency.linearRampToValueAtTime(f, t + (dur * i) / Math.max(1, freqs.length - 1)));
-    if (vib) { const l = new OscillatorNode(ctx, { frequency: 6 }); const d = gainNode(vib); l.connect(d).connect(o.frequency); l.start(t); l.stop(t + dur + 0.1); }
-    const g = gainNode();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.04, dur / 4));
-    g.gain.setValueAtTime(peak, t + dur * 0.7);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(filt('bandpass', form, Q)).connect(g).connect(out);
-    o.start(t); o.stop(t + dur + 0.05);
-  }
-
-  // ---------------------------------------------------------------- 一次性的声音（out = 声源的 panner）
-
-  const SFX = {
-    clang(t, out) { for (const [f, a] of [[820, 0.35], [1733, 0.22], [2950, 0.14], [4120, 0.08]]) osc('sine', f, t, 0.5 + Math.random() * 0.2, out, a, 0.001); burst(t, 0.02, out, 'highpass', 3000, 0.2); },
-    chop(t, out) { burst(t, 0.07, out, 'lowpass', 900, 0.5); osc('sine', 130, t, 0.12, out, 0.4, 0.002); },
-    thud(t, out) { burst(t, 0.06, out, 'lowpass', 500, 0.35); osc('sine', 85, t, 0.1, out, 0.25, 0.002); },
-    block(t, out) { osc('sine', 1250, t, 0.06, out, 0.35, 0.001); osc('sine', 1870, t, 0.04, out, 0.15, 0.001); }, // 梆子
-    gong(t, out, big = false) { const b = big ? 0.6 : 1; for (const [f, a] of [[220, 0.3], [334, 0.2], [472, 0.15], [655, 0.08]]) { const o = osc('sine', f * b, t, big ? 2.6 : 1.2, out, a, 0.003); o.frequency.exponentialRampToValueAtTime(f * b * 0.97, t + 1.5); } },
-    bell(t, out) { for (const [f, a] of [[1580, 0.2], [2390, 0.12], [3950, 0.05]]) osc('sine', f, t, 2.2, out, a, 0.002); },
-    rooster(t, out) { [[520, 700, 0.18], [650, 760, 0.14], [700, 620, 0.2], [640, 430, 0.55]].reduce((s, [a, b, d]) => { voice(s, [a, b], d, out, { form: 1300, Q: 4, peak: 0.35 }); return s + d + 0.03; }, t); },
-    hen(t, out) { for (let i = 0, n = 1 + Math.floor(Math.random() * 3); i < n; i++) voice(t + i * 0.16, [340, 300], 0.07, out, { form: 950, Q: 5, peak: 0.25 }); },
-    dog(t, out) { for (let i = 0, n = 1 + Math.floor(Math.random() * 2); i < n; i++) { voice(t + i * 0.28, [380, 520, 260], 0.13, out, { form: 800, Q: 2, peak: 0.45 }); burst(t + i * 0.28, 0.08, out, 'bandpass', 1200, 0.15, 2); } },
-    pig(t, out) { for (let i = 0; i < 2; i++) voice(t + i * 0.25, [95, 80], 0.2, out, { form: 420, Q: 2, peak: 0.35, vib: 18 }); },
-    sheep(t, out) { voice(t, [430, 470, 380], 0.75, out, { form: 1050, Q: 3, peak: 0.25, vib: 30 }); },
-    donkey(t, out) { for (let i = 0; i < 4; i++) voice(t + i * 0.4, i % 2 ? [260, 230] : [640, 700], 0.35, out, { form: i % 2 ? 600 : 1300, Q: 3, peak: 0.3 }); },
-    ox(t, out) { voice(t, [125, 135, 108], 1.3, out, { form: 420, Q: 2.5, peak: 0.4 }); },
-    duck(t, out) { for (let i = 0; i < 2; i++) voice(t + i * 0.18, [470, 420], 0.11, out, { form: 1500, Q: 6, peak: 0.25 }); },
-    goose(t, out) { voice(t, [620, 680, 560], 0.22, out, { form: 1800, Q: 5, peak: 0.25 }); },
-    pigeon(t, out) { voice(t, [380, 420, 360], 0.5, out, { form: 500, Q: 2, peak: 0.12, vib: 20, type: 'triangle' }); },
-    magpie(t, out) { for (let i = 0; i < 5; i++) burst(t + i * 0.07, 0.03, out, 'bandpass', 2600, 0.25, 4); },
-    cat(t, out) { voice(t, [620, 760, 520], 0.6, out, { form: 1400, Q: 4, peak: 0.18 }); },
-    chirp(t, out) { for (let i = 0, n = 2 + Math.floor(Math.random() * 4), f = 2800 + Math.random() * 1500; i < n; i++) { const o = osc('sine', f, t + i * 0.09, 0.05, out, 0.06, 0.005); o.frequency.exponentialRampToValueAtTime(f * 1.35, t + i * 0.09 + 0.05); } },
-    cricket(t, out) { const o = new OscillatorNode(ctx, { frequency: 4600 }); const am = new OscillatorNode(ctx, { type: 'square', frequency: 38 }); const g = gainNode(0); const d = gainNode(0.025); am.connect(d).connect(g.gain); env(d, t, 0.025, 0.01, 0.22); o.connect(g).connect(out); o.start(t); am.start(t); o.stop(t + 0.3); am.stop(t + 0.3); },
-    crackle(t, out) { burst(t, 0.004 + Math.random() * 0.01, out, 'highpass', 1800, 0.15 + Math.random() * 0.25); },
-  };
   const ANIMAL = { // 每秒叫一声的概率（白天）；夜里大多不叫
     rooster: 'rooster', hen: 'hen', henBrown: 'hen', dog: 'dog', dogBlack: 'dog', pig: 'pig', sheep: 'sheep', donkey: 'donkey', ox: 'ox', duck: 'duck', goose: 'goose', pigeon: 'pigeon', magpie: 'magpie', cat: 'cat',
   };
@@ -129,83 +51,47 @@ export function createSound(village, getCamera) {
   function play(name, pos, when = 0, ...a) {
     stats[name] = (stats[name] ?? 0) + 1;
     if (!near(pos)) return;
-    SFX[name](ctx.currentTime + 0.02 + when, panner(pos, 5), ...a);
+    S.SFX[name](ctx.currentTime + 0.02 + when, panner(pos, 5), ...a);
   }
 
   // ---------------------------------------------------------------- 一直响的
 
-  /** 一个持续的声源：make(out) 接好发声的节点链，返回 { gain }；level 每帧按情况调。 */
+  /** 一个持续的声源：make(out) 接好发声的节点链；set(音量) 每帧按情况调。 */
   function loop(pos, make) {
     const p = panner(pos);
-    const g = gainNode(0);
+    const g = new GainNode(ctx, { gain: 0 });
     g.connect(p);
     make(g);
-    const l = { g, p, level: 0, set(v, k = 0.4) { if (Math.abs(v - this.level) > 0.002) { this.level = v; g.gain.setTargetAtTime(v, ctx.currentTime, k); } }, move([x, y, z]) { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; } };
-    loops.push(l);
-    return l;
+    return { g, p, level: 0, set(v, k = 0.4) { if (Math.abs(v - this.level) > 0.002) { this.level = v; g.gain.setTargetAtTime(v, ctx.currentTime, k); } }, move([x, y, z]) { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; } };
   }
 
-  let wind, rain, stream = [], mill, roller, fire, firePos, crowd, projector, murmur;
+  let wind, rain, mill, roller, fire, firePos, crowd, projector, murmur;
 
   function setup() {
-    buffers();
+    const L = S.LOOPS;
     // 风 / 雨：不分方向，直接进总线
-    wind = gainNode(0);
-    const wf = filt('lowpass', 420);
-    chain(src(brown), wf, wind, master);
-    const wl = new OscillatorNode(ctx, { frequency: 0.07 }); const wd = gainNode(180); wl.connect(wd).connect(wf.frequency); wl.start(); // 风一阵大一阵小
-    rain = gainNode(0); chain(src(), filt('highpass', 900), filt('lowpass', 7000), rain, master);
+    wind = new GainNode(ctx, { gain: 0 }); L.wind(wind); wind.connect(master);
+    rain = new GainNode(ctx, { gain: 0 }); L.rain(rain); rain.connect(master);
     // 溪水：沿着溪取几处
     const nav = village.nav, cells = [];
     for (let k = 0; k < nav.water.length; k++) if (nav.water[k]) cells.push([nav.cx(k % nav.nx), nav.h[k], nav.cz(Math.floor(k / nav.nx))]);
     cells.sort((a, b) => a[0] - b[0]);
-    for (let i = 0; i < 5 && cells.length; i++) {
-      const c = cells[Math.floor(((i + 0.5) / 5) * cells.length)];
-      const l = loop(c, (out) => { const bp = filt('bandpass', 1100, 0.6); const lf = new OscillatorNode(ctx, { frequency: 0.3 + i * 0.07 }); const d = gainNode(350); lf.connect(d).connect(bp.frequency); lf.start(); chain(src(), bp, filt('lowpass', 3000), out); });
-      l.set(0.5, 0.1);
-      stream.push(l);
-    }
-    // 磨盘、碾子：低沉的隆隆声
-    const rumble = (out) => { const g = gainNode(1); const lf = new OscillatorNode(ctx, { frequency: 0.6 }); const d = gainNode(0.5); lf.connect(d).connect(g.gain); lf.start(); chain(src(brown), filt('lowpass', 160), g, out); };
-    mill = loop(centerOf(thing('millstone')), rumble);
-    roller = loop(centerOf(thing('roller')), rumble);
-    // 篝火：底下一层低低的呼呼声，噼啪在 update 里随机敲
+    for (let i = 0; i < 5 && cells.length; i++) loop(cells[Math.floor(((i + 0.5) / 5) * cells.length)], (out) => L.stream(out, i)).set(0.5, 0.1);
+    mill = loop(centerOf(thing('millstone')), L.rumble);
+    roller = loop(centerOf(thing('roller')), L.rumble);
     firePos = centerOf(thing('firePit'));
-    fire = loop(firePos, (out) => chain(src(brown), filt('lowpass', 300), out));
-    // 人声嗡嗡：几路带通噪声按说话的节奏起伏
-    const babble = (out) => { for (const f of [480, 750, 1150]) { const g = gainNode(0.5); const lf = new OscillatorNode(ctx, { type: 'triangle', frequency: 3 + Math.random() * 2 }); const d = gainNode(0.5); lf.connect(d).connect(g.gain); lf.start(); chain(src(), filt('bandpass', f, 4), g, out); } };
-    crowd = loop([0, 0, 0], babble);
-    murmur = loop([0, 0, 0], babble); // 台上讲话、银幕上的对白
-    projector = loop(centerOf(thing('movieScreen')), (out) => { const g = gainNode(0.6); const am = new OscillatorNode(ctx, { type: 'square', frequency: 24 }); const d = gainNode(0.4); am.connect(d).connect(g.gain); am.start(); chain(src(), filt('bandpass', 2400, 2), g, out); });
+    fire = loop(firePos, L.fire);
+    crowd = loop([0, 0, 0], L.babble);
+    murmur = loop([0, 0, 0], L.babble); // 台上讲话、银幕上的对白
+    projector = loop(centerOf(thing('movieScreen')), L.projector);
   }
 
-  // ---------------------------------------------------------------- 唱戏：板胡 + 梆子 + 锣 + 唱腔
-
-  const SCALE = [196, 220, 247, 294, 330, 392, 440, 494, 587, 659]; // G 宫五声音阶两个八度
-  function opera(t, fiddler, singer) {
-    const now = ctx.currentTime;
-    if (now < nextBeat) return;
+  /** 唱戏：每一拍排一次。 */
+  function opera(fiddler, singer) {
+    if (ctx.currentTime < (op.next ?? 0) - 0.1) return;
     stats.opera = (stats.opera ?? 0) + 1;
-    const BEAT = 0.42;
-    if (nextBeat < now - 1) nextBeat = now;
-    const at = [fiddler.pos.x, fiddler.pos.y + 1, fiddler.pos.z];
-    const out = panner(at, 4);
-    // 梆子每拍一下，每 16 拍一声锣
-    SFX.block(nextBeat, out);
-    if (beat % 16 === 0) SFX.gong(nextBeat, out, true);
-    // 板胡：五声音阶上随机走，偶尔一个长音
-    if (now >= nextNote - 0.05) {
-      note = Math.max(1, Math.min(SCALE.length - 2, note + [-2, -1, -1, 1, 1, 2, 0][Math.floor(Math.random() * 7)]));
-      const dur = BEAT * (Math.random() < 0.25 ? 2 : 1);
-      voice(nextBeat, [SCALE[note], SCALE[note] * 1.003], dur * 0.95, out, { form: 1600, Q: 1.2, peak: 0.18, vib: 5 });
-      if (singer && beat % 2 === 0) { // 唱腔：低八度、元音"啊"的共振峰、颤音大
-        const so = panner([singer.pos.x, singer.pos.y + 1.4, singer.pos.z], 4);
-        voice(nextBeat, [SCALE[note] * 1.0, SCALE[note] * 1.02], dur * 1.8, so, { form: 900, Q: 2, peak: 0.22, vib: 9 });
-      }
-      nextNote = nextBeat + dur;
-    }
-    beat++;
-    nextBeat += BEAT;
+    const out = panner([fiddler.pos.x, fiddler.pos.y + 1, fiddler.pos.z], 4);
+    S.operaStep(op, out, singer && panner([singer.pos.x, singer.pos.y + 1.4, singer.pos.z], 4));
   }
 
   // ---------------------------------------------------------------- 每帧
@@ -241,8 +127,8 @@ export function createSound(village, getCamera) {
 
     // 鸟叫（白天，不下雨）/ 蛐蛐（夜里）：在听者周围随机一处
     const around = () => [lp.x + (Math.random() - 0.5) * 60, lp.y - 30, lp.z + (Math.random() - 0.5) * 60];
-    if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { SFX.chirp(now + 0.02, panner(around(), 3)); nextBird = t + 1.5 + Math.random() * 5; }
-    if ((hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextCricket) { const p = panner(around(), 3); for (let i = 0; i < 3; i++) SFX.cricket(now + 0.02 + i * 0.35, p); nextCricket = t + 1 + Math.random() * 2.5; }
+    if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { S.SFX.chirp(now + 0.02, panner(around(), 3)); nextBird = t + 1.5 + Math.random() * 5; }
+    if ((hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextCricket) { const p = panner(around(), 3); for (let i = 0; i < 3; i++) S.SFX.cricket(now + 0.02 + i * 0.35, p); nextCricket = t + 1 + Math.random() * 2.5; }
 
     // 磨盘、碾子：有牲口拉着转才响
     mill.set(beasts.some((b) => b.circling && b.s.role !== 'ox') ? 0.5 : 0);
@@ -270,7 +156,7 @@ export function createSound(village, getCamera) {
 
     // 唱戏
     const fiddler = people.find((v) => v.state === 'fiddle');
-    if (fiddler) opera(t, fiddler, people.find((v) => v.state === 'sing'));
+    if (fiddler) opera(fiddler, people.find((v) => v.state === 'sing'));
 
     // 干活的声音：锤子 / 斧子 / 锄头落下的那一刻（和 voxel.js 的动作同一个节奏）
     for (const v of people) {
@@ -321,7 +207,8 @@ export function createSound(village, getCamera) {
     toggle() {
       if (!ctx) {
         ctx = new AudioContext();
-        master = gainNode(0.8);
+        S = makeSynth(ctx);
+        master = new GainNode(ctx, { gain: 0.8 });
         const comp = new DynamicsCompressorNode(ctx, { threshold: -18, ratio: 4 });
         master.connect(comp).connect(ctx.destination);
         setup();
