@@ -9,6 +9,7 @@ import { setupPixelUI } from './ui/frame.js';
 import { residentCard, animalCard, thingCard, hm, label } from './ui/cards.js';
 import { pickThing, describe, YARDS } from './things.js';
 import { HOUSEHOLDS } from './residents.js';
+import { createSound } from './audio.js';
 import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 
@@ -146,10 +147,21 @@ function pickScene() {
   else closeCard();
 }
 
-function closeCard() { sel = null; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; }
+function closeCard() { sel = null; follow = false; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; }
 const dockCard = () => { host.style.top = `${clockEl.getBoundingClientRect().bottom + 6}px`; }; // 卡片总在时钟栏下面
 addEventListener('resize', dockCard);
-function show(card, obj, h) { host.innerHTML = ''; host.append(card.el); host.hidden = false; dockCard(); obj.add(marker); marker.position.set(0, h, 0); marker.visible = true; markerH = h; }
+function show(card, obj, h) {
+  host.innerHTML = ''; host.append(card.el); host.hidden = false; dockCard(); obj.add(marker); marker.position.set(0, h, 0); marker.visible = true; markerH = h;
+  if (sel?.v || sel?.b) { // 人和动物的卡片上有"跟随"：镜头平移着把它留在画面中间（距离、角度不变）
+    const b = document.createElement('button');
+    b.className = 'btn follow';
+    const label = () => { b.textContent = follow ? '停止跟随' : '跟随'; b.classList.toggle('on', follow); };
+    b.addEventListener('click', () => { follow = !follow; label(); });
+    label();
+    card.el.querySelector('.who')?.append(b);
+  }
+}
+let follow = false;
 let markerH = 2.2;
 const spot = new THREE.Object3D(); // 房子、物件上方放箭头的点
 village.object.add(spot);
@@ -266,23 +278,41 @@ if (params.get('pick')) {
   else if (id.startsWith('thing:')) { const [, k, n] = id.split(':'); selectThing(village.things.filter((t) => t.thing === k)[Number(n ?? 0)]); } // ?pick=thing:millstone
   else if (id.startsWith('yard:')) selectYard(village.C[id.slice(5)]);
   else selectPerson(V.byId[id]);
+  if (params.get('follow')) host.querySelector('.follow')?.click(); // ?follow=1：选中后直接跟随（截图检查用）
   if (params.get('unfold')) host.querySelectorAll('details').forEach((d) => { d.open = true; });
 }
 
 // ---------------------------------------------------------------- 主循环
 
 const clock = new THREE.Clock();
+const followAt = new THREE.Vector3(), followD = new THREE.Vector3();
+let lastT = 0;
+// 声音：默认关着（浏览器要先点一下才能出声），左下角"声音"按钮打开
+const sound = createSound(village, () => (inXR() ? renderer.xr.getCamera() : camera));
+const soundBtn = document.getElementById('sound');
+if (params.has('sound')) sound.toggle(); // ?sound=1：直接打开（无头检查：看各种声音有没有触发、有没有报错）
+soundBtn?.addEventListener('click', () => { const on = sound.toggle(); soundBtn.textContent = on ? '声音：开' : '声音：关'; soundBtn.classList.toggle('on', on); });
 const viewer = new THREE.Vector3();
 let lastLabel = '';
 const first = village.update(0, camera.position);
 applyLight(first.light);
 renderer.setAnimationLoop((_, frame) => {
   const t = clock.getElapsedTime();
+  const dt = Math.min(0.1, t - lastT);
+  lastT = t;
   if (!(frame && anchor.update(frame, viewer))) {
+    if (follow && sel && (sel.v || sel.b)) { // 跟随：相机和观察点一起平移，角色慢慢移到画面中间
+      const o = (sel.v ?? sel.b).object.getWorldPosition(followAt);
+      followD.subVectors(o, controls.target).multiplyScalar(Math.min(1, dt * 3));
+      controls.target.add(followD);
+      camera.position.add(followD);
+    }
     controls.update();
     viewer.copy(camera.position);
   }
   const s = village.update(t, viewer);
+  sound.update(t, dt);
+  if (params.has('sound')) document.documentElement.dataset.sound = JSON.stringify(sound.stats);
   if (marker.visible) marker.position.y = markerH + (Math.floor(t * 3) % 2) * 0.1; // 一上一下跳
   applyLight(s.light);
   backdrop.update(t);
@@ -309,6 +339,7 @@ if (params.has('sim')) {
   const lastPos = new Map();
   for (let i = 1; i <= total * 10; i++) {
     village.update(i / 10, camera.position);
+    sound.update(i / 10, 0.1);
     if (i % 5) continue;
     for (const v of village.life.people) {
       if (v.inside) continue;

@@ -17,7 +17,7 @@ const server = spawn(process.execPath, [join(here, 'serve.mjs'), String(port)], 
 await new Promise((r) => setTimeout(r, 800));
 
 const size = page === 'sheet' || page === 'roster' ? '1400,2000' : page === 'cast' ? '1600,900' : '1280,800';
-const flags = ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--hide-scrollbars', `--virtual-time-budget=${process.env.VT ?? 10000}`, `--window-size=${size}`];
+const flags = ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--hide-scrollbars', '--autoplay-policy=no-user-gesture-required', `--virtual-time-budget=${process.env.VT ?? 10000}`, `--window-size=${size}`];
 const url = `http://localhost:${port}/${page === 'index' ? '' : page + '.html'}${process.env.Q ?? ''}`;
 const dom = spawnSync(chrome, [...flags, '--dump-dom', url], { encoding: 'utf8', timeout: 400000 }).stdout ?? '';
 spawnSync(chrome, [...flags, `--screenshot=${join(out, page + '.png')}`, url], { timeout: 400000 });
@@ -36,6 +36,7 @@ const audit = dom.match(/data-audit="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"');
 if (audit) console.log(`audit=${audit}`);
 const things = dom.match(/data-things="([^"]*)"/)?.[1]?.replace(/&quot;/g, "\""); if (things) console.log(`things=${things}`);
 const clicked = dom.match(/data-clicked="([^"]*)"/)?.[1]; if (clicked) console.log(`clicked=${clicked}`);
+const snd = dom.match(/data-sound="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"'); if (snd) console.log(`sound=${snd}`);
 const eve = dom.match(/data-eve="([^"]*)"/)?.[1]?.replace(/&quot;/g, "\""); if (eve) console.log(`eve=${eve}`);
 if (errors) console.log(`errors:\n${errors}`);
 console.log(`screenshot: ${join(out, page + '.png')}`);
