@@ -123,6 +123,7 @@ const marker = (() => {
 })();
 
 renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
+addEventListener('pointerdown', () => { sound.wake(); syncSoundBtn(); }); // 第一次点页面就打开声音（浏览器要求先有一次点击）
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return; // 拖动视角不算点击
   ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
@@ -131,7 +132,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (!hit) { pickScene(); return; }
   let o = hit.object;
   while (o && !o.userData.resident && !o.userData.beast) o = o.parent;
-  if (o?.userData.beast) selectBeast(o.userData.beast);
+  if (o?.userData.beast) { selectBeast(o.userData.beast); sound.clickBeast(o.userData.beast); }
   else if (o) selectPerson(village.life.people.find((v) => v.object === o));
 });
 
@@ -141,7 +142,7 @@ function pickScene() {
   if (!hit) { closeCard(); return; }
   const p = village.object.worldToLocal(hit.point.clone());
   const t = pickThing(village.things, p);
-  if (t) { selectThing(t); return; }
+  if (t) { selectThing(t); sound.clickThing(t); return; }
   const c = village.compoundAt(p.x, p.z, 0);
   if (c) selectYard(c);
   else closeCard();
@@ -290,8 +291,25 @@ let lastT = 0;
 // 声音：默认关着（浏览器要先点一下才能出声），左下角"声音"按钮打开
 const sound = createSound(village, () => (inXR() ? renderer.xr.getCamera() : camera));
 const soundBtn = document.getElementById('sound');
-if (params.has('sound')) sound.toggle(); // ?sound=1：直接打开（无头检查：看各种声音有没有触发、有没有报错）
-soundBtn?.addEventListener('click', () => { const on = sound.toggle(); soundBtn.textContent = on ? '声音：开' : '声音：关'; soundBtn.classList.toggle('on', on); });
+// ?sound=1：直接打开声音，定时把统计写到 data-sound（无头检查：各种声音有没有触发、有没有报错）
+// &soundsim=秒：等音效都加载完，把村子快进这么多秒（配合 ?cam= 把镜头放近，测"凑近了才响"）
+if (params.has('sound')) {
+  sound.toggle();
+  setInterval(() => { document.documentElement.dataset.sound = JSON.stringify(sound.stats); }, 500);
+  if (params.has('soundsim')) {
+    setTimeout(() => renderer.setAnimationLoop(null), 0); // 不画画面，让音效解码快点
+    const iv = setInterval(() => {
+      if (!sound.ready) return;
+      clearInterval(iv);
+      camera.updateMatrixWorld();
+      const t0 = clock.getElapsedTime() + 1;
+      for (let i = 1; i <= Number(params.get('soundsim')) * 10; i++) { village.update(t0 + i / 10, camera.position); sound.update(t0 + i / 10, 0.1); }
+      document.documentElement.dataset.soundsim = 'done';
+    }, 200);
+  }
+}
+function syncSoundBtn() { if (soundBtn) { soundBtn.textContent = sound.on ? '声音：开' : '声音：关'; soundBtn.classList.toggle('on', sound.on); } }
+soundBtn?.addEventListener('click', (e) => { e.stopPropagation(); sound.toggle(); syncSoundBtn(); });
 const viewer = new THREE.Vector3();
 let lastLabel = '';
 const first = village.update(0, camera.position);

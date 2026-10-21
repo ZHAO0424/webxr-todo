@@ -1,9 +1,9 @@
 """
-从 Freesound 找声音素材（只要 CC0 公有领域的），每种取下载最多的几个当候选，剪好放进 sfx/cand/，供 sounds.html 试听挑选。
+从 Freesound 找声音素材（只要 CC0 公有领域的），每种取下载最多的几个当候选，剪好放进 sfx/cand/，挑选用。
 用法：python tools/fetch-sfx.py            （全部）
       python tools/fetch-sfx.py dog pig    （只重抓这几种）
 处理：下载 Freesound 的高质量预览 mp3 → ffmpeg 去掉开头静音、截到合适长度、单声道、统一响度 → 64 kbps mp3。
-清单写在 sfx/cand/index.json（来源、作者、链接、授权），挑定之后由 tools/pick-sfx.py 拷到 sfx/。
+清单写在 sfx/cand/index.json（来源、作者、链接、授权），挑定之后由 tools/pick-sfx.py 做成 sfx/<名字>.mp3。
 """
 import json, re, subprocess, sys, urllib.parse, urllib.request, html, pathlib, shutil
 
