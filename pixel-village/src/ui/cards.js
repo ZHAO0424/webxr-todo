@@ -59,8 +59,8 @@ export function residentCard(p, { live = true, onPick, onClose } = {}) {
   const family = RESIDENTS.filter((o) => o.home === p.home && o.id !== p.id);
   const chips = (list, color) => list.map((o) => `<span class="chip ${onPick ? 'link' : ''}" style="--c:${color}" data-id="${o.id}">${esc(o.name)}<span style="opacity:.8">·${esc(o.nick)}</span></span>`).join('');
   el.innerHTML = `${close}
-    <div class="head"><div class="face"></div><div class="who">
-      <div class="name title">${esc(p.name)}<span class="nick">${esc(p.nick)}</span></div>
+    <div class="head"><div class="facecol"><div class="face"></div></div><div class="who">
+      <div class="name">${esc(p.name)}<span class="nick">${esc(p.nick)}</span></div>
       <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.job)}</span><span class="chip soft">${p.age}岁 · ${p.sex}</span><span class="chip soft">${esc(p.household)}</span><span class="chip soft">${esc(p.relation)}</span></div>
     </div></div>
     ${live ? '<div class="paper now"><span class="dot"></span><span class="doing"></span></div><div class="next"></div>' : ''}
@@ -84,7 +84,7 @@ export function residentCard(p, { live = true, onPick, onClose } = {}) {
     el,
     update({ doing: d, where, kind, nextText, cur }) {
       if (!live) return;
-      doing.innerHTML = esc(d) + (where ? `<span class="loc"><i class="pin"></i>${esc(where)}</span>` : '');
+      doing.innerHTML = `<span class="what">${esc(d)}</span>` + (where ? `<span class="loc"><i class="pin"></i>${esc(where)}</span>` : '');
       dot.className = `dot ${kind ?? ''}`;
       next.textContent = nextText ?? '';
       if (cur !== lastCur) { lastCur = cur; plan.innerHTML = planHTML(p.day, cur); }
@@ -99,8 +99,8 @@ export function animalCard(info, kind, { onClose, onPick, ownerId } = {}) {
   el.style.position = 'relative';
   const owner = ownerId && BYID[ownerId];
   el.innerHTML = `${onClose ? '<button class="btn close" title="关闭">×</button>' : ''}
-    <div class="head"><div class="face"></div><div class="who">
-      <div class="name title">${esc(info.name)}</div>
+    <div class="head"><div class="facecol"><div class="face"></div></div><div class="who">
+      <div class="name">${esc(info.name)}</div>
       <div><span class="chip" style="--c:var(--c-craft)">${esc(info.kind)}</span><span class="chip soft">${esc(info.owner)}</span>
       ${owner ? `<span class="chip link" style="--c:var(--c-child)" data-id="${owner.id}">主人 · ${esc(owner.nick)}</span>` : ''}</div>
     </div></div>
@@ -113,7 +113,7 @@ export function animalCard(info, kind, { onClose, onPick, ownerId } = {}) {
   return {
     el,
     update({ doing: d, where, kind: k }) {
-      doing.innerHTML = esc(d) + (where ? `<span class="loc"><i class="pin"></i>${esc(where)}</span>` : '');
+      doing.innerHTML = `<span class="what">${esc(d)}</span>` + (where ? `<span class="loc"><i class="pin"></i>${esc(where)}</span>` : '');
       dot.className = `dot ${k ?? ''}`;
     },
   };
@@ -129,7 +129,7 @@ export function thingCard(info, { onClose, onPick } = {}) {
   el.style.position = 'relative';
   const chips = (list, color) => list.map((o) => `<span class="chip ${onPick ? 'link' : ''}" style="--c:${color}" data-id="${o.id}">${esc(o.name)}</span>`).join('');
   el.innerHTML = `${onClose ? '<button class="btn close" title="关闭">×</button>' : ''}
-    <div class="name title">${esc(info.name)}</div>
+    <div class="name">${esc(info.name)}</div>
     <div>${info.household ? `<span class="chip" style="--c:var(--c-craft)">${esc(info.household.name)}</span>` : ''}${info.tags.map((t) => `<span class="chip soft">${esc(t)}</span>`).join('')}</div>
     <div class="paper now"><span class="dot"></span><span class="doing"></span></div>
     <div class="who-now row"></div>
@@ -143,7 +143,7 @@ export function thingCard(info, { onClose, onPick } = {}) {
   return {
     el,
     update({ lines, kind, who = [] }) {
-      doing.innerHTML = lines.map(esc).join('<br>');
+      doing.innerHTML = lines.map((l) => `<span class="what">${esc(l)}</span>`).join('');
       dot.className = `dot ${kind ?? ''}`;
       const key = who.map((o) => o.id).join();
       if (key !== lastWho) { lastWho = key; whoEl.innerHTML = chips(who, 'var(--c-child)'); bind(whoEl); }

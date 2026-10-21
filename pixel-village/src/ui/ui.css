@@ -112,38 +112,54 @@ details.fold[open] > summary::before { transform: rotate(90deg); }
 details.fold > summary .count { margin-left: auto; color: var(--dim); }
 details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 
-/* ---------------------------------------------------------------- 卡片（村民 / 动物） */
-.card { width: calc(104 * var(--p)); }
+/* ---------------------------------------------------------------- 卡片（村民 / 动物 / 房子物件）
+   宽度和右上角的日期栏一样（--panel-w），卡片里只用一种字号（12px 点阵），间距都收紧 */
+:root { --panel-w: calc(92 * var(--p)); }
+.card { width: var(--panel-w); padding: calc(2 * var(--p)) calc(3 * var(--p)); }
 .card .head { display: flex; gap: calc(3 * var(--p)); align-items: flex-start; }
+.card .facecol { flex: none; display: flex; flex-direction: column; gap: var(--p); }
 .card .face {
-  flex: none;
   border-style: solid;
-  border-width: calc(3 * var(--p));
-  border-image: var(--frame-face) 3 fill / calc(3 * var(--p)) round;
+  border-width: calc(2 * var(--p));
+  border-image: var(--frame-face) 3 fill / calc(2 * var(--p)) round;
   background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); /* 黄昏天 */
   display: grid;
   place-items: end center;
   overflow: hidden;
 }
 .card .face canvas { display: block; }
-.card .who { flex: 1; min-width: 0; padding-top: var(--p); }
-.card .name { color: var(--gold); margin-bottom: var(--p); }
-.card .nick { color: var(--dim); margin-left: calc(3 * var(--p)); }
-.card .close { position: absolute; right: calc(3 * var(--p)); top: calc(3 * var(--p)); --c: var(--red); padding: 0 calc(3 * var(--p)); }
+.card .follow { padding: 0; line-height: calc(14 * var(--f)); text-align: center; }
+.card .who { flex: 1; min-width: 0; }
+.card .name { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; padding-right: calc(10 * var(--p)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 外号太长就省略，不折行 */
+.card .nick { color: var(--dim); text-shadow: none; margin-left: calc(2 * var(--p)); }
+.card .chip { margin: 0 var(--p) var(--p) 0; padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
+.card .close { position: absolute; right: calc(2 * var(--p)); top: calc(2 * var(--p)); --c: var(--red); padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
 .card .now {
-  margin-top: calc(3 * var(--p));
+  margin-top: calc(2 * var(--p));
+  padding: var(--f) calc(2 * var(--p));
+  border-width: calc(2 * var(--p));
+  border-image-width: calc(2 * var(--p));
   display: flex;
-  gap: calc(3 * var(--p));
+  gap: calc(2 * var(--p));
   align-items: center;
 }
 .card .now .dot { width: calc(2 * var(--p)); height: calc(2 * var(--p)); background: var(--green); flex: none; }
 .card .now .dot.rest { background: var(--blue); }
 .card .now .dot.sleep { background: var(--purple); }
 .card .now .dot.event { background: var(--gold); }
-.card .next { color: var(--dim); margin-top: var(--p); }
-.card p { margin: 0 0 calc(2 * var(--p)); }
-.card .row { margin: 0 0 calc(2 * var(--p)); }
-.card .row b { color: var(--gold); text-shadow: none; margin-right: calc(3 * var(--p)); }
+/* 在做什么（左）+ 图钉和地名（右）同一行；放不下时地名换到下一行、仍靠右 */
+.card .now .doing { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; column-gap: calc(2 * var(--p)); }
+.card .what { min-width: 0; }
+.card .loc { margin-left: auto; color: var(--dim); white-space: nowrap; }
+.card .pin { display: inline-block; width: calc(5 * var(--f)); height: calc(7 * var(--f)); margin-right: calc(2 * var(--f)); vertical-align: calc(-1 * var(--f));
+  background: var(--gold); clip-path: polygon(50% 100%, 0 45%, 0 20%, 20% 0, 80% 0, 100% 20%, 100% 45%); }
+.card .next { color: var(--dim); margin-top: var(--f); }
+.card p { margin: var(--p) 0; }
+.card .row { margin: 0 0 var(--p); }
+.card .row b { color: var(--gold); text-shadow: none; margin-right: calc(2 * var(--p)); }
+.card details.fold { margin-top: 0; }
+.card details.fold > summary { padding: var(--f) 0; gap: calc(2 * var(--p)); }
+.card details.fold > div { padding: var(--p) 0 var(--p) calc(4 * var(--p)); }
 
 /* 一天的安排：按早上 / 中午 / 下午 / 晚上分段，当前那条高亮 */
 .plan { margin: 0; padding: 0; list-style: none; }
@@ -153,17 +169,10 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 .plan li.item.past { opacity: .45; }
 .plan li.item.cur { background: #4a3c22; box-shadow: inset var(--p) 0 0 var(--gold); color: #fff2cc; }
 
-/* 房子 / 物件卡片：没有头像，名字单独一行 */
-.card.thing .name { padding-right: calc(14 * var(--p)); }
+/* 房子 / 物件卡片：没有头像；"此刻"每条一行 */
 .card.thing .now { align-items: flex-start; }
-.card.thing .now .dot { margin-top: calc(4 * var(--f)); }
-.card .nick { font-family: 'PixelZh12', sans-serif; font-size: calc(12 * var(--f)); }
+.card.thing .now .dot { margin-top: calc(5 * var(--f)); }
+.card.thing .now .what { flex-basis: 100%; }
 .card .who-now:empty { display: none; }
-.card .who-now { margin-top: calc(2 * var(--p)); }
-.card .follow { display: block; margin-top: var(--p); }
+.card .who-now { margin-top: var(--p); }
 #sound, #music { margin-right: calc(2 * var(--p)); }
-/* 位置：小图钉 + 地名，另起一行 */
-.card .now .doing { min-width: 0; }
-.card .loc { display: block; color: var(--dim); }
-.card .pin { display: inline-block; width: calc(5 * var(--f)); height: calc(7 * var(--f)); margin-right: calc(2 * var(--f)); vertical-align: calc(-1 * var(--f));
-  background: var(--gold); clip-path: polygon(50% 100%, 0 45%, 0 20%, 20% 0, 80% 0, 100% 20%, 100% 45%); }

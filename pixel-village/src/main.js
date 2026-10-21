@@ -157,10 +157,10 @@ function show(card, obj, h) {
   if (sel?.v || sel?.b) { // 人和动物的卡片上有"跟随"：镜头平移着把它留在画面中间（距离、角度不变）
     const b = document.createElement('button');
     b.className = 'btn follow';
-    const label = () => { b.textContent = follow ? '停止跟随' : '跟随'; b.classList.toggle('on', follow); };
+    const label = () => { b.textContent = follow ? '跟随中' : '跟随'; b.classList.toggle('on', follow); };
     b.addEventListener('click', () => { follow = !follow; label(); });
     label();
-    card.el.querySelector('.who')?.append(b);
+    card.el.querySelector('.facecol')?.append(b); // 放在头像正下方
   }
 }
 let follow = false;
@@ -348,7 +348,7 @@ renderer.setAnimationLoop((_, frame) => {
     lastLabel = s.clock.label;
     const e = EVENTS[village.life.today()], w = village.life.weather();
     clockEl.innerHTML = `<div class="date">${lunarLabel(s.clock.day)} · ${WEATHER[w]}</div><div class="time">${s.clock.night ? '夜 ' : ''}${lastLabel}</div>`
-      + `<div class="ev"><span class="chip" style="--c:${w === 'rain' ? 'var(--c-child)' : 'var(--c-craft)'}">今日</span>${e.name}<br><span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} · ${e.place}`}</span></div>`;
+      + `<div class="ev"><span class="chip" style="--c:${w === 'rain' ? 'var(--c-child)' : 'var(--c-craft)'}">今日</span>${e.name}<br><span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} ${e.place}`}</span></div>`;
     refreshCard();
   }
   renderer.render(scene, camera);
