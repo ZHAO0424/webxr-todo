@@ -152,7 +152,7 @@ renderer.setAnimationLoop((_, frame) => {
 if (params.has('sim')) {
   const total = Number(params.get('sim'));
   const nav = village.nav;
-  let samples = 0, clipP = 0, clipA = 0, stuck = 0, escaped = 0, gateOpenSamples = 0, strolls = 0, ajarSamples = 0, beastStuck = 0;
+  let samples = 0, clipP = 0, clipA = 0, stuck = 0, escaped = 0, gateOpenSamples = 0, strolls = 0, ajarSamples = 0, beastStuck = 0, waiting = 0, goSamples = 0;
   const attended = {}, kidsAt = {};
   const esc = {};
   const why = {};
@@ -167,6 +167,8 @@ if (params.has('sim')) {
       if (!nav.freeAt(v.pos.x, v.pos.z, false, true)) { clipP++; const k = `${v.p.id}/${v.doing}/${v.state}`; why[k] = (why[k] ?? 0) + 1; }
       const lp = lastPos.get(v);
       if (v.state === 'walk' && lp && Math.hypot(lp[0] - v.pos.x, lp[1] - v.pos.z) < 0.01) stuck++;
+      if (v.tasks[0]?.type === 'go' && v.state === 'idle' && !v.V.nav.closedDoorAt(v.pos.x + Math.sin(v.heading) * 0.35, v.pos.z + Math.cos(v.heading) * 0.35)) waiting++; // 在路上站着等人（排队）
+      if (v.tasks[0]?.type === 'go') goSamples++;
       lastPos.set(v, [v.pos.x, v.pos.z]);
     }
     for (const b of village.life.beasts) {
@@ -193,7 +195,7 @@ if (params.has('sim')) {
   for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) { const d = Math.hypot(out[i].pos.x - out[j].pos.x, out[i].pos.z - out[j].pos.z); if (d < 0.7) close.push(`${out[i].p.id}(${out[i].state},${out[i].tasks[0]?.type ?? '-'})~${out[j].p.id}(${out[j].state},${out[j].tasks[0]?.type ?? '-'})=${d.toFixed(2)}`); }
   eve.push(...close.map((c) => 'CLOSE ' + c));
   document.documentElement.dataset.eve = JSON.stringify(eve);
-  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.event(), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
+  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.event(), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
 }
 
 let drawables = 0;

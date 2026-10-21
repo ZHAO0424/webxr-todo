@@ -130,16 +130,31 @@ class Villager {
   }
 
   /**
-   * 前面 0.6 米内挡着的人（没有返回 null）。迎面 / 同向都在走的，id 小的先走；站着不动的一律算挡路。
+   * 正前方的人：前方 0.75 米以内、左右偏不到 0.45 米（再偏就擦肩过去了，不算挡）。没有返回 null。
    */
-  blocked(nx, nz) {
-    if (this.passing > 0) return null;
+  ahead(nx, nz) {
+    let best = null, bestD = 0.75;
     for (const o of this.V.people) {
       if (o === this || o.inside || o.perched) continue;
       const dx = o.pos.x - this.pos.x, dz = o.pos.z - this.pos.z;
-      const d = Math.hypot(dx, dz);
-      if (d >= 0.6 || d < 0.01 || (dx * nx + dz * nz) / d <= 0.6) continue;
-      if (o.tasks[0]?.type !== 'go' || o.p.id < this.p.id) return o;
+      const fwd = dx * nx + dz * nz, side = Math.abs(-dx * nz + dz * nx);
+      if (fwd > 0.05 && fwd < bestD && side < 0.45) { best = o; bestD = fwd; }
+    }
+    return best;
+  }
+
+  /**
+   * 从挡路的人旁边绕过去：往离他远的那一侧斜着走（两人迎面时各往各的外侧，自然擦肩）。
+   * 返回这一帧的走向 [mx, mz]，旁边没地方返回 null。
+   */
+  sidestep(nx, nz, o) {
+    const nav = this.V.nav;
+    const lat = -(o.pos.x - this.pos.x) * nz + (o.pos.z - this.pos.z) * nx; // 他在我左边 > 0
+    for (const sd of lat > 0 ? [-1, 1] : [1, -1]) {
+      const mx = nx + -nz * sd * 1.1, mz = nz + nx * sd * 1.1, m = Math.hypot(mx, mz);
+      const x = this.pos.x + (mx / m) * 0.4, z = this.pos.z + (mz / m) * 0.4;
+      const k0 = nav.index(this.pos.x, this.pos.z), k1 = nav.index(x, z);
+      if (nav.free(k1, false, true) && (k0 === k1 || nav.step(k0, k1, false, true)) && !this.V.people.some((p) => p !== this && p !== o && !p.inside && Math.hypot(p.pos.x - x, p.pos.z - z) < 0.4)) return [mx / m, mz / m];
     }
     return null;
   }
@@ -228,42 +243,64 @@ class Villager {
   }
 
   walk(task, dt) {
+    const nav = this.V.nav;
     const target = typeof task.to === 'function' ? task.to() : task.to;
     if (!target) { this.tasks.shift(); return; }
     if (!task.path || (typeof task.to === 'function' && task.retarget-- <= 0)) {
-      task.path = this.V.nav.find(this.pos.x, this.pos.z, target[0], target[1], { person: true }) ?? [];
+      task.path = nav.find(this.pos.x, this.pos.z, target[0], target[1], { person: true }) ?? [];
       task.retarget = 60;
       if (!task.path.length) { this.tasks.shift(); return; }
     }
+    if (task.steered && !nav.line(this.pos.x, this.pos.z, ...task.path[0], false, true)) { // 刚才绕人偏出了路线，直着回不去了：重新找路
+      task.path = nav.find(this.pos.x, this.pos.z, target[0], target[1], { person: true }) ?? [];
+      if (!task.path.length) { this.tasks.shift(); return; }
+    }
+    task.steered = false;
     const [tx, tz] = task.path[0];
     const dx = tx - this.pos.x, dz = tz - this.pos.z;
     const d = Math.hypot(dx, dz);
     const run = task.run;
     this.state = run ? 'run' : 'walk';
+    let step = this.speed * (run ? 1.8 : 1) * dt;
     if (d > 0.01) {
       const nx = dx / d, nz = dz / d;
       this.heading = Math.atan2(nx, nz);
       // 前面是关着的门：站住，伸手推门，等门开了再走
-      const door = this.V.nav.closedDoorAt(this.pos.x + nx * 0.35, this.pos.z + nz * 0.35);
+      const door = nav.closedDoorAt(this.pos.x + nx * 0.35, this.pos.z + nz * 0.35);
       if (door) { door.want = 0.6; this.state = 'idle'; return; }
-      // 前面有人就站住让一让；一旦停下至少停 0.4 秒（不然两人擦肩时每帧在走 / 停之间来回切，看着像在发抖）
       this.passing = Math.max(0, (this.passing ?? 0) - dt);
       if (this.pause > 0) { this.pause -= dt; this.wait += dt; this.state = 'idle'; return; }
-      const o = this.blocked(nx, nz);
+      const o = this.passing > 0 ? null : this.ahead(nx, nz);
       if (o) {
-        // 先请前面站着的人让一让；等一会儿还挡着就绕路；绕不开才侧身挤过去
-        if (this.wait === 0) o.makeWay(this, nx, nz);
-        if (this.wait > 0.8 && !task.detoured) { task.detoured = true; if (this.detour(task, target)) { this.wait = 0; return; } }
-        if (this.wait < 2.5) { this.pause = 0.35; this.wait += dt; this.state = 'idle'; return; }
-        this.passing = 1.2;
+        const oWalking = o.tasks[0]?.type === 'go' && (o.state === 'walk' || o.state === 'run');
+        const side = this.sidestep(nx, nz, o);
+        const sx = this.pos.x + (side?.[0] ?? 0) * step, sz = this.pos.z + (side?.[1] ?? 0) * step;
+        const k0 = nav.index(this.pos.x, this.pos.z), k1 = nav.index(sx, sz);
+        if (side && nav.free(k1, false, true) && (k0 === k1 || nav.step(k0, k1, false, true))) { // 旁边有地方：斜着绕过去（同向就是超车，迎面就是擦肩），不停
+          this.pos.x = sx; this.pos.z = sz;
+          this.heading = Math.atan2(side[0], side[1]);
+          task.steered = true;
+          this.wait = 0;
+          return;
+        }
+        if (oWalking && Math.sin(o.heading) * nx + Math.cos(o.heading) * nz > 0.3) {
+          step = Math.min(step, o.speed * (o.tasks[0]?.run ? 1.8 : 1) * dt * 0.95); // 同向、旁边没地方超：放慢跟着走，不停
+        } else if (oWalking) { // 迎面、窄路上错不开：id 大的让一下
+          if (this.p.id > o.p.id) { this.pause = 0.3; this.wait += dt; this.state = 'idle'; if (this.wait > 1.5) this.passing = 1.0; return; }
+        } else { // 前面的人站着：先请他让一让；等一会儿还挡着就绕路；绕不开才侧身挤过去
+          if (this.wait === 0) o.makeWay(this, nx, nz);
+          if (this.wait > 0.8 && !task.detoured) { task.detoured = true; if (this.detour(task, target)) { this.wait = 0; return; } }
+          if (this.wait < 2.5) { this.pause = 0.35; this.wait += dt; this.state = 'idle'; return; }
+          this.passing = 1.2;
+        }
       }
       this.wait = 0;
       task.detoured = false;
     }
-    const step = this.speed * (run ? 1.8 : 1) * dt;
     if (d <= step) { this.pos.x = tx; this.pos.z = tz; task.path.shift(); if (!task.path.length) this.tasks.shift(); }
     else { this.pos.x += (dx / d) * step; this.pos.z += (dz / d) * step; }
   }
+
 }
 
 // ---------------------------------------------------------------- 傍晚村口的活动
@@ -712,6 +749,16 @@ class Beast {
     return this.V.nav.randomIn(this.s.area, (x, z) => this.c.at(x, z), this.rand, this.swim);
   }
 
+  /** 正前方 0.6 米、左右 0.35 米以内的人。 */
+  personAhead(ux, uz) {
+    for (const o of this.V.people) {
+      if (o.inside || o.perched || o === this.follow || o === this.lure || o.p.id === this.s.owner) continue; // 跟着的、喂食的、主人不用绕
+      const dx = o.pos.x - this.pos.x, dz = o.pos.z - this.pos.z, fwd = dx * ux + dz * uz;
+      if (fwd > 0.05 && fwd < 0.6 && Math.abs(-dx * uz + dz * ux) < 0.35) return o;
+    }
+    return null;
+  }
+
   /** 找一条路（会拱门的把门当路）。离家远时搜全图；困在和村子不连通的小角落里就近跳出来。 */
   plan(tx, tz) {
     const nav = this.V.nav, inDoor = nav.door[nav.index(this.pos.x, this.pos.z)] > 0; // 门关上时正站在门洞里：允许挤回去
@@ -745,6 +792,10 @@ class Beast {
       this.stuck = 0;
     } else if (this.path.length === 1) this.path[0] = [tx, tz];
     if (!this.path.length) { this.pathFor = null; return true; }
+    if (this.steered) { // 刚才绕人偏出了路线，直着回不去就重新找路
+      this.steered = false;
+      if (!nav.line(this.pos.x, this.pos.z, ...this.path[0], this.swim, this.push)) { this.path = this.plan(...this.path[this.path.length - 1]); if (!this.path.length) return true; }
+    }
     let budget = speed * dt, moved = false;
     while (budget > 1e-4 && this.path.length) {
       const [nx, nz] = this.path[0];
@@ -754,11 +805,22 @@ class Beast {
         const door = nav.closedDoorAt(this.pos.x + (ex / e) * 0.3, this.pos.z + (ez / e) * 0.3);
         if (door) { door.ajar = true; this.heading = Math.atan2(-ez, ex); this.moving = false; return false; }
       }
-      const step = Math.min(e, budget);
-      const px = this.pos.x + (ex / e) * step, pz = this.pos.z + (ez / e) * step;
-      this.heading = Math.atan2(-ez, ex);
+      // 路上有人：从离他远的那一侧绕过去；绕不过去，同向就放慢跟着，否则站一下（等久了才挤过去）
+      let ux = ex / e, uz = ez / e, steer = false;
+      const o = this.squeeze > 0 ? null : this.personAhead(ux, uz);
+      if (o) {
+        const lat = -(o.pos.x - this.pos.x) * uz + (o.pos.z - this.pos.z) * ux;
+        const sd = lat > 0 ? -1 : 1, mx = ux - uz * sd * 1.1, mz = uz + ux * sd * 1.1, m = Math.hypot(mx, mz);
+        if (nav.freeAt(this.pos.x + (mx / m) * 0.35, this.pos.z + (mz / m) * 0.35, this.swim)) { ux = mx / m; uz = mz / m; steer = true; this.steered = true; }
+        else if (o.tasks[0]?.type === 'go' && Math.sin(o.heading) * ux + Math.cos(o.heading) * uz > 0.3) budget = Math.min(budget, o.speed * dt * 0.95);
+        else break;
+      }
+      const step = steer ? budget : Math.min(e, budget);
+      const px = this.pos.x + ux * step, pz = this.pos.z + uz * step;
+      this.heading = Math.atan2(-uz, ux);
       if (nav.freeAt(px, pz, this.swim) || !nav.freeAt(this.pos.x, this.pos.z, this.swim)) {
         this.pos.x = px; this.pos.z = pz; budget -= step; moved = true;
+        if (steer) break;
         if (step >= e) this.path.shift();
         continue;
       }
@@ -767,7 +829,7 @@ class Beast {
       break;
     }
     this.stuck = moved ? 0 : (this.stuck ?? 0) + dt;
-    if (this.stuck > 0.8) { this.path = null; this.stuck = 0; } // 真卡住了：下一帧重新找路
+    if (this.stuck > 0.8) { this.path = null; this.stuck = 0; this.squeeze = 1.2; } // 真卡住了：重新找路，这一阵子顾不上让人，挤过去
     this.moving = moved;
     if (this.path && !this.path.length) { this.path = null; this.pathFor = null; return true; } // 走完了（终点是离目标最近的能站的地方）
     return false;
@@ -778,6 +840,7 @@ class Beast {
     const s = this.s, V = this.V;
     this.moving = false;
     this.lostFor = (this.lostFor ?? 0) - dt;
+    this.squeeze = (this.squeeze ?? 0) - dt;
     let y = null;
     if (s.perches) { y = this.perchUpdate(t, dt); }
     else if (s.role === 'pigeon') {
@@ -827,6 +890,7 @@ class Beast {
     }
     // 3. 有人喂食：围过去
     const lure = V.attract.get(`${this.c?.id}:${s.role}`);
+    this.lure = lure;
     if (lure && !lure.inside) {
       const tx = s.trough ? this.c.at(...s.trough) : [lure.pos.x, lure.pos.z];
       if (!this.lureAt) this.lureAt = [tx[0] + (this.rand() - 0.5) * 2.2, tx[1] + (this.rand() - 0.5) * 2.2];
