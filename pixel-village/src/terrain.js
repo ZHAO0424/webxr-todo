@@ -16,7 +16,8 @@ const STAIR = 0.3;
 const PATH_HALF = 1.0;
 const BASE = -3;
 
-const GRASS = 0, FIELD = 1, PATH = 2, PAD = 3, STREAM = 4;
+const GRASS = 0, FIELD = 1, PATH = 2, PAD = 3, STREAM = 4, ROCK = 5, FOREST = 6;
+const TYPES = ['grass', 'field', 'path', 'pad', 'stream', 'rock', 'forest'];
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -32,6 +33,11 @@ export function rawHeight(x, z) {
 }
 
 export const padLevel = (x, z) => Math.max(0.6, Math.round(rawHeight(x, z) / 0.6) * 0.6);
+
+/** 村子的自然地面：按 1.2 米一级取整成梯田，全是草坡（离院子远的再开成庄稼地）。 */
+const villageGround = (x, z) => ({ h: Math.max(0, Math.floor(rawHeight(x, z) / TERRACE) * TERRACE), type: 'grass' });
+/** 村子的水：只有南边那条小溪，水面一样高。 */
+const villageWater = (x, z) => (Math.abs(z - streamZ(x)) < STREAM_HALF ? WATER_Y : null);
 
 /** 点到线段的距离和投影参数。 */
 function segDist(px, pz, ax, az, bx, bz) {
@@ -51,10 +57,15 @@ function inRect(px, pz, r, grow = 0) {
 
 /**
  * pads: [{ x, z, rot(弧度), w, d, level }]；nodes: { 名字: { x, z, h } }；edges: [[a, b]]。
- * 返回 { object, heightAt, walkAt, isWater, fieldSpots, bridge }。
+ * 别的沙盘（西沟）换掉这几样，不传就是村子：
+ *   bounds 范围；natural(x, z) 自然地面 { h, type: 'grass' | 'rock' | 'forest' | 'field', crop }；
+ *   water(x, z) 是水就返回水面高度（水面高低不一时，落差处画成跌水）；farm 草坡自动开成庄稼地
+ *   （也可以是函数 (x, z, h, wild) → 开不开 / 用哪种地皮）；
+ *   sideMat(type, drop, x, z) 落差侧面的材质（返回空就按村子的规矩：石堰 / 台阶 / 土坎）；cropMats 庄稼地四种地皮（crop 0–3）。
+ * 返回 { object, heightAt, walkAt, isWater, fieldSpots, bridge, bridges }。
  */
-export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
-  const { x0, z0, x1, z1 } = BOUNDS;
+export function buildTerrain(M, { pads, nodes, edges, aprons = [], bounds = BOUNDS, natural = villageGround, water = villageWater, farm = true, sideMat = null, cropMats = null }) {
+  const { x0, z0, x1, z1 } = bounds;
   const NX = Math.round((x1 - x0) / CELL), NZ = Math.round((z1 - z0) / CELL);
   const H = new Float32Array(NX * NZ);
   const T = new Uint8Array(NX * NZ);
@@ -69,9 +80,12 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
   for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
     const x = cx(i), z = cz(j);
     const k = id(i, j);
-    if (Math.abs(z - streamZ(x)) < STREAM_HALF) { T[k] = STREAM; H[k] = WATER_Y; continue; }
-    H[k] = Math.max(0, Math.floor(rawHeight(x, z) / TERRACE) * TERRACE);
-    T[k] = GRASS;
+    const lvl = water(x, z);
+    if (lvl !== null) { T[k] = STREAM; H[k] = lvl; continue; }
+    const g = natural(x, z);
+    H[k] = g.h;
+    T[k] = TYPES.indexOf(g.type);
+    if (g.crop !== undefined) crop[k] = g.crop;
   }
   // 2. 院子平台
   for (const p of pads) for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
@@ -80,6 +94,7 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
   }
   // 3. 路：高度沿线插值，按台阶取整；过小溪的地方变成桥（行走高度单独记）
   let bridge = null;
+  const bridges = [];
   for (const [a, b] of edges) {
     const A = nodes[a], B = nodes[b];
     const crossing = { minT: 1, maxT: 0 };
@@ -98,6 +113,7 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
       const deck = Math.max(A.h, B.h) + 0.3; // 比岸高一级台阶
       const tm = (crossing.minT + crossing.maxT) / 2;
       bridge = { x: A.x + (B.x - A.x) * tm, z: A.z + (B.z - A.z) * tm, rot: Math.atan2(B.x - A.x, B.z - A.z), deck, len: (crossing.maxT - crossing.minT) * Math.hypot(B.x - A.x, B.z - A.z) + 1.4 };
+      bridges.push(bridge);
       for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
         const k = id(i, j);
         if (T[k] !== STREAM) continue;
@@ -123,17 +139,19 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
     }
   }
 
-  // 4. 离院子远的坡地种庄稼：每一级梯田一种（麦茬 / 谷子 / 玉米地 / 菜地）
+  // 4. 离院子远的坡地种庄稼：每一级梯田一种（麦茬 / 谷子 / 玉米地 / 菜地）；natural 直接给了庄稼地的照它的
   const fieldSpots = [], fieldCells = [];
   for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
     const k = id(i, j);
-    if (T[k] !== GRASS) continue;
     const x = cx(i), z = cz(j);
+    if (T[k] === FIELD) { fieldCells.push({ x, z, h: H[k], crop: crop[k] }); continue; }
+    if (!farm || T[k] !== GRASS) continue;
     if (pads.some((p) => inRect(x, z, p, 4))) continue;
     const wild = Math.sin(x * 0.13 + 2) * Math.sin(z * 0.11) > 0.35; // 留几片荒坡
-    if (wild || H[k] < 1) continue;
+    const ok = farm === true ? !wild && H[k] >= 1 : farm(x, z, H[k], wild); // farm 是函数：false 不开，数字 = 指定地皮
+    if (!ok && ok !== 0) continue;
     T[k] = FIELD;
-    crop[k] = (((Math.round(H[k] / TERRACE) + Math.floor(x / 22)) % 4) + 4) % 4; // x 为负时取模会得负数
+    crop[k] = typeof ok === 'number' ? ok : (((Math.round(H[k] / TERRACE) + Math.floor(x / 22)) % 4) + 4) % 4; // x 为负时取模会得负数
     fieldCells.push({ x, z, h: H[k], crop: crop[k] });
     if ((i + j * 7) % 97 === 0) fieldSpots.push({ x, z });
   }
@@ -150,8 +168,8 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
     for (let q = 0; q < 4; q++) { b.pos.push(...v[q]); b.nor.push(...n); b.uv.push(...uv[q]); }
     b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
-  const CROPS = [M.stubble, M.millet, M.cornfield, M.veg];
-  const topMat = (k) => [M.grass, CROPS[crop[k]], M.street, M.street, M.water][T[k]];
+  const CROPS = cropMats ?? [M.stubbleW, M.furrow, M.furrow, M.veg]; // 茬地 / 谷子地 / 玉米地 / 菜地
+  const topMat = (k) => [M.grass, CROPS[crop[k]], M.street, M.street, M.water, M.rockTop, M.litter][T[k]];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
     const k = id(i, j);
@@ -164,7 +182,10 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
       const hn = edge ? BASE : H[id(ni, nj)];
       if (hn >= h - 1e-4) continue;
       const drop = h - hn;
-      const mat = edge ? (T[k] === STREAM ? M.water : M.soil) : T[k] === PATH && drop < 0.61 ? M.stone : drop >= 0.6 ? M.rubble : M.soil;
+      const nk = edge ? -1 : id(ni, nj);
+      const mat = edge ? (T[k] === STREAM ? M.water : M.soil)
+        : T[k] === STREAM && T[nk] === STREAM ? M.fall // 水面高低不一：跌水
+          : sideMat?.(TYPES[T[k]], drop, cx(i), cz(j)) ?? (T[k] === PATH && drop < 0.61 ? M.stone : drop >= 0.6 ? M.rubble : M.soil);
       let e0, e1;
       if (di === 1) { e0 = [bx, bz]; e1 = [bx, az]; }
       else if (di === -1) { e0 = [ax, az]; e1 = [ax, bz]; }
@@ -183,7 +204,7 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
     geo.setIndex(b.idx);
     const m = new THREE.Mesh(geo, b.mat);
     m.receiveShadow = true;
-    m.castShadow = b.mat !== M.water;
+    m.castShadow = b.mat !== M.water && b.mat !== M.fall;
     g.add(m);
   }
   g.add(block(x0 - 0.8, BASE - 0.8, z0 - 0.8, x1 + 0.8, BASE, z1 + 0.8, M.trayWood));
@@ -192,14 +213,17 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [] }) {
   return {
     object: g,
     bridge,
+    bridges,
     fieldSpots,
     fieldCells,
     heightAt: (x, z) => H[cellOf(x, z)],
     /** 走路的高度：桥面上用桥面高度。 */
     walkAt: (x, z) => { const k = cellOf(x, z); return Number.isNaN(walk[k]) ? H[k] : walk[k]; },
     isWater: (x, z) => { const k = cellOf(x, z); return T[k] === STREAM && Number.isNaN(walk[k]); },
-    /** 'grass' | 'field' | 'path' | 'pad' | 'stream' */
-    typeAt: (x, z) => ['grass', 'field', 'path', 'pad', 'stream'][T[cellOf(x, z)]],
+    /** 'grass' | 'field' | 'path' | 'pad' | 'stream' | 'rock' | 'forest' */
+    typeAt: (x, z) => TYPES[T[cellOf(x, z)]],
+    /** 这一点在不在这块沙盘上（cellOf 会把外面的点夹到边上，查询前先问一声）。 */
+    inside: (x, z) => x >= x0 && x < x1 && z >= z0 && z < z1,
     water: M.tex.water,
   };
 }

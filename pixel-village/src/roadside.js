@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { block, prism, makeRng } from './pixel.js';
 import { R } from './palette.js';
 import { voxelGeometry } from './voxel.js';
-import { BOUNDS } from './layout.js';
+import { BOUNDS, streamZ, STREAM_HALF } from './layout.js';
 
 /*
  * 路边景观。
@@ -158,7 +158,7 @@ export function buildRoadside(M, terrain, nodes, C) {
     }
   }
 
-  // 野花野草：草坡上离路 0.4–2 米的地方，越近越密
+  // 野花野草：草坡上离路 0.4–2 米的地方越近越密；离路远的草地稀稀拉拉也有，一簇一簇的
   const lists = Object.fromEntries(Object.keys(SHAPES).map((k) => [k, []]));
   const pick = () => { let r = rand(); for (const [k, w] of WEIGHTS) { if ((r -= w) < 0) return k; } return 'tuft'; };
   const pathDist = (x, z) => {
@@ -170,7 +170,8 @@ export function buildRoadside(M, terrain, nodes, C) {
     const px = x + (rand() - 0.5) * 0.4, pz = z + (rand() - 0.5) * 0.4;
     if (terrain.typeAt(px, pz) !== 'grass' || terrain.isWater(px, pz)) continue;
     const d = pathDist(px, pz);
-    if (d === Infinity || rand() > 0.75 - d * 0.25) continue;
+    const south = pz > streamZ(px) + STREAM_HALF; // 溪南草滩：一片片野花
+    if (rand() > (d === Infinity ? (south ? 0.3 : 0.1) * (0.6 + 0.4 * Math.sin(px * 0.7) * Math.sin(pz * 0.9)) : 0.75 - d * 0.25)) continue;
     if (taken.some(([tx, tz, r]) => Math.hypot(px - tx, pz - tz) < r)) continue;
     lists[pick()].push([px, pz, terrain.heightAt(px, pz)]);
   }

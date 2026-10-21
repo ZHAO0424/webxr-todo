@@ -4,7 +4,7 @@ import { friendsOf } from '../residents.js';
 // 每个活动往村民的任务队列里塞一串任务；loop 是任务做完后（活动还没到点结束时）接着做什么。
 
 const WORK = { // 各家默认的干活位置、手里的家伙、朝哪儿
-  smith: { spot: 'anvil', item: 'hammer', face: [-3.4, 2.6] },
+  smith: { spot: 'anvil', item: 'hammer', face: [-1.6, 3.5] }, // 面朝露天里的铁砧
   carpenter: { spot: 'work', item: 'saw', face: [4.7, 1.6] },
   tofu: { spot: 'stove', item: 'ladle', face: [3.6, 0.9] },
   store: { spot: 'counter', item: null, state: 'idle', face: [-1.2, 10] },
@@ -22,6 +22,13 @@ export function kinOf(v) {
 }
 
 export const R = (a) => a[Math.floor(pick() * a.length)];
+
+/** 骡帮不在村里（还没来 / 已经走了）：人和骡子都藏起来。 */
+function caravanAway(v, mules) {
+  v.inside = true;
+  v.object.visible = false;
+  for (const b of mules) { b.home = true; b.follow = null; b.object.visible = false; }
+}
 
 /** 自家门口墙根底下一个没人占的位置（没有就 null）。 */
 function wallSpot(v) {
@@ -344,6 +351,44 @@ export const ACTIVITIES = {
     v.do('work', 5); // 晾衣裳
     v.loop = () => { v.go(v.home.randomPoint()); v.do('idle', 5); };
     v.end = () => v.V.release(v);
+  },
+
+  worship(v) { // 去西沟的山神庙上香：走挂壁古道，爬上崖里凿的石阶，在庙门前作揖、站一会儿
+    const T = v.V.temple;
+    v.go(T.at);
+    v.call(() => T.light?.(v.V.hour())); // 插上香，香炉才冒烟
+    v.do('bow', 3, { face: T.face });
+    v.loop = () => v.do('idle', 6, { face: T.face });
+  },
+
+  caravan(v) { // 骡帮：逢集那天一早从山外进来——顺着西沟崖脚、走挂壁古道、过羊圈进村，在村口西边歇脚做买卖；平常不在村里
+    const V = v.V, K = V.caravan, lead = v.p.caravan === 'lead', mules = lead ? V.beasts.filter((b) => b.s.caravan === v.p.id) : [];
+    if (V.today() !== 'market' || V.weather() === 'rain' || V.hour() >= 11.5) { caravanAway(v, mules); return; }
+    const [ex, ez] = K.route[0]; // 沙盘西边沿：牛老大打头，骡子跟着，石娃殿后（都从沙盘里面一点起步）
+    const at = (dx) => V.nav.nearestFree(ex + dx, ez);
+    const [sx, sz] = at(lead ? 3.2 : 0.4);
+    v.pos.set(sx, 0, sz);
+    v.placed = false;
+    mules.forEach((b, i) => { const [x, z] = at(2.4 - i * 0.7); b.home = false; b.object.visible = true; b.pos.set(x, 0, z); b.placed = false; b.follow = v; b.slot = i; });
+    for (const p of K.route.slice(1)) v.go(p);
+    v.go(K.stand[lead ? 0 : 1]);
+    v.call(() => mules.forEach((b) => { b.follow = null; b.target = null; })); // 到了：骡子在旁边空地上站着
+    v.loop = () => v.do(v.rand() > 0.5 ? 'talk' : 'idle', 8, { face: K.face });
+  },
+
+  caravanHome(v) { // 散了集，骡帮原路回山外（沿着挂壁古道出西沟）
+    const V = v.V, K = V.caravan, lead = v.p.caravan === 'lead', mules = lead ? V.beasts.filter((b) => b.s.caravan === v.p.id) : [];
+    if (!mules.some((b) => !b.home) && !(v.p.caravan === 'helper' && V.today() === 'market' && V.weather() !== 'rain')) { caravanAway(v, mules); return; }
+    mules.forEach((b, i) => { b.follow = v; b.slot = i; });
+    for (const p of [...K.route].reverse()) v.go(p);
+    v.call(() => caravanAway(v, mules));
+  },
+
+  mill(v) { // 去西沟的水磨坊磨面：挎着篮子去，站在磨台边守着（往斗里添粮、扫磨下来的面）
+    const m = v.V.mill;
+    v.char.setItem('basket');
+    v.go(m.at);
+    v.loop = () => v.do('work', 10, { face: m.face });
   },
 
   firewood(v) { // 进山砍柴：扛着斧子上坡，砍一阵，背一捆柴回家

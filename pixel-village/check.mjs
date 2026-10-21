@@ -34,6 +34,7 @@ const sim = dom.match(/data-sim="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"');
 if (sim) console.log(`sim=${sim}`);
 const audit = dom.match(/data-audit="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"');
 if (audit) console.log(`audit=${audit}`);
+const west = dom.match(/data-west="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"'); if (west) console.log(`west=${west}`);
 const things = dom.match(/data-things="([^"]*)"/)?.[1]?.replace(/&quot;/g, "\""); if (things) console.log(`things=${things}`);
 const clicked = dom.match(/data-clicked="([^"]*)"/)?.[1]; if (clicked) console.log(`clicked=${clicked}`);
 const snd = dom.match(/data-sound="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"'); if (snd) console.log(`sound=${snd}`);

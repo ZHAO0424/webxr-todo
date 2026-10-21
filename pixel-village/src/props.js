@@ -99,8 +99,11 @@ export function roller(M, x, z) {
   return at(g, x, z);
 }
 
-/** 铁匠炉：砖砌炉台 + 炉火 + 风箱 + 铁砧 + 水槽。返回 { object, fire（炉口世界局部坐标）}。 */
-export function forge(M, x, z) {
+/**
+ * 铁匠炉：砖砌炉台 + 炉火 + 风箱 + 铁砧 + 水槽。返回 { object, fire（炉口世界局部坐标）}。
+ * anvil / trough：铁砧、淬火水槽相对炉子的位置（铁匠铺把它们摆到棚外露天里）。
+ */
+export function forge(M, x, z, { anvil = [1.8, 0.6], trough = [-0.3, 1.35] } = {}) {
   const g = new THREE.Group();
   g.add(block(-1.0, 0, -0.8, 1.0, 1.0, 0.8, M.brick));
   g.add(block(-0.45, 0.85, -0.35, 0.45, 1.05, 0.35, M.fire, { outline: false }));
@@ -108,9 +111,9 @@ export function forge(M, x, z) {
   g.add(block(-1.9, 0, -0.5, -1.1, 0.9, 0.5, M.wood)); // 风箱
   g.add(block(-1.9, 0.9, -0.05, -1.4, 1.2, 0.05, M.wood));
   const stump = prism(0.35, 0.4, 0.6, M.wood, 8);
-  stump.position.set(1.8, 0.3, 0.6);
-  g.add(stump, block(1.5, 0.6, 0.45, 2.1, 0.85, 0.75, M.iron)); // 铁砧
-  g.add(block(-1.0, 0, 1.1, 0.4, 0.5, 1.6, M.wood)); // 淬火水槽
+  stump.position.set(anvil[0], 0.3, anvil[1]);
+  g.add(stump, block(anvil[0] - 0.3, 0.6, anvil[1] - 0.15, anvil[0] + 0.3, 0.85, anvil[1] + 0.15, M.iron)); // 铁砧
+  g.add(block(trough[0] - 0.7, 0, trough[1] - 0.25, trough[0] + 0.7, 0.5, trough[1] + 0.25, M.wood)); // 淬火水槽
   const halo = new THREE.Sprite(M.haloSprite);
   halo.scale.set(3, 3, 1);
   halo.position.y = 1.3;

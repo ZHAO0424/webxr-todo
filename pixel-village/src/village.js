@@ -4,7 +4,7 @@ import { GLOW } from './palette.js';
 import { buildMaterials } from './textures.js';
 import { buildTerrain, rawHeight, padLevel } from './terrain.js';
 import { buildCompounds } from './compounds.js';
-import { PLACEMENTS, NODES, EDGES, WELL, BOUNDS, streamZ } from './layout.js';
+import { PLACEMENTS, NODES, EDGES, WELL, BOUNDS, streamZ, STREAM_HALF, inSoy } from './layout.js';
 import * as PROPS from './props.js';
 import { tagged, tag, collectThings } from './things.js';
 
@@ -21,6 +21,7 @@ import { fixCoplanar } from './coplanar.js';
 import { snapPerches, findFloating, markReachable, auditPaths } from './audit.js';
 import { daylight } from './daylight.js';
 import { Smoke, Embers, Fireflies, Rain } from './fx.js';
+import { buildWest, WEST_BOUNDS } from './west.js';
 
 /** 石拱桥：桥面 + 两侧带拱洞的立面 + 栏板。b 来自地形（桥中心、走向、桥面高、长度）。 */
 function stoneBridge(M, b) {
@@ -112,7 +113,9 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   }
 
   // 2. 地形 + 院子 + 井 + 桥
-  const terrain = buildTerrain(M, { pads, nodes, edges: EDGES, aprons });
+  // 庄稼地：溪南的河滩留成草滩；村子当中留几片荒坡，沙盘两边的山坡种满；豆腐坊的大豆地用松土地皮
+  const farmAt = (x, z, h, wild) => (h < 1 || z > streamZ(x) - STREAM_HALF || (wild && Math.abs(x) < 30) ? false : inSoy(x, z) ? 1 : true);
+  const terrain = buildTerrain(M, { pads, nodes, edges: EDGES, aprons, farm: farmAt });
   root.add(terrain.object);
   for (const c of Object.values(C)) root.add(c.object);
   root.add(P.well(M, WELL.x, WELL.z).translateY(terrain.heightAt(WELL.x, WELL.z)));
@@ -153,6 +156,15 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     const kind = kinds[Math.floor(rand() * kinds.length)];
     plant(kind, x, z, { seed: seed++, scale: kind === 'locust' ? 0.55 : 0.75 + rand() * 0.3 });
   }
+  for (let x = BOUNDS.x0 + 3; x < BOUNDS.x1 - 3; x += 3.2) for (let z = BOUNDS.z0 + 3; z < streamZ(x) - 3; z += 3.2) { // 院子之间空着的草地：补几丛灌木、小树
+    const px = x + (rand() - 0.5) * 1.6, pz = z + (rand() - 0.5) * 1.6;
+    if (terrain.typeAt(px, pz) !== 'grass' || rand() > 0.55) continue;
+    if (trunks.some(([tx, tz]) => Math.hypot(tx - px, tz - pz) < 3.2) || nearPath(px, pz)) continue;
+    if ([[1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]].some(([dx, dz]) => terrain.typeAt(px + dx, pz + dz) === 'pad')) continue; // 别贴着院墙
+    if (Object.values(nodes).some((n) => Math.hypot(n.x - px, n.z - pz) < 3)) continue;
+    const kind = rand() < 0.6 ? 'bush' : ['jujube', 'persimmon', 'locust'][Math.floor(rand() * 3)];
+    plant(kind, px, pz, { seed: seed++, scale: kind === 'bush' ? 0.7 + rand() * 0.4 : kind === 'locust' ? 0.5 : 0.7 + rand() * 0.2 });
+  }
 
   // 4. 火把、庄稼地里的稻草人和看青棚
   const torches = TORCHES.map(([n, dx, dz]) => {
@@ -173,8 +185,17 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   // 4.6 猫、喜鹊蹲的高处贴到真实表面上（见 audit.js）
   root.userData.perchFix = snapPerches(root, terrain, C);
 
-  // 5. 导航网格：把房子、墙、栅栏、道具、树干都投影成障碍（门扇、灯笼这些会动的不算）
-  const nav = new NavGrid(terrain);
+  // 4.7 西沟：接在村子西边的另一块沙盘（west.js）。和村子同一个世界、同一张导航网格，村民走得过去
+  const west = buildWest(M);
+  const pickT = (x) => (x < BOUNDS.x0 ? west.terrain : terrain);
+  const ground = {
+    walkAt: (x, z) => pickT(x).walkAt(x, z),
+    isWater: (x, z) => pickT(x).isWater(x, z),
+    typeAt: (x, z) => pickT(x).typeAt(x, z),
+  };
+
+  // 5. 导航网格（覆盖村子 + 西沟）：把房子、墙、栅栏、道具、树干都投影成障碍（门扇、灯笼这些会动的不算）
+  const nav = new NavGrid(ground, { ...BOUNDS, x0: WEST_BOUNDS.x0 });
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const rel = new THREE.Matrix4();
@@ -189,6 +210,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   for (const k of root.children) visit(k);
   for (const [x, z, r] of trunks) nav.blockDisc(x, z, r);
   for (const c of Object.values(C)) for (const [lx, lz, r] of c.discs) nav.blockDisc(...c.at(lx, lz), r); // 火塘
+  west.blockNav(nav);
 
   // 门：院门、栅栏门登记成门格子（关着时动物过不去，人走到跟前会推开）
   const gates = Object.values(C).flatMap((c) => c.gates.map((gt) => {
@@ -257,6 +279,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
 
   // 自检 2：走不到的房门 / 去处、和村子不连通的路网节点、走不通的路（见 audit.js）
   Object.assign(root.userData, auditPaths(nav, C, nodes, terrain, EDGES));
+  const wa = auditPaths(nav, {}, west.nodes, west.terrain, west.edges); // 西沟的路：和井连不连通、走不走得通
+  west.object.userData.audit = { islands: wa.islands, brokenEdges: wa.brokenEdges };
 
   // 祭土地：庙前磕头的位置、排队 / 磕完说话的地方（庙前一圈能站、走得到、不在水里）
   const shrine = road.shrine && (() => {
@@ -273,17 +297,24 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   const ducks = [-20, 27.2, -6, 33];
   const V = {
     M, root, nav, C, nodes, torches, shrine,
-    fields: farm.fields,
-    pasture: farm.pasture.filter((p) => nav.freeAt(p[0], p[1]) && nav.reachable(p[0], p[1])),
+    fields: { ...farm.fields, fieldWest: west.work.fieldWest.filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p)) }, // fieldWest：西沟主路边的梯田
+    mill: { at: nav.nearestFree(...west.work.mill.at), face: west.work.mill.face }, // 西沟水磨坊：磨台北边磨面的位置
+    temple: { at: nav.nearestFree(...west.work.temple.at), face: west.work.temple.face, light: west.work.temple.light }, // 西沟山神庙：栈台上、庙门前上香
+    // 羊吃草的坡：西沟崖顶的草坡（走得到的话），不然村西的荒草坡
+    pasture: (() => { const ok = (p) => nav.freeAt(p[0], p[1]) && nav.reachable(p[0], p[1]), up = west.work.pasture.filter(ok); return up.length > 20 ? up : farm.pasture.filter(ok); })(),
+    // 骡帮进村的路（一段段找路的落脚点）：山外 → 西沟崖脚 → 挂壁古道 → 羊圈西边 → 井 → 村口；在村口西边歇脚做买卖
+    caravan: {
+      route: [...west.work.caravan, [nodes.westCliff.x, nodes.westCliff.z], [nodes.shepS.x, nodes.shepS.z], [nodes.nw.x, nodes.nw.z], [nodes.well.x, nodes.well.z], [nodes.sqNW.x, nodes.sqNW.z]],
+      stand: [nav.nearestFree(nodes.sqW.x - 1.6, nodes.sqW.z - 2.5), nav.nearestFree(nodes.sqW.x - 1.0, nodes.sqW.z - 4.2)],
+      face: [nodes.sqW.x + 4, nodes.sqW.z],
+    },
     well: { center: [WELL.x, WELL.z], spot: () => nav.nearestFree(WELL.x + 1.4, WELL.z + 0.6) },
     duckWater: nav.nearestFree(-12, 28.5),
     // 小孩玩耍的去处：溪北岸能站的地方（脸朝水），村口附近的庄稼地
     bankClaims: {}, // 溪边洗衣裳的位置有人占了就换一个
-    // 进山砍柴：村外坡上（离村中心 18 米以外、草坡上）走得到的树
-    woods: trunks.filter(([x, z]) => Math.hypot(x, z - 5) > 18 && terrain.typeAt(x, z) === 'grass').map(([x, z]) => {
-      const at = nav.nearestFree(x + 0.9, z + 0.6, false, 2);
-      return nav.freeAt(...at) && nav.reachable(...at) ? { at, tree: [x, z] } : null;
-    }).filter(Boolean),
+    // 进山砍柴：村外坡上（离村中心 18 米以外、草坡上）、西沟林子里路边的树，走得到的
+    woods: [...trunks.filter(([x, z]) => Math.hypot(x, z - 5) > 18 && terrain.typeAt(x, z) === 'grass').map(([x, z]) => ({ at: nav.nearestFree(x + 0.9, z + 0.6, false, 2), tree: [x, z] })), ...west.work.woods]
+      .filter((w) => nav.freeAt(...w.at) && nav.reachable(...w.at)),
     streamBank: (() => {
       const out = [];
       for (let x = -22; x <= 30; x += 1.5) {
@@ -292,15 +323,20 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
       }
       return out;
     })(),
-    playFields: [...farm.fields.fieldS, ...terrain.fieldCells.filter((c, i) => i % 5 === 0 && Math.hypot(c.x - 2, c.z - 10) < 28 && nav.freeAt(c.x, c.z) && nav.reachable(c.x, c.z)).map((c) => [c.x, c.z])],
+    playFields: [...farm.fields.fieldSoy, ...terrain.fieldCells.filter((c, i) => i % 5 === 0 && Math.hypot(c.x - 2, c.z - 10) < 28 && nav.freeAt(c.x, c.z) && nav.reachable(c.x, c.z)).map((c) => [c.x, c.z])],
   };
   const extraAnimals = [
     ...Array.from({ length: 4 }, () => ({ kind: 'goose', role: 'goose', worldArea: ducks })),
     ...Array.from({ length: 5 }, () => ({ kind: 'duck', role: 'duck', worldArea: ducks })),
     ...Array.from({ length: 8 }, (_, i) => ({ kind: 'pigeon', role: 'pigeon', cx: 0, cz: -8, r: 12, y: 22, offset: i * 0.35 })),
+    // 骡帮的三头骡子：平常不在村里，逢集跟着牛老大来，到了村口在西边空地上站着
+    ...Array.from({ length: 3 }, (_, i) => ({ kind: 'donkey', role: 'mule', caravan: 'niu_wanshan', name: ['大青', '二黑', '花脸'][i], worldArea: [nodes.sqW.x - 6, nodes.sqW.z - 6, nodes.sqW.x - 2.5, nodes.sqW.z - 1] })),
   ];
   V.bonfire = { lit: false };
   const life = populate(V, RESIDENTS, extraAnimals, startHour, { event, weather });
+  for (const b of life.beasts) if (b.s.caravan) { // 驮骡：背上一边一个驮篓，中间捆着一卷布
+    b.object.add(block(-0.42, 0.42, 0.26, 0.2, 0.82, 0.46, M.straw), block(-0.42, 0.42, -0.46, 0.2, 0.82, -0.26, M.straw), block(-0.3, 0.68, -0.26, 0.1, 0.9, 0.26, M.cloth));
+  }
   const pitFire = C.square.evening.fire;
 
   // 9. 烟火：炊烟、蒸汽、炉火星、萤火虫、几盏真实的点光源
@@ -356,6 +392,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     return Math.abs(cs * dx - sn * dz) <= c.w / 2 + pad && Math.abs(sn * dx + cs * dz) <= c.d / 2 + pad;
   }) ?? null;
   const whereAt = (x, z) => {
+    if (x < BOUNDS.x0) return Math.hypot(x - V.mill.at[0], z - V.mill.at[1]) < 6 ? '水磨坊' : west.placeAt(x, z).name; // 西沟
     const c = compoundAt(x, z);
     if (c) return PLACES[c.id];
     if (shrine && Math.hypot(x - shrine.at[0], z - shrine.at[1]) < 4) return '桥头土地庙';
@@ -374,10 +411,17 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     compoundAt,
     things,
     C,
+    M, // 西沟和村子共用一套材质
+    west,
     update(t, viewerWorld) {
       const dt = Math.max(0, Math.min(0.1, t - last));
       last = t;
       life.update(t, dt);
+      // 走到西沟的人和动物挂到西沟那块沙盘下（两块坐标一样）：换场景时跟着那块一起显示 / 藏起来
+      for (const a of life.people.concat(life.beasts)) {
+        const host = a.pos.x < BOUNDS.x0 ? west.object : root;
+        if (a.object.parent !== host) host.add(a.object);
+      }
       const hour = life.clock.hour;
       const weather = V.weather();
       const L = overcast(daylight(hour), weather); // 阴天、雨天：太阳弱、天发灰，雨天白天屋里也点灯

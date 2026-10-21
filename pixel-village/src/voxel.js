@@ -440,6 +440,11 @@ const TREE_SPECS = {
   persimmon: (r) => ({ trunk: [1, 13], branches: 3, ramp: R.autumn, fruit: R.red[3], fruitRate: 0.08, sparse: 0.35, blobs: Array.from({ length: 5 }, () => [(r() - 0.5) * 18, 18 + r() * 6, (r() - 0.5) * 14, 8 + r() * 3, 6 + r() * 2, 8 + r() * 3]) }),
   willow: (r) => ({ trunk: [2, 14], branches: 2, ramp: R.leaf, willow: true, blobs: Array.from({ length: 3 }, () => [(r() - 0.5) * 16, 20 + r() * 3, (r() - 0.5) * 12, 10, 4, 10]) }),
   bush: (r) => ({ trunk: [1, 5], branches: 0, ramp: R.leaf, fruit: R.red[3], fruitRate: 0.05, blobs: Array.from({ length: 3 }, () => [(r() - 0.5) * 5, 8 + r() * 2, (r() - 0.5) * 5, 4, 3.5, 4]) }),
+  // 西沟的山林
+  pine: (r) => ({ trunk: [2, 30], branches: 3, ramp: R.green, blobs: [[-6 + r() * 4, 22, 0, 13 + r() * 3, 3.5, 11], [4 + r() * 3, 28, r() * 3, 11, 3.2, 9], [-3, 33, -2, 8, 3, 7], [1, 37, 0, 5, 2.5, 5]] }), // 油松：一层层平展的松针
+  smoke: (r) => ({ trunk: [1, 8], branches: 3, ramp: R.red, sparse: 0.15, blobs: Array.from({ length: 5 }, () => [(r() - 0.5) * 12, 12 + r() * 5, (r() - 0.5) * 10, 5 + r() * 2, 4 + r() * 2, 5 + r() * 2]) }), // 黄栌：秋天满山的红叶
+  oak: (r) => ({ trunk: [2, 16], branches: 3, ramp: R.russet, sparse: 0.1, blobs: Array.from({ length: 6 }, () => [(r() - 0.5) * 22, 22 + r() * 6, (r() - 0.5) * 18, 8 + r() * 3, 6 + r() * 2, 8 + r() * 3]) }), // 槲栎：叶子红褐
+  walnut: (r) => ({ trunk: [2, 14], branches: 4, ramp: R.grass, blobs: Array.from({ length: 5 }, () => [(r() - 0.5) * 24, 22 + r() * 4, (r() - 0.5) * 20, 10 + r() * 3, 6 + r(), 10 + r() * 3]) }), // 核桃：树冠宽，叶子黄绿
 };
 
 export function voxelTree(kind, seed = 1, scale = 1) {

@@ -96,7 +96,7 @@ export function weatherOf(day, forced) {
   return h < 0.6 ? 'sunny' : h < 0.85 ? 'cloudy' : 'rain';
 }
 export const roleOf = (key, p) => EVENTS[key].roles[p.id] ?? null;
-export const attends = (p, key, day) => !!roleOf(key, p) || (!EVENTS[key].stay?.includes(p.id) && hash(`${day}/${p.id}/${key}`) < EVENTS[key].prob(p)); // stay：手上有买卖走不开的
+export const attends = (p, key, day) => !p.caravan && (!!roleOf(key, p) || (!EVENTS[key].stay?.includes(p.id) && hash(`${day}/${p.id}/${key}`) < EVENTS[key].prob(p))); // stay：手上有买卖走不开的；骡帮自己走自己的（activities.js 的 caravan）
 
 /** 这会儿 v 该不该在活动上：今天的活动、在时间窗里（有角色的提前到）、自己去、还没提前散。 */
 export function eventNow(v, hour) {

@@ -41,7 +41,7 @@ export function findFloating(root, terrain) {
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), rel = new THREE.Matrix4(), box = new THREE.Box3();
   const floating = [];
   const visit = (o) => {
-    if (o === terrain.object || o.userData.dynamic || o.userData.tree || o.userData.onBridge) return;
+    if (o === terrain.object || o.userData.dynamic || o.userData.tree || o.userData.onBridge || o.userData.inCliff || o.userData.tilted) return; // inCliff：嵌在崖壁里的（挂壁古道），本来就一半悬在崖外；tilted：顺着坡斜躺的原木
     if (isSolidMesh(o)) {
       rel.multiplyMatrices(inv, o.matrixWorld);
       if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();

@@ -27,7 +27,7 @@ const SAMPLES = ['rooster', 'hen', 'dog', 'pig', 'sheep', 'donkey', 'ox', 'duck'
 const LONG = new Set(['crickets', 'fire', 'mill', 'crowd', 'projector']); // 长录音（循环用），不等它们
 const ANIMAL = { rooster: 'rooster', hen: 'hen', henBrown: 'hen', dog: 'dog', dogBlack: 'dog', pig: 'pig', sheep: 'sheep', donkey: 'donkey', ox: 'ox', duck: 'duck', goose: 'goose', pigeon: 'pigeon', magpie: 'magpie', cat: 'cat' };
 // 点物件时放什么：录音名，或 synth:合成音色
-const THING_SOUND = { forge: 'clang', millstone: 'mill', roller: 'mill', firePit: 'fire', coop: 'hen', pigsty: 'pig', shed: 'ox', duckHouse: 'duck', movieScreen: 'projector', stage: 'synth:gong', shrine: 'synth:bell', well: 'synth:block', lumber: 'chop', firewood: 'chop', workbench: 'chop' };
+const THING_SOUND = { forge: 'clang', millstone: 'mill', roller: 'mill', firePit: 'fire', coop: 'hen', pigsty: 'pig', shed: 'ox', duckHouse: 'duck', movieScreen: 'projector', stage: 'synth:gong', shrine: 'synth:bell', well: 'synth:block', lumber: 'chop', firewood: 'chop', workbench: 'chop', watermill: 'mill', weir: 'mill', mountainTemple: 'synth:bell' };
 
 export function createSound(village, getCamera) {
   let ctx = null, master = null, on = false, S = null, ready = false, muted = false;

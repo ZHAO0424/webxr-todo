@@ -22,6 +22,18 @@
     /* 卡片：时钟栏下面，靠右 */
     #card { position: fixed; right: calc(4 * var(--p)); top: calc(66 * var(--p)); max-height: calc(100vh - 72 * var(--p)); overflow: auto; scrollbar-width: none; }
     #card::-webkit-scrollbar { display: none; }
+    /* 换场景：屏幕左右边缘正中的像素按钮（像素三角 + 那边的地名） */
+    .scene-nav { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
+                 padding: calc(3 * var(--p)) calc(2 * var(--p)); cursor: pointer; color: var(--text); background: none; }
+    .scene-nav[hidden] { display: none; }
+    .scene-nav:hover { color: var(--gold); filter: brightness(1.15); }
+    .scene-nav:active { transform: translateY(calc(-50% + var(--f))); }
+    .scene-nav .tri { width: calc(5 * var(--p)); height: calc(10 * var(--p)); background: var(--gold); }
+    .scene-nav .label { writing-mode: vertical-rl; letter-spacing: calc(2 * var(--f)); }
+    #goLeft { left: calc(4 * var(--p)); }
+    #goLeft .tri { clip-path: polygon(100% 0, 0 50%, 100% 100%); }
+    #goRight { right: calc(4 * var(--p)); }
+    #goRight .tri { clip-path: polygon(0 0, 100% 50%, 0 100%); }
     #err { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; padding: 8px; background: #600; color: #fff;
            font: 12px monospace; white-space: pre-wrap; display: none; max-height: 40vh; overflow: auto; }
   </style>
@@ -53,6 +65,8 @@
 <body>
   <div id="hint" class="dark px"><button id="sound" class="btn">声音：关</button> <button id="music" class="btn">音乐：关</button> 拖动旋转 · 滚轮缩放 · 点击村民、动物、房屋或物件查看详情 · <a href="roster.html">村民档案 →</a></div>
   <div id="clock" class="dark px"></div>
+  <button id="goLeft" class="scene-nav dark px" title="往西走（←）" hidden><span class="tri"></span><span class="label"></span></button>
+  <button id="goRight" class="scene-nav dark px" title="往东走（→）" hidden><span class="tri"></span><span class="label"></span></button>
   <div id="card" hidden></div>
   <pre id="err"></pre>
   <script type="module" src="src/main.js"></script>

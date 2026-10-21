@@ -4,18 +4,21 @@ import { R } from './palette.js';
 import { voxelGeometry } from './voxel.js';
 import * as PROPS from './props.js';
 import { tagged } from './things.js';
+import { inSoy } from './layout.js';
 
 const P = tagged(PROPS); // 建出来的物件都带上 userData.thing，点它能看卡片
 
 /*
- * 庄稼地。地形里每一级梯田已经定了种什么（crop：0 麦茬 / 1 谷子 / 2 玉米 / 3 白菜），
- * 这里把它们种成立体的体素庄稼（实例化渲染，几千棵也只占几个 draw call）：
- *   - 玉米：枯黄的秸秆 + 斜出的叶子 + 一个棒子（秋收，有的已经掰了）
- *   - 谷子：弯着腰的金黄谷穗；隔一级种红高粱
+ * 庄稼地。地形里每一级梯田已经定了种什么（crop：0 割完的茬地 / 1 谷子 / 2 玉米 / 3 白菜），
+ * 这里把它们种成立体的体素庄稼（实例化渲染，几千棵也只占几个 draw call）。按垄种：垄沿着梯田（东西向），
+ * 一米两垄、留一道垄沟，高秆的一米一丛，地皮（terrain.js 的 furrow / stubbleW）的垄和它对得上：
+ *   - 谷子：三棵一丛，弯着腰的金黄谷穗；隔一级种红高粱（两棵一丛，长叶子）
+ *   - 玉米：秆子、宽叶子都干成灰黄，腰上一个包皮的棒子
+ *   - 茬地：谷个子 / 麦个子一行行错开立着
  *   - 白菜：一棵棵绿疙瘩
- *   - 麦茬地：一捆捆立着的麦个子
- *   - 南滩：赵家的大豆（豆腐坊的豆子就从这儿来）
+ *   - 村西坡最高那几级：赵家的大豆（豆腐坊的豆子就从这儿来）
  * 外加稻草人、看青棚。返回各家下地干活的点（fields）和羊吃草的坡（pasture）。
+ * 西沟的梯田用同一套庄稼（fieldCrops）。
  */
 
 const PV = 0.07; // 庄稼体素边长
@@ -26,24 +29,85 @@ function plant(fn, size) {
   const [sx, sy, sz] = size;
   return voxelGeometry([-sx, 0, -sz], [sx + 1, sy, sz + 1], (x, y, z) => vox.has(`${x},${y},${z}`), (x, y, z) => vox.get(`${x},${y},${z}`), PV, [-PV / 2, 0, -PV / 2]);
 }
+const leaf = (v, x, y, z, dx, dz, len, c) => { for (let k = 1; k <= len; k++) v(x + dx * k, y - Math.floor((k * k) / 6), z + dz * k, c); }; // 一片往外耷拉的叶子
 
-const SHAPES = {
-  corn: () => plant((v) => {
-    for (let y = 0; y < 26; y++) v(0, y, 0, y % 6 === 0 ? R.wheat[2] : R.wheat[3]);
-    for (const [y, dx, dz] of [[8, 1, 0], [12, -1, 0], [16, 0, 1], [20, 0, -1]]) for (let k = 1; k < 5; k++) v(dx * k, y - Math.floor(k / 2), dz * k, k > 2 ? R.wheat[2] : R.harvest[3]);
-    for (let y = 10; y < 14; y++) v(1, y, 1, R.gold[3]);
-    v(1, 14, 1, R.wheat[4]);
-  }, [5, 27, 5]),
-  sorghum: () => plant((v) => {
-    for (let y = 0; y < 28; y++) v(0, y, 0, R.harvest[2]);
-    for (const [y, dx] of [[9, 1], [15, -1]]) for (let k = 1; k < 4; k++) v(dx * k, y - Math.floor(k / 2), 0, R.harvest[3]);
-    for (let y = 26; y < 32; y++) for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) if (Math.abs(x) + Math.abs(z) < 2 || y < 30) v(x, y, z, (x + y + z) % 3 ? R.red[2] : R.red[1]);
-  }, [4, 33, 4]),
-  millet: () => plant((v) => {
-    for (let y = 0; y < 13; y++) v(0, y, 0, R.harvest[2]);
-    for (let k = 0; k < 6; k++) { v(1 + Math.floor(k / 2), 13 - k, 0, R.gold[3]); v(1 + Math.floor(k / 2), 13 - k, 1, k % 2 ? R.gold[4] : R.gold[2]); }
-    v(-1, 6, 0, R.grass[3]); v(-2, 5, 0, R.grass[3]);
-  }, [4, 15, 3]),
+/** 地里的庄稼：一丛一个实例。 */
+const CROPS = {
+  millet: () => plant((v) => { // 谷子：三棵一丛，金黄的谷穗沉甸甸地弯下来
+    for (const [ox, oz, h, dx, dz] of [[-2, 0, 13, -1, 0], [1, -2, 14, 0, -1], [1, 2, 12, 1, 1]]) {
+      for (let y = 0; y < h; y++) v(ox, y, oz, y < h * 0.45 ? R.grass[2] : R.harvest[3]);
+      leaf(v, ox, Math.floor(h * 0.4), oz, dz || 1, -dx || 1, 3, R.grass[3]);
+      for (let k = 0; k < 6; k++) {
+        const x = ox + Math.round(dx * k * 0.5), y = h - Math.floor(k * 0.8), z = oz + Math.round(dz * k * 0.5);
+        v(x, y, z, k % 2 ? R.gold[3] : R.gold[4]); v(x, y - 1, z, R.gold[2]);
+      }
+    }
+  }, [5, 16, 5]),
+  sorghum: () => plant((v) => { // 高粱：两棵一丛，秆高叶长，顶上一穗红高粱
+    for (const [ox, oz, h] of [[-1, 0, 27], [2, 1, 25]]) {
+      for (let y = 0; y < h; y++) v(ox, y, oz, R.harvest[2]);
+      [[1, 0, 8], [-1, 0, 12], [0, 1, 16], [0, -1, 20]].forEach(([dx, dz, y], i) => leaf(v, ox, y, oz, dx, dz, 5, i % 2 ? R.harvest[3] : R.grass[3]));
+      for (let y = h; y < h + 6; y++) for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) if (Math.abs(x) + Math.abs(z) < 2 || (y > h && y < h + 4)) v(ox + x, y, oz + z, (x + y + z) % 3 ? R.red[2] : R.red[1]);
+    }
+  }, [8, 34, 8]),
+  corn: () => plant((v) => { // 玉米：秆子和宽叶子都干成了灰黄，腰上挂着一个包着皮的棒子，顶上一撮雄穗
+    for (const [ox, oz, h, d] of [[-1, -1, 28, 1], [2, 1, 26, -1]]) {
+      for (let y = 0; y < h; y++) { v(ox, y, oz, y % 5 === 0 ? R.khaki[2] : R.khaki[3]); if (y < 4) v(ox + 1, y, oz, R.khaki[2]); }
+      [[1, 0, 7], [-1, 0, 11], [0, 1, 15], [0, -1, 19], [1, 1, 23]].forEach(([dx, dz, y], i) => { // 宽叶子：两排体素
+        leaf(v, ox, y, oz, dx, dz, 6, i % 2 ? R.khaki[4] : R.khaki[3]);
+        leaf(v, ox + (dz ? 1 : 0), y - 1, oz + (dx ? 1 : 0), dx, dz, 5, R.khaki[2]);
+      });
+      for (let y = 11; y < 16; y++) { v(ox + d, y, oz, R.wheat[4]); v(ox + d, y, oz + 1, y > 13 ? R.wheat[3] : R.wheat[4]); }
+      v(ox + d, 16, oz, R.gold[3]);
+      for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1]]) v(ox + dx, h + (dx || dz ? 0 : 1), oz + dz, R.khaki[4]); // 雄穗
+    }
+  }, [9, 31, 9]),
+  shock: () => plant((v) => { // 谷个子 / 麦个子：几捆割下的庄稼头朝上靠成一个尖垛，腰上一道草绳
+    for (let y = 0; y < 15; y++) {
+      const r = 3.6 - y * 0.2;
+      for (let x = -4; x <= 4; x++) for (let z = -4; z <= 4; z++) {
+        if (Math.hypot(x, z) > r) continue;
+        v(x, y, z, y === 8 ? R.wheat[1] : Math.floor((Math.atan2(z, x) + Math.PI) * 2.5) % 2 ? R.wheat[3] : R.wheat[2]);
+      }
+    }
+    for (const [x, z] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1]]) { v(x * 2, 15, z * 2, R.gold[3]); v(x * 2, 14, z * 2, R.gold[2]); v(x, 16, z, R.gold[4]); }
+  }, [5, 17, 5]),
+};
+
+/**
+ * 按垄种上庄稼：cells 是 terrain.fieldCells（crop 3 不管，由调用的人种白菜或者留麦苗地皮）。
+ * 返回 InstancedMesh 组（userData.count：各样多少丛）。
+ */
+export function fieldCrops(M, cells, rand) {
+  const lists = { millet: [], sorghum: [], corn: [], shock: [] };
+  for (const c of cells) {
+    const ix = Math.floor((c.x + 200) / 0.5), iz = Math.floor((c.z + 100) / 0.5);
+    if (c.crop === 3) continue;
+    if (c.crop === 0) { if (iz % 4 === 1 && (ix + (Math.floor(iz / 4) % 2) * 3) % 6 === 0) lists.shock.push(c); continue; } // 茬地：一行行、错开立着
+    if (iz % 2) continue; // 垄沟
+    const kind = c.crop === 2 ? 'corn' : Math.round(c.h / 1.2) % 2 ? 'sorghum' : 'millet';
+    if (kind !== 'millet' && ix % 2) continue; // 高秆的一米一丛，垄和地皮露得出来
+    lists[kind].push(c);
+  }
+  const g = new THREE.Group();
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  for (const [k, list] of Object.entries(lists)) {
+    if (!list.length) continue;
+    const mesh = new THREE.InstancedMesh(CROPS[k](), M.voxel, list.length);
+    list.forEach((c, i) => {
+      const sc = 0.9 + rand() * 0.2;
+      q.setFromEuler(e.set(0, Math.floor(rand() * 4) * (Math.PI / 2), 0));
+      mesh.setMatrixAt(i, m4.compose(p.set(c.x + (rand() - 0.5) * 0.12, c.h, c.z + (rand() - 0.5) * 0.08), q, s.set(sc, sc * (0.92 + rand() * 0.16), sc)));
+    });
+    mesh.castShadow = k !== 'millet';
+    mesh.receiveShadow = true;
+    g.add(mesh);
+  }
+  g.userData.count = Object.fromEntries(Object.entries(lists).map(([k, l]) => [k, l.length]));
+  return g;
+}
+
+const SHAPES = { // 村里另有的：白菜、大豆
   cabbage: () => plant((v) => {
     for (let y = 0; y < 5; y++) for (let x = -3; x <= 3; x++) for (let z = -3; z <= 3; z++) {
       const r = Math.hypot(x, (y - 2) * 1.2, z);
@@ -55,33 +119,20 @@ const SHAPES = {
       if (Math.hypot(x, y - 3.5, z) < 3 && (x + y * 3 + z) % 4) v(x, y, z, (x + z + y) % 3 ? R.harvest[2] : R.brown[3]);
     }
   }, [3, 8, 3]),
-  sheaf: () => plant((v) => {
-    for (let y = 0; y < 11; y++) for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) if (y < 9 || (x === 0 && z === 0)) v(x, y, z, y === 4 ? R.wheat[1] : (x + z + y) % 3 ? R.wheat[3] : R.wheat[2]);
-    for (const [x, z] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) for (let y = 7; y < 11; y++) v(x, y, z, R.wheat[4]);
-  }, [3, 12, 3]),
 };
 
 /**
  * terrain.fieldCells: [{ x, z, h, crop }]（0.5 米一格）。nav：放好之后给庄稼地以外的东西让路。
- * 返回 { object（含 InstancedMesh，不参与合批）, fields: { fieldW, fieldE, fieldS }, pasture, extras（要算进障碍的道具）}。
+ * 返回 { object（含 InstancedMesh，不参与合批）, fields: { fieldW, fieldE, fieldSoy }, pasture, extras（要算进障碍的道具）}。
  */
 export function buildFarmland(M, terrain, nodes) {
   const rand = makeRng(404);
   const geos = Object.fromEntries(Object.entries(SHAPES).map(([k, f]) => [k, f()]));
-  const lists = Object.fromEntries(Object.keys(SHAPES).map((k) => [k, []]));
-  for (const c of terrain.fieldCells) {
-    const terraceIdx = Math.round(c.h / 1.2);
-    if (c.crop === 0) { if (rand() < 0.07) lists.sheaf.push(c); continue; }
-    if (c.crop === 3) { lists.cabbage.push(c); continue; }
-    const row = Math.floor((c.z + 100) / 0.5) % 2; // 隔一行留一道垄沟
-    if (row === 1 && rand() < 0.8) continue;
-    if (c.crop === 2) { if (rand() < 0.85) lists.corn.push(c); continue; }
-    lists[terraceIdx % 2 ? 'sorghum' : 'millet'].push(c);
-  }
-  // 南滩：赵家的大豆地
-  for (let x = -26; x < -6; x += 0.5) for (let z = 33.8; z < 35.6; z += 0.5) if (terrain.typeAt(x, z) === 'grass' && rand() < 0.75) lists.soy.push({ x, z, h: terrain.heightAt(x, z) });
+  const soyCells = terrain.fieldCells.filter((c) => inSoy(c.x, c.z));
+  const g = fieldCrops(M, terrain.fieldCells.filter((c) => !inSoy(c.x, c.z)), rand);
+  // 赵家（豆腐坊）的大豆地：村西坡最高的几级梯田，一垄一垄的
+  const lists = { cabbage: terrain.fieldCells.filter((c) => c.crop === 3 && !inSoy(c.x, c.z)), soy: soyCells.filter((c) => Math.floor((c.z + 100) / 0.5) % 2 === 0 || rand() < 0.3) };
 
-  const g = new THREE.Group();
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s = new THREE.Vector3(), p = new THREE.Vector3();
   for (const [k, list] of Object.entries(lists)) {
     if (!list.length) continue;
@@ -122,7 +173,7 @@ export function buildFarmland(M, terrain, nodes) {
   const fields = {
     fieldW: near(nodes.fieldW),
     fieldE: near(nodes.fieldE),
-    fieldS: lists.soy.filter((_, i) => i % 3 === 0).map((c) => [c.x, c.z]),
+    fieldSoy: lists.soy.filter((_, i) => i % 3 === 0).map((c) => [c.x, c.z]),
   };
   // 羊吃草的坡：村西的荒草坡
   const pasture = [];

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { block } from './pixel.js';
+import { block, box } from './pixel.js';
 import { house, enclose, wallSeg, gate, screenWall, lantern, facade } from './buildings.js';
 import * as PROPS from './props.js';
 import { tagged } from './things.js';
@@ -358,10 +358,15 @@ function smith(M) {
   const gt = withGate(g, M, 'plank', gx, d, 3.4);
   const home = house(M, { w: 9, d: 4.2, h: 3.0, wall: 'rubble', chimney: true, roofMat: 'slate' });
   put(g, home.object, 0, -d / 2 + 2.9);
-  const [sx0, sx1, sz0, sz1] = [-6.4, 1.2, 0.6, 5.0];
-  for (const x of [sx0 + 0.3, sx1]) for (const z of [sz0, sz1]) g.add(block(x - 0.15, 0, z - 0.15, x + 0.15, 2.9, z + 0.15, M.wood));
-  g.add(block(sx0, 2.9, sz0 - 0.3, sx1 + 0.3, 3.15, sz1 + 0.3, M.slate));
-  const f = P.forge(M, -3.4, 2.4);
+  // 炉棚：炉膛贴着正房墙根，上面一个窄的单坡棚子（后高前低，石板瓦）挡雨，烟道从棚顶穿出去；
+  // 铁砧、淬火水槽摆在棚外的露天里——铁匠在院里打铁，从上面看得见炉火、抡锤、拉风箱
+  const fz = 1.2, [sx0, sx1, sz0, sz1] = [-6.3, -0.4, -0.5, 1.1]; // 棚子只罩住炉膛后半截和烟道，炉口、炉火露在外面
+  for (const x of [sx0 + 0.15, sx1 - 0.15]) g.add(block(x - 0.12, 0, sz1 - 0.12, x + 0.12, 2.35, sz1 + 0.12, M.wood));
+  const shedRoof = box(sx1 - sx0 + 0.3, 0.15, Math.hypot(sz1 - sz0 + 0.4, 0.7), M.slate);
+  shedRoof.rotation.x = Math.atan2(0.7, sz1 - sz0 + 0.4);
+  shedRoof.position.set((sx0 + sx1) / 2, 2.75, (sz0 + sz1) / 2 + 0.2);
+  g.add(shedRoof);
+  const f = P.forge(M, -3.4, fz, { anvil: [1.8, 2.3], trough: [0.2, 3.3] });
   g.add(f.object);
   put(g, P.wheel(M, 0, 0), 5.6, 3.6, 0.4);
   put(g, P.vat(M, 0, 0), 5.6, 0.6);
@@ -369,11 +374,11 @@ function smith(M) {
   const doors = { house: xz(at(home, home.door)) };
   doors.kitchen = doors.house;
   walkways(g, M, gt.inside, [doors.house]);
-  // 铁砧在炉子右前方（forge 里树墩的位置 = 炉 + (1.8, 0.6)）：铁匠站在铁砧南边、面朝铁砧
+  // 铁砧在炉子右前方的露天里（炉 + (1.8, 2.3)）：铁匠站在铁砧南边、面朝铁砧；徒弟在炉子左边拉风箱
   return result(w, d, g, {
     ...gt, doors,
-    spots: { anvil: [-1.6, 3.9, -1.6, 3.0], bellows: [-5.3, 3.5, -5.3, 2.4], yard: [3.4, 2.4] },
-    emitters: [{ kind: 'smoke', pos: at(home, home.chimney) }, { kind: 'smoke', pos: new THREE.Vector3(-3.4, 3.4, 2.2), forge: true }, { kind: 'ember', pos: f.fire.clone() }],
+    spots: { anvil: [-1.6, fz + 3.2, -1.6, fz + 2.3], bellows: [-5.3, fz + 1.1, -5.3, fz], yard: [3.4, 2.4] },
+    emitters: [{ kind: 'smoke', pos: at(home, home.chimney) }, { kind: 'smoke', pos: new THREE.Vector3(-3.4, 3.4, fz - 0.2), forge: true }, { kind: 'ember', pos: f.fire.clone() }],
     windows: windowsOf(home),
     trees: [['poplar', w / 2 - 1.2, -d / 2 + 1.2, { seed: 51 }]],
     animals: [{ kind: 'dog', role: 'dog', area: [2, 0.8, 6, 4.4], owner: 'zhang_tiechui' }],

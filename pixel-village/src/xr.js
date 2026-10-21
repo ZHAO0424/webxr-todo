@@ -9,9 +9,10 @@ const DROP = 0.38;
  *
  * 用 'local' 参考空间而不是 'local-floor'：VITURE runtime 的 LOCAL_FLOOR 高度取决于
  * SLAM 启动时眼镜在哪，可能在天上也可能在桌面（见 webxr-场景高度-排查）。
- * 以头为准就不依赖地板。手柄扳机 / 手势捏合 / 参考空间 reset 都会重新摆一次。
+ * 以头为准就不依赖地板。手柄扳机 / 手势捏合 / 参考空间 reset 都会重新摆一次——
+ * 除非 onSelect(手柄) 返回 true（扳机点中了沙盘边上的路牌，拿去换场景，不重新摆）。
  */
-export function createAnchor(renderer, root, { onSession } = {}) {
+export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
   const xr = renderer.xr;
   xr.setReferenceSpaceType('local');
   let pending = false;
@@ -26,7 +27,7 @@ export function createAnchor(renderer, root, { onSession } = {}) {
     root.rotation.set(0, 0, 0);
     onSession?.(false);
   });
-  for (const i of [0, 1]) xr.getController(i).addEventListener('select', () => { pending = true; });
+  for (const i of [0, 1]) xr.getController(i).addEventListener('select', (e) => { if (!onSelect?.(e.target)) pending = true; });
 
   const q = new THREE.Quaternion();
   const f = new THREE.Vector3();

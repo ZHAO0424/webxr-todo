@@ -473,5 +473,98 @@ export function buildMaterials(seed = 7) {
   M.windowHalo = additive(tex.halo, 0.5);
   M.glow = glow;
   M.movie = MOVIE.map((f) => flat(toTexture(paint(48, 22, f)))); // 露天电影的几帧
+  addFieldMaterials(M);
+  return M;
+}
+
+// ---------------------------------------------------------------- 西沟：红砂岩崖壁、林下落叶、跌水、晒秋
+// 单独一个随机数种子，加了这些不会挪动村子贴图的随机花纹
+
+const westTiles = {
+  cliff: (r) => paint(72, 72, (g) => { // 崖壁：一层层微微起伏的红砂岩，层顶受光亮一线；零星几道竖向节理、几条雨水冲出的暗痕
+    const bands = [];
+    for (let y = 0; y < 72;) {
+      const t = Math.min(72 - y, 3 + Math.floor(r() * 7));
+      bands.push({ y, t, c: [R.rock[3], R.rock[3], R.rock[4], R.rock[2]][Math.floor(r() * 4)] });
+      y += t;
+    }
+    const at = (yy) => bands.find((b) => yy >= b.y && yy < b.y + b.t);
+    const p1 = r() * 6, p2 = r() * 6;
+    for (let x = 0; x < 72; x++) {
+      const wave = Math.round(Math.sin((x / 72) * Math.PI * 2 + p1) * 1.4 + Math.sin((x / 72) * Math.PI * 6 + p2) * 0.7); // 周期整除 72，左右能无缝接上
+      for (let y = 0; y < 72; y++) {
+        const yy = (((y - wave) % 72) + 72) % 72, b = at(yy), k = yy - b.y;
+        g.px(x, y, k === 0 ? (b.c === R.rock[4] ? R.rock[5] : R.rock[4]) : k === b.t - 1 && b.t > 3 ? R.rock[2] : b.c);
+      }
+    }
+    for (let i = 0; i < 7; i++) { const x = r() * 72, y = r() * 72, len = 3 + r() * 8; for (let k = 0; k < len; k++) g.pxw(x + Math.floor(k / 4), y + k, R.rock[1]); } // 节理
+    for (let i = 0; i < 4; i++) { const x = Math.floor(r() * 72), y = r() * 72, len = 10 + r() * 22; for (let k = 0; k < len; k += 1 + (k % 3 === 2 ? 1 : 0)) g.pxw(x, y + k, R.rock[2]); } // 雨痕
+  }),
+  rockTop: (r) => paint(36, 36, (g) => { // 崖顶：裸岩 + 石缝里的草
+    g.rect(0, 0, 36, 36, R.rock[3]);
+    for (let i = 0; i < 7; i++) g.rectw(r() * 36, r() * 36, 6, 4, R.rock[4]);
+    for (let i = 0; i < 8; i++) g.rectw(r() * 36, r() * 36, 4, 1, R.rock[2]);
+    for (let i = 0; i < 9; i++) { const x = r() * 36, y = r() * 36; g.rectw(x, y, 3, 2, R.grass[2]); g.pxw(x + 1, y, R.grass[3]); }
+  }),
+  litter: (r) => paint(36, 36, (g) => { // 林下：落叶盖着的土，夹几丛草
+    g.rect(0, 0, 36, 36, R.dirt[2]);
+    for (let i = 0; i < 10; i++) g.rectw(r() * 36, r() * 36, 4, 2, R.grass[2]);
+    for (let i = 0; i < 16; i++) g.rectw(r() * 36, r() * 36, 2, 1, [R.autumn[3], R.red[2], R.harvest[3], R.dirt[3]][Math.floor(r() * 4)]);
+    for (let i = 0; i < 6; i++) g.rectw(r() * 36, r() * 36, 3, 1, R.dirt[1]);
+  }),
+  fall: (r) => paint(18, 36, (g) => { // 跌水：竖着的水纹（往下滚动）
+    g.rect(0, 0, 18, 36, R.water[3]);
+    for (let x = 0; x < 18; x += 2) {
+      const y0 = Math.floor(r() * 36), len = 6 + Math.floor(r() * 14);
+      for (let k = 0; k < len; k++) g.pxw(x + (x % 4 ? 1 : 0), y0 + k, k < 2 ? R.white[3] : R.water[4]);
+    }
+    for (let i = 0; i < 6; i++) g.rectw(r() * 18, r() * 36, 1, 4, R.water[2]);
+  }),
+  persimmonMat: (r) => paint(18, 18, (g) => { // 竹匾上摊开的柿饼
+    g.rect(0, 0, 18, 18, R.wheat[2]);
+    for (let y = 0; y < 18; y += 3) g.rect(0, y, 18, 1, R.wheat[1]);
+    for (let i = 0; i < 9; i++) { const x = r() * 18, y = r() * 18; g.rectw(x, y, 3, 3, R.autumn[3]); g.pxw(x, y, R.autumn[4]); g.pxw(x + 2, y + 2, R.autumn[2]); }
+  }),
+  hawthornMat: (r) => paint(18, 18, (g) => { // 晒山楂片：红点点
+    g.rect(0, 0, 18, 18, R.wheat[2]);
+    for (let y = 0; y < 18; y += 3) g.rect(0, y, 18, 1, R.wheat[1]);
+    for (let i = 0; i < 22; i++) { const x = r() * 18, y = r() * 18; g.rectw(x, y, 2, 2, R.red[2]); g.pxw(x, y, R.red[3]); }
+  }),
+};
+
+// 庄稼地的地皮（村子和西沟共用）：垄沿着梯田（东西向），一米两垄（9 像素一垄：5 像素垄背、4 像素垄沟），和 farmland.js 按垄种的庄稼对得上
+const fieldTiles = {
+  furrow: (r) => paint(18, 18, (g) => { // 长着庄稼的地：松土的垄背 + 发暗的垄沟，零星落叶
+    for (let y = 0; y < 18; y++) g.rect(0, y, 18, 1, y % 9 === 0 ? R.dirt[4] : y % 9 < 5 ? R.dirt[3] : y % 9 < 8 ? R.dirt[2] : R.dirt[1]);
+    for (let i = 0; i < 5; i++) g.rectw(r() * 18, Math.floor(r() * 2) * 9 + 2, 2, 1, R.wheat[2]);
+  }),
+  stubbleW: () => paint(18, 18, (g) => { // 割完的谷子地：垄背上一行行齐刷刷的谷茬
+    for (let y = 0; y < 18; y++) g.rect(0, y, 18, 1, y % 9 < 5 ? R.dirt[3] : y % 9 < 8 ? R.dirt[2] : R.dirt[1]);
+    for (const y0 of [1, 10]) for (let x = (y0 % 2); x < 18; x += 2) { g.px(x, y0, R.wheat[4]); g.px(x, y0 + 1, R.wheat[3]); g.px(x + 1, y0 + 2, R.wheat[2]); }
+  }),
+  sprout: () => paint(18, 18, (g) => { // 刚出苗的冬小麦：深色的地，一行行细细的青苗
+    g.rect(0, 0, 18, 18, R.dirt[2]);
+    for (let y = 0; y < 18; y += 3) { g.rect(0, y + 2, 18, 1, R.dirt[1]); for (let x = (y / 3) % 2; x < 18; x += 2) { g.px(x, y, R.cabbage[3]); g.px(x, y + 1, R.cabbage[2]); } }
+  }),
+};
+
+const westDecals = {
+  persimmonString: () => paint(7, 27, (g) => { // 屋檐下挂的柿子串
+    g.rect(3, 0, 1, 27, R.wood[2]);
+    for (let y = 2; y < 26; y += 4) for (const dx of [0, 4]) { g.rect(dx, y, 3, 3, R.autumn[3]); g.px(dx, y, R.autumn[4]); g.px(dx + 1, y - 1, R.green[2]); }
+  }),
+};
+
+/** 庄稼地的地皮：自己一个随机数种子，buildMaterials 最后加进来（不挪动前面贴图的随机花纹）。 */
+function addFieldMaterials(M, seed = 47) {
+  const r = makeRng(seed);
+  for (const [k, fn] of Object.entries(fieldTiles)) { M.tex[k] = toTexture(fn(r), { tile: true }); M[k] = toon(M.tex[k]); }
+}
+
+/** 西沟用的材质，加进村子的 M（和村子共用一套，夜里窗户、灯笼跟着一起变）。 */
+export function addWestMaterials(M, seed = 31) {
+  const r = makeRng(seed);
+  for (const [k, fn] of Object.entries(westTiles)) { M.tex[k] = toTexture(fn(r), { tile: true }); M[k] = toon(M.tex[k]); }
+  for (const [k, fn] of Object.entries(westDecals)) { M.tex[k] = toTexture(fn(r)); M[k] = toon(M.tex[k], { alphaTest: 0.5, side: THREE.DoubleSide }); }
   return M;
 }

@@ -56,19 +56,25 @@ export const NODES = {
   east: { x: 21, z: 20 },
   fieldW: { x: -39, z: 8 },
   fieldE: { x: 40, z: -3 },
-  fieldS: { x: -16, z: 34.5 },
+  westGate: { x: -44.7, z: 8 }, // 村西口：路翻过山梁接到西沟（west.js 的 east 节点就在接缝另一边）
+  westCliff: { x: -44.7, z: -21.5 }, // 羊圈西边：接西沟的挂壁古道东头（骡帮从这儿进村，羊倌从这儿赶羊上崖顶）
+  shepS: { x: -37.5, z: -13 }, shepW: { x: -43.2, z: -15 }, // 从羊圈院门绕到院子西南角，再上去接古道
 };
 
 /** 路（两端是节点名）。 */
 export const EDGES = [
-  ['edgeS', 'bridgeS'], ['bridgeS', 'bridgeN'], ['bridgeN', 'gate:square'], ['bridgeS', 'fieldS'],
+  ['edgeS', 'bridgeS'], ['bridgeS', 'bridgeN'], ['bridgeN', 'gate:square'],
   ['gate:square', 'sqW'], ['gate:threshing', 'sqE'], ['sqE', 'east'], ['gate:square', 'gate:threshing'], ['east', 'gate:farmB'],
   ['sqW', 'gate:smith'], ['sqW', 'sqNW'], ['sqNW', 'gate:tofu'], ['sqNW', 'mid'], ['mid', 'gate:tofu'], ['mid', 'gate:store'],
   ['mid', 'well'], ['well', 'gate:headman'], ['well', 'w1'], ['well', 'e1'],
   ['e1', 'e2'], ['e2', 'gate:doctor'], ['e1', 'L1'], ['L1', 'gate:school'], ['L1', 'L2'], ['L2', 'gate:farmC'],
   ['w1', 'cw'], ['cw', 'gate:carpenter'], ['w1', 'nw'], ['nw', 'gate:farmA'], ['nw', 'gate:shepherd'],
-  ['gate:carpenter', 'fieldW'], ['gate:doctor', 'e3'], ['e3', 'fieldE'],
+  ['gate:carpenter', 'fieldW'], ['gate:doctor', 'e3'], ['e3', 'fieldE'], ['fieldW', 'westGate'], ['gate:shepherd', 'shepS'], ['shepS', 'shepW'], ['shepW', 'westCliff'],
 ];
+
+/** 豆腐坊自家的大豆地：村西坡最高那几级梯田贴着沙盘西边的一溜。 */
+export const SOY = { x0: -45, x1: -41.5, z0: 9.5, z1: 22 };
+export const inSoy = (x, z) => x >= SOY.x0 && x < SOY.x1 && z >= SOY.z0 && z < SOY.z1;
 
 /** 井在正街路口旁。 */
 export const WELL = { x: 0.8, z: -1.9 };

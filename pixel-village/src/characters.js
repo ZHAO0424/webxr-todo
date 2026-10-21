@@ -452,10 +452,7 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
   }
   if (b.neck) g.rect(CX - 1, hy0 + hh, 3, 1, S[1]);
   const ey = hy0 + Math.floor(hh * 0.55);
-  if (nose) g.px(hx0 + hw, ey + 1, S[3]); // 鼻尖
-  g.vline(hx0 + hw - 2, ey - 1, ey, INK);
-  g.px(hx0 + hw - 2, ey - 1, '#4a3a5a');
-  g.hline(hx0 + hw - 3, hx0 + hw - 1, ey - 2, p.elder ? R.grey[2] : R[p.hairRamp ?? 'hair'][1]);
+  if (nose) g.px(hx0 + hw, ey + 1, S[3]); // 鼻尖（侧面不画眼睛、眉毛：体素小人侧面贴的就是这张图，眼睛长在脸侧很怪）
   g.px(hx0 + hw - 2, ey + 3, p.smile ? R.pink[1] : S[1]);
   if (p.blush) g.px(hx0 + hw - 3, ey + 1, R.pink[3]);
   if (p.beard) { g.rect(hx0 + hw - 4, ey + 2, 4, 3, R.grey[3]); }
@@ -468,8 +465,9 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
   } else {
     for (let i = 0; i < hw - 2; i++) g.px(hx0 + i, hy0, r[2]);
     for (let j = 1; j < 3; j++) for (let i = 0; i < hw - 3; i++) g.px(hx0 + i, hy0 + j, r[1]);
-    const back = p.hair === 'short' ? 4 : 6;
-    for (let j = 3; j < back; j++) for (let i = 0; i < 3; i++) g.px(hx0 + i, hy0 + j, r[1]);
+    for (let j = 3; j < ey - hy0; j++) for (let i = 0; i < hw - 4; i++) g.px(hx0 + i, hy0 + j, j === 3 && i > hw - 6 ? r[2] : r[1]); // 两鬓：盖到耳朵上面
+    const long = p.hair !== 'short';
+    for (let j = ey - hy0; j < ey - hy0 + (long ? 4 : 2); j++) for (let i = 0; i < (long ? 4 : 3); i++) g.px(hx0 + i, hy0 + j, r[1]); // 后脑勺；长头发再往下盖过耳朵
     if (p.hair === 'bun') g.rect(hx0 - 2, hy0 + 1, 3, 3, r[1]);
     if (p.hair === 'braids') { g.vline(hx0, hy0 + 6, hy0 + 15, r[1]); g.px(hx0, hy0 + 16, R.red[3]); }
   }

@@ -39,6 +39,7 @@ export class Beast {
     const s = this.s;
     this.follow = null; this.circling = null; this.graze = null; this.home = false; this.target = null; this.path = null; this.stroll = null; this.returning = false;
     this.object.visible = true;
+    if (s.caravan) { this.home = true; this.object.visible = false; return; } // 骡帮的骡子：平常在山外，逢集才跟着来（activities.js 的 caravan）
     if (s.perches) { this.perch = Math.floor(this.rand() * s.perches.length); this.flight = null; return; }
     if (s.role === 'pigeon') return;
     const p = this.areaPoint() ?? (this.c ? this.c.at(0, 0) : [0, 0]);

@@ -13,6 +13,7 @@ import { createSound } from './audio.js';
 import { createMusic } from './music.js';
 import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
+import { createSceneSwitch } from './scenes.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -47,8 +48,16 @@ scene.add(stage);
 const t0 = performance.now();
 const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event'), weather: params.get('weather') }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
 document.documentElement.dataset.buildMs = String(Math.round(performance.now() - t0));
+const west = village.west; // 西沟：接在村子西边的另一块沙盘（village.js 里一起建，共用导航网格和村民）
 const backdrop = buildBackdrop();
-stage.add(village.object, backdrop.object);
+// 村子和西沟在同一个世界里（西沟的 x 接着村子往西排），换场景 = 把世界平移过来（scenes.js）
+const world = new THREE.Group();
+world.add(village.object, west.object);
+stage.add(world, backdrop.object);
+const SCENES = [
+  { id: 'village', name: '村子', object: village.object, things: village.things, shift: 0 },
+  { id: 'west', name: '西沟', object: west.object, things: west.things, shift: 90 },
+];
 
 const sun = new THREE.DirectionalLight('#ffb27a', 3.4);
 sun.castShadow = true;
@@ -87,7 +96,10 @@ function applyLight(L) {
 // 光学透视眼镜上黑色 = 透明：XR 里去掉天空，让沙盘直接浮在真实桌面上（?sky=1 可保留）
 const anchor = createAnchor(renderer, stage, {
   onSession(active) { scene.background = active && !params.has('sky') ? null : sky; },
+  onSelect: (controller) => scenes.onSelect(controller), // 指着路牌：换场景，不重新摆沙盘
 });
+// 换场景：屏幕左右的按钮、键盘 ← →、XR 里沙盘两边的路牌；?scene=west 直接从西沟开始，?seam=1 两块都画（看接缝）
+const scenes = createSceneSwitch({ world, stage, scenes: SCENES, M: village.M, start: Math.max(0, SCENES.findIndex((s) => s.id === params.get('scene'))), onChange: () => closeCard(), showAll: params.has('seam') });
 renderer.setClearColor(0x000000, 1);
 
 addEventListener('resize', () => {
@@ -126,9 +138,10 @@ const marker = (() => {
 renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
 addEventListener('pointerdown', () => { sound.wake(); music.wake(); syncSoundBtn(); }); // 第一次点页面就打开声音和音乐（浏览器要求先有一次点击）
 renderer.domElement.addEventListener('pointerup', (e) => {
-  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return; // 拖动视角不算点击
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5 || scenes.busy) return; // 拖动视角、正在换场景不算点击
   ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
-  const targets = [...village.life.people.filter((v) => !v.inside).map((v) => v.object), ...village.life.beasts.filter((b) => b.object.visible).map((b) => b.object)];
+  const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; }; // 另一块沙盘上的人（藏着）点不到
+  const targets = [...village.life.people.filter((v) => !v.inside).map((v) => v.object), ...village.life.beasts.filter((b) => b.object.visible).map((b) => b.object)].filter(shown);
   const hit = ray.intersectObjects(targets, true)[0];
   if (!hit) { pickScene(); return; }
   let o = hit.object;
@@ -137,16 +150,28 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   else if (o) selectPerson(village.life.people.find((v) => v.object === o));
 });
 
-/** 没点到人和动物：看打到了什么房子、物件；打在院子地上就是这个院子。 */
+/** 没点到人和动物：看打到了什么房子、物件；打在院子地上就是这个院子（西沟：这一片叫什么）。 */
 function pickScene() {
-  const hit = ray.intersectObject(village.object, true).find((h) => h.object.isMesh && !h.object.isInstancedMesh && h.object !== marker);
+  const S = scenes.current;
+  const hit = ray.intersectObject(S.object, true).find((h) => h.object.isMesh && !h.object.isInstancedMesh && h.object !== marker);
   if (!hit) { closeCard(); return; }
-  const p = village.object.worldToLocal(hit.point.clone());
-  const t = pickThing(village.things, p);
+  const p = S.object.worldToLocal(hit.point.clone());
+  const t = pickThing(S.things, p);
   if (t) { selectThing(t); sound.clickThing(t); return; }
+  if (S.id === 'west') { selectPlace(west.placeAt(p.x, p.z), p); return; }
   const c = village.compoundAt(p.x, p.z, 0);
   if (c) selectYard(c);
   else closeCard();
+}
+
+/** 西沟的地上：林子、梯田、红石崖、山溪……卡片上是这一片的介绍和附近有没有人。 */
+function selectPlace(w, p) {
+  const card = thingCard({ name: w.name, tags: w.tags, about: w.about, people: [] }, { onClose: closeCard, onPick: pick });
+  sel = { w, at: [p.x, p.z], card };
+  scenes.current.object.add(spot);
+  spot.position.set(p.x, p.y + 1.5, p.z);
+  show(card, spot, 0.5);
+  refreshCard();
 }
 
 function closeCard() { sel = null; follow = false; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; }
@@ -179,6 +204,7 @@ function selectThing(t) {
   const h = t.thing === 'house' ? homeOf(t.cid) : null;
   const card = thingCard({ ...d, household: h && { name: h.name }, people: t.thing === 'house' ? residentsOf(t.cid) : [] }, { onClose: closeCard, onPick: pick });
   sel = { t, card };
+  scenes.current.object.add(spot);
   spot.position.set((t.box.min.x + t.box.max.x) / 2, t.box.max.y, (t.box.min.z + t.box.max.z) / 2);
   show(card, spot, 0.5);
   refreshCard();
@@ -188,6 +214,7 @@ function selectYard(c) {
   const h = homeOf(c.id), y = YARDS[c.id];
   const card = thingCard({ name: h?.name ?? PLACES[c.id], tags: [h?.kind ?? y?.kind].filter(Boolean), about: h?.note ?? y?.note ?? '', people: residentsOf(c.id) }, { onClose: closeCard, onPick: pick });
   sel = { c, card };
+  village.object.add(spot);
   spot.position.set(c.object.position.x, c.object.position.y + 1.5, c.object.position.z);
   show(card, spot, 0.5);
   refreshCard();
@@ -198,6 +225,12 @@ function refreshPlace() {
   const people = village.life.people;
   const who = (list) => list.map((v) => ({ id: v.p.id, name: `${v.p.name}${doingOf(v) ? ' · ' + doingOf(v) : ''}` }));
   const night = village.life.clock.night;
+  if (sel.w) { // 西沟的一片地方：附近有没有人
+    const [x, z] = sel.at;
+    const near = people.filter((v) => !v.inside && Math.hypot(v.pos.x - x, v.pos.z - z) < 10);
+    sel.card.update({ lines: [near.length ? `附近 ${near.length} 人` : '四下无人'], kind: near.length ? '' : 'rest', who: who(near) });
+    return;
+  }
   if (sel.c) {
     const c = sel.c;
     const here = people.filter((v) => village.compoundAt(v.pos.x, v.pos.z) === c);
@@ -239,7 +272,7 @@ function selectBeast(b) {
 /** 卡片上会变的部分：正在干什么、在哪儿、接下来、今天第几项。 */
 function refreshCard() {
   if (!sel) return;
-  if (sel.t || sel.c) { refreshPlace(); return; }
+  if (sel.t || sel.c || sel.w) { refreshPlace(); return; }
   const hour = village.life.clock.hour;
   if (sel.b) {
     const b = sel.b;
@@ -274,10 +307,12 @@ if (params.get('click')) {
     document.documentElement.dataset.clicked = sel?.t ? `thing:${sel.t.thing}:${sel.t.cid}` : sel?.c ? `yard:${sel.c.id}` : 'none';
   }, 1500);
 }
+if (params.get('go')) setTimeout(() => scenes.go(Number(params.get('go'))), 500); // ?go=1：打开后往西滑一块（检查换场景用）
 if (params.get('pick')) {
   const id = params.get('pick');
   if (id.startsWith('beast:')) selectBeast(village.life.beasts[Number(id.slice(6))]);
   else if (id.startsWith('thing:')) { const [, k, n] = id.split(':'); selectThing(village.things.filter((t) => t.thing === k)[Number(n ?? 0)]); } // ?pick=thing:millstone
+  else if (id.startsWith('west:')) { const [, k, n] = id.split(':'); selectThing(west.things.filter((t) => t.thing === k)[Number(n ?? 0)]); } // ?scene=west&pick=west:watermill
   else if (id.startsWith('yard:')) selectYard(village.C[id.slice(5)]);
   else selectPerson(V.byId[id]);
   if (params.get('follow')) host.querySelector('.follow')?.click(); // ?follow=1：选中后直接跟随（截图检查用）
@@ -338,6 +373,12 @@ renderer.setAnimationLoop((_, frame) => {
     viewer.copy(camera.position);
   }
   const s = village.update(t, viewer);
+  west.update(t, { light: s.light, weather: village.life.weather(), viewer, hour: village.life.clock.hour });
+  if (follow && sel && (sel.v || sel.b) && !scenes.busy) { // 跟着的人走过了村西口：镜头跟着换到那块沙盘
+    const host = (sel.v ?? sel.b).object.parent;
+    if (host !== scenes.current.object) scenes.go(host === west.object ? 1 : -1, true);
+  }
+  scenes.update(dt, inXR() || params.has('signs')); // ?signs=1：桌面上也显示 XR 里的路牌（截图检查用）
   sound.update(t, dt);
   music.update(dt);
   if (params.has('sound')) document.documentElement.dataset.sound = JSON.stringify(sound.stats);
@@ -362,7 +403,7 @@ if (params.has('sim')) {
   const total = Number(params.get('sim'));
   const nav = village.nav;
   let samples = 0, clipP = 0, clipA = 0, stuck = 0, escaped = 0, gateOpenSamples = 0, strolls = 0, ajarSamples = 0, beastStuck = 0, waiting = 0, goSamples = 0;
-  const attended = {}, kidsAt = {}, waitWhy = {}, seen = new Set(), litLog = {}, leaveLog = {};
+  const attended = {}, kidsAt = {}, waitWhy = {}, seen = new Set(), litLog = {}, leaveLog = {}, westWho = {}, whyA = {};
   const esc = {};
   const why = {};
   const lastPos = new Map();
@@ -380,11 +421,12 @@ if (params.has('sim')) {
       if (v.tasks[0]?.type === 'go' && v.state === 'idle' && !v.V.nav.closedDoorAt(v.pos.x + Math.sin(v.heading) * 0.35, v.pos.z + Math.cos(v.heading) * 0.35)) { waiting++; const ob = v.ahead(Math.sin(v.heading), Math.cos(v.heading)); const k = `${v.p.id}/${v.doing}<${ob ? `${ob.p.id}:${ob.state}:${ob.doing}` : '?'}`; waitWhy[k] = (waitWhy[k] ?? 0) + 1; } // 在路上站着等人（排队）
       if (v.tasks[0]?.type === 'go') goSamples++;
       seen.add(v.doing);
+      if (v.pos.x < -45) westWho[v.p.id] = v.doing; // 走到西沟去的人
       lastPos.set(v, [v.pos.x, v.pos.z]);
     }
     for (const b of village.life.beasts) {
       if (b.home || b.s.perches || b.s.role === 'pigeon' || b.circling) continue;
-      if (!nav.freeAt(b.pos.x, b.pos.z, b.swim) && !nav.door[nav.index(b.pos.x, b.pos.z)]) clipA++;
+      if (!nav.freeAt(b.pos.x, b.pos.z, b.swim) && !nav.door[nav.index(b.pos.x, b.pos.z)]) { clipA++; const k = `${b.s.role}@${Math.round(b.pos.x)},${Math.round(b.pos.z)}`; whyA[k] = (whyA[k] ?? 0) + 1; }
       if ((b.stuck ?? 0) > 0.3) beastStuck++;
       // 逃逸：没人赶、没人喂的时候，圈养的牲口跑出了自己的院子
       if (b.stroll) strolls++;
@@ -410,12 +452,13 @@ if (params.has('sim')) {
   for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) { const d = Math.hypot(out[i].pos.x - out[j].pos.x, out[i].pos.z - out[j].pos.z); if (d < 0.7) close.push(`${out[i].p.id}(${out[i].state},${out[i].tasks[0]?.type ?? '-'})~${out[j].p.id}(${out[j].state},${out[j].tasks[0]?.type ?? '-'})=${d.toFixed(2)}`); }
   eve.push(...close.map((c) => 'CLOSE ' + c));
   document.documentElement.dataset.eve = JSON.stringify(eve);
-  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, seen: [...seen].sort(), litLog, leaveLog, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
+  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, westWho, whyA, caravan: [V.byId.niu_wanshan, V.byId.shi_wa, ...village.life.beasts.filter((b) => b.s.caravan)].map((a) => `${(a.p ? a.inside : a.home) ? '不在村里' : a.p ? a.doing : '骡子'}@${Math.round(a.pos.x)},${Math.round(a.pos.z)}`), samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, seen: [...seen].sort(), litLog, leaveLog, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
 }
 
 let drawables = 0;
-scene.traverse((o) => { if (o.isMesh || o.isSprite) drawables++; });
+scene.traverseVisible((o) => { if (o.isMesh || o.isSprite) drawables++; }); // 只算当前这块沙盘（另一块藏着不画）
 document.documentElement.dataset.calls = String(drawables); // 每只眼大约这么多 draw call（不含阴影）
+document.documentElement.dataset.west = JSON.stringify({ audit: west.object.userData.audit, pasture: V.pasture.length, work: { fieldWest: V.fields.fieldWest.length, woods: V.woods.filter((w) => w.at[0] < -45).length, mill: V.mill.at.map((v) => +v.toFixed(1)) }, bake: west.object.userData.bake, flora: west.object.userData.flora, floating: west.object.userData.floating, coplanar: { found: west.object.userData.coplanar.found, left: west.object.userData.coplanar.left, leftSamples: west.object.userData.coplanar.leftSamples }, bridges: west.terrain.bridges.length, things: west.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
 document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);
 document.documentElement.dataset.audit = JSON.stringify({ perchFix: village.object.userData.perchFix, coplanar: village.object.userData.coplanar, flora: village.object.userData.flora, floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
 document.documentElement.dataset.ready = '1';

@@ -16,11 +16,12 @@ import { BOUNDS } from './layout.js';
 
 const CELL = 0.25;
 const STEP = 0.36;
-const COST = { path: 1, pad: 1, grass: 1.4, field: 3, stream: 1 };
+const COST = { path: 1, pad: 1, grass: 1.4, field: 3, stream: 1, forest: 1.8, rock: 2 };
 
 export class NavGrid {
-  constructor(terrain) {
-    const { x0, z0, x1, z1 } = BOUNDS;
+  /** terrain：walkAt / isWater / typeAt；bounds：覆盖多大（村子 + 西沟时往西多出一块）。 */
+  constructor(terrain, bounds = BOUNDS) {
+    const { x0, z0, x1, z1 } = bounds;
     this.x0 = x0; this.z0 = z0;
     this.nx = Math.round((x1 - x0) / CELL);
     this.nz = Math.round((z1 - z0) / CELL);

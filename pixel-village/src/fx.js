@@ -9,7 +9,7 @@ import { TPU, snap, makeRng, paint, toTexture, flat } from './pixel.js';
  * 用不同大小的帧而不是半透明渐隐——像素画里"淡出"就是变小、变稀。
  */
 export class Smoke {
-  constructor(parent, sprites, origin, seed, { size = 1.2, rise = 4.5, drift = 3.5, life = 0.12 } = {}) {
+  constructor(parent, sprites, origin, seed, { size = 1.2, rise = 4.5, drift = 3.5, life = 0.12, colors = [R.smoke[1], R.smoke[0]] } = {}) {
     this.origin = origin;
     this.rise = rise;
     this.drift = drift;
@@ -20,7 +20,7 @@ export class Smoke {
       for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
         const corner = (x === 0 || x === s - 1) && (y === 0 || y === s - 1);
         if (corner || (!dense && (x + y) % 2)) continue;
-        g.px(o + x, o + y, y < s / 2 ? R.smoke[1] : R.smoke[0]); // 上半被夕阳照亮一点
+        g.px(o + x, o + y, y < s / 2 ? colors[0] : colors[1]); // 上半被夕阳照亮一点
       }
     }));
     this.frames = [[4, true], [6, true], [6, false], [4, false], [2, false]]

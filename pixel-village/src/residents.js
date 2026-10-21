@@ -129,7 +129,7 @@ export const HOUSEHOLDS = [
         bio: '刘木匠的妻子，在西坡种着一块白菜地。每年秋后，她都要腌上两大缸酸菜，供全家过冬。',
         likes: '与王婶闲话家常',
         owns: ['西坡一块菜地'],
-        day: [[15, 'fetchWater'], [15.6, 'field', 'fieldW'], [17.0, 'cook'], [18.5, 'dinner'], [19.0, 'evening'], [20.2, 'home']],
+        day: [[15, 'fetchWater'], [15.6, 'field', 'fieldWest'], [17.0, 'cook'], [18.5, 'dinner'], [19.0, 'evening'], [20.2, 'home']],
         body: 'woman', skin: 'skin', hair: 'bun', hat: 'scarf', scarfRamp: 'red', top: 'indigo', style: 'side', pants: 'black', item: 'basket',
       },
       {
@@ -146,7 +146,7 @@ export const HOUSEHOLDS = [
   },
   {
     id: 'tofu', name: '赵家豆腐坊', kind: '土坯房 + 驴拉磨',
-    note: '每天下午磨豆，傍晚点卤，灶上终日热气蒸腾。所用大豆都产自自家的南滩地。',
+    note: '每天下午磨豆，傍晚点卤，灶上终日热气蒸腾。所用大豆都产自自家村西坡上的豆子地。',
     people: [
       {
         id: 'zhao_mantun', name: '赵满囤', nick: '赵豆腐', age: 40, sex: '男', relation: '户主',
@@ -154,7 +154,7 @@ export const HOUSEHOLDS = [
         traits: ['和气', '早起', '爱吆喝'],
         bio: '豆腐手艺祖传。下午赶驴磨豆，傍晚上灶煮浆点卤，次日清早再挑着担子到山外的集市售卖。',
         likes: '与驴说话',
-        owns: ['一头灰驴（灰灰）', '南滩一块大豆地'],
+        owns: ['一头灰驴（灰灰）', '村西坡上一块大豆地'],
         day: [[15, 'grind'], [16.8, 'boil'], [18.5, 'dinner'], [19.0, 'evening'], [20.3, 'home']],
         body: 'man', skin: 'skin', hair: 'short', hat: 'towel', top: 'indigo', pants: 'black', apron: 'white', item: 'ladle', smile: true,
       },
@@ -285,7 +285,7 @@ export const HOUSEHOLDS = [
         bio: '家中排行老二。今年玉米、高粱双双丰收，这几日下午，他都赶着老黄牛到场院上轧场。',
         likes: '老黄牛、烧酒',
         owns: ['一头黄牛（老黄）', '西坡玉米地、高粱地', '一条黑狗'],
-        day: [[15, 'field', 'fieldW'], [16.3, 'thresh'], [18.3, 'oxHome'], [18.7, 'dinner'], [19.1, 'evening'], [20.4, 'home']],
+        day: [[15, 'field', 'fieldWest'], [16.3, 'thresh'], [18.3, 'oxHome'], [18.7, 'dinner'], [19.1, 'evening'], [20.4, 'home']],
         body: 'man', skin: 'skinTan', hair: 'short', hat: 'straw', top: 'indigo', pants: 'black', legwrap: true, sash: 'black', item: 'hoe',
       },
       {
@@ -331,7 +331,7 @@ export const HOUSEHOLDS = [
         bio: '孙掌柜的堂妹，家中的鸡鸭鹅兔都由她照料。每天傍晚，她都要去溪边把鸭鹅赶回家。',
         likes: '兔子',
         owns: ['一窝鸡', '五只鸭', '四只鹅', '一笼兔子'],
-        day: [[15, 'yardWork'], [15.8, 'feedPigs'], [16.4, 'feedChickens'], [17.0, 'fetchWater'], [17.6, 'cook'], [18.4, 'gatherDucks'], [18.8, 'dinner'], [19.2, 'evening'], [20.2, 'home']],
+        day: [[15, 'mill'], [16.2, 'feedPigs'], [16.6, 'feedChickens'], [17.0, 'fetchWater'], [17.6, 'cook'], [18.4, 'gatherDucks'], [18.8, 'dinner'], [19.2, 'evening'], [20.2, 'home']],
         body: 'woman', skin: 'skin', hair: 'bun', top: 'indigo', style: 'side', pants: 'black', item: 'broom', blush: true,
       },
       {
@@ -370,12 +370,32 @@ export const HOUSEHOLDS = [
         day: [[15, 'peddle'], [18.6, 'dinner'], [19.0, 'evening'], [20.6, 'home']],
         body: 'man', skin: 'skinTan', hair: 'short', hat: 'felt', top: 'grey', pants: 'black', legwrap: true, item: 'pole',
       },
+      {
+        id: 'niu_wanshan', name: '牛万山', nick: '骡帮牛老大', age: 46, sex: '男', relation: '外村人（骡帮，逢集来）', caravan: 'lead',
+        job: '骡帮脚夫', skills: ['赶牲口', '驮货', '走山路'],
+        traits: ['豪爽', '守信'],
+        bio: '从山外的县城赶着三头骡子来，逢五逢十赶集那天一早顺着西沟崖脚、走挂壁古道进村。驮来盐巴、洋布、铁锅、洋火，换走核桃、柿饼、药材和山货，晌午散集就原路回去。',
+        likes: '一壶烧酒、和孙掌柜对账',
+        owns: ['三头驮骡（大青、二黑、花脸）'],
+        day: [[11.6, 'caravanHome']],
+        body: 'man', skin: 'skinTan', hair: 'short', hat: 'felt', top: 'khaki', pants: 'black', legwrap: true, item: 'whip', mustache: true,
+      },
+      {
+        id: 'shi_wa', name: '石娃', nick: '小脚夫', age: 18, sex: '男', relation: '外村人（骡帮，逢集来）', caravan: 'helper',
+        job: '骡帮伙计', skills: ['喂牲口', '装卸'],
+        traits: ['腼腆', '腿脚快'],
+        bio: '牛老大的远房外甥，跟着骡帮跑山路学买卖。走在骡子后头，上坡时帮着推一把驮篓。',
+        likes: '村口的糖块',
+        owns: [],
+        day: [[11.6, 'caravanHome']],
+        body: 'man', skin: 'skinTan', hair: 'short', hat: 'towel', top: 'indigo', pants: 'black', legwrap: true, item: 'pole',
+      },
     ],
   },
 ];
 
-// 货郎没有自己的院子，晚上借住杂货铺
-for (const p of HOUSEHOLDS.find((h) => h.id === 'square').people) if (p.id === 'qian_xiaoer') p.sleepAt = 'store';
+// 货郎、骡帮没有自己的院子，晚上借住杂货铺（骡帮平常不在村里，只是名义上的落脚处）
+for (const p of HOUSEHOLDS.find((h) => h.id === 'square').people) if (p.id === 'qian_xiaoer' || p.caravan) p.sleepAt = 'store';
 
 /*
  * 上午和中午（到下午三点，接上各人的 day）。
@@ -388,13 +408,13 @@ for (const p of HOUSEHOLDS.find((h) => h.id === 'square').people) if (p.id === '
 const KID = (chore) => [[6.5, ...(chore ? ['chore', chore] : ['play'])], [7.3, 'school'], [11.6, 'play'], [11.9, 'dinner'], [12.5, 'play'], [13.5, 'school']];
 const MORNING = {
   wang_deshan: [[6.0, 'sitGate'], [7.0, 'patrol'], [9.5, 'visit', 'school'], [10.5, 'patrol'], [11.9, 'dinner'], [12.6, 'home'], [13.6, 'chess']],
-  li_guilan: [[5.4, 'cook'], [6.3, 'yardWork'], [8.5, 'shopping'], [9.3, 'visit', 'farmA'], [10.8, 'cook'], [11.9, 'dinner'], [12.6, 'home'], [13.5, 'yardWork']],
+  li_guilan: [[5.4, 'cook'], [6.3, 'worship'], [8.5, 'shopping'], [9.3, 'visit', 'farmA'], [10.8, 'cook'], [11.9, 'dinner'], [12.6, 'home'], [13.5, 'yardWork']],
   wang_xiaomei: KID('yardWork'),
   li_wenqing: [[6.0, 'read'], [7.2, 'teach'], [11.6, 'read'], [12.0, 'dinner'], [12.6, 'home'], [13.4, 'teach']],
   zhang_tiechui: [[5.6, 'fetchWater'], [6.3, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.2, 'work']],
   xiao_shun: [[5.8, 'chore', 'fetchWater'], [6.4, 'work', 'bellows'], [11.8, 'dinner'], [12.5, 'work', 'bellows']],
   zhang_dabao: KID(),
-  liu_youfu: [[5.8, 'yardWork'], [6.4, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.2, 'work']],
+  liu_youfu: [[5.8, 'yardWork'], [6.4, 'work'], [8.8, 'firewood'], [10.6, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.2, 'work']],
   he_xiulan: [[5.3, 'cook'], [6.2, 'fetchWater'], [6.8, 'field', 'fieldW'], [10.9, 'cook'], [11.8, 'dinner'], [12.5, 'home'], [13.3, 'yardWork']],
   liu_erya: KID(),
   zhao_mantun: [[4.6, 'grind'], [6.0, 'boil'], [7.2, 'sellTofu'], [9.5, 'grind'], [11.8, 'dinner'], [12.5, 'home'], [13.3, 'grind']],
@@ -406,15 +426,17 @@ const MORNING = {
   zhou_jishi: [[5.8, 'tendBees'], [6.5, 'work'], [9.0, 'visit', 'headman'], [10.0, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.6, 'work']],
   ma_laoliu: [[5.8, 'herd'], [11.0, 'herdHome'], [11.8, 'dinner'], [12.5, 'home'], [13.3, 'sitGate']],
   chen_mancang: [[5.8, 'garden'], [7.5, 'sitGate'], [9.0, 'chess'], [11.8, 'dinner'], [12.5, 'home'], [13.6, 'garden']],
-  chen_daniang: [[5.5, 'cook'], [6.4, 'feedChickens'], [7.0, 'sitGate'], [10.8, 'cook'], [11.8, 'dinner'], [12.5, 'home'], [13.5, 'sitGate']],
-  yang_erniu: [[5.6, 'yardWork'], [6.2, 'field', 'fieldW'], [11.4, 'dinner'], [12.2, 'home'], [13.2, 'field', 'fieldW']],
-  liu_cuihua: [[5.3, 'cook'], [6.1, 'feedChickens'], [6.7, 'field', 'fieldW'], [10.9, 'cook'], [11.4, 'dinner'], [12.2, 'home'], [13.4, 'yardWork']],
+  chen_daniang: [[5.5, 'cook'], [6.4, 'feedChickens'], [7.0, 'worship'], [9.4, 'sitGate'], [10.8, 'cook'], [11.8, 'dinner'], [12.5, 'home'], [13.5, 'sitGate']],
+  yang_erniu: [[5.6, 'yardWork'], [6.2, 'field', 'fieldWest'], [11.4, 'dinner'], [12.2, 'home'], [13.2, 'field', 'fieldW']],
+  liu_cuihua: [[5.3, 'cook'], [6.1, 'feedChickens'], [6.7, 'field', 'fieldWest'], [10.9, 'cook'], [11.4, 'dinner'], [12.2, 'home'], [13.4, 'yardWork']],
   yang_xiaohu: [[6.6, 'play'], [11.4, 'dinner'], [12.0, 'play']],
   wu_dachuan: [[5.6, 'feedPigs'], [6.2, 'field', 'fieldE'], [11.6, 'dinner'], [12.3, 'home'], [13.2, 'field', 'fieldE']],
-  sun_qiaoyun: [[5.3, 'cook'], [6.2, 'feedChickens'], [6.8, 'feedRabbits'], [7.4, 'field', 'fieldS'], [10.9, 'cook'], [11.6, 'dinner'], [12.3, 'home'], [13.3, 'yardWork']],
+  sun_qiaoyun: [[5.3, 'cook'], [6.2, 'feedChickens'], [6.8, 'feedRabbits'], [7.4, 'field', 'fieldSoy'], [9.4, 'mill'], [10.9, 'cook'], [11.6, 'dinner'], [12.3, 'home'], [13.3, 'yardWork']],
   wu_xiaocui: KID('feedRabbits'),
   zheng_laotou: [[6.0, 'sitGate'], [7.0, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.4, 'work']],
   qian_xiaoer: [[6.5, 'yardWork'], [7.5, 'peddle'], [11.8, 'dinner'], [12.5, 'home'], [13.5, 'peddle']],
+  niu_wanshan: [[6.4, 'caravan']], // 骡帮：逢集一早进村，十一点半散集回去（其余日子不来）
+  shi_wa: [[6.4, 'caravan']],
 };
 // 夜里：小六子打更，提着灯绕村一圈
 const NIGHT = { xiao_liuzi: [[21.2, 'nightWatch'], [22.8, 'home']] }; // 打更：各家吹灯的时候他还在村里转

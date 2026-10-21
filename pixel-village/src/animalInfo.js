@@ -39,6 +39,7 @@ const ABOUT = {
 const used = new Map();
 /** 给一只动物（compounds 里的条目 s、所在院子 c）发名字和来历。 */
 export function animalInfo(s, c) {
+  if (s.role === 'mule') return { name: s.name, kind: '骡子', owner: '骡帮牛老大', about: '骡帮的驮骡，背上一边一个驮篓。走惯了挂壁古道，脚底下稳当，崖边上也不慌。' };
   const pool = NAMES[s.kind] ?? ['小家伙'];
   const key = `${c?.id ?? 'wild'}:${s.kind}`;
   const i = used.get(key) ?? 0;
@@ -51,7 +52,8 @@ export function animalInfo(s, c) {
 /** 这会儿在干什么（看动物的状态）。 */
 export function animalDoing(b, V) {
   const s = b.s;
-  if (b.home) return s.role === 'chicken' ? '已回鸡窝歇息' : '已回窝';
+  if (b.home) return s.role === 'chicken' ? '已回鸡窝歇息' : s.role === 'mule' ? '跟着骡帮在山外' : '已回窝';
+  if (s.role === 'mule' && !b.follow) return '驮着货在村口歇脚';
   if (s.role === 'pigeon') return b.moving ? '在村子上空盘旋' : '栖在学堂屋脊上';
   if (s.perches) return b.flight ? (s.role === 'bird' ? '飞往另一棵树' : '跃向别处') : s.role === 'cat' ? '蹲在高处小憩' : '立在高处鸣叫';
   if (b.circling) return s.role === 'ox' ? '拉碾碾场' : '蒙眼拉磨';
