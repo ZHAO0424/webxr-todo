@@ -20,6 +20,7 @@ import { makeSynth } from './synth.js';
 const REF = 28; // 参考距离（米）：这么远的时候是原音量
 const NEAR = 14; // 凑到这么近，动物才会自己叫
 const WORK_NEAR = 45; // 干活的声音在这个距离以内才放
+const ANIMAL_GAIN = 0.45; // 动物叫声整体音量
 const AUDIBLE = 160; // 再远的一次性声音就不播了
 
 const SAMPLES = ['rooster', 'hen', 'dog', 'pig', 'sheep', 'donkey', 'ox', 'duck', 'goose', 'pigeon', 'magpie', 'cat', 'clang', 'chop', 'thud', 'chirp', 'crickets', 'fire', 'mill', 'crowd', 'projector'];
@@ -155,8 +156,8 @@ export function createSound(village, getCamera) {
 
     // 时不时：白天鸟叫、夜里蛐蛐（在听者周围随机一处）
     const around = () => [lp.x + (Math.random() - 0.5) * 50, lp.y - 20, lp.z + (Math.random() - 0.5) * 50];
-    if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { sample('chirp', around(), { gain: 0.7 }); nextBird = t + 10 + Math.random() * 18; }
-    if ((hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextCricket) { sample('crickets', around(), { dur: 3 + Math.random() * 3, offset: Math.random() * 30, jitter: 0, gain: 0.8 }); nextCricket = t + 12 + Math.random() * 20; }
+    if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { sample('chirp', around(), { gain: 0.45 }); nextBird = t + 10 + Math.random() * 18; }
+    if ((hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextCricket) { sample('crickets', around(), { dur: 3 + Math.random() * 3, offset: Math.random() * 30, jitter: 0, gain: 0.5 }); nextCricket = t + 12 + Math.random() * 20; }
 
     // 清早：每只公鸡叫两三声
     if (hour > 4.9 && hour < 6.6) {
@@ -164,7 +165,7 @@ export function createSound(village, getCamera) {
         if (b.s.kind !== 'rooster') continue;
         const c = crowed.get(b), n = c?.day === clock.day ? c.n : 0;
         if (n >= 3 || t < (cool.get(b) ?? 0) || Math.random() > 0.08 * dt) continue;
-        sample('rooster', posOf(b, 0.5));
+        sample('rooster', posOf(b, 0.5), { gain: ANIMAL_GAIN });
         crowed.set(b, { day: clock.day, n: n + 1 });
         cool.set(b, t + 12 + Math.random() * 20);
       }
@@ -220,7 +221,7 @@ export function createSound(village, getCamera) {
       let p = d < NEAR ? 0.06 : 0;
       if (key === 'dog' && d < 30 && people.some((v) => !v.inside && v.state === 'walk' && v.p.id !== b.s.owner && Math.abs(v.pos.x - b.pos.x) < 2 && Math.abs(v.pos.z - b.pos.z) < 2)) p = 0.4;
       if (night) p *= 0.2;
-      if (p && Math.random() < p * dt) { sample(key, posOf(b, 0.5)); cool.set(b, t + 8 + Math.random() * 8); }
+      if (p && Math.random() < p * dt) { sample(key, posOf(b, 0.5), { gain: ANIMAL_GAIN }); cool.set(b, t + 8 + Math.random() * 8); }
     }
   }
 
@@ -248,7 +249,7 @@ export function createSound(village, getCamera) {
     /** 页面上第一次点击：自动打开声音（除非用户关过）。 */
     wake() { if (!on && !muted) enable(); return on; },
     /** 点了动物：叫一声（不分方向，保证听得见）。 */
-    clickBeast(b) { const k = ANIMAL[b.s.kind]; if (on && ready && k) sample(k, null, { gain: 0.9 }); },
+    clickBeast(b) { const k = ANIMAL[b.s.kind]; if (on && ready && k) sample(k, null, { gain: ANIMAL_GAIN * 1.3 }); },
     /** 点了物件：放对应的声音。 */
     clickThing(t) {
       const k = THING_SOUND[t.thing];

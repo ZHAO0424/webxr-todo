@@ -1,8 +1,9 @@
 /*
  * 背景音乐：五首北方民乐风的慢曲（本地 Stable Audio 生成，统一压过高频，见 bgm/README.md），按村里的时辰轮换。
  *
- * - 每首放完安静一阵（GAP 秒）再换下一首，像游戏里那样不一直响；下一首从"这个时辰合适的"里挑，不连着放同一首。
- * - 唱戏的时候（台上有人拉板胡）音乐淡出让路，唱完再回来。
+ * - 一直循环：每首快放完时淡入下一首（交叉淡化），中间不留空；下一首从"这个时辰合适的"里挑，不连着放同一首。
+ * - 唱戏的时候（台上有人拉板胡）音乐压低让路，唱完再回来。
+ * - 加载失败 / 被浏览器暂停时自动接着放，不会停在半路。
  * - 两个 <audio> 交替用，换曲时淡入淡出。音量本身就压得很低（BASE）。
  * - 和音效一样，浏览器要先有一次点击才能放：第一次点页面时自动打开（除非点过"音乐"按钮关掉）。
  */
@@ -15,11 +16,11 @@ const TRACKS = [
   { file: 'qiuye', title: '秋夜檐下', from: 19, to: 29 }, // 中胡 + 古筝 + 大提琴：夜里（29 = 次日 5 点）
 ];
 const BASE = 0.32; // 音乐音量（0–1）
-const GAP = [25, 50]; // 两首之间安静多少秒
-const FADE = 3; // 淡入淡出秒数
+const FADE = 4; // 淡入淡出秒数
+const DUCK = 0.3; // 唱戏时压到多少
 
 export function createMusic({ hour, busy }) {
-  let on = false, muted = false, last = null, cur = null, gapLeft = 0, duck = 1;
+  let on = false, muted = false, last = null, cur = null, duck = 1;
   const els = [new Audio(), new Audio()];
   for (const a of els) { a.preload = 'auto'; a.volume = 0; }
   let which = 0;
@@ -58,15 +59,16 @@ export function createMusic({ hour, busy }) {
     wake() { if (!on && !muted) { on = true; start(); } return on; },
     update(dt) {
       if (!on) return;
-      duck += ((busy() ? 0 : 1) - duck) * Math.min(1, dt / FADE); // 唱戏时让路
-      for (const a of els) if (a !== cur?.a && a.volume > 0) { a.volume = Math.max(0, a.volume - dt / FADE); if (!a.volume) a.pause(); } // 上一首淡出
-      if (cur) {
-        const a = cur.a;
-        if (a.ended) { cur = null; gapLeft = GAP[0] + Math.random() * (GAP[1] - GAP[0]); return; }
-        cur.fadeIn = Math.min(1, cur.fadeIn + dt / FADE);
-        const tail = a.duration ? Math.min(1, (a.duration - a.currentTime) / FADE) : 1; // 结尾淡出
-        a.volume = Math.max(0, Math.min(1, BASE * duck * cur.fadeIn * tail));
-      } else if ((gapLeft -= dt) <= 0) start();
+      duck += ((busy() ? DUCK : 1) - duck) * Math.min(1, dt / FADE); // 唱戏时让路
+      for (const a of els) if (a !== cur?.a && !a.paused) { a.volume = Math.max(0, a.volume - BASE * dt / FADE); if (!a.volume) a.pause(); } // 上一首淡出
+      if (!cur) { start(); return; }
+      const a = cur.a;
+      cur.age = (cur.age ?? 0) + dt;
+      // 快放完、已放完、出错：直接接下一首（交叉淡化）
+      if (a.ended || (a.error && cur.age > 2) || (a.duration && a.duration - a.currentTime < FADE)) { start(); return; }
+      if (a.paused && cur.age > 1) a.play().catch(() => {}); // 被浏览器暂停了（切后台 / 卡顿）就接着放
+      cur.fadeIn = Math.min(1, cur.fadeIn + dt / FADE);
+      a.volume = Math.max(0, Math.min(1, BASE * duck * cur.fadeIn));
     },
   };
 }
