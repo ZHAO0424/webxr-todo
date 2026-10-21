@@ -3,7 +3,7 @@ import { UNIT } from './pixel.js';
 
 /*
  * 建村时的自检（结果挂在 root.userData 上，check.mjs 打出来；四项都为空才算没问题）。
- *   snapPerches   猫、喜鹊蹲的高处贴到真实表面上（顺手修，返回改了哪些）
+ *   snapPerches   猫、喜鹊蹲的高处贴到真实表面上，算出哪两处之间跳得过去（顺手修，返回改了哪些）
  *   findFloating  悬空：贴地摆的东西，底下四角的地面低了一截
  *   markReachable 从井出发能走到的格子（nav.reach），动物、小孩、门口座位只挑这些地方
  *   auditPaths    走不到的房门 / 去处、不连通的路网节点（islands）、走不通的路（brokenEdges）
@@ -31,6 +31,33 @@ export function snapPerches(root, terrain, C) {
     const y = root.worldToLocal(hit.point.clone()).y - c.level;
     if (Math.abs(y - pt[1]) > 0.05) fixed.push(`${c.id}/${a.kind}: ${pt[1].toFixed(2)}→${y.toFixed(2)}`);
     pt[1] = y;
+  }
+  // 两个高处之间跳不跳得过去：沿途往下探最高的面（屋顶、墙头、树冠），弧线要从它上面过；
+  // 要抬得太高才过得去的（中间隔着一整座房子）就不跳。结果挂在 a.hops[i] = [{ j, lift }]
+  const down = new THREE.Vector3(0, -1, 0);
+  const topAt = (c, x, z, from) => { // 从弧线能到的最高处往下探（头顶上的树冠不算）
+    ray.set(root.localToWorld(new THREE.Vector3(x, c.level + from, z)), down);
+    ray.far = 20 * UNIT;
+    const hit = ray.intersectObjects(solid, false)[0];
+    return hit ? root.worldToLocal(hit.point.clone()).y - c.level : -Infinity;
+  };
+  for (const c of Object.values(C)) for (const a of c.animals) {
+    const P = a.perches;
+    if (!P || P.length < 2) continue;
+    const base = a.role === 'bird' ? 3 : 1.2, most = a.role === 'bird' ? 5 : 2.2;
+    a.hops = P.map(() => []);
+    for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+      let need = 0;
+      for (let k = 1; k < 20; k++) {
+        const t = k / 20, [x, z] = c.at(P[i][0] + (P[j][0] - P[i][0]) * t, P[i][2] + (P[j][2] - P[i][2]) * t);
+        need = Math.max(need, (topAt(c, x, z, Math.max(P[i][1], P[j][1]) + most + 0.3) + 0.15 - (P[i][1] + (P[j][1] - P[i][1]) * t)) / Math.sin(Math.PI * t));
+      }
+      if (need > most) continue;
+      const lift = Math.max(base, need);
+      a.hops[i].push({ j, lift });
+      a.hops[j].push({ j: i, lift });
+    }
+    a.hops.forEach((h, i) => { if (!h.length) fixed.push(`${c.id}/${a.kind}: 第 ${i} 个高处跳不过去`); });
   }
   return fixed;
 }

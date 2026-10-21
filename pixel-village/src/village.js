@@ -259,7 +259,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   // 从井出发能走到的格子（nav.reach）：动物溜达、吃草、小孩玩耍、门口座位都只挑这些地方
   markReachable(nav, nodes.well);
 
-  // 门口坐着、蹲着吃饭的地方：院门两边的墙根底下（不是路面、不在门前平台上、和院子一样高、走得到），一人一个
+  // 门口坐着吃饭的地方：门槛上两个，再是院门两边的墙根底下（不是路面、不在门前平台上、和院子一样高、走得到），一人一个
   for (const c of Object.values(C)) {
     const [gx, gz] = c.gate;
     const cand = [];
@@ -276,6 +276,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
         && (!c.gates.length || Math.abs(terrain.walkAt(x, z) - c.level) < 0.05);
       if (ok) c.wallSpots.push({ at: [x, z], face: c.at(fx, fz) });
     }
+    c.sillSpots = (c.sills ?? []).map(([lx, lz, seat]) => ({ at: c.at(lx, lz), face: c.at(lx, lz + 4), seat })); // 门槛上：脸朝外
   }
 
   // 自检 2：走不到的房门 / 去处、和村子不连通的路网节点、走不通的路（见 audit.js）

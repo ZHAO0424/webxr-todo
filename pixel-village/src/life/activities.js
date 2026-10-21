@@ -31,9 +31,9 @@ function caravanAway(v, mules) {
 }
 
 /** 自家门口墙根底下一个没人占的位置（没有就 null）。 */
-function wallSpot(v) {
-  const c = v.home, spots = c.wallSpots ?? [];
-  const name = spots.length ? v.V.claim(v, c, spots.map((_, i) => `wall${i}`), { strict: true }) : null;
+function wallSpot(v, { sill = false } = {}) { // 门槛上、门口墙根底下的座位；sill：先坐门槛，坐满了再坐墙根
+  const c = v.home, spots = [...(c.sillSpots ?? []), ...(c.wallSpots ?? [])];
+  const name = spots.length ? v.V.claim(v, c, spots.map((_, i) => `door${i}`), { strict: true, ordered: sill }) : null;
   return name ? spots[Number(name.slice(4))] : null;
 }
 
@@ -136,12 +136,14 @@ export const ACTIVITIES = {
     v.end = () => { v.seat = null; };
   },
 
-  dinner(v) { // 北方的"饭场"：端着碗到门口墙根底下蹲着吃，邻居凑一块儿（不蹲在路上、门前）
+  dinner(v) { // 北方的"饭场"：端着碗坐在自家门槛上、门口墙根底下吃，脸朝外看着街上（不坐在路上）
     v.char.setItem('bowl');
-    const spot = wallSpot(v);
-    if (spot) { v.go(spot.at); v.loop = () => v.do(v.rand() > 0.3 ? 'squat' : 'talk', 8, { face: spot.face }); }
-    else { const [gx, gz] = v.home.gateOut(); v.go(v.V.nav.nearestFree(gx, gz + 1)); v.loop = () => v.do('squat', 8, { face: [gx, gz - 3] }); }
-    v.end = () => { v.char.setItem(v.p.item ?? null); v.V.release(v); };
+    const c = v.home, spot = wallSpot(v, { sill: true });
+    const [gx, gz] = c.gate, k = 4 / Math.hypot(gx, gz), out = c.at(gx * (1 + k), gz * (1 + k)); // 从院子当中往院门外
+    const at = spot ? spot.at : v.V.nav.nearestFree(...c.at(gx + 1.6, gz)); // 都占满了：门外路边
+    v.go(at);
+    v.loop = () => { v.seat = spot?.seat ?? 0.1; v.do('sit', 8, { face: spot ? spot.face : out }); }; // 没座位的盘腿坐在地上
+    v.end = () => { v.seat = null; v.char.setItem(v.p.item ?? null); v.V.release(v); };
   },
 
   evening(v) { // 没有晚上的活动时：吃过晚饭，有的到大槐树下围一圈闲聊，有的坐自家门口，有的早早歇了
@@ -324,12 +326,12 @@ export const ACTIVITIES = {
     v.loop = () => { v.go(farm.spot('yard')); v.do('idle', 6); };
   },
 
-  sitGate(v) { // 坐在自家门口的墙根底下，不挡道
+  sitGate(v) { // 坐在自家门槛上、门口的墙根底下
     v.char.setItem(v.p.item ?? null);
     const spot = wallSpot(v);
     const [gx, gz] = v.home.gateOut();
     v.go(spot ? spot.at : v.V.nav.nearestFree(gx + 1.2, gz + 0.3));
-    v.loop = () => { v.seat = 0.3; v.do('sit', 10, { face: spot ? spot.face : [gx + 1.2, gz + 4] }); };
+    v.loop = () => { v.seat = spot?.seat ?? 0.3; v.do('sit', 10, { face: spot ? spot.face : [gx + 1.2, gz + 4] }); };
     v.end = () => { v.seat = null; v.V.release(v); };
   },
 

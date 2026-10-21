@@ -43,13 +43,17 @@ const rect = (w, d) => ({ x0: -w / 2, x1: w / 2, z0: -d / 2, z1: d / 2 });
 
 /**
  * 装院门。广亮大门的门楼整个缩在墙线以内（门扇在墙线往里 1.5 米），别的门就在墙线上。
- * 返回 { gate（门外节点）, inside（门里一步）, gates, lanterns }。
+ * 返回 { gate（门外节点）, inside（门里一步）, gates, lanterns, sills（门槛上的两个座位）}。
  */
 function withGate(g, M, type, gx, d, width) {
   const gt = gate(M, type, width);
   const z = type === 'grand' ? d / 2 - 1.5 : d / 2;
   put(g, gt.object, gx, z);
+  // 门槛：门扇外侧一道横木 / 条石（广亮大门的压在门楼台基上）。吃饭、乘凉的时候门槛两头各坐一个人
+  const sill = type === 'grand' ? 0.45 : 0.15, half = gt.width / 2 - 0.05;
+  g.add(block(gx - half, sill - 0.15, z + 0.02, gx + half, sill, z + 0.3, type === 'grand' || type === 'wall' ? M.stone : M.wood));
   return {
+    sills: [[gx - half / 2 - 0.1, z + 0.2, sill], [gx + half / 2 + 0.1, z + 0.2, sill]], // [x, z, 座面高]
     gate: [gx, d / 2 + 1.2],
     inside: [gx, z - (type === 'grand' ? 2.0 : 1.0)],
     gates: [{ leaves: gt.leaves, center: [gx, z], w: gt.width }],
@@ -313,7 +317,7 @@ function store(M) {
     doors: { house: xz(at(shop, shop.door)), kitchen: xz(at(shop, shop.door)) },
     windows: windowsOf(shop),
     emitters: [{ kind: 'smoke', pos: at(back, back.chimney) }],
-    animals: [{ kind: 'cat', role: 'cat', perches: [[4.6, shop.roofTop - 0.95, front - 2.5], [-5.6, 1.25, front + 0.7]] }],
+    animals: [{ kind: 'cat', role: 'cat', perches: [[4.6, shop.roofTop - 0.95, front - 2.5], [-4.2, shop.roofTop - 0.95, front - 2.5, 'pass'], [-5.3, 3.9, front + 0.25, 'pass'], [-5.6, 1.25, front + 0.7]] }], // 屋脊 → 走到西头 → 前檐口 → 从檐外跳到缸上
   });
 }
 

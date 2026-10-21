@@ -106,8 +106,8 @@ const WORK_MOTION = {
   bucket(t, L, Rt) { const k = Math.max(0, Math.sin(t * 1.5)); Rt.rotation.x = -0.6 - k * 0.8; L.rotation.x = -0.5; return true; }, // 往槽里倒
   whip(t, L, Rt) { Rt.rotation.x = -1.6 + Math.sin(t * 5) * 0.6; return true; },
   none(t, L, Rt) { const k = Math.sin(t * 3) * 0.4; Rt.rotation.x = L.rotation.x = -0.9 + k; return true; }, // 空手：拉风箱、推磨
-  pole(t, L, Rt) { Rt.rotation.x = L.rotation.x = -2.8; return true; }, // 两手扶着肩上的扁担
-  buckets(t, L, Rt) { Rt.rotation.x = L.rotation.x = -2.8; return true; },
+  pole(t, L, Rt) { Rt.rotation.x = -1.3; L.rotation.x = -0.3; return true; }, // 右手往前扶着肩上的扁担
+  buckets(t, L, Rt) { Rt.rotation.x = -1.3; L.rotation.x = -0.3; return true; },
   pipe(t, L, Rt) { Rt.rotation.x = Math.sin(t * 0.8) > 0.5 ? -1.9 : -1.2; return true; }, // 嘬一口旱烟
   cane(t, L, Rt) { Rt.rotation.x = -0.3; return true; },
   axe(t, L, Rt) { return WORK_MOTION.hammer(t * 0.9, L, Rt); }, // 劈柴：举起来、劈下去
@@ -194,6 +194,14 @@ export function voxelCharacter(p, M) {
     if (!grid) return null;
     const solid = (x, y, z) => (z === -1 || z === 0) && !!grid.get(x + CX, FEET - y);
     const color = (x, y) => grid.get(x + CX, FEET - y);
+    if (name === 'pole' || name === 'buckets') { // 扁担前后顺着搭在右肩上（一头一只筐 / 桶），不横在身前穿过胳膊和头
+      const holder = new THREE.Group();
+      holder.add(shadowMesh(voxelGeometry(box[0], box[1], solid, color, VOX, [0, 0, 0.5 * VOX]), M));
+      holder.rotation.y = Math.PI / 2;
+      holder.position.set((hx - 1) * VOX, -4.5 * VOX, 0); // 压在肩头上，从大头底下穿过
+      body.add(holder);
+      return holder;
+    }
     if (ON_SHOULDER.has(name)) {
       const m = shadowMesh(voxelGeometry(box[0], box[1], solid, color, VOX), M);
       body.add(m);
@@ -239,6 +247,7 @@ export function voxelCharacter(p, M) {
           return;
         }
         if (state === 'squat') { armR.rotation.x = -0.9 - (Math.sin(t * 2.2 + phase) > 0.6 ? 0.6 : 0); armL.rotation.x = -0.7; }
+        else if (current === 'bowl') { armR.rotation.x = Math.sin(t * 2.2 + phase) > 0.4 ? -1.7 : -1.0; armL.rotation.x = -0.9; } // 坐着端碗扒饭：碗凑到嘴边
         else armR.rotation.x = Math.sin(t * 0.8 + phase) > 0.7 ? -0.5 : -0.2;
         return;
       }
@@ -313,6 +322,7 @@ export function voxelCharacter(p, M) {
         legL.rotation.x = s; legR.rotation.x = -s;
         armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8;
         if (current === 'umbrella') armR.rotation.x = -0.9; // 打伞的那只手举着不摆
+        if (current === 'pole' || current === 'buckets') armR.rotation.x = -1.3; // 挑担子：右手扶着扁担前半截
         body.position.y = Math.abs(Math.cos(w)) > 0.7 ? VOX : 0; // 每步起伏一个像素
       } else if (state === 'work') {
         WORK_MOTION[current ?? 'none']?.(t + phase, armL, armR, body) ?? WORK_MOTION.hammer(t + phase, armL, armR, body);

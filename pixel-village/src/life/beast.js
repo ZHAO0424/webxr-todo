@@ -40,7 +40,7 @@ export class Beast {
     this.follow = null; this.circling = null; this.graze = null; this.home = false; this.target = null; this.path = null; this.stroll = null; this.returning = false;
     this.object.visible = true;
     if (s.caravan) { this.home = true; this.object.visible = false; return; } // 骡帮的骡子：平常在山外，逢集才跟着来（activities.js 的 caravan）
-    if (s.perches) { this.perch = Math.floor(this.rand() * s.perches.length); this.flight = null; return; }
+    if (s.perches) { const rest = s.perches.map((p, i) => i).filter((i) => s.perches[i][3] !== 'pass'); this.perch = rest[Math.floor(this.rand() * rest.length)]; this.flight = null; return; }
     if (s.role === 'pigeon') return;
     const p = this.areaPoint() ?? (this.c ? this.c.at(0, 0) : [0, 0]);
     this.pos.set(p[0], 0, p[1]);
@@ -243,10 +243,11 @@ export class Beast {
       const [x, y, z] = P(this.perch);
       this.pos.set(x, 0, z);
       this.wait -= dt;
-      if (this.wait <= 0 && s.perches.length > 1) {
-        const next = (this.perch + 1 + Math.floor(this.rand() * (s.perches.length - 1))) % s.perches.length;
-        this.flight = { from: P(this.perch), to: P(next), k: 0, next };
-        this.wait = 15 + this.rand() * 25;
+      const hops = s.hops?.[this.perch] ?? []; // 只往跳得过去的高处跳（见 audit.js 的 snapPerches），弧线高到越过中间的屋顶
+      if (this.wait <= 0 && hops.length) {
+        const { j, lift } = hops[Math.floor(this.rand() * hops.length)];
+        this.flight = { from: P(this.perch), to: P(j), k: 0, next: j, lift };
+        this.wait = s.perches[j][3] === 'pass' ? 0.6 + this.rand() * 1.2 : 15 + this.rand() * 25; // 'pass'：路过的落脚点，站一下就走
       }
       this.heading = this.phase;
       this.pecking = Math.sin(t * 0.7 + this.phase) > 0.8;
@@ -259,7 +260,7 @@ export class Beast {
     this.pos.set(f.from[0] + (f.to[0] - f.from[0]) * k, 0, f.from[2] + (f.to[2] - f.from[2]) * k);
     this.heading = Math.atan2(-(f.to[2] - f.from[2]), f.to[0] - f.from[0]);
     this.moving = true;
-    const yy = f.from[1] + (f.to[1] - f.from[1]) * k + Math.sin(k * Math.PI) * (s.role === 'bird' ? 3 : 1.2);
+    const yy = f.from[1] + (f.to[1] - f.from[1]) * k + Math.sin(k * Math.PI) * f.lift;
     if (k >= 1) { this.perch = f.next; this.flight = null; }
     return yy;
   }
