@@ -152,7 +152,7 @@ renderer.setAnimationLoop((_, frame) => {
 if (params.has('sim')) {
   const total = Number(params.get('sim'));
   const nav = village.nav;
-  let samples = 0, clipP = 0, clipA = 0, stuck = 0, escaped = 0, gateOpenSamples = 0, strolls = 0, ajarSamples = 0;
+  let samples = 0, clipP = 0, clipA = 0, stuck = 0, escaped = 0, gateOpenSamples = 0, strolls = 0, ajarSamples = 0, beastStuck = 0;
   const attended = {}, kidsAt = {};
   const esc = {};
   const why = {};
@@ -172,6 +172,7 @@ if (params.has('sim')) {
     for (const b of village.life.beasts) {
       if (b.home || b.s.perches || b.s.role === 'pigeon' || b.circling) continue;
       if (!nav.freeAt(b.pos.x, b.pos.z, b.swim) && !nav.door[nav.index(b.pos.x, b.pos.z)]) clipA++;
+      if ((b.stuck ?? 0) > 0.3) beastStuck++;
       // 逃逸：没人赶、没人喂的时候，圈养的牲口跑出了自己的院子
       if (b.stroll) strolls++;
       if (b.c && b.s.area && !b.follow && !b.graze && !b.stroll && !b.returning && ['chicken', 'pig', 'sheep'].includes(b.s.role)) {
@@ -192,12 +193,12 @@ if (params.has('sim')) {
   for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) { const d = Math.hypot(out[i].pos.x - out[j].pos.x, out[i].pos.z - out[j].pos.z); if (d < 0.7) close.push(`${out[i].p.id}(${out[i].state},${out[i].tasks[0]?.type ?? '-'})~${out[j].p.id}(${out[j].state},${out[j].tasks[0]?.type ?? '-'})=${d.toFixed(2)}`); }
   eve.push(...close.map((c) => 'CLOSE ' + c));
   document.documentElement.dataset.eve = JSON.stringify(eve);
-  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.event(), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
+  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.event(), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
 }
 
 let drawables = 0;
 scene.traverse((o) => { if (o.isMesh || o.isSprite) drawables++; });
 document.documentElement.dataset.calls = String(drawables); // 每只眼大约这么多 draw call（不含阴影）
 document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);
-document.documentElement.dataset.audit = JSON.stringify({ flora: village.object.userData.flora, floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
+document.documentElement.dataset.audit = JSON.stringify({ perchFix: village.object.userData.perchFix, coplanar: village.object.userData.coplanar, flora: village.object.userData.flora, floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
 document.documentElement.dataset.ready = '1';

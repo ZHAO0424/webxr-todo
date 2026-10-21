@@ -301,6 +301,13 @@ function attends(p, ev, day) {
 
 const R = (a) => a[Math.floor(Math.random() * a.length)];
 
+/** 自家门口墙根底下一个没人占的位置（没有就 null）。 */
+function wallSpot(v) {
+  const c = v.home, spots = c.wallSpots ?? [];
+  const name = spots.length ? v.V.claim(v, c, spots.map((_, i) => `wall${i}`), { strict: true }) : null;
+  return name ? spots[Number(name.slice(4))] : null;
+}
+
 const ACTIVITIES = {
   idle(v) { v.loop = () => v.do('idle', 5); },
 
@@ -403,12 +410,12 @@ const ACTIVITIES = {
     v.end = () => { v.seat = null; };
   },
 
-  dinner(v) { // 北方的"饭场"：端着碗蹲到门口吃，邻居凑一块儿
+  dinner(v) { // 北方的"饭场"：端着碗到门口墙根底下蹲着吃，邻居凑一块儿（不蹲在路上、门前）
     v.char.setItem('bowl');
-    const [gx, gz] = v.home.gateOut();
-    v.go(() => v.V.nav.nearestFree(gx + (v.rand() - 0.5) * 3, gz + 0.6 + v.rand() * 1.2));
-    v.loop = () => v.do(v.rand() > 0.3 ? 'squat' : 'talk', 8, { face: [gx, gz - 3] });
-    v.end = () => v.char.setItem(v.p.item ?? null);
+    const spot = wallSpot(v);
+    if (spot) { v.go(spot.at); v.loop = () => v.do(v.rand() > 0.3 ? 'squat' : 'talk', 8, { face: spot.face }); }
+    else { const [gx, gz] = v.home.gateOut(); v.go(v.V.nav.nearestFree(gx, gz + 1)); v.loop = () => v.do('squat', 8, { face: [gx, gz - 3] }); }
+    v.end = () => { v.char.setItem(v.p.item ?? null); v.V.release(v); };
   },
 
   evening(v) { // 傍晚去村口：今晚是什么活动、自己去不去、去了干什么
@@ -637,12 +644,13 @@ const ACTIVITIES = {
     v.loop = () => { v.go(farm.spot('yard')); v.do('idle', 6); };
   },
 
-  sitGate(v) {
+  sitGate(v) { // 坐在自家门口的墙根底下，不挡道
     v.char.setItem(v.p.item ?? null);
+    const spot = wallSpot(v);
     const [gx, gz] = v.home.gateOut();
-    v.go(v.V.nav.nearestFree(gx + 1.2, gz + 0.3));
-    v.loop = () => { v.seat = 0.3; v.do('sit', 10, { face: [gx + 1.2, gz + 4] }); };
-    v.end = () => { v.seat = null; };
+    v.go(spot ? spot.at : v.V.nav.nearestFree(gx + 1.2, gz + 0.3));
+    v.loop = () => { v.seat = 0.3; v.do('sit', 10, { face: spot ? spot.face : [gx + 1.2, gz + 4] }); };
+    v.end = () => { v.seat = null; v.V.release(v); };
   },
 
   garden(v) { v.char.setItem('hoe'); v.go(v.home.spot('garden')); v.loop = () => v.do('work', 8); },
@@ -704,47 +712,67 @@ class Beast {
     return this.V.nav.randomIn(this.s.area, (x, z) => this.c.at(x, z), this.rand, this.swim);
   }
 
-  moveTo(tx, tz, dt, speed = this.speed) {
-    const dx = tx - this.pos.x, dz = tz - this.pos.z;
-    const d = Math.hypot(dx, dz);
-    if (d < 0.08) return true;
-    let nx = tx, nz = tz;
-    if (!this.V.nav.line(this.pos.x, this.pos.z, tx, tz, this.swim, this.push)) { // 挡着了：A* 绕过去（会拱门的把门当路）
-      if (!this.path || this.pathFor !== `${tx | 0},${tz | 0}`) {
-        const opts = { swim: this.swim, person: this.push };
-        this.path = this.V.nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: 8000 });
-        if (!this.path && Math.hypot(tx - this.pos.x, tz - this.pos.z) > 6 && !(this.lostFor > 0)) { // 离家远的（掉队的羊）搜全图再找一次；还找不到就 10 秒内别再试
-          this.path = this.V.nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: Infinity });
-          if (!this.path) { // 困在和村子不连通的小角落里了：就近跳到走得通的一格（像跳下一道坎），再接着回家
-            this.lostFor = 10;
-            const nav = this.V.nav;
-            for (let r = 0.25; r <= 2 && !this.path; r += 0.25) for (let a = 0; a < 16; a++) {
-              const x = this.pos.x + Math.cos(a * 0.3927) * r, z = this.pos.z + Math.sin(a * 0.3927) * r;
-              if (nav.freeAt(x, z, this.swim) && nav.reachable(x, z)) { this.pos.x = x; this.pos.z = z; this.path = []; this.lostFor = 0; break; }
-            }
-            this.path = null;
-            if (!this.lostFor) return false;
-          }
+  /** 找一条路（会拱门的把门当路）。离家远时搜全图；困在和村子不连通的小角落里就近跳出来。 */
+  plan(tx, tz) {
+    const nav = this.V.nav, inDoor = nav.door[nav.index(this.pos.x, this.pos.z)] > 0; // 门关上时正站在门洞里：允许挤回去
+    const opts = { swim: this.swim, person: this.push || inDoor };
+    let path = nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: 8000 });
+    if (!path && Math.hypot(tx - this.pos.x, tz - this.pos.z) > 6 && !(this.lostFor > 0)) {
+      path = nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: Infinity });
+      if (!path) {
+        this.lostFor = 10; // 10 秒内别再搜全图
+        for (let r = 0.25; r <= 2; r += 0.25) for (let a = 0; a < 16; a++) {
+          const x = this.pos.x + Math.cos(a * 0.3927) * r, z = this.pos.z + Math.sin(a * 0.3927) * r;
+          if (nav.freeAt(x, z, this.swim) && nav.reachable(x, z)) { this.pos.x = x; this.pos.z = z; this.lostFor = 0; return nav.find(x, z, tx, tz, { ...opts, maxNodes: Infinity }) ?? []; }
         }
-        this.path ??= [];
-        this.pathFor = `${tx | 0},${tz | 0}`;
       }
-      if (!this.path.length) return true;
-      [nx, nz] = this.path[0];
-      if (Math.hypot(nx - this.pos.x, nz - this.pos.z) < 0.1) { this.path.shift(); return false; }
-    } else this.path = null;
-    const ex = nx - this.pos.x, ez = nz - this.pos.z, e = Math.hypot(ex, ez);
-    const step = Math.min(e, speed * dt);
-    const px = this.pos.x + (ex / e) * step, pz = this.pos.z + (ez / e) * step;
-    if (this.push) { // 前面是关着的门：拿头拱开，门就这么敞着
-      const door = this.V.nav.closedDoorAt(this.pos.x + (ex / e) * 0.3, this.pos.z + (ez / e) * 0.3);
-      if (door) { door.ajar = true; this.heading = Math.atan2(-ez, ex); return false; }
     }
-    if (this.V.nav.freeAt(px, pz, this.swim) || !this.V.nav.freeAt(this.pos.x, this.pos.z, this.swim)) { this.pos.x = px; this.pos.z = pz; }
-    this.heading = Math.atan2(-ez, ex);
-    this.moving = true;
+    return path ?? [];
+  }
+
+  /**
+   * 朝 (tx, tz) 走一帧，到了返回 true。
+   * 换了目标才判断一次"能不能直着走"，不能就 A*，然后沿着这条路走完（以前每帧都重判，拐角处在直走 / 绕路之间来回切，一抖一抖的）；
+   * 一帧的步长用完为止，路过拐点不停顿；擦着墙角就只沿 x 或 z 滑过去；真卡住 0.8 秒就重新找路。
+   */
+  moveTo(tx, tz, dt, speed = this.speed) {
+    const nav = this.V.nav;
+    if (Math.hypot(tx - this.pos.x, tz - this.pos.z) < 0.08) { this.path = null; this.pathFor = null; return true; }
+    const key = `${Math.round(tx * 2)},${Math.round(tz * 2)}`; // 跟着人走时目标一直在动：半米以内算同一个目标
+    if (this.pathFor !== key || !this.path) {
+      this.pathFor = key;
+      this.path = nav.line(this.pos.x, this.pos.z, tx, tz, this.swim, this.push || nav.door[nav.index(this.pos.x, this.pos.z)] > 0) ? [[tx, tz]] : this.plan(tx, tz);
+      this.stuck = 0;
+    } else if (this.path.length === 1) this.path[0] = [tx, tz];
+    if (!this.path.length) { this.pathFor = null; return true; }
+    let budget = speed * dt, moved = false;
+    while (budget > 1e-4 && this.path.length) {
+      const [nx, nz] = this.path[0];
+      const ex = nx - this.pos.x, ez = nz - this.pos.z, e = Math.hypot(ex, ez);
+      if (e < 0.02) { this.path.shift(); continue; }
+      if (this.push) { // 前面是关着的门：拿头拱开，门就这么敞着
+        const door = nav.closedDoorAt(this.pos.x + (ex / e) * 0.3, this.pos.z + (ez / e) * 0.3);
+        if (door) { door.ajar = true; this.heading = Math.atan2(-ez, ex); this.moving = false; return false; }
+      }
+      const step = Math.min(e, budget);
+      const px = this.pos.x + (ex / e) * step, pz = this.pos.z + (ez / e) * step;
+      this.heading = Math.atan2(-ez, ex);
+      if (nav.freeAt(px, pz, this.swim) || !nav.freeAt(this.pos.x, this.pos.z, this.swim)) {
+        this.pos.x = px; this.pos.z = pz; budget -= step; moved = true;
+        if (step >= e) this.path.shift();
+        continue;
+      }
+      if (nav.freeAt(px, this.pos.z, this.swim)) { this.pos.x = px; moved = true; } // 擦着墙角：只沿一根轴滑
+      else if (nav.freeAt(this.pos.x, pz, this.swim)) { this.pos.z = pz; moved = true; }
+      break;
+    }
+    this.stuck = moved ? 0 : (this.stuck ?? 0) + dt;
+    if (this.stuck > 0.8) { this.path = null; this.stuck = 0; } // 真卡住了：下一帧重新找路
+    this.moving = moved;
+    if (this.path && !this.path.length) { this.path = null; this.pathFor = null; return true; } // 走完了（终点是离目标最近的能站的地方）
     return false;
   }
+
 
   update(t, dt, hour) {
     const s = this.s, V = this.V;

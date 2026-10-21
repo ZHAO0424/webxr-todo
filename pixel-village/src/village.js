@@ -13,6 +13,7 @@ import { voxelTree } from './voxel.js';
 import { NavGrid } from './nav.js';
 import { buildFarmland } from './farmland.js';
 import { buildRoadside } from './roadside.js';
+import { fixCoplanar } from './coplanar.js';
 import { daylight } from './daylight.js';
 import { Smoke, Embers, Fireflies } from './fx.js';
 
@@ -143,6 +144,32 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
   const road = buildRoadside(M, terrain, nodes, C); // 路边的野花野草、土地庙、石敢当、花盆
   root.add(road.props);
 
+  // 4.5 共面的面（z-fighting 闪烁）：门柱和墙、墙的拐角、压顶……把小的那个微微撑出来
+  root.userData.coplanar = fixCoplanar(root, (o) => o === terrain.object || o.userData.tree || o.isSprite);
+
+  // 4.6 猫、喜鹊蹲的高处：从点位上方往下打射线，贴到真实的表面上（屋面、墙头、缸沿、树冠）。
+  //     点位是手填的，院子和物件挪过以后会对不上——蹲在半空或者陷进屋顶里
+  {
+    root.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    const solid = [];
+    root.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && o !== terrain.object && o.material && o.material.side !== THREE.BackSide && !o.material.transparent && !(o.geometry instanceof THREE.PlaneGeometry)) solid.push(o); });
+    solid.push(terrain.object);
+    const perchFix = [];
+    for (const c of Object.values(C)) for (const a of c.animals) for (const pt of a.perches ?? []) {
+      const [x, z] = c.at(pt[0], pt[2]);
+      const from = root.localToWorld(new THREE.Vector3(x, c.level + pt[1] + 1.2, z));
+      ray.set(from, new THREE.Vector3(0, -1, 0));
+      ray.far = 6 * UNIT;
+      const hit = ray.intersectObjects(solid, false)[0];
+      if (!hit) continue;
+      const y = root.worldToLocal(hit.point.clone()).y - c.level;
+      if (Math.abs(y - pt[1]) > 0.05) perchFix.push(`${c.id}/${a.kind}: ${pt[1].toFixed(2)}→${y.toFixed(2)}`);
+      pt[1] = y;
+    }
+    root.userData.perchFix = perchFix;
+  }
+
   // 5. 导航网格：把房子、墙、栅栏、道具、树干都投影成障碍（门扇、灯笼这些会动的不算）
   const nav = new NavGrid(terrain);
   root.updateMatrixWorld(true);
@@ -221,6 +248,25 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
     c.gateOut = () => nav.nearestFree(...c.at(...c.gate));
     c.randomPoint = (a = area) => nav.randomIn(a, c.at, rand) ?? c.at(0, 0);
   }
+  // 门口坐着、蹲着吃饭的地方：院门两边的墙根底下（不是路面、不在门前平台上、和院子一样高、走得到），一人一个
+  for (const c of Object.values(C)) {
+    const [gx, gz] = c.gate;
+    const cand = [];
+    if (c.gates.length) {
+      for (const dx of [1.8, 2.5, 3.2, 3.9, 4.6]) for (const sd of [-1, 1]) cand.push([gx + sd * dx, c.d / 2 + 0.5, gx + sd * dx, c.d / 2 + 4]);
+    } else {
+      for (let a = 0; a < 12; a++) cand.push([gx + Math.cos(a * 0.52) * 2.6, gz + Math.sin(a * 0.52) * 2.6, gx, gz]); // 没院墙的（村口、场院）：门口一圈，脸朝门口
+    }
+    c.wallSpots = [];
+    for (const [lx, lz, fx, fz] of cand) {
+      const [x, z] = c.at(lx, lz);
+      const ok = nav.freeAt(x, z) && nav.reachable(x, z) && !nav.door[nav.index(x, z)]
+        && [[0, 0], [0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]].every(([ex, ez]) => terrain.typeAt(x + ex, z + ez) !== 'path')
+        && (!c.gates.length || Math.abs(terrain.walkAt(x, z) - c.level) < 0.05);
+      if (ok) c.wallSpots.push({ at: [x, z], face: c.at(fx, fz) });
+    }
+  }
+
   // 自检 2：每个院子从门外能不能走到每扇房门、每个去处
   const unreachable = [];
   for (const c of Object.values(C)) {
