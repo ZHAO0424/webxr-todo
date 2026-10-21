@@ -6,7 +6,9 @@ import { buildBackdrop, skyTexture } from './backdrop.js';
 import { createAnchor } from './xr.js';
 import { LABELS, PLACES } from './labels.js';
 import { setupPixelUI } from './ui/frame.js';
-import { residentCard, animalCard, hm, label } from './ui/cards.js';
+import { residentCard, animalCard, thingCard, hm, label } from './ui/cards.js';
+import { pickThing, describe, YARDS } from './things.js';
+import { HOUSEHOLDS } from './residents.js';
 import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 
@@ -125,17 +127,85 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
   const targets = [...village.life.people.filter((v) => !v.inside).map((v) => v.object), ...village.life.beasts.filter((b) => b.object.visible).map((b) => b.object)];
   const hit = ray.intersectObjects(targets, true)[0];
-  if (!hit) { closeCard(); return; }
+  if (!hit) { pickScene(); return; }
   let o = hit.object;
   while (o && !o.userData.resident && !o.userData.beast) o = o.parent;
   if (o?.userData.beast) selectBeast(o.userData.beast);
   else if (o) selectPerson(village.life.people.find((v) => v.object === o));
 });
 
+/** 没点到人和动物：看打到了什么房子、物件；打在院子地上就是这个院子。 */
+function pickScene() {
+  const hit = ray.intersectObject(village.object, true).find((h) => h.object.isMesh && !h.object.isInstancedMesh && h.object !== marker);
+  if (!hit) { closeCard(); return; }
+  const p = village.object.worldToLocal(hit.point.clone());
+  const t = pickThing(village.things, p);
+  if (t) { selectThing(t); return; }
+  const c = village.compoundAt(p.x, p.z, 0);
+  if (c) selectYard(c);
+  else closeCard();
+}
+
 function closeCard() { sel = null; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; }
 const dockCard = () => { host.style.top = `${clockEl.getBoundingClientRect().bottom + 6}px`; }; // 卡片总在时钟栏下面
 addEventListener('resize', dockCard);
-function show(card, obj, h) { host.innerHTML = ''; host.append(card.el); host.hidden = false; dockCard(); obj.add(marker); marker.position.set(0, h, 0); marker.visible = true; }
+function show(card, obj, h) { host.innerHTML = ''; host.append(card.el); host.hidden = false; dockCard(); obj.add(marker); marker.position.set(0, h, 0); marker.visible = true; markerH = h; }
+let markerH = 2.2;
+const spot = new THREE.Object3D(); // 房子、物件上方放箭头的点
+village.object.add(spot);
+
+const pick = (id) => selectPerson(V.byId[id]);
+const homeOf = (cid) => HOUSEHOLDS.find((h) => h.id === cid);
+const residentsOf = (cid) => village.life.people.filter((v) => v.p.home === cid).map((v) => ({ id: v.p.id, name: v.p.name }));
+const doingOf = (v) => (v.inside ? '' : LABELS[v.doing] ?? LABELS[v.doing?.split(':')[0]] ?? '');
+
+function selectThing(t) {
+  const place = t.cid ? PLACES[t.cid] : null;
+  const d = describe(t, place);
+  const h = t.thing === 'house' ? homeOf(t.cid) : null;
+  const card = thingCard({ ...d, household: h && { name: h.name }, people: t.thing === 'house' ? residentsOf(t.cid) : [] }, { onClose: closeCard, onPick: pick });
+  sel = { t, card };
+  spot.position.set((t.box.min.x + t.box.max.x) / 2, t.box.max.y, (t.box.min.z + t.box.max.z) / 2);
+  show(card, spot, 0.5);
+  refreshCard();
+}
+
+function selectYard(c) {
+  const h = homeOf(c.id), y = YARDS[c.id];
+  const card = thingCard({ name: h?.name ?? PLACES[c.id], tags: [h?.kind ?? y?.kind].filter(Boolean), about: h?.note ?? y?.note ?? '', people: residentsOf(c.id) }, { onClose: closeCard, onPick: pick });
+  sel = { c, card };
+  spot.position.set(c.object.position.x, c.object.position.y + 1.5, c.object.position.z);
+  show(card, spot, 0.5);
+  refreshCard();
+}
+
+/** 房子 / 院子 / 物件卡片的"此刻"。 */
+function refreshPlace() {
+  const people = village.life.people;
+  const who = (list) => list.map((v) => ({ id: v.p.id, name: `${v.p.name}${doingOf(v) ? ' · ' + doingOf(v) : ''}` }));
+  const night = village.life.clock.night;
+  if (sel.c) {
+    const c = sel.c;
+    const here = people.filter((v) => village.compoundAt(v.pos.x, v.pos.z) === c);
+    const out = here.filter((v) => !v.inside), inn = here.filter((v) => v.inside);
+    const lines = [here.length ? `院里 ${out.length} 人，屋里 ${inn.length} 人` : '院里没人'];
+    if (c.lit !== undefined && night) lines.push(c.lit ? '窗户还亮着灯' : '灯都熄了');
+    sel.card.update({ lines, kind: here.length ? '' : 'rest', who: who(here) });
+    return;
+  }
+  const t = sel.t, b = t.box;
+  const dist = (v) => Math.hypot(Math.max(b.min.x - v.pos.x, 0, v.pos.x - b.max.x), Math.max(b.min.z - v.pos.z, 0, v.pos.z - b.max.z));
+  if (t.thing === 'house') {
+    const inn = people.filter((v) => v.inside && dist(v) < 1.6);
+    const c = village.C[t.cid];
+    const lines = [inn.length ? `屋里有 ${inn.length} 个人` : '屋里没人'];
+    if (c?.lit !== undefined && night) lines.push(c.lit ? '窗户亮着灯' : '灯熄了，睡下了');
+    sel.card.update({ lines, kind: inn.length ? (night ? 'sleep' : 'rest') : '', who: who(inn) });
+    return;
+  }
+  const near = people.filter((v) => !v.inside && dist(v) < 0.9);
+  sel.card.update({ lines: [near.length ? `${near.length} 个人在这儿` : '这会儿没人用'], kind: near.length ? '' : 'rest', who: who(near) });
+}
 
 function selectPerson(v) {
   if (!v) return;
@@ -155,6 +225,7 @@ function selectBeast(b) {
 /** 卡片上会变的部分：正在干什么、在哪儿、接下来、今天第几项。 */
 function refreshCard() {
   if (!sel) return;
+  if (sel.t || sel.c) { refreshPlace(); return; }
   const hour = village.life.clock.hour;
   if (sel.b) {
     const b = sel.b;
@@ -177,9 +248,23 @@ function refreshCard() {
 }
 
 // ?pick=村民id 或 ?pick=beast:序号：一打开就弹出这张卡（截图检查用）；?unfold=1 把折叠的都展开
+// 收集到的物件按种类计数（无头检查看有没有漏标）；?click=x,y 模拟在屏幕这一点点一下
+document.documentElement.dataset.things = JSON.stringify(village.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}));
+if (params.get('click')) {
+  const [cx, cy] = params.get('click').split(',').map(Number);
+  setTimeout(() => { // 等画过几帧、矩阵都更新了再点
+    camera.updateMatrixWorld();
+    village.object.updateMatrixWorld(true);
+    ray.setFromCamera({ x: (cx / innerWidth) * 2 - 1, y: -(cy / innerHeight) * 2 + 1 }, camera);
+    pickScene();
+    document.documentElement.dataset.clicked = sel?.t ? `thing:${sel.t.thing}:${sel.t.cid}` : sel?.c ? `yard:${sel.c.id}` : 'none';
+  }, 1500);
+}
 if (params.get('pick')) {
   const id = params.get('pick');
   if (id.startsWith('beast:')) selectBeast(village.life.beasts[Number(id.slice(6))]);
+  else if (id.startsWith('thing:')) { const [, k, n] = id.split(':'); selectThing(village.things.filter((t) => t.thing === k)[Number(n ?? 0)]); } // ?pick=thing:millstone
+  else if (id.startsWith('yard:')) selectYard(village.C[id.slice(5)]);
   else selectPerson(V.byId[id]);
   if (params.get('unfold')) host.querySelectorAll('details').forEach((d) => { d.open = true; });
 }
@@ -198,7 +283,7 @@ renderer.setAnimationLoop((_, frame) => {
     viewer.copy(camera.position);
   }
   const s = village.update(t, viewer);
-  if (marker.visible) marker.position.y = (sel?.b ? 1.3 : 2.2) + (Math.floor(t * 3) % 2) * 0.1; // 一上一下跳
+  if (marker.visible) marker.position.y = markerH + (Math.floor(t * 3) % 2) * 0.1; // 一上一下跳
   applyLight(s.light);
   backdrop.update(t);
   if (clockEl && s.clock.label !== lastLabel) {

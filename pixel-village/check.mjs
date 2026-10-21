@@ -34,6 +34,8 @@ const sim = dom.match(/data-sim="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"');
 if (sim) console.log(`sim=${sim}`);
 const audit = dom.match(/data-audit="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"');
 if (audit) console.log(`audit=${audit}`);
+const things = dom.match(/data-things="([^"]*)"/)?.[1]?.replace(/&quot;/g, "\""); if (things) console.log(`things=${things}`);
+const clicked = dom.match(/data-clicked="([^"]*)"/)?.[1]; if (clicked) console.log(`clicked=${clicked}`);
 const eve = dom.match(/data-eve="([^"]*)"/)?.[1]?.replace(/&quot;/g, "\""); if (eve) console.log(`eve=${eve}`);
 if (errors) console.log(`errors:\n${errors}`);
 console.log(`screenshot: ${join(out, page + '.png')}`);

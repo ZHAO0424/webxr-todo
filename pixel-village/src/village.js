@@ -5,7 +5,10 @@ import { buildMaterials } from './textures.js';
 import { buildTerrain, rawHeight, padLevel } from './terrain.js';
 import { buildCompounds } from './compounds.js';
 import { PLACEMENTS, NODES, EDGES, WELL, BOUNDS, streamZ } from './layout.js';
-import * as P from './props.js';
+import * as PROPS from './props.js';
+import { tagged, tag, collectThings } from './things.js';
+
+const P = tagged(PROPS); // 建出来的物件都带上 userData.thing，点它能看卡片
 import { Sprites } from './sprites.js';
 import { RESIDENTS } from './residents.js';
 import { populate, EVENTS as EVENT_DEFS } from './life/index.js';
@@ -113,7 +116,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   root.add(terrain.object);
   for (const c of Object.values(C)) root.add(c.object);
   root.add(P.well(M, WELL.x, WELL.z).translateY(terrain.heightAt(WELL.x, WELL.z)));
-  if (terrain.bridge) root.add(stoneBridge(M, terrain.bridge));
+  if (terrain.bridge) root.add(tag(stoneBridge(M, terrain.bridge), 'bridge'));
 
   // 3. 树（体素）。记下树干位置，导航里当障碍
   const trunks = [];
@@ -216,7 +219,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     }
   }
 
-  // 7. 静态几何合批
+  // 7. 静态几何合批（合批会拆掉网格，所以点物件用的包围盒要先收集）
+  const things = collectThings(root, C);
   root.userData.bake = bakeStatic(root);
   root.add(farm.object, road.flora); // 实例化的庄稼、野花野草不参与合批
   root.userData.flora = road.flora.userData.count;
@@ -346,11 +350,13 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   let last = 0;
 
   /** 这个位置叫什么：谁家院里 / 村口 / 场院，否则看地面——地里、溪边、路上、山坡上。 */
+  const compoundAt = (x, z, pad = 0.3) => Object.values(C).find((c) => {
+    const dx = x - c.object.position.x, dz = z - c.object.position.z, cs = Math.cos(c.rot), sn = Math.sin(c.rot);
+    return Math.abs(cs * dx - sn * dz) <= c.w / 2 + pad && Math.abs(sn * dx + cs * dz) <= c.d / 2 + pad;
+  }) ?? null;
   const whereAt = (x, z) => {
-    for (const c of Object.values(C)) {
-      const dx = x - c.object.position.x, dz = z - c.object.position.z, cs = Math.cos(c.rot), sn = Math.sin(c.rot);
-      if (Math.abs(cs * dx - sn * dz) <= c.w / 2 + 0.3 && Math.abs(sn * dx + cs * dz) <= c.d / 2 + 0.3) return PLACES[c.id];
-    }
+    const c = compoundAt(x, z);
+    if (c) return PLACES[c.id];
     if (shrine && Math.hypot(x - shrine.at[0], z - shrine.at[1]) < 4) return '桥头土地庙';
     if (terrain.bridge && Math.hypot(x - terrain.bridge.x, z - terrain.bridge.z) < terrain.bridge.len / 2) return '石拱桥上';
     const t = terrain.typeAt(x, z);
@@ -364,6 +370,9 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     nav,
     gates,
     whereAt,
+    compoundAt,
+    things,
+    C,
     update(t, viewerWorld) {
       const dt = Math.max(0, Math.min(0.1, t - last));
       last = t;

@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { block } from './pixel.js';
 import { house, enclose, wallSeg, gate, screenWall, lantern, facade } from './buildings.js';
-import * as P from './props.js';
+import * as PROPS from './props.js';
+import { tagged } from './things.js';
+
+const P = tagged(PROPS); // 建出来的物件都带上 userData.thing，点它能看卡片
 
 /*
  * 院落。每个函数在"本地坐标"里建：原点 = 平台中心，+z = 朝南的大门那一边。

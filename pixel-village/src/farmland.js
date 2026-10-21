@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { makeRng } from './pixel.js';
 import { R } from './palette.js';
 import { voxelGeometry } from './voxel.js';
-import * as P from './props.js';
+import * as PROPS from './props.js';
+import { tagged } from './things.js';
+
+const P = tagged(PROPS); // 建出来的物件都带上 userData.thing，点它能看卡片
 
 /*
  * 庄稼地。地形里每一级梯田已经定了种什么（crop：0 麦茬 / 1 谷子 / 2 玉米 / 3 白菜），

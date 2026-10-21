@@ -8,26 +8,26 @@
   <style>
     html, body { background: #1a1624; }
     body { margin: 0; min-height: 100vh; }
-    main { max-width: calc(500 * var(--p)); margin: 0 auto; padding: calc(8 * var(--p)) calc(4 * var(--p)) calc(30 * var(--p)); }
-    h1 { margin: 0; font-weight: normal; color: var(--gold); text-shadow: var(--f) 0 0 currentColor; }
+    main { max-width: calc(640 * var(--p)); margin: 0 auto; padding: calc(8 * var(--p)) calc(4 * var(--p)) calc(30 * var(--p)); }
+    h1 { margin: 0; font-weight: normal; color: var(--gold); }
     .intro { margin: calc(2 * var(--p)) 0 calc(3 * var(--p)); color: var(--dim); }
     .top a { color: var(--gold); margin-left: calc(2 * var(--p)); }
     .filters { display: flex; flex-wrap: wrap; gap: calc(3 * var(--p)); margin: calc(6 * var(--p)) 0; }
     section.house { margin-top: calc(6 * var(--p)); }
     /* 户名：金色加粗 + 一道细线，不再用大字 */
     .house h2 { margin: 0; font-size: inherit; font-weight: normal; display: flex; align-items: center; gap: calc(3 * var(--p)); }
-    .house h2 .hname { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; }
+    .house h2 .hname { color: var(--gold); }
     .house h2::after { content: ''; flex: 1; height: var(--f); background: var(--line); }
     .house .note { color: var(--dim); margin: var(--p) 0 calc(4 * var(--p)); }
-    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(200 * var(--p)), 1fr)); gap: calc(4 * var(--p)); }
-    .tile { display: flex; gap: calc(4 * var(--p)); align-items: flex-start; cursor: pointer; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(146 * var(--p)), 1fr)); gap: calc(3 * var(--p)); }
+    .tile { display: flex; gap: calc(3 * var(--p)); align-items: flex-start; cursor: pointer; }
     .tile:hover { filter: brightness(1.1); }
     .tile .face { flex: none; border-style: solid; border-width: calc(3 * var(--p)); border-image: var(--frame-face) 3 fill / calc(3 * var(--p)) round;
                   background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); display: grid; place-items: end center; }
-    .tile .face canvas { display: block; width: calc(28 * 3 * var(--f)); }
+    .tile .face canvas { display: block; width: calc(28 * 2 * var(--f)); }
     .tile .txt { min-width: 0; flex: 1; }
-    .tile .nm { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; }
-    .tile .nk { color: var(--dim); text-shadow: none; margin-left: calc(3 * var(--p)); }
+    .tile .nm { color: var(--gold); }
+    .tile .nk { color: var(--dim); margin-left: calc(3 * var(--p)); font-family: 'PixelZh12', sans-serif; font-size: calc(12 * var(--f)); }
     .tile .jb { color: #d8c0a0; margin-bottom: var(--p); }
     .tile .bio { margin: var(--p) 0 calc(2 * var(--p)); }
     .tile .meta { color: var(--dim); }
@@ -112,7 +112,7 @@
     for (const h of HOUSEHOLDS) {
       const sec = document.createElement('section');
       sec.className = 'panel house';
-      sec.innerHTML = `<h2><span class="hname">${esc(h.name)}</span><span class="chip soft">${esc(h.kind)}</span></h2><p class="note">${esc(h.note)}</p><div class="tiles"></div><div class="beasts"></div>`;
+      sec.innerHTML = `<h2><span class="hname title">${esc(h.name)}</span><span class="chip soft">${esc(h.kind)}</span></h2><p class="note">${esc(h.note)}</p><div class="tiles"></div><div class="beasts"></div>`;
       const tiles = sec.querySelector('.tiles');
       for (const p0 of h.people) {
         const p = byId[p0.id];
@@ -120,7 +120,7 @@
         t.className = 'paper tile';
         t.dataset.id = p.id;
         t.innerHTML = `<div class="face"></div><div class="txt">
-          <div class="nm">${esc(p.name)}<span class="nk">${esc(p.nick)}</span></div>
+          <div class="nm title">${esc(p.name)}<span class="nk">${esc(p.nick)}</span></div>
           <div class="jb">${esc(p.job)} · ${esc(p.relation)}</div>
           <div><span class="chip soft">${p.age}岁 · ${p.sex}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</div>
           <p class="bio">${esc(p.bio)}</p>
@@ -136,7 +136,7 @@
       for (const { s, info } of beasts[h.id] ?? []) {
         const a = animalAtlas(s.kind);
         const c = portrait(a.canvas, 0, 0, a.cellW, a.cellH, 1);
-        c.style.width = `calc(${a.cellW * 3} * var(--f))`;
+        c.style.width = `calc(${a.cellW * 2} * var(--f))`;
         const el = document.createElement('span');
         el.className = 'b';
         el.title = info.about;

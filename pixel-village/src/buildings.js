@@ -127,6 +127,8 @@ export function house(M, { w, d, h, wall = 'brick', roof = 'gable', rise = 1.5, 
   }
   // door：门外一步（人站这儿再进屋）；windows：亮灯窗户的位置（夜里在窗前放光晕）
   const windows = items.filter((it) => it.k === 'windowLit').map((it) => new THREE.Vector3(it.x, (it.y ?? 0.3) + 0.6, zf + 0.1));
+  g.userData.thing = 'house'; // 点房子看卡片用（things.js）
+  g.userData.thingSpec = { wall, roof, porch, chimney };
   return { object: g, door: new THREE.Vector3(doorX, 0, d / 2 + 0.9), windows, chimney: chimneyAt, roofTop };
 }
 
@@ -260,6 +262,8 @@ export function gate(M, type, width = 3.4) {
   }
   g.add(doors.group);
   const widthOf = { grand: 2.4, wall: 2.4, brush: 2.46, plank: width };
+  g.userData.thing = 'gate';
+  g.userData.thingSpec = { type };
   return { object: g, lanterns, leaves: doors.leaves, width: widthOf[type] };
 }
 
@@ -271,5 +275,6 @@ export function screenWall(M) {
   g.add(block(-1.75, 2.6, -0.4, 1.75, 2.85, 0.4, M.roof));
   g.add(block(-1.8, 2.85, -0.15, 1.8, 3.05, 0.15, M.ridge));
   facade(g, M, 'fu', 0, 1.2, 0.22, { scale: 1.2 });
+  g.userData.thing = 'screenWall';
   return g;
 }

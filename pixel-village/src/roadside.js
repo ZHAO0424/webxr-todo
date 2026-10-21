@@ -129,6 +129,7 @@ export function buildRoadside(M, terrain, nodes, C) {
   const bn = nodes.bridgeN;
   const sh = near(bn.x + 3.2, bn.z - 0.5, 2.0, 1.6);
   const shrineObj = shrine(M);
+  shrineObj.userData.thing = 'shrine';
   place(shrineObj, sh, bn.x, bn.z);
   if (sh) taken.push([sh[0], sh[1], 1.6]);
   // 祭土地用：庙的位置、脸朝哪儿、香炉在哪儿（冒香烟）
@@ -137,7 +138,9 @@ export function buildRoadside(M, terrain, nodes, C) {
   for (const [n, dx, dz] of [['mid', -1.5, -1.3], ['well', -1.6, -1.2], ['e1', 1.4, -1.4], ['w1', 1.5, -1.3]]) {
     const nd = nodes[n];
     const s = near(nd.x + dx, nd.z + dz, 0.8, 0.6, 2.5);
-    place(stoneTablet(M), s, nd.x, nd.z);
+    const tablet = stoneTablet(M);
+    tablet.userData.thing = 'stoneTablet';
+    place(tablet, s, nd.x, nd.z);
     if (s) taken.push([s[0], s[1], 0.8]);
   }
   // 院门两边的花盆（墙外脚下，门前平台的两侧）

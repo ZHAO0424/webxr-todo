@@ -328,8 +328,67 @@ const PLUMP = { dog: 3, dogBlack: 3, cat: 2, hen: 2, henBrown: 2, rooster: 2, du
 // 人是 Q 版大头，动物也按同样的夸张程度放大，不然站在人旁边像玩具
 const ANIMAL_SCALE = { dog: 1.6, dogBlack: 1.6, cat: 1.6, hen: 1.7, henBrown: 1.7, rooster: 1.7, duck: 1.7, goose: 1.5, pig: 1.4, sheep: 1.4, donkey: 1.2, ox: 1.35, magpie: 1.7, pigeon: 1.6 };
 
-/** 侧视图按到轮廓边的距离充气成体素。返回每帧一个 Mesh（侧视图面朝 +x）。 */
+/*
+ * 猪和牛照"我的世界"的样子用方块拼：身子一块、头一块、鼻子一块、四条方腿，配色沿用原来的黄牛 / 黑猪。
+ * 盒子 [x0, y0, z0, x1, y1, z1, 颜色]（体素，头朝 +x，y 向上，z 居中）；颜色可以是函数 (x, y, z) → 色，用来画眼睛、斑纹。
+ * 走路两帧：对角的两条腿一前一后。表面按体素位置撒一点深浅（像我的世界的贴图颗粒）。
+ */
+const grain = (x, y, z) => { const h = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return h - Math.floor(h); };
+const legs = (xs, zs, h, w, col, hoof, step) => xs.flatMap((x, i) => zs.map((z, j) => {
+  const d = step * ((i + j) % 2 ? 1 : -1); // 对角两条腿同向
+  return [x + d, 0, z, x + d + w, h, z + w, (xx, yy) => (yy === 0 ? hoof : col)];
+}));
+
+const BOXY = {
+  ox: (step) => {
+    const y = R.mud[3], Y = R.mud[2], l = R.mud[4], h = R.white[2], k = R.slate[0], n = R.pink[2];
+    return [
+      ...legs([-11, 6], [-5, 2], 9, 3, Y, k, step),
+      [-12, 8, -6, 11, 19, 6, (x, yy) => (yy === 8 ? l : y)], // 身子（肚皮浅）
+      [3, 19, -4, 10, 21, 4, Y], // 肩上的隆起
+      [-13, 11, -1, -12, 18, 1, Y], [-13, 8, -1, -12, 11, 1, k], // 尾巴 + 尾梢
+      [11, 11, -4, 17, 20, 4, (x, yy, z) => (x === 16 && yy === 17 && Math.abs(z + 0.5) > 1.5 ? k : y)], // 头 + 眼睛
+      [17, 11, -3, 19, 15, 3, (x, yy, z) => (x === 18 && yy === 13 && Math.abs(z + 0.5) === 1.5 ? k : n)], // 鼻子 + 鼻孔
+      [12, 20, -7, 14, 22, -4, h], [12, 20, 4, 14, 22, 7, h], [12, 22, -7, 14, 24, -6, h], [12, 22, 6, 14, 24, 7, h], // 弯角
+      [12, 17, -6, 14, 19, -4, Y], [12, 17, 4, 14, 19, 6, Y], // 耳朵
+    ];
+  },
+  pig: (step) => {
+    const p = R.slate[2], P = R.slate[3], s = R.pink[3], k = R.slate[0];
+    return [
+      ...legs([-7, 3], [-4, 1], 4, 3, p, k, step),
+      [-8, 4, -5, 8, 12, 5, (x, yy) => (yy === 11 ? P : p)], // 身子（背上一道亮）
+      [8, 5, -4, 14, 12, 4, (x, yy, z) => (x === 13 && yy === 10 && Math.abs(z + 0.5) === 2.5 ? k : p)], // 头 + 眼睛
+      [14, 6, -2, 16, 9, 2, (x, yy, z) => (x === 15 && yy === 7 && Math.abs(z + 0.5) === 0.5 ? k : s)], // 猪鼻子 + 鼻孔
+      [9, 12, -4, 11, 13, -2, P], [9, 12, 2, 11, 13, 4, P], // 耳朵
+      [-9, 9, 0, -8, 11, 1, s], // 小尾巴
+    ];
+  },
+};
+const BOXY_SCALE = { ox: 1.15, pig: 1.0 };
+
+function boxyFrames(kind, M) {
+  return [0, 1].map((step) => {
+    const boxes = BOXY[kind](step);
+    const lo = [0, 1, 2].map((a) => Math.min(...boxes.map((b) => b[a])));
+    const hi = [3, 4, 5].map((a) => Math.max(...boxes.map((b) => b[a])));
+    const at = (x, y, z) => boxes.findLast?.((b) => x >= b[0] && x < b[3] && y >= b[1] && y < b[4] && z >= b[2] && z < b[5]);
+    const geo = voxelGeometry(lo, hi, (x, y, z) => !!at(x, y, z), (x, y, z) => {
+      const b = at(x, y, z), c = typeof b[6] === 'function' ? b[6](x, y, z) : b[6];
+      const g = grain(x, y, z);
+      if (c === R.mud[3]) return g < 0.05 ? R.mud[2] : g > 0.96 ? R.mud[4] : c; // 牛毛的深浅颗粒
+      if (c === R.slate[2]) return g < 0.08 ? R.slate[1] : c;
+      return c;
+    });
+    const m = shadowMesh(geo, M);
+    m.scale.setScalar(BOXY_SCALE[kind]);
+    return m;
+  });
+}
+
+/** 侧视图按到轮廓边的距离充气成体素。返回每帧一个 Mesh（侧视图面朝 +x）。猪和牛例外，用方块拼（见 BOXY）。 */
 export function voxelAnimalFrames(kind, M) {
+  if (BOXY[kind]) return boxyFrames(kind, M);
   return animalGrids(kind).map((g) => {
     const dist = Array.from({ length: g.h }, () => new Array(g.w).fill(0));
     const queue = [];

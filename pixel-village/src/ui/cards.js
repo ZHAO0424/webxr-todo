@@ -23,14 +23,14 @@ const SEGS = [[0, '清早'], [7, '上午'], [11.5, '中午'], [13.5, '下午'], 
 /** 村民头像：正面待机帧。 */
 function residentFace(p) {
   const c = portrait(characterAtlas(p), 0, 0, CELL_W, CELL_H, 1);
-  c.style.width = `calc(${CELL_W * 3} * var(--f))`; // 一个像素 = 3 个字点
+  c.style.width = `calc(${CELL_W * 2} * var(--f))`; // 一个像素 = 2 个字点
   return c;
 }
 
 function animalFace(kind) {
   const a = animalAtlas(kind);
   const c = portrait(a.canvas, 0, 0, a.cellW, a.cellH, 1);
-  const s = Math.max(2, Math.min(8, Math.floor(84 / a.cellW))); // 小动物放大一些，和人的头像差不多大
+  const s = Math.max(2, Math.min(5, Math.floor(56 / a.cellW))); // 小动物放大一些，和人的头像差不多大
   c.style.width = `calc(${a.cellW * s} * var(--f))`;
   return c;
 }
@@ -60,7 +60,7 @@ export function residentCard(p, { live = true, onPick, onClose } = {}) {
   const chips = (list, color) => list.map((o) => `<span class="chip ${onPick ? 'link' : ''}" style="--c:${color}" data-id="${o.id}">${esc(o.name)}<span style="opacity:.8">·${esc(o.nick)}</span></span>`).join('');
   el.innerHTML = `${close}
     <div class="head"><div class="face"></div><div class="who">
-      <div class="name">${esc(p.name)}<span class="nick px">${esc(p.nick)}</span></div>
+      <div class="name title">${esc(p.name)}<span class="nick">${esc(p.nick)}</span></div>
       <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.job)}</span><span class="chip soft">${p.age}岁 · ${p.sex}</span><span class="chip soft">${esc(p.household)}</span><span class="chip soft">${esc(p.relation)}</span></div>
     </div></div>
     ${live ? '<div class="paper now"><span class="dot"></span><span class="doing"></span></div><div class="next"></div>' : ''}
@@ -100,7 +100,7 @@ export function animalCard(info, kind, { onClose, onPick, ownerId } = {}) {
   const owner = ownerId && BYID[ownerId];
   el.innerHTML = `${onClose ? '<button class="btn close" title="关闭">×</button>' : ''}
     <div class="head"><div class="face"></div><div class="who">
-      <div class="name">${esc(info.name)}</div>
+      <div class="name title">${esc(info.name)}</div>
       <div><span class="chip" style="--c:var(--c-craft)">${esc(info.kind)}</span><span class="chip soft">${esc(info.owner)}</span>
       ${owner ? `<span class="chip link" style="--c:var(--c-child)" data-id="${owner.id}">主人 ${esc(owner.nick)}</span>` : ''}</div>
     </div></div>
@@ -115,6 +115,38 @@ export function animalCard(info, kind, { onClose, onPick, ownerId } = {}) {
     update({ doing: d, where, kind: k }) {
       doing.textContent = where ? `${d}　@${where}` : d;
       dot.className = `dot ${k ?? ''}`;
+    },
+  };
+}
+
+/**
+ * 房子 / 院子 / 物件卡片。info：{ name, tags, about, household（{ name, kind }）, people（住这儿的人） }。
+ * 返回 { el, update({ lines: [文字], kind, who: [人] }) }：lines 是"此刻"的几行（屋里有谁、灯亮没亮、谁在用），who 是此刻在这儿的人（可点）。
+ */
+export function thingCard(info, { onClose, onPick } = {}) {
+  const el = document.createElement('div');
+  el.className = 'panel card thing px';
+  el.style.position = 'relative';
+  const chips = (list, color) => list.map((o) => `<span class="chip ${onPick ? 'link' : ''}" style="--c:${color}" data-id="${o.id}">${esc(o.name)}</span>`).join('');
+  el.innerHTML = `${onClose ? '<button class="btn close" title="关闭">×</button>' : ''}
+    <div class="name title">${esc(info.name)}</div>
+    <div>${info.household ? `<span class="chip" style="--c:var(--c-craft)">${esc(info.household.name)}</span>` : ''}${info.tags.map((t) => `<span class="chip soft">${esc(t)}</span>`).join('')}</div>
+    <div class="paper now"><span class="dot"></span><span class="doing"></span></div>
+    <div class="who-now row"></div>
+    ${info.about ? `<p style="margin-top:calc(3 * var(--p))">${esc(info.about)}</p>` : ''}
+    ${info.people?.length ? `<details class="fold" open><summary>住在这儿的<span class="count">${info.people.length}</span></summary><div><div class="row">${chips(info.people, 'var(--c-farm)')}</div></div></details>` : ''}`;
+  el.querySelector('.close')?.addEventListener('click', onClose);
+  const bind = (root) => { if (onPick) root.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => onPick(c.dataset.id))); };
+  bind(el);
+  const doing = el.querySelector('.doing'), dot = el.querySelector('.dot'), whoEl = el.querySelector('.who-now');
+  let lastWho = '';
+  return {
+    el,
+    update({ lines, kind, who = [] }) {
+      doing.innerHTML = lines.map(esc).join('<br>');
+      dot.className = `dot ${kind ?? ''}`;
+      const key = who.map((o) => o.id).join();
+      if (key !== lastWho) { lastWho = key; whoEl.innerHTML = chips(who, 'var(--c-child)'); bind(whoEl); }
     },
   };
 }
