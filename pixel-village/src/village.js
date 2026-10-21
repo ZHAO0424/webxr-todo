@@ -161,6 +161,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     if (terrain.typeAt(px, pz) !== 'grass' || rand() > 0.55) continue;
     if (trunks.some(([tx, tz]) => Math.hypot(tx - px, tz - pz) < 3.2) || nearPath(px, pz)) continue;
     if ([[1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]].some(([dx, dz]) => terrain.typeAt(px + dx, pz + dz) === 'pad')) continue; // 别贴着院墙
+    if ([[1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4]].some(([dx, dz]) => terrain.typeAt(px + dx, pz + dz) === 'pad')) continue; // 别贴着院墙
     if (Object.values(nodes).some((n) => Math.hypot(n.x - px, n.z - pz) < 3)) continue;
     const kind = rand() < 0.6 ? 'bush' : ['jujube', 'persimmon', 'locust'][Math.floor(rand() * 3)];
     plant(kind, px, pz, { seed: seed++, scale: kind === 'bush' ? 0.7 + rand() * 0.4 : kind === 'locust' ? 0.5 : 0.7 + rand() * 0.2 });
