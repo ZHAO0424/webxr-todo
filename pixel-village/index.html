@@ -8,14 +8,14 @@
   <style>
     html, body { margin: 0; height: 100%; background: #1b1d24; overflow: hidden; }
     /* 时钟栏：右上角的深色像素面板 */
-    #clock { position: fixed; right: calc(4 * var(--p)); top: calc(4 * var(--p)); min-width: calc(112 * var(--p)); pointer-events: none; }
-    #clock .date { color: #e8c890; }
-    #clock .time { font-size: calc(24 * var(--p)); line-height: calc(26 * var(--p)); color: #fff4dc; }
-    #clock .ev { margin-top: calc(2 * var(--p)); }
-    #clock .sub { color: #c0a8c8; }
+    #clock { position: fixed; right: calc(4 * var(--p)); top: calc(4 * var(--p)); min-width: calc(110 * var(--p)); pointer-events: none; }
+    #clock .date { color: var(--dim); }
+    #clock .time { font-size: calc(32 * var(--f)); line-height: calc(36 * var(--f)); color: var(--gold); }
+    #clock .ev { margin-top: var(--p); }
+    #clock .sub { color: var(--dim); }
     /* 操作提示：左下角 */
     #hint { position: fixed; left: calc(4 * var(--p)); bottom: calc(4 * var(--p)); max-width: calc(260 * var(--p)); }
-    #hint a { color: #ffd88a; }
+    #hint a { color: var(--gold); }
     /* 卡片：时钟栏下面，靠右 */
     #card { position: fixed; right: calc(4 * var(--p)); top: calc(66 * var(--p)); max-height: calc(100vh - 72 * var(--p)); overflow: auto; scrollbar-width: none; }
     #card::-webkit-scrollbar { display: none; }

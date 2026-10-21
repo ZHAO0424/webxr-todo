@@ -6,35 +6,34 @@
   <title>石峪村村民档案</title>
   <link rel="stylesheet" href="src/ui/ui.css">
   <style>
-    html, body { background: #1e1a2a; }
+    html, body { background: #1a1624; }
     body { margin: 0; min-height: 100vh; }
-    main.px, .night { color: #eadccc; } /* 深底上用之前的米色字（像素 UI 默认的深棕字是给羊皮纸用的） */
-    main { max-width: calc(560 * var(--p)); margin: 0 auto; padding: calc(8 * var(--p)) calc(4 * var(--p)) calc(30 * var(--p)); color: #eadccc; }
-    /* 深色木框（和之前的深紫配色一致：底 #2a2438、金色标题、米色正文） */
-    .night { border-style: solid; border-width: calc(5 * var(--p)); border-image: var(--frame-night) 5 fill / calc(5 * var(--p)) round; padding: calc(3 * var(--p)) calc(4 * var(--p)); }
-    h1 { margin: 0; font-size: calc(24 * var(--p)); line-height: calc(28 * var(--p)); font-weight: normal; color: #ffcf8a; }
-    .intro { margin: calc(3 * var(--p)) 0; color: #b0a090; }
-    .top a { color: #ffcf8a; }
+    main { max-width: calc(500 * var(--p)); margin: 0 auto; padding: calc(8 * var(--p)) calc(4 * var(--p)) calc(30 * var(--p)); }
+    h1 { margin: 0; font-weight: normal; color: var(--gold); text-shadow: var(--f) 0 0 currentColor; }
+    .intro { margin: calc(2 * var(--p)) 0 calc(3 * var(--p)); color: var(--dim); }
+    .top a { color: var(--gold); margin-left: calc(2 * var(--p)); }
     .filters { display: flex; flex-wrap: wrap; gap: calc(3 * var(--p)); margin: calc(6 * var(--p)) 0; }
     section.house { margin-top: calc(6 * var(--p)); }
-    .house h2 { margin: 0; font-size: calc(12 * var(--p)); font-weight: normal; display: flex; align-items: center; gap: calc(3 * var(--p)); }
-    .house h2 .hname { font-size: calc(24 * var(--p)); line-height: calc(26 * var(--p)); color: #ffcf8a; }
-    .house .note { color: #b0a090; margin: calc(2 * var(--p)) 0 calc(4 * var(--p)); }
-    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(250 * var(--p)), 1fr)); gap: calc(4 * var(--p)); }
-    .tile { display: flex; gap: calc(5 * var(--p)); align-items: flex-start; cursor: pointer; }
-    .tile:hover { filter: brightness(1.12); }
-    .tile .face { flex: none; border-style: solid; border-width: calc(4 * var(--p)); border-image: var(--frame-dark) 5 fill / calc(4 * var(--p)) round;
-                  background: linear-gradient(#4a3a6a, #b0607a 70%, #e89a6a); display: grid; place-items: end center; }
-    .tile .face canvas { display: block; width: calc(28 * 2 * var(--p)); }
+    /* 户名：金色加粗 + 一道细线，不再用大字 */
+    .house h2 { margin: 0; font-size: inherit; font-weight: normal; display: flex; align-items: center; gap: calc(3 * var(--p)); }
+    .house h2 .hname { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; }
+    .house h2::after { content: ''; flex: 1; height: var(--f); background: var(--line); }
+    .house .note { color: var(--dim); margin: var(--p) 0 calc(4 * var(--p)); }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(200 * var(--p)), 1fr)); gap: calc(4 * var(--p)); }
+    .tile { display: flex; gap: calc(4 * var(--p)); align-items: flex-start; cursor: pointer; }
+    .tile:hover { filter: brightness(1.1); }
+    .tile .face { flex: none; border-style: solid; border-width: calc(3 * var(--p)); border-image: var(--frame-face) 3 fill / calc(3 * var(--p)) round;
+                  background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); display: grid; place-items: end center; }
+    .tile .face canvas { display: block; width: calc(28 * 3 * var(--f)); }
     .tile .txt { min-width: 0; flex: 1; }
-    .tile .nm { color: #ffcf8a; font-size: calc(24 * var(--p)); line-height: calc(26 * var(--p)); }
-    .tile .nk { color: #b0a090; font-size: calc(12 * var(--p)); margin-left: calc(3 * var(--p)); }
-    .tile .jb { color: #d8b890; margin-bottom: calc(2 * var(--p)); }
-    .tile .bio { margin: calc(2 * var(--p)) 0; color: #eadccc; }
-    .tile .meta { color: #b0a090; }
-    .tile .meta b { color: #d8b890; font-weight: normal; margin-right: calc(2 * var(--p)); }
-    .tile .more { color: #a8d898; margin-top: calc(2 * var(--p)); }
-    .beasts { margin-top: calc(4 * var(--p)); display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)) calc(6 * var(--p)); align-items: flex-end; color: #b0a090; }
+    .tile .nm { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; }
+    .tile .nk { color: var(--dim); text-shadow: none; margin-left: calc(3 * var(--p)); }
+    .tile .jb { color: #d8c0a0; margin-bottom: var(--p); }
+    .tile .bio { margin: var(--p) 0 calc(2 * var(--p)); }
+    .tile .meta { color: var(--dim); }
+    .tile .meta b { color: #d8c0a0; text-shadow: none; margin-right: calc(3 * var(--p)); }
+    .tile .more { color: var(--green); margin-top: calc(2 * var(--p)); }
+    .beasts { margin-top: calc(4 * var(--p)); display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)) calc(6 * var(--p)); align-items: flex-end; color: var(--dim); }
     .beasts .b { display: flex; align-items: flex-end; gap: var(--p); }
     .beasts canvas { image-rendering: pixelated; }
     #modal { position: fixed; inset: 0; background: rgba(20, 12, 28, .6); display: grid; place-items: center; padding: calc(6 * var(--p)); }
@@ -100,10 +99,10 @@
     };
 
     const main = document.getElementById('main');
-    main.innerHTML = `<div class="night top">
-        <h1>${esc(VILLAGE.name)} · 村民档案</h1>
+    main.innerHTML = `<div class="panel top">
+        <h1 class="big">${esc(VILLAGE.name)} · 村民档案</h1>
         <p class="intro">${esc(VILLAGE.intro)}</p>
-        <span class="chip" style="--c:#b0603a">${HOUSEHOLDS.length} 户</span><span class="chip" style="--c:#5a8a3a">${RESIDENTS.length} 口人</span><span class="chip" style="--c:#4a8ac0">${nBeasts} 只牲口</span>
+        <span class="chip" style="--c:var(--c-craft)">${HOUSEHOLDS.length} 户</span><span class="chip" style="--c:var(--c-farm)">${RESIDENTS.length} 口人</span><span class="chip" style="--c:var(--c-child)">${nBeasts} 只牲口</span>
         <a href="./">← 回到村子</a>
       </div>
       <div class="filters">${Object.keys(FILTERS).map((k, i) => `<button class="btn${i ? '' : ' on'}" data-f="${k}">${k}</button>`).join('')}</div>
@@ -112,23 +111,23 @@
     const houses = document.getElementById('houses');
     for (const h of HOUSEHOLDS) {
       const sec = document.createElement('section');
-      sec.className = 'night house';
+      sec.className = 'panel house';
       sec.innerHTML = `<h2><span class="hname">${esc(h.name)}</span><span class="chip soft">${esc(h.kind)}</span></h2><p class="note">${esc(h.note)}</p><div class="tiles"></div><div class="beasts"></div>`;
       const tiles = sec.querySelector('.tiles');
       for (const p0 of h.people) {
         const p = byId[p0.id];
         const t = document.createElement('div');
-        t.className = 'night tile';
+        t.className = 'paper tile';
         t.dataset.id = p.id;
         t.innerHTML = `<div class="face"></div><div class="txt">
           <div class="nm">${esc(p.name)}<span class="nk">${esc(p.nick)}</span></div>
           <div class="jb">${esc(p.job)} · ${esc(p.relation)}</div>
-          <div><span class="chip" style="--c:#7a5a9a">${p.age}岁 · ${p.sex}</span>${p.traits.map((x) => `<span class="chip" style="--c:#4a5a8a">${esc(x)}</span>`).join('')}</div>
+          <div><span class="chip soft">${p.age}岁 · ${p.sex}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</div>
           <p class="bio">${esc(p.bio)}</p>
           <div class="meta"><b>喜欢</b>${esc(p.likes)}</div>
           <div class="meta"><b>手艺</b>${esc(p.skills.join('、'))}</div>
           ${p.owns.length ? `<div class="meta"><b>家当</b>${esc(p.owns.join('、'))}</div>` : ''}
-          <div class="more">▸ 亲近的人、一天的安排</div></div>`;
+          <div class="more">→ 亲近的人、一天的安排</div></div>`;
         t.querySelector('.face').append(portrait(characterAtlas(p), 0, 0, CELL_W, CELL_H, 1)); // 全身像
         t.addEventListener('click', () => open(p.id));
         tiles.append(t);
@@ -137,7 +136,7 @@
       for (const { s, info } of beasts[h.id] ?? []) {
         const a = animalAtlas(s.kind);
         const c = portrait(a.canvas, 0, 0, a.cellW, a.cellH, 1);
-        c.style.width = `calc(${a.cellW * 2} * var(--p))`;
+        c.style.width = `calc(${a.cellW * 3} * var(--f))`;
         const el = document.createElement('span');
         el.className = 'b';
         el.title = info.about;

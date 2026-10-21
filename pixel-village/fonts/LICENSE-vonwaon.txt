@@ -1,0 +1,6 @@
+凤凰点阵体 VonwaonBitmap（12px / 16px）
+作者：Haoyu Qiu（timothyqiu）  https://timothyqiu.itch.io/vonwaon-bitmap
+许可：CC0 1.0 Universal（公有领域）——任何项目都可以免费使用、修改、商用，不必署名。
+https://creativecommons.org/publicdomain/zero/1.0/
+
+本项目只用了 16px 版，并裁成只含用到的字（tools/subset-font.py → fonts/pixel-zh.woff）。

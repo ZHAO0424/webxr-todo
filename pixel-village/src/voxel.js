@@ -324,9 +324,9 @@ export function voxelCharacter(p, M) {
 
 // ---------------------------------------------------------------- 动物
 
-const PLUMP = { dog: 3, dogBlack: 3, cat: 2, hen: 2, henBrown: 2, rooster: 2, duck: 2, goose: 3, pig: 4, sheep: 4, donkey: 4, ox: 5, magpie: 2, pigeon: 1 };
+const PLUMP = { dog: 3, dogBlack: 3, cat: 2, hen: 2, henBrown: 2, rooster: 2, duck: 2, goose: 3, pig: 4, sheep: 4, donkey: 4, ox: 6, magpie: 2, pigeon: 1 };
 // 人是 Q 版大头，动物也按同样的夸张程度放大，不然站在人旁边像玩具
-const ANIMAL_SCALE = { dog: 1.6, dogBlack: 1.6, cat: 1.6, hen: 1.7, henBrown: 1.7, rooster: 1.7, duck: 1.7, goose: 1.5, pig: 1.4, sheep: 1.4, donkey: 1.2, ox: 1.15, magpie: 1.7, pigeon: 1.6 };
+const ANIMAL_SCALE = { dog: 1.6, dogBlack: 1.6, cat: 1.6, hen: 1.7, henBrown: 1.7, rooster: 1.7, duck: 1.7, goose: 1.5, pig: 1.4, sheep: 1.4, donkey: 1.2, ox: 1.35, magpie: 1.7, pigeon: 1.6 };
 
 /** 侧视图按到轮廓边的距离充气成体素。返回每帧一个 Mesh（侧视图面朝 +x）。 */
 export function voxelAnimalFrames(kind, M) {

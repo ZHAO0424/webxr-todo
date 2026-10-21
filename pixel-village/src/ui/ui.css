@@ -1,6 +1,6 @@
 /*
- * 像素 UI（参考星露谷的木框羊皮纸、潜水员戴夫的圆润标签和醒目头像），配色取场景的黄昏暖棕和紫。
- * 所有尺寸都是 --p（一个界面像素，见 frame.js）的整数倍；字体是 Fusion Pixel 12px（OFL），一个字 = 12 个界面像素。
+ * 像素 UI：参考潜水员戴夫——深色面板、亮的细边、奶白正文、金黄名字、压低饱和度的实色标签；配色取场景黄昏的紫。
+ * 字体是凤凰点阵体 16px（CC0），按 --f 整数倍显示（一个字 = 16 个 --f）；边框和间距用 --p（= 2 个 --f），见 frame.js。
  */
 @font-face {
   font-family: 'PixelZh';
@@ -9,17 +9,23 @@
 }
 
 :root {
+  --f: 1px;
   --p: 2px;
-  --ink: #2a1a26;
-  --wood: #6e3e26;
-  --text: #4a2e22;
-  --dim: #8a6a50;
-  --paper: #f4e2bc;
-  --green: #5a9a3a;
-  --red: #c84a3a;
-  --gold: #e0a83a;
-  --blue: #4a7ab0;
-  --purple: #7a5a9a;
+  --ink: #0e0b14;
+  --text: #efe4d2;
+  --dim: #a596b6;
+  --gold: #ffcc66;
+  --line: #4a3e62;
+  --green: #8fd16a;
+  --red: #d0564a;
+  --blue: #6aa8e0;
+  --purple: #b08ad8;
+  /* 标签色：实色但不刺眼 */
+  --c-craft: #b4643c;
+  --c-farm: #5b8a45;
+  --c-child: #3d7fa6;
+  --c-chief: #a8434e;
+  --c-plum: #7a5a96;
 }
 
 .px, .px * {
@@ -30,110 +36,114 @@
   image-rendering: pixelated;
   box-sizing: border-box;
 }
-.px { font-size: calc(12 * var(--p)); line-height: calc(16 * var(--p)); color: var(--text); }
+.px { font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); color: var(--text); }
+.px .big { font-size: calc(32 * var(--f)); line-height: calc(36 * var(--f)); }
+.px .bold, .px b { font-weight: normal; text-shadow: var(--f) 0 0 currentColor; } /* 点阵字加粗：往右多描一个点 */
 
-/* 木框面板 / 羊皮纸内页 / 深色面板 */
+/* 面板 / 凹进去的内框 */
 .panel, .paper, .dark {
   border-style: solid;
-  border-width: calc(5 * var(--p));
-  border-image: var(--frame-wood) 5 fill / calc(5 * var(--p)) round;
+  border-width: calc(3 * var(--p));
+  border-image: var(--frame-panel) 3 fill / calc(3 * var(--p)) round;
   padding: calc(3 * var(--p)) calc(4 * var(--p));
 }
-.paper { border-image-source: var(--frame-paper); }
-.dark { border-image-source: var(--frame-dark); color: #f6e6c8; }
+.paper { border-image-source: var(--frame-inset); }
 
-/* 标签：方角、一像素墨线、下沿暗一道 */
+/* 标签：小实色块，切掉四个角 */
 .chip {
   display: inline-block;
   margin: 0 calc(2 * var(--p)) calc(2 * var(--p)) 0;
   padding: 0 calc(3 * var(--p));
-  line-height: calc(14 * var(--p));
-  border: var(--p) solid var(--ink);
-  background: var(--c, #c8864a);
-  color: #fff8e6;
-  box-shadow: inset 0 calc(-2 * var(--p)) 0 rgba(0, 0, 0, .22), inset 0 var(--p) 0 rgba(255, 255, 255, .25);
+  line-height: calc(20 * var(--f));
+  background: var(--c, var(--c-craft));
+  color: #fff6e6;
+  box-shadow: inset 0 calc(-1 * var(--p)) 0 rgba(0, 0, 0, .25);
+  clip-path: polygon(var(--f) 0, calc(100% - var(--f)) 0, 100% var(--f), 100% calc(100% - var(--f)), calc(100% - var(--f)) 100%, var(--f) 100%, 0 calc(100% - var(--f)), 0 var(--f));
   white-space: nowrap;
 }
-.chip.soft { --c: #e8cfa0; color: var(--text); }
+.chip.soft { background: #3e3456; color: #d8cbe8; box-shadow: none; }
 .chip.link { cursor: pointer; }
-.chip.link:hover { filter: brightness(1.1); }
+.chip.link:hover { filter: brightness(1.15); }
 
 /* 小按钮（关闭、筛选） */
 .btn {
-  border: var(--p) solid var(--ink);
-  background: var(--c, #c8864a);
-  color: #fff8e6;
+  border: 0;
+  background: var(--c, #4a3e62);
+  color: var(--text);
   font: inherit;
   padding: 0 calc(4 * var(--p));
-  line-height: calc(14 * var(--p));
-  box-shadow: inset 0 calc(-2 * var(--p)) 0 rgba(0, 0, 0, .25), 0 var(--p) 0 var(--ink);
+  line-height: calc(22 * var(--f));
+  box-shadow: inset 0 calc(-1 * var(--p)) 0 rgba(0, 0, 0, .3), inset 0 var(--f) 0 rgba(255, 255, 255, .15), 0 0 0 var(--f) var(--ink);
   cursor: pointer;
 }
-.btn:active { transform: translateY(var(--p)); box-shadow: inset 0 calc(-1 * var(--p)) 0 rgba(0, 0, 0, .25); }
-.btn.on { --c: var(--green); }
+.btn:hover { filter: brightness(1.15); }
+.btn:active { transform: translateY(var(--f)); }
+.btn.on { --c: var(--gold); color: #2a1a10; }
 
 /* 可折叠的抽屉 */
-details.fold { margin-top: calc(3 * var(--p)); }
+details.fold { margin-top: calc(2 * var(--p)); }
 details.fold > summary {
   list-style: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: calc(3 * var(--p));
-  color: var(--wood);
+  color: var(--text);
   padding: var(--p) 0;
-  border-bottom: var(--p) dashed #c9a676;
+  border-bottom: var(--f) solid var(--line);
 }
+details.fold > summary:hover { color: var(--gold); }
 details.fold > summary::-webkit-details-marker { display: none; }
 details.fold > summary::before { /* 像素三角 */
   content: '';
-  width: calc(4 * var(--p));
-  height: calc(6 * var(--p));
-  background: var(--wood);
+  width: calc(3 * var(--p));
+  height: calc(5 * var(--f) * 2);
+  background: var(--gold);
   clip-path: polygon(0 0, 100% 50%, 0 100%);
   transition: transform .1s steps(2);
 }
 details.fold[open] > summary::before { transform: rotate(90deg); }
 details.fold > summary .count { margin-left: auto; color: var(--dim); }
-details.fold > div { padding: calc(3 * var(--p)) 0 0 calc(7 * var(--p)); }
+details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 
 /* ---------------------------------------------------------------- 卡片（村民 / 动物） */
-.card { width: calc(212 * var(--p)); }
+.card { width: calc(172 * var(--p)); }
 .card .head { display: flex; gap: calc(4 * var(--p)); align-items: flex-start; }
 .card .face {
   flex: none;
   border-style: solid;
-  border-width: calc(5 * var(--p));
-  border-image: var(--frame-dark) 5 fill / calc(5 * var(--p)) round;
-  background: linear-gradient(#4a3a6a, #b0607a 70%, #e89a6a); /* 黄昏天 */
+  border-width: calc(3 * var(--p));
+  border-image: var(--frame-face) 3 fill / calc(3 * var(--p)) round;
+  background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); /* 黄昏天 */
   display: grid;
   place-items: end center;
   overflow: hidden;
 }
 .card .face canvas { display: block; }
-.card .who { flex: 1; min-width: 0; }
-.card .name { font-size: calc(24 * var(--p)); line-height: calc(26 * var(--p)); color: var(--ink); }
+.card .who { flex: 1; min-width: 0; padding-top: var(--p); }
+.card .name { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; margin-bottom: var(--p); }
+.card .nick { text-shadow: none; }
 .card .nick { color: var(--dim); margin-left: calc(3 * var(--p)); }
-.card .close { position: absolute; right: calc(4 * var(--p)); top: calc(4 * var(--p)); --c: var(--red); }
+.card .close { position: absolute; right: calc(3 * var(--p)); top: calc(3 * var(--p)); --c: var(--red); padding: 0 calc(3 * var(--p)); }
 .card .now {
-  margin-top: calc(4 * var(--p));
+  margin-top: calc(3 * var(--p));
   display: flex;
   gap: calc(3 * var(--p));
   align-items: center;
 }
-.card .now .dot { width: calc(4 * var(--p)); height: calc(4 * var(--p)); background: var(--green); box-shadow: 0 0 0 var(--p) var(--ink); flex: none; }
+.card .now .dot { width: calc(3 * var(--p)); height: calc(3 * var(--p)); background: var(--green); flex: none; }
 .card .now .dot.rest { background: var(--blue); }
 .card .now .dot.sleep { background: var(--purple); }
 .card .now .dot.event { background: var(--gold); }
 .card .next { color: var(--dim); margin-top: var(--p); }
-.card p { margin: 0 0 calc(3 * var(--p)); }
+.card p { margin: 0 0 calc(2 * var(--p)); }
 .card .row { margin: 0 0 calc(2 * var(--p)); }
-.card .row b { color: var(--wood); font-weight: normal; margin-right: calc(3 * var(--p)); }
+.card .row b { color: var(--gold); text-shadow: none; margin-right: calc(3 * var(--p)); }
 
 /* 一天的安排：按早上 / 中午 / 下午 / 晚上分段，当前那条高亮 */
 .plan { margin: 0; padding: 0; list-style: none; }
 .plan .seg { color: var(--dim); margin-top: calc(2 * var(--p)); }
-.plan li.item { display: flex; gap: calc(4 * var(--p)); }
-.plan li.item .t { color: var(--green); flex: none; width: calc(30 * var(--p)); }
-.plan li.item.past { opacity: .5; }
-.plan li.item.cur { background: #ffe9a8; box-shadow: 0 0 0 var(--p) #e0b850; }
+.plan li.item { display: flex; gap: calc(4 * var(--p)); padding-left: var(--p); }
+.plan li.item .t { color: var(--green); flex: none; width: calc(44 * var(--f)); }
+.plan li.item.past { opacity: .45; }
+.plan li.item.cur { background: #4a3c22; box-shadow: inset var(--p) 0 0 var(--gold); color: #fff2cc; }
