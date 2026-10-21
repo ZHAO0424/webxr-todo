@@ -347,8 +347,9 @@ renderer.setAnimationLoop((_, frame) => {
   if (clockEl && s.clock.label !== lastLabel) {
     lastLabel = s.clock.label;
     const e = EVENTS[village.life.today()], w = village.life.weather();
-    clockEl.innerHTML = `<div class="date">${lunarLabel(s.clock.day)} · ${WEATHER[w]}</div><div class="time">${s.clock.night ? '夜 ' : ''}${lastLabel}</div>`
-      + `<div class="ev"><span class="chip" style="--c:${w === 'rain' ? 'var(--c-child)' : 'var(--c-craft)'}">今日</span>${e.name}<br><span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} ${e.place}`}</span></div>`;
+    // 时钟栏：大号时间 + 右边日期天气（一行），下面一行今日活动
+    clockEl.innerHTML = `<div class="top"><span class="time">${lastLabel}</span><span class="date">${lunarLabel(s.clock.day)}<br>${s.clock.night ? '夜 · ' : ''}${WEATHER[w]}</span></div>`
+      + `<div class="ev"><span class="name">${e.name}</span> <span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} ${e.place}`}</span></div>`;
     refreshCard();
   }
   renderer.render(scene, camera);

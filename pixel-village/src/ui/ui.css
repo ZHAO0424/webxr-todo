@@ -114,7 +114,7 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 
 /* ---------------------------------------------------------------- 卡片（村民 / 动物 / 房子物件）
    宽度和右上角的日期栏一样（--panel-w），卡片里只用一种字号（12px 点阵），间距都收紧 */
-:root { --panel-w: calc(92 * var(--p)); }
+:root { --panel-w: calc(106 * var(--p)); }
 .card { width: var(--panel-w); padding: calc(2 * var(--p)) calc(3 * var(--p)); }
 .card .head { display: flex; gap: calc(3 * var(--p)); align-items: flex-start; }
 .card .facecol { flex: none; display: flex; flex-direction: column; gap: var(--p); }
@@ -132,7 +132,7 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 .card .who { flex: 1; min-width: 0; }
 .card .name { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; padding-right: calc(10 * var(--p)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 外号太长就省略，不折行 */
 .card .nick { color: var(--dim); text-shadow: none; margin-left: calc(2 * var(--p)); }
-.card .chip { margin: 0 var(--p) var(--p) 0; padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
+.card .chip { margin: 0 var(--p) var(--p) 0; padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); white-space: normal; max-width: 100%; } /* 标签太长就折行，不撑出卡片 */
 .card .close { position: absolute; right: calc(2 * var(--p)); top: calc(2 * var(--p)); --c: var(--red); padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
 .card .now {
   margin-top: calc(2 * var(--p));
@@ -164,8 +164,8 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 /* 一天的安排：按早上 / 中午 / 下午 / 晚上分段，当前那条高亮 */
 .plan { margin: 0; padding: 0; list-style: none; }
 .plan .seg { color: var(--dim); margin-top: calc(2 * var(--p)); }
-.plan li.item { display: flex; gap: calc(4 * var(--p)); padding-left: var(--p); }
-.plan li.item .t { color: var(--green); flex: none; width: calc(34 * var(--f)); }
+.plan li.item { display: flex; gap: calc(2 * var(--p)); padding-left: var(--p); }
+.plan li.item .t { color: var(--green); flex: none; width: calc(40 * var(--f)); white-space: nowrap; }
 .plan li.item.past { opacity: .45; }
 .plan li.item.cur { background: #4a3c22; box-shadow: inset var(--p) 0 0 var(--gold); color: #fff2cc; }
 

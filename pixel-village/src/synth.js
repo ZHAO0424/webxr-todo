@@ -1,8 +1,8 @@
 /*
- * 合成器：用 Web Audio 现场合成的那部分声音（振荡器、噪声、滤波器、包络）——响器、风雨溪水、唱戏。
+ * 合成器：用 Web Audio 现场合成的那部分声音（振荡器、噪声、滤波器、包络）——响器、雨声、唱戏。
  * 动物、干活等用的是真实录音（sfx/），见 audio.js。
  *   SFX.名字(开始时间, 输出节点)：梆子、锣、铃
- *   LOOPS.名字(输出节点)：一直响的底子（风、雨、溪水），音量由外面的 GainNode 控制
+ *   LOOPS.名字(输出节点)：雨声，音量由外面的 GainNode 控制
  *   operaStep(state, out, singerOut)：唱戏排一拍（板胡 + 梆子 + 锣 + 唱腔），state 记着拍子和音高
  */
 
@@ -62,11 +62,8 @@ export function makeSynth(ctx) {
   };
   // ---------------------------------------------------------------- 一直响的底子
 
-  const lfo = (freq, depth, target, type = 'sine') => { const l = new OscillatorNode(ctx, { type, frequency: freq }); const d = gainNode(depth); l.connect(d).connect(target); l.start(); };
   const LOOPS = {
-    wind(out) { const wf = filt('lowpass', 420); chain(src(brown), wf, out); lfo(0.07, 180, wf.frequency); }, // 风一阵大一阵小
     rain(out) { chain(src(), filt('highpass', 900), filt('lowpass', 7000), out); },
-    stream(out, i = 0) { const bp = filt('bandpass', 1100, 0.6); lfo(0.3 + i * 0.07, 350, bp.frequency); chain(src(), bp, filt('lowpass', 3000), out); },
   };
 
   // ---------------------------------------------------------------- 唱戏：板胡 + 梆子 + 锣 + 唱腔

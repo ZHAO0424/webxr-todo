@@ -9,9 +9,12 @@
     html, body { margin: 0; height: 100%; background: #1b1d24; overflow: hidden; }
     /* 时钟栏：右上角的深色像素面板 */
     #clock { position: fixed; right: calc(4 * var(--p)); top: calc(4 * var(--p)); width: var(--panel-w); padding: calc(2 * var(--p)) calc(3 * var(--p)); pointer-events: none; } /* 和卡片一样宽 */
-    #clock .date { color: var(--dim); }
+    #clock .top { display: flex; align-items: center; gap: calc(3 * var(--p)); }
+    #clock .date { color: var(--dim); line-height: calc(13 * var(--f)); }
     #clock .time { font-size: calc(24 * var(--f)); line-height: calc(26 * var(--f)); color: var(--gold); }
-    #clock .ev { margin-top: var(--p); }
+    #clock .ev { margin-top: var(--f); }
+    #clock .ev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #clock .ev .name { color: var(--gold); } /* 今日活动：金色活动名 + 时间地点 */
     #clock .sub { color: var(--dim); }
     /* 操作提示：左下角 */
     #hint { position: fixed; left: calc(4 * var(--p)); bottom: calc(4 * var(--p)); max-width: calc(260 * var(--p)); }

@@ -4,7 +4,7 @@ import { makeSynth } from './synth.js';
 /*
  * 村子的声音：什么时候、在哪儿响。原则是"安静为主，有事才响"：
  *
- * - 一直在的底子（合成，见 synth.js）：风、下雨、溪水，都压得很低。
+ * - 没有一直响的底子（风声、溪水是噪声合成的，听着像收音机杂音，去掉了）；下雨天才有雨声。
  * - 时不时来一下：白天偶尔一声鸟叫，夜里偶尔一阵蛐蛐（真实录音，在听者周围随机一处）。
  * - 点了才响：点动物 → 它叫一声；点打铁炉、石磨、火塘、鸡窝、猪圈、戏台、土地庙……→ 对应的声音。
  * - 凑近了才响：镜头 / XR 里的头凑到动物跟前（NEAR 米以内），它偶尔叫；凑近干活的人，锤子落下"当"、斧子劈下去、锄头落地；
@@ -90,17 +90,11 @@ export function createSound(village, getCamera) {
   // 长录音循环：加载完了再接上（短的音效先能用）
   const bufLoop = (key) => (out) => LOAD[key].then((b) => { if (!b) return; const s = new AudioBufferSourceNode(ctx, { buffer: b, loop: true }); s.connect(out); s.start(0, Math.random() * b.duration); });
 
-  let wind, rain, mill, roller, fire, firePos, crowd, projector;
+  let rain, mill, roller, fire, firePos, crowd, projector;
 
   function setup() {
     const L = S.LOOPS;
-    wind = new GainNode(ctx, { gain: 0 }); L.wind(wind); wind.connect(master);
     rain = new GainNode(ctx, { gain: 0 }); L.rain(rain); rain.connect(master);
-    // 溪水：沿着溪取几处，压得很低
-    const nav = village.nav, cells = [];
-    for (let k = 0; k < nav.water.length; k++) if (nav.water[k]) cells.push([nav.cx(k % nav.nx), nav.h[k], nav.cz(Math.floor(k / nav.nx))]);
-    cells.sort((a, b) => a[0] - b[0]);
-    for (let i = 0; i < 4 && cells.length; i++) loop(cells[Math.floor(((i + 0.5) / 4) * cells.length)], (out) => L.stream(out, i)).set(0.3, 0.1);
     mill = loop(centerOf(thing('millstone')), bufLoop('mill'));
     roller = loop(centerOf(thing('roller')), bufLoop('mill'));
     firePos = centerOf(thing('firePit'));
@@ -156,8 +150,7 @@ export function createSound(village, getCamera) {
     const people = village.life.people, beasts = village.life.beasts;
     const near = (pos, r) => pos && dist(pos) < r;
 
-    // 底子
-    wind.gain.setTargetAtTime(weather === 'rain' ? 0.08 : weather === 'cloudy' ? 0.05 : 0.03, now, 1);
+    // 下雨天才有雨声（风声、溪水这类一直响的噪声底子听着像收音机杂音，去掉了）
     rain.gain.setTargetAtTime(weather === 'rain' ? 0.14 : 0, now, 1);
 
     // 时不时：白天鸟叫、夜里蛐蛐（在听者周围随机一处）
