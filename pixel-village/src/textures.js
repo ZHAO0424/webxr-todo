@@ -415,6 +415,37 @@ const glows = {
 };
 
 /** 一次性生成全部贴图与材质。M.tex 里留着贴图本身（动画要改 offset）。 */
+/**
+ * 露天电影：几帧像素画，放的时候轮着换（颜色偏淡、有几道竖划痕，像老胶片）。
+ */
+const MOVIE = [
+  (g) => { // 山水：太阳、远山、河
+    g.rect(0, 0, 48, 22, '#9ab4c8'); g.rect(0, 0, 48, 6, '#b4c8d4');
+    g.rect(34, 3, 5, 5, '#f0e0b0');
+    for (let x = 0; x < 48; x++) { const h = 9 + Math.round(Math.sin(x * 0.25) * 3 + Math.sin(x * 0.6) * 1.5); g.rect(x, h, 1, 22 - h, '#6a7a7a'); }
+    for (let x = 0; x < 48; x++) { const h = 14 + Math.round(Math.sin(x * 0.18 + 1) * 2); g.rect(x, h, 1, 22 - h, '#4a5a52'); }
+    g.rect(0, 18, 48, 4, '#8aa0b0'); g.rect(4, 19, 17, 1, '#c0d0d8');
+  },
+  (g) => { // 骑马的人跑过草原
+    g.rect(0, 0, 48, 22, '#c8c0a0'); g.rect(0, 15, 48, 7, '#8a8a5a');
+    g.rect(18, 9, 12, 5, '#4a3a2a'); g.rect(28, 6, 3, 5, '#4a3a2a'); g.rect(30, 6, 3, 2, '#4a3a2a');
+    for (const lx of [19, 22, 26, 29]) g.rect(lx, 14, 1, 3, '#4a3a2a');
+    g.rect(22, 3, 3, 6, '#7a2a2a'); g.rect(22, 1, 3, 2, '#e0b090'); g.rect(18, 10, 4, 1, '#2a2a2a');
+  },
+  (g) => { // 戏台上两个人对唱
+    g.rect(0, 0, 48, 22, '#5a2a2a'); g.rect(0, 17, 48, 5, '#8a5a3a');
+    g.rect(13, 6, 6, 11, '#c84a3a'); g.rect(14, 2, 4, 4, '#f0d0a0'); g.rect(12, 1, 8, 2, '#2a2a2a'); g.rect(9, 8, 4, 1, '#f0d0a0');
+    g.rect(29, 6, 6, 11, '#3a5aa0'); g.rect(30, 2, 4, 4, '#f0d0a0'); g.rect(29, 1, 6, 2, '#e8c050'); g.rect(35, 9, 4, 1, '#f0d0a0');
+  },
+  (g) => { // 一张大脸的特写
+    g.rect(0, 0, 48, 22, '#3a3a40'); g.rect(16, 2, 16, 18, '#e0b890'); g.rect(16, 1, 16, 4, '#2a2a2a');
+    g.rect(19, 9, 3, 2, '#2a2a2a'); g.rect(26, 9, 3, 2, '#2a2a2a'); g.rect(22, 15, 4, 1, '#a04a3a');
+  },
+].map((draw) => (g) => {
+  draw(g);
+  for (const x of [7, 31, 44]) for (let y = 0; y < 22; y += 3) g.px(x, y, '#e8e4dc'); // 胶片划痕
+});
+
 export function buildMaterials(seed = 7) {
   const r = makeRng(seed);
   const tex = {};
@@ -441,5 +472,6 @@ export function buildMaterials(seed = 7) {
   M.groundGlow = glow(tex.groundGlow);
   M.windowHalo = additive(tex.halo, 0.5);
   M.glow = glow;
+  M.movie = MOVIE.map((f) => flat(toTexture(paint(48, 22, f)))); // 露天电影的几帧
   return M;
 }

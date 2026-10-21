@@ -6,10 +6,11 @@
  *   职业   job 职业 / skills 手艺
  *   性格   traits / bio 来历 / likes 喜欢
  *   家当   owns 养的牲口、种的地
- *   日程   day 一天怎么过：[[开始钟点, 活动, 参数?], …]（活动的含义见 life.js 的 ACTIVITIES）
+ *   日程   day 下午到夜里怎么过：[[开始钟点, 活动, 参数?], …]；上午和中午在文件末尾的 MORNING 里，两段拼成完整的一天
+ *          （活动的含义见 life/activities.js；第一项之前、最后一项"回屋"之后在屋里睡觉）
  *   外观   body / skin / hair / hat / top / style / pants / apron / sash / item / …（见 characters.js）
  *
- * 村里的时间从下午三点走到晚上九点（画面是秋收的黄昏），夜里快进，第二天接着过。
+ * 村里过的是完整的一天（时钟见 life/clock.js：白天走得慢、深夜快进）。每天还有一样全村的活动（见 life/events.js）。
  */
 
 export const VILLAGE = {
@@ -375,5 +376,53 @@ export const HOUSEHOLDS = [
 
 // 货郎没有自己的院子，晚上借住杂货铺
 for (const p of HOUSEHOLDS.find((h) => h.id === 'square').people) if (p.id === 'qian_xiaoer') p.sleepAt = 'store';
+
+/*
+ * 上午和中午（到下午三点，接上各人的 day）。
+ *   媳妇们天不亮做早饭、喂鸡，然后下地或扫院子，十一点回去做午饭；
+ *   中午各家端着碗到门口墙根底下吃（饭场），吃完歇个晌（回屋）；
+ *   匠人一早开工，豆腐坊四点多就磨上了豆子、早上端豆腐到村口卖；
+ *   孩子七点多上学，中午疯玩；羊倌一早赶羊上坡、中午赶回来；
+ *   小六子天一亮挨个去把路口的火把熄了。
+ */
+const KID = (chore) => [[6.5, ...(chore ? ['chore', chore] : ['play'])], [7.3, 'school'], [11.6, 'play'], [11.9, 'dinner'], [12.5, 'play'], [13.5, 'school']];
+const MORNING = {
+  wang_deshan: [[6.0, 'sitGate'], [7.0, 'patrol'], [9.5, 'visit', 'school'], [10.5, 'patrol'], [11.9, 'dinner'], [12.6, 'home'], [13.6, 'chess']],
+  li_guilan: [[5.4, 'cook'], [6.3, 'yardWork'], [8.5, 'shopping'], [9.3, 'visit', 'farmA'], [10.8, 'cook'], [11.9, 'dinner'], [12.6, 'home'], [13.5, 'yardWork']],
+  wang_xiaomei: KID('yardWork'),
+  li_wenqing: [[6.0, 'read'], [7.2, 'teach'], [11.6, 'read'], [12.0, 'dinner'], [12.6, 'home'], [13.4, 'teach']],
+  zhang_tiechui: [[5.6, 'fetchWater'], [6.3, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.2, 'work']],
+  xiao_shun: [[5.8, 'chore', 'fetchWater'], [6.4, 'work', 'bellows'], [11.8, 'dinner'], [12.5, 'work', 'bellows']],
+  zhang_dabao: KID(),
+  liu_youfu: [[5.8, 'yardWork'], [6.4, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.2, 'work']],
+  he_xiulan: [[5.3, 'cook'], [6.2, 'fetchWater'], [6.8, 'field', 'fieldW'], [10.9, 'cook'], [11.8, 'dinner'], [12.5, 'home'], [13.3, 'yardWork']],
+  liu_erya: KID(),
+  zhao_mantun: [[4.6, 'grind'], [6.0, 'boil'], [7.2, 'sellTofu'], [9.5, 'grind'], [11.8, 'dinner'], [12.5, 'home'], [13.3, 'grind']],
+  feng_yuzhen: [[4.8, 'work', 'stove'], [6.2, 'feedChickens'], [6.8, 'work', 'stove'], [10.9, 'cook'], [11.8, 'dinner'], [12.5, 'home'], [13.4, 'work', 'stove']],
+  zhao_shitou: [[6.5, 'chore', 'work'], [7.3, 'school'], [11.6, 'play'], [11.9, 'dinner'], [12.5, 'chore', 'work'], [13.5, 'school']],
+  sun_youcai: [[6.2, 'work'], [11.8, 'dinner'], [12.4, 'work']],
+  xiao_liuzi: [[5.6, 'putOutTorches'], [6.6, 'work', 'sweep'], [8.0, 'deliver', 'farmB'], [9.0, 'work', 'sweep'], [11.8, 'dinner'], [12.4, 'work', 'sweep'], [14.0, 'deliver', 'doctor']],
+  sun_shuanzi: [[6.6, 'play'], [7.3, 'school'], [11.6, 'read'], [11.9, 'dinner'], [12.5, 'play'], [13.5, 'school']],
+  zhou_jishi: [[5.8, 'tendBees'], [6.5, 'work'], [9.0, 'visit', 'headman'], [10.0, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.6, 'work']],
+  ma_laoliu: [[5.8, 'herd'], [11.0, 'herdHome'], [11.8, 'dinner'], [12.5, 'home'], [13.3, 'sitGate']],
+  chen_mancang: [[5.8, 'garden'], [7.5, 'sitGate'], [9.0, 'chess'], [11.8, 'dinner'], [12.5, 'home'], [13.6, 'garden']],
+  chen_daniang: [[5.5, 'cook'], [6.4, 'feedChickens'], [7.0, 'sitGate'], [10.8, 'cook'], [11.8, 'dinner'], [12.5, 'home'], [13.5, 'sitGate']],
+  yang_erniu: [[5.6, 'yardWork'], [6.2, 'field', 'fieldW'], [11.4, 'dinner'], [12.2, 'home'], [13.2, 'field', 'fieldW']],
+  liu_cuihua: [[5.3, 'cook'], [6.1, 'feedChickens'], [6.7, 'field', 'fieldW'], [10.9, 'cook'], [11.4, 'dinner'], [12.2, 'home'], [13.4, 'yardWork']],
+  yang_xiaohu: [[6.6, 'play'], [11.4, 'dinner'], [12.0, 'play']],
+  wu_dachuan: [[5.6, 'feedPigs'], [6.2, 'field', 'fieldE'], [11.6, 'dinner'], [12.3, 'home'], [13.2, 'field', 'fieldE']],
+  sun_qiaoyun: [[5.3, 'cook'], [6.2, 'feedChickens'], [6.8, 'feedRabbits'], [7.4, 'field', 'fieldS'], [10.9, 'cook'], [11.6, 'dinner'], [12.3, 'home'], [13.3, 'yardWork']],
+  wu_xiaocui: KID('feedRabbits'),
+  zheng_laotou: [[6.0, 'sitGate'], [7.0, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.4, 'work']],
+  qian_xiaoer: [[6.5, 'yardWork'], [7.5, 'peddle'], [11.8, 'dinner'], [12.5, 'home'], [13.5, 'peddle']],
+};
+// 夜里：小六子打更，提着灯绕村一圈
+const NIGHT = { xiao_liuzi: [[20.7, 'nightWatch'], [21.4, 'home']] };
+
+for (const h of HOUSEHOLDS) for (const p of h.people) {
+  const late = (NIGHT[p.id] ?? []);
+  const afternoon = p.day.filter(([t, a]) => !(late.length && a === 'home' && t >= 20)); // 打更的那天晚上晚点回屋
+  p.day = [...(MORNING[p.id] ?? []), ...afternoon, ...late];
+}
 
 export const RESIDENTS = HOUSEHOLDS.flatMap((h) => h.people.map((p) => ({ ...p, home: h.id, household: h.name })));

@@ -110,6 +110,9 @@ const WORK_MOTION = {
   buckets(t, L, Rt) { Rt.rotation.x = L.rotation.x = -2.8; return true; },
   pipe(t, L, Rt) { Rt.rotation.x = Math.sin(t * 0.8) > 0.5 ? -1.9 : -1.2; return true; }, // 嘬一口旱烟
   cane(t, L, Rt) { Rt.rotation.x = -0.3; return true; },
+  razor(t, L, Rt) { Rt.rotation.x = -1.7 + Math.sin(t * 5) * 0.25; L.rotation.x = -1.3; return true; }, // 剃头：贴着头皮一下一下推
+  earpick(t, L, Rt) { Rt.rotation.x = -1.95 + Math.sin(t * 9) * 0.05; L.rotation.x = -1.5; return true; }, // 掏耳朵：手举到耳边轻轻转
+  lantern(t, L, Rt) { Rt.rotation.x = -1.5 + Math.sin(t * 2) * 0.1; return true; }, // 举灯照一照
   kite(t, L, Rt) { Rt.rotation.x = -1.3 + Math.sin(t * 2) * 0.3; return true; }, // 拽风筝线
 };
 
@@ -207,8 +210,8 @@ export function voxelCharacter(p, M) {
     setItem,
     get item() { return current; },
     /** state：idle / walk / run / work / sit（坐凳子，seat = 凳面高）/ squat（蹲着端碗吃饭）/ talk / eat / scatter（撒食） */
-    pose(state, t, phase = 0, { seat = 0.45 } = {}) {
-      const w = (state === 'run' ? 13 : 8) * t + phase;
+    pose(state, t, phase = 0, { seat = 0.45, cadence = 1 } = {}) {
+      const w = (state === 'run' ? 13 : 8 * cadence) * t + phase;
       rest();
       if (state === 'sit' || state === 'squat' || state === 'fiddle') {
         legL.rotation.x = legR.rotation.x = -1.45;
@@ -232,6 +235,26 @@ export function voxelCharacter(p, M) {
         armL.rotation.z = -0.3;
         body.rotation.z = Math.round(k * 2) * 0.04;
         body.position.y = Math.floor(t * 2 + phase) % 2 ? 0 : -VOX * 0.5;
+        return;
+      }
+      if (state === 'shave') { // 刮脸：一手托着客人下巴，一手慢慢刮
+        armL.rotation.x = -1.4;
+        armR.rotation.x = -1.5 + Math.sin(t * 2.5 + phase) * 0.3;
+        armR.rotation.z = 0.15;
+        return;
+      }
+      if (state === 'strop') { // 荡刀子：剃刀在挑子的皮条上来回蹭
+        armL.rotation.x = -0.8;
+        armR.rotation.x = -0.9;
+        armR.rotation.z = Math.sin(t * 4 + phase) * 0.5;
+        return;
+      }
+      if (state === 'bow') { // 磕头上香：跪着，双手合十举过头，一下一下点头
+        legL.rotation.x = legR.rotation.x = -1.45;
+        rig.position.y = -legLen * 0.55;
+        armL.rotation.x = armR.rotation.x = -2.3;
+        armL.rotation.z = -0.15; armR.rotation.z = 0.15;
+        body.position.y = Math.floor(t * 1.5 + phase) % 2 ? -VOX * 2 : 0;
         return;
       }
       if (state === 'speech') { // 台上讲话：时不时抬手比划

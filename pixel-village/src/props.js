@@ -467,12 +467,58 @@ export function cornRack(M, x, z, w = 3, rotY = 0) {
 
 /** 剃头挑子：一头是脸盆架，一头是凳子。 */
 export function barberStand(M, x, z, rotY = 0) {
+  // 剃头挑子"一头热"：这头是小炭炉坐着一盆热水（柱子上搭条毛巾、挂着荡刀的皮条），那头是给客人坐的凳子
   const g = new THREE.Group();
-  g.add(block(-0.2, 0, -0.2, 0.2, 0.9, 0.2, M.wood));
+  g.add(block(-0.25, 0, -0.25, 0.25, 0.55, 0.25, M.brick)); // 小炉子
+  g.add(block(-0.12, 0.3, 0.25, 0.12, 0.45, 0.27, M.fire, { outline: false })); // 炉口的火
   const basin = prism(0.3, 0.22, 0.15, M.iron, 8);
-  basin.position.y = 0.98;
-  g.add(basin, block(0.7, 0, -0.2, 1.2, 0.45, 0.2, M.wood));
+  basin.position.y = 0.63;
+  g.add(basin);
+  g.add(block(-0.38, 0, -0.06, -0.3, 1.5, 0.06, M.wood)); // 立柱
+  g.add(block(-0.42, 1.05, -0.03, -0.38, 1.45, 0.12, M.cloth, { outline: false })); // 毛巾
+  g.add(block(-0.3, 0.75, -0.02, -0.26, 1.35, 0.02, M.wood, { outline: false })); // 皮条
+  g.add(block(0.7, 0, -0.2, 1.2, 0.45, 0.2, M.wood)); // 客人坐的凳子
   return at(g, x, z, rotY);
+}
+
+/**
+ * 集市的摊子：一张木桌 + 后头两根竿子撑的布篷 + 桌上的货（kind：tofu 豆腐 / goods 杂货 / veg 菜和药材）。
+ * 平时收起来（dynamic，赶集那天才显示）。
+ */
+export function stall(M, kind) {
+  const g = new THREE.Group();
+  g.add(block(-0.8, 0.65, -0.4, 0.8, 0.75, 0.4, M.wood));
+  for (const sx of [-0.7, 0.7]) for (const sz of [-0.3, 0.3]) g.add(block(sx - 0.05, 0, sz - 0.05, sx + 0.05, 0.65, sz + 0.05, M.wood));
+  for (const sx of [-0.9, 0.9]) g.add(block(sx - 0.04, 0, 0.5, sx + 0.04, 1.9, 0.58, M.wood));
+  const roof = block(-1.0, 1.85, 0.0, 1.0, 1.92, 0.8, M.cloth); // 布篷只搭后半边（给摊主遮阳），桌上的货从上面看得见
+  roof.rotation.x = -0.15;
+  g.add(roof);
+  const goods = { // [x, 高, 材质]：一板板豆腐 / 布匹、针线、糖块 / 白菜、辣椒、玉米、药材
+    tofu: [[-0.5, 0.18, M.plaster], [-0.1, 0.18, M.plaster], [0.35, 0.15, M.plaster]],
+    goods: [[-0.5, 0.25, M.redCloth], [-0.1, 0.18, M.cloth], [0.3, 0.2, M.gold], [0.6, 0.12, M.wood]],
+    veg: [[-0.5, 0.22, M.veg], [-0.1, 0.18, M.redCloth], [0.3, 0.24, M.corn], [0.6, 0.15, M.millet]],
+  }[kind];
+  for (const [gx, h, mat] of goods) g.add(block(gx - 0.15, 0.75, -0.23, gx + 0.15, 0.75 + h, 0.13, mat));
+  g.userData.dynamic = true;
+  g.visible = false;
+  return g;
+}
+
+/**
+ * 露天电影的幕布：两根竿子撑一块白布，片子是几帧像素画轮着放（天地山水、骑马、两个人在台上、一张大脸）。
+ * frames：幕布上要换的贴图；平时收起来。
+ */
+export function movieScreen(M, w = 5.4, h = 2.4) {
+  const g = new THREE.Group();
+  for (const sx of [-1, 1]) g.add(block(sx * (w / 2 + 0.08) - 0.06, -h / 2 - 1.2, -0.06, sx * (w / 2 + 0.08) + 0.06, h / 2 + 0.2, 0.06, M.wood));
+  const frame = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.16, h + 0.16), M.plaster);
+  frame.position.z = -0.02;
+  const pic = new THREE.Mesh(new THREE.PlaneGeometry(w, h), M.movie[0]);
+  g.add(frame, pic);
+  g.userData.dynamic = true;
+  g.userData.pic = pic;
+  g.visible = false;
+  return g;
 }
 
 /** 麦个子 / 豆捆：一小捆立着的秸秆。 */

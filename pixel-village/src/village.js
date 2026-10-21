@@ -8,12 +8,13 @@ import { PLACEMENTS, NODES, EDGES, WELL, BOUNDS, streamZ } from './layout.js';
 import * as P from './props.js';
 import { Sprites } from './sprites.js';
 import { RESIDENTS } from './residents.js';
-import { populate } from './life.js';
+import { populate, EVENTS as EVENT_DEFS } from './life/index.js';
 import { voxelTree } from './voxel.js';
 import { NavGrid } from './nav.js';
 import { buildFarmland } from './farmland.js';
 import { buildRoadside } from './roadside.js';
 import { fixCoplanar } from './coplanar.js';
+import { snapPerches, findFloating, markReachable, auditPaths } from './audit.js';
 import { daylight } from './daylight.js';
 import { Smoke, Embers, Fireflies } from './fx.js';
 
@@ -147,28 +148,8 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
   // 4.5 共面的面（z-fighting 闪烁）：门柱和墙、墙的拐角、压顶……把小的那个微微撑出来
   root.userData.coplanar = fixCoplanar(root, (o) => o === terrain.object || o.userData.tree || o.isSprite);
 
-  // 4.6 猫、喜鹊蹲的高处：从点位上方往下打射线，贴到真实的表面上（屋面、墙头、缸沿、树冠）。
-  //     点位是手填的，院子和物件挪过以后会对不上——蹲在半空或者陷进屋顶里
-  {
-    root.updateMatrixWorld(true);
-    const ray = new THREE.Raycaster();
-    const solid = [];
-    root.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && o !== terrain.object && o.material && o.material.side !== THREE.BackSide && !o.material.transparent && !(o.geometry instanceof THREE.PlaneGeometry)) solid.push(o); });
-    solid.push(terrain.object);
-    const perchFix = [];
-    for (const c of Object.values(C)) for (const a of c.animals) for (const pt of a.perches ?? []) {
-      const [x, z] = c.at(pt[0], pt[2]);
-      const from = root.localToWorld(new THREE.Vector3(x, c.level + pt[1] + 1.2, z));
-      ray.set(from, new THREE.Vector3(0, -1, 0));
-      ray.far = 6 * UNIT;
-      const hit = ray.intersectObjects(solid, false)[0];
-      if (!hit) continue;
-      const y = root.worldToLocal(hit.point.clone()).y - c.level;
-      if (Math.abs(y - pt[1]) > 0.05) perchFix.push(`${c.id}/${a.kind}: ${pt[1].toFixed(2)}→${y.toFixed(2)}`);
-      pt[1] = y;
-    }
-    root.userData.perchFix = perchFix;
-  }
+  // 4.6 猫、喜鹊蹲的高处贴到真实表面上（见 audit.js）
+  root.userData.perchFix = snapPerches(root, terrain, C);
 
   // 5. 导航网格：把房子、墙、栅栏、道具、树干都投影成障碍（门扇、灯笼这些会动的不算）
   const nav = new NavGrid(terrain);
@@ -193,30 +174,8 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
     return { c, leaves: gt.leaves, at: [x, z], open: 0, state: nav.addDoor(x, z, gt.w, c.rot) };
   }));
 
-  // 自检 1：悬空——贴着地面摆的东西（底面 ≈ 中心处地面），四角下面的地面却低了一截
-  const floating = [];
-  const tmpBox = new THREE.Box3();
-  const checkFloat = (o) => {
-    if (o === terrain.object || o.userData.dynamic || o.userData.tree || o.userData.onBridge) return;
-    if (o.isMesh && !(o.geometry instanceof THREE.PlaneGeometry) && !o.geometry.type.includes('Circle')) {
-      rel.multiplyMatrices(inv, o.matrixWorld);
-      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
-      const b = o.geometry.boundingBox;
-      tmpBox.copy(b).applyMatrix4(rel);
-      // 用物体自己朝向的底面四角（转过角度的院子里，轴对齐包围盒会大出一圈造成误报）
-      const inset = 0.15;
-      const pts = [[b.min.x + inset, b.min.z + inset], [b.max.x - inset, b.min.z + inset], [b.min.x + inset, b.max.z - inset], [b.max.x - inset, b.max.z - inset], [(b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2]]
-        .map(([x, z]) => new THREE.Vector3(x, b.min.y, z).applyMatrix4(rel));
-      const center = pts[4], base = tmpBox.min.y, hc = terrain.walkAt(center.x, center.z);
-      if (Math.abs(base - hc) < 0.1 && tmpBox.max.y - base > 0.2) {
-        const drop = Math.max(...pts.slice(0, 4).map((q) => base - terrain.walkAt(q.x, q.z)));
-        if (drop > 0.3) floating.push({ at: [+center.x.toFixed(1), +center.z.toFixed(1)], size: [+(b.max.x - b.min.x).toFixed(1), +(b.max.y - b.min.y).toFixed(1)], drop: +drop.toFixed(2) });
-      }
-    }
-    for (const k of o.children) checkFloat(k);
-  };
-  for (const k of root.children) checkFloat(k);
-  root.userData.floating = floating;
+  // 自检 1：悬空（见 audit.js）
+  root.userData.floating = findFloating(root, terrain);
 
   // 6. 每户自己的窗户材质（家里有人、在做饭时更亮）+ 窗前的光晕
   const windowSprites = [];
@@ -248,6 +207,9 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
     c.gateOut = () => nav.nearestFree(...c.at(...c.gate));
     c.randomPoint = (a = area) => nav.randomIn(a, c.at, rand) ?? c.at(0, 0);
   }
+  // 从井出发能走到的格子（nav.reach）：动物溜达、吃草、小孩玩耍、门口座位都只挑这些地方
+  markReachable(nav, nodes.well);
+
   // 门口坐着、蹲着吃饭的地方：院门两边的墙根底下（不是路面、不在门前平台上、和院子一样高、走得到），一人一个
   for (const c of Object.values(C)) {
     const [gx, gz] = c.gate;
@@ -267,43 +229,24 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
     }
   }
 
-  // 自检 2：每个院子从门外能不能走到每扇房门、每个去处
-  const unreachable = [];
-  for (const c of Object.values(C)) {
-    const [gx, gz] = c.gateOut();
-    for (const [name, d] of [...Object.entries(c.doors).map(([k, v]) => [`door:${k}`, c.at(...v)]), ...Object.keys(c.spots).map((k) => [k, c.spot(k)])]) {
-      if (!nav.find(gx, gz, d[0], d[1], { person: true })) unreachable.push(`${c.id}/${name}`);
+  // 自检 2：走不到的房门 / 去处、和村子不连通的路网节点、走不通的路（见 audit.js）
+  Object.assign(root.userData, auditPaths(nav, C, nodes, terrain, EDGES));
+
+  // 祭土地：庙前磕头的位置、排队 / 磕完说话的地方（庙前一圈能站、走得到、不在水里）
+  const shrine = road.shrine && (() => {
+    const S = road.shrine, dx = S.face[0] - S.at[0], dz = S.face[1] - S.at[1], L = Math.hypot(dx, dz);
+    const front = nav.nearestFree(S.at[0] + (dx / L) * 1.3, S.at[1] + (dz / L) * 1.3);
+    const wait = [];
+    for (let r = 1.6; r <= 3.2 && wait.length < 10; r += 0.8) for (let a = 0; a < 12; a++) {
+      const x = front[0] + Math.cos(a * 0.52) * r, z = front[1] + Math.sin(a * 0.52) * r;
+      if (nav.freeAt(x, z) && nav.reachable(x, z) && Math.hypot(x - S.at[0], z - S.at[1]) > 1.4) wait.push([x, z]);
     }
-    if (!nav.find(gx, gz, nodes.well.x, nodes.well.z, { person: true })) unreachable.push(`${c.id}/→井`);
-  }
-  root.userData.unreachable = unreachable;
-  // 诊断：从井出发的连通区域，列出不在里面的路网节点（附近格子的高度）
-  {
-    const seen = new Uint8Array(nav.nx * nav.nz);
-    const start = nav.index(...nav.nearestFree(nodes.well.x, nodes.well.z, false, 4, true));
-    const q = [start]; seen[start] = 1;
-    while (q.length) {
-      const k = q.pop(), i = k % nav.nx, j = Math.floor(k / nav.nx);
-      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const ni = i + di, nj = j + dj;
-        if (ni < 0 || nj < 0 || ni >= nav.nx || nj >= nav.nz) continue;
-        const n = nj * nav.nx + ni;
-        if (!seen[n] && nav.step(k, n, false, true)) { seen[n] = 1; q.push(n); }
-      }
-    }
-    nav.reach = seen; // 从村里能走到的格子：动物溜达、吃草只挑这些地方（坡上被石堰围死的小块平地不去）
-    root.userData.brokenEdges = EDGES.filter(([a, b]) => !nav.find(nodes[a].x, nodes[a].z, nodes[b].x, nodes[b].z, { person: true, maxNodes: 20000 })).map(([a, b]) => {
-      const A = nodes[a], B = nodes[b], L = Math.hypot(B.x - A.x, B.z - A.z);
-      const prof = [];
-      for (let d = 0; d <= L; d += 0.5) { const x = A.x + (B.x - A.x) * d / L, z = A.z + (B.z - A.z) * d / L; prof.push(`${terrain.walkAt(x, z).toFixed(1)}${nav.freeAt(x, z, false, true) ? '' : '#'}`); }
-      return `${a}→${b}: ${prof.join(' ')}`;
-    });
-    root.userData.islands = Object.entries(nodes).filter(([, n]) => !seen[nav.index(...nav.nearestFree(n.x, n.z, false, 4, true))]).map(([name, n]) => `${name}(${n.x.toFixed(1)},${n.z.toFixed(1)}) h=${n.h.toFixed(1)} 地面=${terrain.walkAt(n.x, n.z).toFixed(1)}`);
-  }
+    return { ...S, front, wait, spots: {} };
+  })();
 
   const ducks = [-20, 27.2, -6, 33];
   const V = {
-    M, root, nav, C, nodes, torches,
+    M, root, nav, C, nodes, torches, shrine,
     fields: farm.fields,
     pasture: farm.pasture.filter((p) => nav.freeAt(p[0], p[1]) && nav.reachable(p[0], p[1])),
     well: { center: [WELL.x, WELL.z], spot: () => nav.nearestFree(WELL.x + 1.4, WELL.z + 0.6) },
@@ -339,6 +282,7 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
     if (e.kind === 'steam') smokes.push(Object.assign(new Smoke(root, sprites, pos, s++, { size: 0.7, rise: 2.5, drift: 0.8, life: 0.3 }), { home: c.id, steam: true }));
     if (e.kind === 'ember') embers.push(new Embers(root, M.emberSprite, pos));
   }
+  const incense = shrine && new Smoke(root, sprites, shrine.burner.clone().setY(shrine.burner.y + shrine.h), 99, { size: 0.35, rise: 1.6, drift: 0.6, life: 0.25 });
   const fireflies = new Fireflies(root, M.fireflySprite, [[-40, 40, 26, 34, -0.5], [-44, -30, -10, 20, 3], [32, 44, -20, 6, 4]], 50);
   const lights = [];
   const pointLight = (x, y, z, base, color = GLOW.lantern) => {
@@ -355,6 +299,17 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
   pointLight(px, C.square.level + 1.2, pz, 0, GLOW.fire);
   const bonfireLight = lights[lights.length - 1];
 
+
+  // 摊子摆出来时算障碍（收起来还原）
+  let stallsUp = false;
+  const stallCells = C.square.market.stalls.flatMap((st) => {
+    const out = [];
+    for (let dx = -0.95; dx <= 0.95; dx += 0.2) for (let dz = -0.55; dz <= 0.55; dz += 0.2) out.push(...nav.discCells(...C.square.at(st.x + Math.cos(st.rot) * dx + Math.sin(st.rot) * dz, st.z - Math.sin(st.rot) * dx + Math.cos(st.rot) * dz), 0.1));
+    return [...new Set(out)];
+  });
+  const stallWas = stallCells.map((k) => nav.blocked[k]);
+  const setStallBlock = (on) => stallCells.forEach((k, i) => { nav.blocked[k] = on ? 1 : stallWas[i]; });
+  for (const st of C.square.market.stalls) st.obj.visible = false;
 
   const lanternBase = M.lantern.color.clone();
   const spinners = Object.values(C).flatMap((c) => c.spinners);
@@ -407,6 +362,14 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
         for (const fm of sm.frames) fm.color.setScalar(1 - 0.6 * n);
       }
       for (const e of embers) e.update(dt);
+      // 今天的活动：场面道具（集市的摊子、电影幕布和放映机、土地庙的香火）
+      const sqC = C.square;
+      const marketOn = V.eventOn('market');
+      if (marketOn !== stallsUp) { stallsUp = marketOn; for (const st of sqC.market.stalls) st.obj.visible = marketOn; setStallBlock(marketOn); }
+      const movieOn = V.eventOn('movie');
+      sqC.screen.visible = sqC.projector.visible = movieOn;
+      if (movieOn) sqC.screen.userData.pic.material = hour >= EVENT_DEFS.movie.from ? M.movie[Math.floor(t / 2.2) % M.movie.length] : M.plaster; // 开演前是一块白布
+      incense?.update(dt, V.eventOn('shrine'));
       fireflies.update(t);
       for (const ff of fireflies.flies) ff.visible &&= n > 0.4;
 

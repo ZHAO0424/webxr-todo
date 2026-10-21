@@ -93,7 +93,7 @@ function flowerPot(M, flowerGeo) {
 
 /**
  * terrain：地形接口；nodes：路网节点；C：院落（已经摆好位置）。
- * 返回 { flora（InstancedMesh 组，不合批）, props（静态，参与合批和导航）}。
+ * 返回 { flora（InstancedMesh 组，不合批）, props（静态，参与合批和导航）, shrine（土地庙的位置，祭土地用）}。
  */
 export function buildRoadside(M, terrain, nodes, C) {
   const rand = makeRng(909);
@@ -128,8 +128,11 @@ export function buildRoadside(M, terrain, nodes, C) {
   // 土地庙：桥头路边，脸朝路
   const bn = nodes.bridgeN;
   const sh = near(bn.x + 3.2, bn.z - 0.5, 2.0, 1.6);
-  place(shrine(M), sh, bn.x, bn.z);
+  const shrineObj = shrine(M);
+  place(shrineObj, sh, bn.x, bn.z);
   if (sh) taken.push([sh[0], sh[1], 1.6]);
+  // 祭土地用：庙的位置、脸朝哪儿、香炉在哪儿（冒香烟）
+  const shrineInfo = sh && { at: [sh[0], sh[1]], h: sh[2], face: [bn.x, bn.z], burner: new THREE.Vector3(0, 0.62, 0.38).applyEuler(shrineObj.rotation).add(shrineObj.position) };
   // 石敢当：几个丁字路口，脸朝来路
   for (const [n, dx, dz] of [['mid', -1.5, -1.3], ['well', -1.6, -1.2], ['e1', 1.4, -1.4], ['w1', 1.5, -1.3]]) {
     const nd = nodes[n];
@@ -182,5 +185,5 @@ export function buildRoadside(M, terrain, nodes, C) {
     flora.add(mesh);
   }
   flora.userData.count = Object.fromEntries(Object.entries(lists).map(([k, l]) => [k, l.length]));
-  return { flora, props };
+  return { flora, props, shrine: shrineInfo };
 }

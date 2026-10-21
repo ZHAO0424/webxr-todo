@@ -5,7 +5,7 @@ import { buildVillage } from './village.js';
 import { buildBackdrop, skyTexture } from './backdrop.js';
 import { createAnchor } from './xr.js';
 import { LABELS } from './labels.js';
-import { EVENT_NAMES } from './life.js';
+import { EVENTS, fmt } from './life/index.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -38,7 +38,7 @@ const stage = new THREE.Group();
 scene.add(stage);
 
 const t0 = performance.now();
-const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event') }); // ?time=19.5 从晚上七点半开始；?event=opera|bonfire|meeting 指定今晚的活动
+const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event') }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
 document.documentElement.dataset.buildMs = String(Math.round(performance.now() - t0));
 const backdrop = buildBackdrop();
 stage.add(village.object, backdrop.object);
@@ -140,7 +140,8 @@ renderer.setAnimationLoop((_, frame) => {
   backdrop.update(t);
   if (clockEl && s.clock.label !== lastLabel) {
     lastLabel = s.clock.label;
-    clockEl.textContent = `${s.clock.night ? '夜里' : ''} ${lastLabel}　今晚村口：${EVENT_NAMES[village.life.event()]}`;
+    const e = EVENTS[village.life.today()];
+    clockEl.textContent = `${s.clock.night ? '夜里' : ''} ${lastLabel}　今天：${e.name}（${fmt(e.from)}–${fmt(e.to)}，${e.place}）`;
     if (selected) showCard();
   }
   renderer.render(scene, camera);
@@ -153,7 +154,7 @@ if (params.has('sim')) {
   const total = Number(params.get('sim'));
   const nav = village.nav;
   let samples = 0, clipP = 0, clipA = 0, stuck = 0, escaped = 0, gateOpenSamples = 0, strolls = 0, ajarSamples = 0, beastStuck = 0, waiting = 0, goSamples = 0;
-  const attended = {}, kidsAt = {};
+  const attended = {}, kidsAt = {}, waitWhy = {};
   const esc = {};
   const why = {};
   const lastPos = new Map();
@@ -167,7 +168,7 @@ if (params.has('sim')) {
       if (!nav.freeAt(v.pos.x, v.pos.z, false, true)) { clipP++; const k = `${v.p.id}/${v.doing}/${v.state}`; why[k] = (why[k] ?? 0) + 1; }
       const lp = lastPos.get(v);
       if (v.state === 'walk' && lp && Math.hypot(lp[0] - v.pos.x, lp[1] - v.pos.z) < 0.01) stuck++;
-      if (v.tasks[0]?.type === 'go' && v.state === 'idle' && !v.V.nav.closedDoorAt(v.pos.x + Math.sin(v.heading) * 0.35, v.pos.z + Math.cos(v.heading) * 0.35)) waiting++; // 在路上站着等人（排队）
+      if (v.tasks[0]?.type === 'go' && v.state === 'idle' && !v.V.nav.closedDoorAt(v.pos.x + Math.sin(v.heading) * 0.35, v.pos.z + Math.cos(v.heading) * 0.35)) { waiting++; const ob = v.ahead(Math.sin(v.heading), Math.cos(v.heading)); const k = `${v.p.id}/${v.doing}<${ob ? `${ob.p.id}:${ob.state}:${ob.doing}` : '?'}`; waitWhy[k] = (waitWhy[k] ?? 0) + 1; } // 在路上站着等人（排队）
       if (v.tasks[0]?.type === 'go') goSamples++;
       lastPos.set(v, [v.pos.x, v.pos.z]);
     }
@@ -185,7 +186,7 @@ if (params.has('sim')) {
       }
     }
     for (const g of village.gates) { if (g.open > 0.8) gateOpenSamples++; if (g.state.ajar) ajarSamples++; }
-    for (const v of village.life.people) if (!v.inside && /^(opera|bonfire|meeting)/.test(v.doing)) attended[v.p.id] = v.doing;
+    for (const v of village.life.people) if (!v.inside && EVENTS[v.doing.split(':')[0]]) attended[v.p.id] = v.doing;
     for (const v of village.life.people) if (!v.inside && v.doing === 'play') { const V = v.V; const k = V.streamBank.some(([x, z]) => Math.hypot(x - v.pos.x, z - v.pos.z) < 1.5) ? 'stream' : V.playFields.some(([x, z]) => Math.hypot(x - v.pos.x, z - v.pos.z) < 1.0) ? 'field' : 'other'; kidsAt[k] = (kidsAt[k] ?? 0) + 1; }
   }
   const sqc = village.life.people[0].V.C.square, cs = Math.cos(sqc.rot), sn = Math.sin(sqc.rot);
@@ -195,7 +196,7 @@ if (params.has('sim')) {
   for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) { const d = Math.hypot(out[i].pos.x - out[j].pos.x, out[i].pos.z - out[j].pos.z); if (d < 0.7) close.push(`${out[i].p.id}(${out[i].state},${out[i].tasks[0]?.type ?? '-'})~${out[j].p.id}(${out[j].state},${out[j].tasks[0]?.type ?? '-'})=${d.toFixed(2)}`); }
   eve.push(...close.map((c) => 'CLOSE ' + c));
   document.documentElement.dataset.eve = JSON.stringify(eve);
-  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.event(), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
+  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
 }
 
 let drawables = 0;

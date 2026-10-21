@@ -434,6 +434,34 @@ function square(M) {
   const hut = house(M, { w: 3.4, d: 3, h: 2.6, wall: 'rubble', roof: 'flat', front: [{ k: 'door', x: -0.6 }, { k: 'windowLit', x: 0.9, y: 0.9, s: 0.6 }] });
   put(g, hut.object, -7.2, -3.4, Math.PI / 2);
   put(g, P.barberStand(M, 0, 0), -2.6, -4.4);
+  // 剃头：客人坐挑子那头的凳子（脸朝场子），剃头匠站凳子后头；等着的在一边蹲着
+  const barber = { stand: [-2.6, -4.4], chair: [-1.65, -4.4], look: [-1.65, 0], wait: [[-0.8, -2.3], [-1.7, -2.0], [-0.9, -3.2]] };
+  // 集市：赶集那天摆出来的三个摊子（卖的站摊后，买的站摊前，每个摊前能站两个）
+  const rot2 = (x, z, r) => [Math.cos(r) * x + Math.sin(r) * z, -Math.sin(r) * x + Math.cos(r) * z];
+  const market = { stalls: [], buyers: [] };
+  const marketSpots = {};
+  [{ kind: 'tofu', x: 1.2, z: 4.8, rot: 0 }, { kind: 'goods', x: 3.9, z: 4.8, rot: 0 }, { kind: 'veg', x: -1.6, z: 0.9, rot: -Math.PI / 2 }].forEach((st, i) => {
+    const obj = put(g, P.stall(M, st.kind), st.x, st.z, st.rot);
+    market.stalls.push({ ...st, i, obj });
+    const at = (dx, dz) => { const [ox, oz] = rot2(dx, dz, st.rot); return [st.x + ox, st.z + oz]; };
+    marketSpots[`stall${i}_seller`] = [...at(0, 0.8), st.x, st.z];
+    for (const [k, dx] of [['A', -0.45], ['B', 0.45]]) { marketSpots[`stall${i}_buy${k}`] = [...at(dx, -0.9), st.x, st.z]; market.buyers.push(`stall${i}_buy${k}`); }
+  });
+  // 吃过晚饭在大槐树下围一圈闲聊的位置
+  const chatCenter = [-5.0, 4.9], chat = [], chatSpots = {};
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; chatSpots[`chat${i}`] = [chatCenter[0] + Math.cos(a) * 1.0, chatCenter[1] + Math.sin(a) * 0.95, ...chatCenter]; chat.push(`chat${i}`); }
+  // 露天电影：幕布挂在戏台前沿，放映机摆在石桌上
+  const screen = put(g, P.movieScreen(M), 3.5, -0.35);
+  screen.position.y = 2.4;
+  const projector = new THREE.Group();
+  projector.add(block(-0.16, 0.84, -0.12, 0.16, 1.06, 0.12, M.iron), block(0.16, 0.9, -0.05, 0.26, 1.0, 0.05, M.ink));
+  const lamp = new THREE.Sprite(M.haloSprite);
+  lamp.scale.set(1.2, 1.2, 1);
+  lamp.position.set(0.3, 0.95, 0);
+  projector.add(lamp);
+  projector.userData.dynamic = true;
+  projector.visible = false;
+  put(g, projector, -0.4, 3.6, Math.atan2(3.5 + 0.4, -0.35 - 3.6) - Math.PI / 2);
   const lanterns = [];
   for (const sx of [-1, 1]) { const l = lantern(M); l.position.set(3.5 + sx * 3.2, 4.0, -d / 2 + 5.4); g.add(l); lanterns.push(l); }
   // 傍晚的活动（戏、篝火、村会）用到的位置。台上的点 lift = 台面高
@@ -457,12 +485,14 @@ function square(M) {
   };
   const evSpots = Object.fromEntries([...front.map((p, i) => [`front${i}`, p]), ...rows.map((p, i) => [`row${i}`, p]), ...ring.map((r, i) => [`ring${i}`, [r.x, r.z, ...PIT]]), ...outer.map((p, i) => [`outer${i}`, [...p, ...PIT]])]);
   return result(w, d, g, {
-    gate: [0, d / 2 + 1.2], lanterns, evening, ringSeats: ring,
+    gate: [0, d / 2 + 1.2], lanterns, evening, ringSeats: ring, barber, market, chat, chatCenter, screen, projector,
     discs: [[...PIT, 0.75]],
     spots: {
-      ...evSpots, stageFoot: [3.5, 1.1, 3.5, -1],
+      ...evSpots, ...marketSpots, ...chatSpots, stageFoot: [3.5, 1.1, 3.5, -1],
+      barberChair: [...barber.chair], barberWork: [-1.65, -5.15, ...barber.chair], ...Object.fromEntries(barber.wait.map((p, i) => [`barberWait${i}`, [...p, ...barber.chair]])),
+      projector: [0.45, 4.5, 3.5, -0.6],
       tree: [-4.4, 4.2, -5.2, 1.0], tableW: [-1.6, 3.6, -0.4, 3.6], tableE: [0.8, 3.6, -0.4, 3.6], table: [-0.4, 4.9, -0.4, 3.6],
-      stage: [3.5, 1.2, 3.5, 6], barber: [-2.6, -3.5, -2.6, -4.4], tofu: [1.0, 5.2],
+      stage: [3.5, 1.2, 3.5, 6], barber: [-2.6, -3.5, -2.6, -4.4], tofu: [-0.2, 5.5], // 卖豆腐的地方躲开集市的豆腐摊
     },
     playArea: [-2, 0.6, 7.6, 5.4],
     doors: { house: xz(at(hut, hut.door)) },
@@ -483,9 +513,16 @@ function threshing(M) {
   const roller = P.roller(M, 0, 0);
   g.add(roller);
   for (const [x, z, r, h] of [[-5, -1.6, 1.3, 2.8], [5, -1.4, 1.2, 2.5], [4.6, 1.8, 0.9, 1.9]]) g.add(P.haystack(M, x, z, r, h));
+  // 打场那天大伙儿围着碾子站的一圈（在牛走的圈外、躲开麦秸垛、不出场院）
+  const stacks = [[-5, -1.6, 1.3], [5, -1.4, 1.2], [4.6, 1.8, 0.9]];
+  const harvest = {};
+  for (let x = -w / 2 + 0.6; x <= w / 2 - 0.6; x += 1.1) for (let z = -d / 2 + 0.5; z <= d / 2 - 0.5; z += 1.1) { // 1.1 米一格撒点（人是大头娃娃，挨太近看着挤）
+    if (Math.hypot(x, z) > 3.8 && stacks.every(([sx, sz, r]) => Math.hypot(x - sx, z - sz) > r + 0.5)) harvest[`h${Object.keys(harvest).length}`] = [x, z, 0, 0];
+  }
   return result(w, d, g, {
     gate: [-w / 2 - 1.2, 0.5],
-    spots: { work: [-4.6, 1.7, 0, 0], work2: [5.8, 0.4, 0, 0], center: [-3.6, 0.2, 0, 0] },
+    harvestSpots: Object.keys(harvest),
+    spots: { work: [-4.6, 1.7, 0, 0], work2: [5.8, 0.4, 0, 0], center: [-3.6, 0.2, 0, 0], ...harvest },
     spinners: [{ object: roller, id: 'roller' }],
     roller: { cx: 0, cz: 0, r: 3.0 },
   });

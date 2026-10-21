@@ -367,6 +367,16 @@ const ITEMS = {
     g.px(hand.x, hand.y - 11, R.wood[3]); g.px(hand.x + 2, hand.y - 10, R.wood[3]);
     g.rect(hand.x, hand.y + 1, 3, 3, R.brown[2]); g.hline(hand.x, hand.x + 2, hand.y + 1, R.paper[3]);
   },
+  razor(g, hand) { // 剃刀：木柄 + 一片亮刃
+    g.px(hand.x + 1, hand.y, R.wood[3]); g.px(hand.x + 2, hand.y - 1, R.wood[3]);
+    g.hline(hand.x + 3, hand.x + 5, hand.y - 2, R.white[3]); g.px(hand.x + 3, hand.y - 1, R.grey[3]);
+  },
+  earpick(g, hand) { g.line(hand.x + 1, hand.y, hand.x + 4, hand.y - 2, R.gold[3]); }, // 耳挖勺
+  lantern(g, hand) { // 打更的灯笼：短竿挑着一盏红灯笼
+    g.line(hand.x + 1, hand.y, hand.x + 4, hand.y - 4, R.wood[2]);
+    g.vline(hand.x + 4, hand.y - 3, hand.y - 2, R.black[2]);
+    g.rect(hand.x + 3, hand.y - 1, 3, 4, R.red[3]); g.hline(hand.x + 3, hand.x + 5, hand.y - 1, R.gold[3]); g.hline(hand.x + 3, hand.x + 5, hand.y + 2, R.gold[3]); g.px(hand.x + 4, hand.y, R.gold[4]);
+  },
   fan(g, hand) { // 唱戏的折扇
     g.vline(hand.x + 1, hand.y - 1, hand.y, R.wood[3]);
     g.rect(hand.x - 1, hand.y - 5, 5, 4, R.red[3]); g.hline(hand.x - 2, hand.x + 4, hand.y - 6, R.gold[3]); g.px(hand.x + 1, hand.y - 3, R.gold[4]);
