@@ -198,13 +198,16 @@ export class Beast {
     }
     this.lureAt = null;
     // 4. 天黑了回窝
-    if (s.role === 'chicken' && (hour > 19.5 || hour < 5.5) && s.coop) { if (this.moveTo(...this.c.at(...s.coop), dt)) { this.home = true; } return; }
+    if (s.role === 'chicken' && (hour > 19.5 || hour < 5.5 || V.weather() === 'rain') && s.coop) { if (this.moveTo(...this.c.at(...s.coop), dt)) this.home = true; return; } // 天黑、下雨回窝
     // 5. 狗跟主人出门
     if (s.role === 'dog' && s.owner) {
       const o = V.byId[s.owner];
-      if (o && !o.inside && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) > 2.5 && o.state === 'walk') {
-        this.moveTo(o.pos.x - Math.sin(o.heading) * 1.2, o.pos.z - Math.cos(o.heading) * 1.2, dt, this.speed);
-        return;
+      if (o && !o.inside) {
+        const d = Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z);
+        const [hx, hz] = this.c.at(0, 0);
+        const away = Math.hypot(o.pos.x - hx, o.pos.z - hz) > 8; // 主人出了自家院子（看戏、赶集、下地……）
+        if (d > 3 || (away && d > 1.4)) { this.moveTo(o.pos.x - Math.sin(o.heading) * 1.2, o.pos.z - Math.cos(o.heading) * 1.2, dt, this.speed); return; }
+        if (away) { this.pecking = false; return; } // 到了就在主人脚边待着
       }
     }
     // 6. 平时：在自己的地盘里溜达、停下、低头吃。会拱门的偶尔拱开院门溜出去，在门外转两圈再自己回来
@@ -212,7 +215,7 @@ export class Beast {
       this.wait -= dt;
       this.pecking = s.role === 'chicken' || s.role === 'sheep' || s.role === 'pig';
       if (this.wait > 0) return;
-      if (this.push && !this.stroll && !this.returning && !this.graze && hour > 6.5 && hour < 19.6 && this.c.gates.length && this.rand() < PUSHERS[s.role]) this.stroll = { left: 2 + Math.floor(this.rand() * 3) };
+      if (this.push && !this.stroll && !this.returning && !this.graze && hour > 6.5 && hour < 19.6 && V.weather() !== 'rain' && this.c.gates.length && this.rand() < PUSHERS[s.role]) this.stroll = { left: 2 + Math.floor(this.rand() * 3) };
       if (this.stroll && (this.stroll.left-- <= 0 || hour >= 19.6 || hour < 6.5)) { this.stroll = null; this.returning = true; }
       if (this.stroll) {
         const [gx, gz] = this.c.gateOut();

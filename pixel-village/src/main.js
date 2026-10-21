@@ -5,7 +5,7 @@ import { buildVillage } from './village.js';
 import { buildBackdrop, skyTexture } from './backdrop.js';
 import { createAnchor } from './xr.js';
 import { LABELS } from './labels.js';
-import { EVENTS, fmt } from './life/index.js';
+import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -38,7 +38,7 @@ const stage = new THREE.Group();
 scene.add(stage);
 
 const t0 = performance.now();
-const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event') }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
+const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event'), weather: params.get('weather') }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
 document.documentElement.dataset.buildMs = String(Math.round(performance.now() - t0));
 const backdrop = buildBackdrop();
 stage.add(village.object, backdrop.object);
@@ -140,8 +140,8 @@ renderer.setAnimationLoop((_, frame) => {
   backdrop.update(t);
   if (clockEl && s.clock.label !== lastLabel) {
     lastLabel = s.clock.label;
-    const e = EVENTS[village.life.today()];
-    clockEl.textContent = `${s.clock.night ? '夜里' : ''} ${lastLabel}　今天：${e.name}（${fmt(e.from)}–${fmt(e.to)}，${e.place}）`;
+    const e = EVENTS[village.life.today()], w = village.life.weather();
+    clockEl.textContent = `${lunarLabel(s.clock.day)} ${WEATHER[w]}　${s.clock.night ? '夜里' : ''}${lastLabel}　今天：${e.name}（${w === 'rain' ? '下雨，改天' : `${fmt(e.from)}–${fmt(e.to)}，${e.place}`}）`;
     if (selected) showCard();
   }
   renderer.render(scene, camera);
@@ -154,7 +154,7 @@ if (params.has('sim')) {
   const total = Number(params.get('sim'));
   const nav = village.nav;
   let samples = 0, clipP = 0, clipA = 0, stuck = 0, escaped = 0, gateOpenSamples = 0, strolls = 0, ajarSamples = 0, beastStuck = 0, waiting = 0, goSamples = 0;
-  const attended = {}, kidsAt = {}, waitWhy = {};
+  const attended = {}, kidsAt = {}, waitWhy = {}, seen = new Set(), litLog = {}, leaveLog = {};
   const esc = {};
   const why = {};
   const lastPos = new Map();
@@ -170,6 +170,7 @@ if (params.has('sim')) {
       if (v.state === 'walk' && lp && Math.hypot(lp[0] - v.pos.x, lp[1] - v.pos.z) < 0.01) stuck++;
       if (v.tasks[0]?.type === 'go' && v.state === 'idle' && !v.V.nav.closedDoorAt(v.pos.x + Math.sin(v.heading) * 0.35, v.pos.z + Math.cos(v.heading) * 0.35)) { waiting++; const ob = v.ahead(Math.sin(v.heading), Math.cos(v.heading)); const k = `${v.p.id}/${v.doing}<${ob ? `${ob.p.id}:${ob.state}:${ob.doing}` : '?'}`; waitWhy[k] = (waitWhy[k] ?? 0) + 1; } // 在路上站着等人（排队）
       if (v.tasks[0]?.type === 'go') goSamples++;
+      seen.add(v.doing);
       lastPos.set(v, [v.pos.x, v.pos.z]);
     }
     for (const b of village.life.beasts) {
@@ -185,6 +186,10 @@ if (params.has('sim')) {
         if (Math.abs(lx) > c.w / 2 || Math.abs(lz) > c.d / 2) { escaped++; esc[b.s.role + '@' + c.id] = (esc[b.s.role + '@' + c.id] ?? 0) + 1; if (escaped % 25 === 1) esc['x' + escaped] = `${village.life.clock.label} ${lx.toFixed(1)},${lz.toFixed(1)} t=${b.target ? 1 : 0} p=${b.path?.length ?? '-'} w=${b.wait.toFixed(1)} world=${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)} free=${nav.freeAt(b.pos.x, b.pos.z)} h=${nav.heightAt(b.pos.x, b.pos.z).toFixed(2)} ret=${b.returning} stroll=${!!b.stroll} fol=${!!b.follow} gr=${!!b.graze} area=${JSON.stringify(b.areaPoint())} ok=${!!nav.find(b.pos.x, b.pos.z, ...b.c.at(4, 0), { person: true, maxNodes: Infinity })} reach=${nav.reachable(b.pos.x, b.pos.z)} around=${[-0.5, -0.25, 0, 0.25, 0.5].map((dz) => [-0.5, -0.25, 0, 0.25, 0.5].map((dx) => (nav.freeAt(b.pos.x + dx, b.pos.z + dz) ? '' : '#') + nav.heightAt(b.pos.x + dx, b.pos.z + dz).toFixed(1)).join(' ')).join(' | ')}`; }
       }
     }
+    const Cs = Object.values(village.life.people[0].V.C), hh = village.life.clock.hour, slot = Math.floor(hh * 2) / 2;
+    if (!litLog[slot]) litLog[slot] = Cs.filter((c) => c.lit).map((c) => c.id).join(',') || '-';
+    const leaving = village.life.people.filter((v) => !v.inside && v.tasks[0]?.type === 'go' && v.rushUntil > hh).length;
+    if (leaving) leaveLog[Math.floor(hh * 10) / 10] = Math.max(leaveLog[Math.floor(hh * 10) / 10] ?? 0, leaving);
     for (const g of village.gates) { if (g.open > 0.8) gateOpenSamples++; if (g.state.ajar) ajarSamples++; }
     for (const v of village.life.people) if (!v.inside && EVENTS[v.doing.split(':')[0]]) attended[v.p.id] = v.doing;
     for (const v of village.life.people) if (!v.inside && v.doing === 'play') { const V = v.V; const k = V.streamBank.some(([x, z]) => Math.hypot(x - v.pos.x, z - v.pos.z) < 1.5) ? 'stream' : V.playFields.some(([x, z]) => Math.hypot(x - v.pos.x, z - v.pos.z) < 1.0) ? 'field' : 'other'; kidsAt[k] = (kidsAt[k] ?? 0) + 1; }
@@ -196,7 +201,7 @@ if (params.has('sim')) {
   for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) { const d = Math.hypot(out[i].pos.x - out[j].pos.x, out[i].pos.z - out[j].pos.z); if (d < 0.7) close.push(`${out[i].p.id}(${out[i].state},${out[i].tasks[0]?.type ?? '-'})~${out[j].p.id}(${out[j].state},${out[j].tasks[0]?.type ?? '-'})=${d.toFixed(2)}`); }
   eve.push(...close.map((c) => 'CLOSE ' + c));
   document.documentElement.dataset.eve = JSON.stringify(eve);
-  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
+  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, seen: [...seen].sort(), litLog, leaveLog, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
 }
 
 let drawables = 0;

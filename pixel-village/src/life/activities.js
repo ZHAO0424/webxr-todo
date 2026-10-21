@@ -1,3 +1,5 @@
+import { makeRng } from '../pixel.js';
+import { friendsOf } from '../residents.js';
 // ---------------------------------------------------------------- 活动
 // 每个活动往村民的任务队列里塞一串任务；loop 是任务做完后（活动还没到点结束时）接着做什么。
 
@@ -11,7 +13,15 @@ const WORK = { // 各家默认的干活位置、手里的家伙、朝哪儿
   school: { spot: 'teach', item: 'book', state: 'talk', face: [0, 4] },
 };
 
-export const R = (a) => a[Math.floor(Math.random() * a.length)];
+const pick = makeRng(7); // 带种子：同样的设置每次模拟结果都一样，问题能复现
+/** 一家人 + 要好的（闲聊、看戏挨着）。 */
+export function kinOf(v) {
+  const ids = new Set(friendsOf(v.p.id));
+  for (const o of v.V.people) if (o !== v && o.p.home === v.p.home) ids.add(o.p.id);
+  return ids;
+}
+
+export const R = (a) => a[Math.floor(pick() * a.length)];
 
 /** 自家门口墙根底下一个没人占的位置（没有就 null）。 */
 function wallSpot(v) {
@@ -130,7 +140,7 @@ export const ACTIVITIES = {
   evening(v) { // 没有晚上的活动时：吃过晚饭，有的到大槐树下围一圈闲聊，有的坐自家门口，有的早早歇了
     if (v.p.body === 'child') { ACTIVITIES.play(v); v.doing = 'play'; return; }
     const r = v.rand(), sq = v.V.C.square;
-    const spot = r < 0.45 ? v.V.claim(v, sq, sq.chat, { strict: true }) : null;
+    const spot = r < 0.45 ? v.V.claimNear(v, sq, sq.chat, kinOf(v), (n) => sq.spots[n]) : null; // 挨着自家人、老伙计坐
     if (!spot) { v.doing = r < 0.75 ? 'sitGate' : 'home'; ACTIVITIES[v.doing](v); return; }
     v.doing = 'chat';
     v.char.setItem(v.p.item === 'pipe' ? 'pipe' : null);
@@ -163,9 +173,10 @@ export const ACTIVITIES = {
         return;
       }
       const mates = v.V.people.filter((o) => o !== v && o.doing === 'play' && !o.inside);
+      const pals = mates.filter((o) => friendsOf(v.p.id).includes(o.p.id)); // 先找自己那一伙的玩伴
       const r = v.rand();
-      if (mates.length && r < 0.3) { // 跟着别的孩子跑
-        const m = R(mates);
+      if (mates.length && r < 0.35) { // 跟着别的孩子跑
+        const m = R(pals.length && v.rand() < 0.75 ? pals : mates);
         v.go(() => [m.pos.x + 0.8, m.pos.z + 0.6], { run: true });
         v.do('idle', 1 + v.rand() * 2);
       } else if (r < 0.55 && v.V.streamBank.length) { // 溪边：蹲着玩水、扔石子
@@ -317,6 +328,46 @@ export const ACTIVITIES = {
 
   garden(v) { v.char.setItem('hoe'); v.go(v.home.spot('garden')); v.loop = () => v.do('work', 8); },
 
+  laundry(v) { // 去溪边洗衣裳：挎着一篮子衣裳，蹲在溪边搓洗，洗完回院里晾
+    v.char.setItem('basket');
+    const banks = v.V.streamBank;
+    const name = banks.length ? v.V.claim(v, v.V.bankClaims, banks.map((_, i) => `b${i}`), { strict: true }) : null;
+    if (!name) { ACTIVITIES.yardWork(v); return; }
+    const [x, z] = banks[Number(name.slice(1))];
+    v.go([x, z]);
+    v.item(null);
+    v.do('wash', 16, { face: [x, z + 3] });
+    v.call(() => v.V.release(v));
+    v.item('basket');
+    v.go(v.home.spot('yard'));
+    v.item(null);
+    v.do('work', 5); // 晾衣裳
+    v.loop = () => { v.go(v.home.randomPoint()); v.do('idle', 5); };
+    v.end = () => v.V.release(v);
+  },
+
+  firewood(v) { // 进山砍柴：扛着斧子上坡，砍一阵，背一捆柴回家
+    const woods = v.V.woods;
+    if (!woods.length) { ACTIVITIES.field(v, 'fieldW'); return; }
+    const spot = woods[Math.floor(v.rand() * woods.length)];
+    v.char.setItem('axe');
+    v.go(spot.at);
+    v.do('work', 14, { face: spot.tree });
+    v.item('firewood');
+    v.go(v.home.spot('yard'));
+    v.item(null);
+    v.do('work', 3);
+    v.loop = () => { v.go(v.home.randomPoint()); v.do('idle', 6); };
+  },
+
+  visitFriend(v, who) { // 老人去老伙计家串门：找到他（在家就进院，不在家就在门口等一会儿）
+    const f = v.V.byId[who];
+    v.char.setItem(v.p.item ?? null);
+    const c = f?.home ?? v.home;
+    v.go(() => (f && !f.inside && Math.hypot(f.pos.x - c.at(0, 0)[0], f.pos.z - c.at(0, 0)[1]) < 12 ? v.V.nav.nearestFree(f.pos.x + 0.9, f.pos.z + 0.5) : c.spot('yard') ?? c.gateOut()));
+    v.loop = () => v.do('talk', 8, { face: f && !f.inside ? [f.pos.x, f.pos.z] : null });
+  },
+
   putOutTorches(v) { // 天亮了：小六子挨个把路口的火把熄了
     v.char.setItem(null);
     const order = [...v.V.torches].sort((a, b) => Math.hypot(a.pos[0] - v.pos.x, a.pos[1] - v.pos.z) - Math.hypot(b.pos[0] - v.pos.x, b.pos[1] - v.pos.z));
@@ -332,8 +383,9 @@ export const ACTIVITIES = {
     v.char.setItem('lantern');
     v.call(() => v.glow(true));
     const stops = ['mid', 'well', 'e1', 'L1', 'well', 'w1', 'cw', 'w1', 'well', 'mid', 'gate:square', 'bridgeN', 'gate:square', 'gate:store'];
-    for (const n of stops) { const nd = v.V.nodes[n]; v.go(v.V.nav.nearestFree(nd.x, nd.z)); v.do('work', 2.5); }
-    v.loop = () => v.do('idle', 5);
+    const round = () => { for (const n of stops) { const nd = v.V.nodes[n]; v.go(v.V.nav.nearestFree(nd.x, nd.z)); v.do('work', 2.5); } };
+    round();
+    v.loop = round; // 一圈走完再走一圈
     v.end = () => { v.glow(false); v.char.setItem(null); };
   },
 

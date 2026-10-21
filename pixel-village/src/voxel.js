@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TPU, makeRng } from './pixel.js';
+import { TPU, makeRng, block, prism } from './pixel.js';
 import { R } from './palette.js';
 import { restViews, itemGrid } from './characters.js';
 import { animalGrids } from './animals.js';
@@ -110,6 +110,7 @@ const WORK_MOTION = {
   buckets(t, L, Rt) { Rt.rotation.x = L.rotation.x = -2.8; return true; },
   pipe(t, L, Rt) { Rt.rotation.x = Math.sin(t * 0.8) > 0.5 ? -1.9 : -1.2; return true; }, // 嘬一口旱烟
   cane(t, L, Rt) { Rt.rotation.x = -0.3; return true; },
+  axe(t, L, Rt) { return WORK_MOTION.hammer(t * 0.9, L, Rt); }, // 劈柴：举起来、劈下去
   razor(t, L, Rt) { Rt.rotation.x = -1.7 + Math.sin(t * 5) * 0.25; L.rotation.x = -1.3; return true; }, // 剃头：贴着头皮一下一下推
   earpick(t, L, Rt) { Rt.rotation.x = -1.95 + Math.sin(t * 9) * 0.05; L.rotation.x = -1.5; return true; }, // 掏耳朵：手举到耳边轻轻转
   lantern(t, L, Rt) { Rt.rotation.x = -1.5 + Math.sin(t * 2) * 0.1; return true; }, // 举灯照一照
@@ -171,10 +172,22 @@ export function voxelCharacter(p, M) {
   // 手持物：同样的像素画挤出 2 层，挂在右胳膊上跟着摆（扁担、水桶挑在肩上）。按活动随时换。
   const items = new Map();
   let current = null;
-  const ON_SHOULDER = new Set(['pole', 'buckets']);
+  const ON_SHOULDER = new Set(['pole', 'buckets', 'firewood']);
   // 手的位置（体素坐标）：手持物以手为原点，转 90° 让工具朝前伸出去（像素图里工具是往右画的）
   const hx = hand.x - CX + 1, hy = FEET - hand.y;
   const makeItem = (name) => {
+    if (name === 'umbrella') { // 油纸伞做成立体的（像素片从上面看只是一根线）：竹柄 + 八角伞面，举手时保持竖直
+      const holder = new THREE.Group();
+      holder.position.set(hx * VOX, (hy - shoulderY) * VOX, 0);
+      holder.rotation.x = 0.9;
+      holder.add(block(-0.03, 0, -0.03, 0.03, 0.95, 0.03, M.wood, { outline: false }));
+      const top = prism(0.05, 0.5, 0.2, M.gold, 8);
+      top.position.set(-hx * VOX * 0.9, 0.95, 0); // 伞面罩在头顶正上方
+      holder.add(block(-hx * VOX * 0.9, 0.9, -0.025, 0, 0.95, 0.025, M.wood, { outline: false }));
+      holder.add(top);
+      armR.add(holder);
+      return holder;
+    }
     const grid = itemGrid(p, 0, name);
     if (!grid) return null;
     const solid = (x, y, z) => (z === -1 || z === 0) && !!grid.get(x + CX, FEET - y);
@@ -237,6 +250,13 @@ export function voxelCharacter(p, M) {
         body.position.y = Math.floor(t * 2 + phase) % 2 ? 0 : -VOX * 0.5;
         return;
       }
+      if (state === 'wash') { // 蹲在溪边搓衣裳：两手在水里一前一后地搓
+        legL.rotation.x = legR.rotation.x = -1.45;
+        rig.position.y = -legLen * 0.55;
+        armL.rotation.x = -1.0 + Math.sin(t * 5 + phase) * 0.3;
+        armR.rotation.x = -1.0 - Math.sin(t * 5 + phase) * 0.3;
+        return;
+      }
       if (state === 'shave') { // 刮脸：一手托着客人下巴，一手慢慢刮
         armL.rotation.x = -1.4;
         armR.rotation.x = -1.5 + Math.sin(t * 2.5 + phase) * 0.3;
@@ -290,11 +310,13 @@ export function voxelCharacter(p, M) {
         const s = Math.sin(w) * (state === 'run' ? swing * 1.3 : swing);
         legL.rotation.x = s; legR.rotation.x = -s;
         armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8;
+        if (current === 'umbrella') armR.rotation.x = -0.9; // 打伞的那只手举着不摆
         body.position.y = Math.abs(Math.cos(w)) > 0.7 ? VOX : 0; // 每步起伏一个像素
       } else if (state === 'work') {
         WORK_MOTION[current ?? 'none']?.(t + phase, armL, armR, body) ?? WORK_MOTION.hammer(t + phase, armL, armR, body);
       } else {
         body.position.y = Math.floor(t * 1.2 + phase) % 2 ? 0 : -VOX * 0.5; // 呼吸
+        if (current === 'umbrella') armR.rotation.x = -0.9;
       }
     },
   };

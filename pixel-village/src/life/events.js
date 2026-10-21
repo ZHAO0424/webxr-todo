@@ -1,8 +1,9 @@
-import { ACTIVITIES, R } from './activities.js';
+import { ACTIVITIES, R, kinOf } from './activities.js';
 
 /*
- * 每天一样全村的活动，有白天的也有晚上的，按天轮：
- *   唱戏 → 赶集 → 篝火讲古 → 打场 → 放露天电影 → 祭土地 → 开村会 → ……（?event= 指定）
+ * 每天一样全村的活动，有白天的也有晚上的：
+ *   按农历逢五逢十赶集（初五、初十、十五……），其余日子轮着唱戏 → 篝火讲古 → 打场 → 放露天电影 → 祭土地 → 开村会（?event= 指定）。
+ *   下雨天户外的活动都不办了（天气见 weatherOf，?weather= 指定）。
  *
  * 每样活动：时间窗 [from, to)、有固定角色的人（提前 prep 小时到场布置，一定去）、其余人去不去按 prob 掷骰子
  * （同一天、同一个人结果固定）。去的人在时间窗里放下日程来参加，散了再回到日程；不去的照常过。
@@ -60,15 +61,51 @@ export function hash(str) {
   return ((h >>> 0) % 10000) / 10000;
 }
 
-export const eventOf = (day, forced) => forced ?? ORDER[(day - 1) % ORDER.length];
+// ---------------------------------------------------------------- 农历、天气
+
+const LUNAR0 = { m: 9, d: 4 }; // 第 1 天是九月初四（每月按 30 天算）
+export function lunarOf(day) {
+  let m = LUNAR0.m, d = LUNAR0.d + day - 1;
+  while (d > 30) { d -= 30; m = (m % 12) + 1; }
+  return { m, d };
+}
+const CN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+export function lunarLabel(day) {
+  const { m, d } = lunarOf(day);
+  const month = m === 1 ? '正月' : m === 11 ? '冬月' : m === 12 ? '腊月' : `${CN[m]}月`;
+  const dd = d <= 10 ? `初${CN[d]}` : d < 20 ? `十${CN[d - 10]}` : d === 20 ? '二十' : d < 30 ? `廿${CN[d - 20]}` : '三十';
+  return month + dd;
+}
+
+const OTHERS = ORDER.filter((k) => k !== 'market');
+/** 这天村里办什么：逢五逢十赶集，其余日子轮着来。 */
+export function eventOf(day, forced) {
+  if (forced) return forced;
+  if (lunarOf(day).d % 5 === 0) return 'market';
+  let k = 0;
+  for (let i = 1; i < day; i++) if (lunarOf(i).d % 5) k++;
+  return OTHERS[k % OTHERS.length];
+}
+
+export const WEATHER = { sunny: '晴', cloudy: '阴', rain: '小雨' };
+/** 这天的天气：头一天晴，之后晴六成、阴两成半、小雨一成半。 */
+export function weatherOf(day, forced) {
+  if (forced) return forced;
+  if (day === 1) return 'sunny';
+  const h = hash(`${day}/weather`);
+  return h < 0.6 ? 'sunny' : h < 0.85 ? 'cloudy' : 'rain';
+}
 export const roleOf = (key, p) => EVENTS[key].roles[p.id] ?? null;
 export const attends = (p, key, day) => !!roleOf(key, p) || (!EVENTS[key].stay?.includes(p.id) && hash(`${day}/${p.id}/${key}`) < EVENTS[key].prob(p)); // stay：手上有买卖走不开的
 
 /** 这会儿 v 该不该在活动上：今天的活动、在时间窗里（有角色的提前到）、自己去、还没提前散。 */
 export function eventNow(v, hour) {
   const V = v.V, key = V.today(), e = EVENTS[key], day = V.clockDay();
-  const from = e.from - (roleOf(key, v.p) ? e.prep : 0);
-  if (hour < from || hour >= e.to || v.leftEvent === `${day}/${key}` || !attends(v.p, key, day)) return null;
+  if (V.weather() === 'rain') return null; // 下雨，改天
+  const role = roleOf(key, v.p);
+  const from = e.from - (role ? e.prep : 0);
+  const to = role ? e.to : e.to + (hash(`${day}/${v.p.id}/leave`) - 0.35) * 0.6; // 散场错开：有的提前走，有的留下说会儿话（−13 ～ +23 分钟）
+  if (hour < from || hour >= to || v.leftEvent === `${day}/${key}` || !attends(v.p, key, day)) return null;
   return key;
 }
 
@@ -103,7 +140,7 @@ function audience(v, key) {
   const sq = v.V.C.square, E = sq.evening, face = sq.at(...E.face), isKid = kid(v.p);
   v.char.setItem(key !== 'meeting' && v.p.item === 'pipe' ? 'pipe' : null);
   const pool = isKid && key !== 'meeting' ? [...E.front, ...E.rows, ...E.ring] : elder(v.p) ? [...E.elders, ...E.ring, ...E.rows] : [...E.rows, ...E.ring];
-  const spot = v.V.claim(v, sq, pool, { ordered: true, strict: true });
+  const spot = v.V.claimNear(v, sq, pool, kinOf(v), (n) => sq.spots[n]); // 一圈圈从里往外，挨着自家人、要好的站
   if (!spot) { giveUp(v, key); return; }
   const seat = takeSquare(v, spot);
   const seated = E.elders.includes(spot) || seat;
@@ -144,7 +181,7 @@ export const EVENT_ACTS = {
   bonfire(v, role) { // 围着火堆：石头、石凳上坐一圈，坐满了外圈站着；讲古的先把火点上
     const sq = v.V.C.square, E = sq.evening, pit = sq.at(...E.pit);
     v.char.setItem(v.p.item === 'pipe' ? 'pipe' : null);
-    const name = role === 'storyteller' ? 'ring1' : v.V.claim(v, sq, [...E.ring.filter((n) => n !== 'ring1'), ...E.outer], { ordered: true, strict: true });
+    const name = role === 'storyteller' ? 'ring1' : v.V.claimNear(v, sq, [...E.ring.filter((n) => n !== 'ring1'), ...E.outer], kinOf(v), (n) => sq.spots[n]);
     if (!name) { giveUp(v, 'bonfire'); return; }
     if (role === 'storyteller') v.V.claim(v, sq, ['ring1']);
     const seat = takeSquare(v, name);

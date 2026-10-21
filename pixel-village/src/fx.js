@@ -119,3 +119,38 @@ export function lightShafts(parent, material, shafts) {
   parent.add(g);
   return g;
 }
+
+/**
+ * 小雨：三千根雨丝在村子上空落下，落到地面高度就回到顶上；斜着一点（风），淡蓝灰。
+ * 每根是一个细长小方块（宽一个场景像素）——WebGL 的线只有一个屏幕像素宽，缩成沙盘后看不见。
+ */
+export class Rain {
+  constructor(parent, bounds, groundAt, count = 3000, seed = 11) {
+    const r = makeRng(seed);
+    this.groundAt = groundAt;
+    this.drops = Array.from({ length: count }, () => { const x = bounds.x0 + r() * (bounds.x1 - bounds.x0), z = bounds.z0 + r() * (bounds.z1 - bounds.z0); return { x, z, y: groundAt(x, z) + r() * 9, v: 7 + r() * 3, top: 7 + r() * 3 }; });
+    const w = 1 / TPU;
+    this.object = new THREE.InstancedMesh(new THREE.BoxGeometry(w, 0.5, w), new THREE.MeshBasicMaterial({ color: '#c4d0e4', transparent: true, opacity: 0.65, depthWrite: false }), count);
+    this.object.frustumCulled = false;
+    this.object.userData.dynamic = true;
+    this.object.visible = false;
+    this.m = new THREE.Matrix4();
+    this.q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -0.1));
+    this.s = new THREE.Vector3(1, 1, 1);
+    this.p = new THREE.Vector3();
+    parent.add(this.object);
+  }
+
+  update(dt, on) {
+    this.object.visible = on;
+    if (!on) return;
+    this.drops.forEach((d, i) => {
+      d.y -= d.v * dt;
+      d.x += 1.2 * dt; // 风往东吹一点
+      const g = this.groundAt(d.x, d.z);
+      if (d.y < g) { d.y = g + d.top; d.x -= 1.2 * (d.top / d.v); } // 落地了回到上面（只在地面以上几米落，雨丝才密）
+      this.object.setMatrixAt(i, this.m.compose(this.p.set(d.x, d.y, d.z), this.q, this.s));
+    });
+    this.object.instanceMatrix.needsUpdate = true;
+  }
+}

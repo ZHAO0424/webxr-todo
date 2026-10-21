@@ -2,11 +2,12 @@ import { makeRng } from '../pixel.js';
 import { Clock } from './clock.js';
 import { Villager } from './villager.js';
 import { Beast } from './beast.js';
-import { eventOf, EVENTS } from './events.js';
+import { eventOf, weatherOf, EVENTS } from './events.js';
 import { Barbershop } from './barber.js';
+import { holiday } from './variety.js';
 
 export { Clock, RATES, rateAt } from './clock.js';
-export { EVENTS, EVENT_NAMES, ORDER, fmt } from './events.js';
+export { EVENTS, EVENT_NAMES, ORDER, WEATHER, fmt, lunarLabel } from './events.js';
 
 /*
  * 村里的"生活"（各部分见同目录下的文件）：
@@ -21,7 +22,7 @@ export { EVENTS, EVENT_NAMES, ORDER, fmt } from './events.js';
  * 放人放动物。V：村子上下文（M、root、nav、C、nodes、fields、pasture、torches、well …）。
  * 返回 { people, beasts, clock, update(t, dt), cookingAt(homeId), insideCount(homeId) }。
  */
-export function populate(V, residents, extraAnimals, startHour, forcedEvent = null) {
+export function populate(V, residents, extraAnimals, startHour, { event: forcedEvent = null, weather: forcedWeather = null } = {}) {
   const rand = makeRng(2024);
   V.frameCache = new Map();
   V.attract = new Map();
@@ -41,6 +42,22 @@ export function populate(V, residents, extraAnimals, startHour, forcedEvent = nu
     return name;
   };
   V.release = (v) => claims.delete(v);
+  /** 挨着自家人 / 要好的人占位置：他们已经占了的，挑离他们最近的空位；都没来就按顺序占。posOf(name) → [x, z]。 */
+  V.claimNear = (v, c, names, near, posOf) => {
+    const mine = claims.get(v);
+    if (mine && mine.c === c && names.includes(mine.name)) return mine.name;
+    const taken = new Set([...claims.entries()].filter(([o, x]) => o !== v && x.c === c).map(([, x]) => x.name));
+    const free = names.filter((n) => !taken.has(n));
+    if (!free.length) return null;
+    const anchors = [...claims.entries()].filter(([o, x]) => o !== v && x.c === c && near.has(o.p.id) && names.includes(x.name)).map(([, x]) => posOf(x.name));
+    let name = free[0];
+    if (anchors.length) {
+      let best = Infinity;
+      for (const n of free) { const [x, z] = posOf(n); const d = Math.min(...anchors.map(([ax, az]) => Math.hypot(x - ax, z - az))); if (d < best) { best = d; name = n; } }
+    }
+    claims.set(v, { c, name });
+    return name;
+  };
   V.claimed = (v) => claims.get(v)?.name;
   V.people = residents.map((p) => new Villager(p, V, rand));
   V.byId = Object.fromEntries(V.people.map((v) => [v.p.id, v]));
@@ -52,13 +69,16 @@ export function populate(V, residents, extraAnimals, startHour, forcedEvent = nu
   V.clockDay = () => clock.day;
   V.hour = () => clock.hour;
   V.today = () => eventOf(clock.day, forcedEvent); // 头一天唱戏，第二天赶集，第三天篝火……
-  V.eventOn = (key) => { const e = EVENTS[key]; return V.today() === key && clock.hour >= e.from - e.prep && clock.hour < e.to; }; // 场面道具什么时候摆出来
+  V.weather = () => weatherOf(clock.day, forcedWeather);
+  V.eventOn = (key) => { const e = EVENTS[key]; return V.today() === key && V.weather() !== 'rain' && clock.hour >= e.from - e.prep && clock.hour < e.to; }; // 场面道具什么时候摆出来
   V.barber = new Barbershop(V);
+  V.holiday = () => holiday(clock.day);
   return {
     people: V.people,
     beasts: V.beasts,
     clock,
     today: () => V.today(),
+    weather: () => V.weather(),
     barber: V.barber,
     update(t, dt) {
       const prev = clock.hour;

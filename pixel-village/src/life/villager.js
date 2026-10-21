@@ -3,6 +3,7 @@ import { voxelCharacter } from '../voxel.js';
 import { present } from './motion.js';
 import { ACTIVITIES } from './activities.js';
 import { EVENTS, eventNow, joinEvent } from './events.js';
+import { variant } from './variety.js';
 
 /*
  * 村民：按日程到点切换活动；每个活动是一串任务（走过去、干活 / 坐 / 蹲 / 说话、进屋、触发事件、爬上台子）。
@@ -30,7 +31,7 @@ export class Villager {
     this.tasks = [];
     this.state = 'idle';
     this.inside = false;
-    this.entry = -1;
+    this.entry = null; // 还没派过活（不能是 -1：-1 表示"还没到第一项日程"，第一次派活会被当成没变而跳过）
     this.doing = '';
     this.wait = 0;
     this.lift = 0; // 站在戏台上、坐在石凳上时离地的高度
@@ -76,7 +77,7 @@ export class Villager {
     if (this.inside) { this.inside = false; this.object.visible = true; }
     if (idx < 0) { this.inside = true; this.object.visible = false; return; }
     if (ev) { joinEvent(this, ev); return; }
-    const [, name, arg] = day[idx];
+    const [name, arg] = variant(this, day[idx][1], day[idx][2], this.V.clockDay(), idx); // 天气、放假、隔三差五的事
     this.doing = name;
     (ACTIVITIES[name] ?? ACTIVITIES.idle)(this, arg);
   }
@@ -192,6 +193,10 @@ export class Villager {
     }
     if (!this.perched && !['walk', 'run', 'sit', 'fiddle'].includes(this.state)) this.separate(dt); // 坐着的不挪（在凳子 / 石头上）
     present(this, dt, this.V.nav.heightAt(this.pos.x, this.pos.z) + 0.03 + this.lift);
+    // 下雨天在外头：手上空着就撑一把油纸伞（干活、坐着时收起来）
+    const wet = this.V.weather() === 'rain' && !this.inside && !['work', 'sit', 'squat', 'fiddle', 'shave', 'strop', 'bow', 'scatter', 'wash'].includes(this.state);
+    if (wet && !this.char.item) { this.char.setItem('umbrella'); this.umbrella = true; }
+    else if (this.umbrella && !wet) { if (this.char.item === 'umbrella') this.char.setItem(null); this.umbrella = false; }
     this.char.pose(this.state, t, this.phase, { seat: this.seat ?? 0.45, cadence: this.state === 'walk' && this.hurry ? 1.4 : 1 });
     if (this.state !== 'walk') this.hurry = false;
   }

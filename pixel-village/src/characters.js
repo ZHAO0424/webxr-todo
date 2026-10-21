@@ -367,6 +367,21 @@ const ITEMS = {
     g.px(hand.x, hand.y - 11, R.wood[3]); g.px(hand.x + 2, hand.y - 10, R.wood[3]);
     g.rect(hand.x, hand.y + 1, 3, 3, R.brown[2]); g.hline(hand.x, hand.x + 2, hand.y + 1, R.paper[3]);
   },
+  umbrella(g, hand) { // 油纸伞：竹柄 + 一顶黄油纸伞面
+    g.vline(hand.x + 1, hand.y - 13, hand.y + 1, R.wood[3]);
+    g.rect(hand.x - 5, hand.y - 15, 13, 2, R.gold[2]); g.rect(hand.x - 3, hand.y - 16, 9, 1, R.gold[3]); g.px(hand.x + 1, hand.y - 17, R.wood[3]);
+    for (const x of [hand.x - 5, hand.x + 7]) g.px(x, hand.y - 13, R.gold[1]);
+  },
+  axe(g, hand, work) { // 斧子
+    const up = work === 1;
+    g.line(hand.x + 1, hand.y, hand.x + (up ? 3 : 6), hand.y - (up ? 8 : 2), R.wood[3]);
+    if (up) g.rect(hand.x + 2, hand.y - 11, 4, 3, R.grey[3]); else g.rect(hand.x + 6, hand.y - 4, 3, 4, R.grey[3]);
+  },
+  firewood(g, hand) { // 一捆柴，扛在肩上
+    const y = hand.y - 12;
+    for (let i = 0; i < 3; i++) g.hline(2, FRAME_W - 3, y + i, i === 1 ? R.wood[1] : R.wood[2]);
+    g.vline(6, y - 1, y + 3, R.wheat[1]); g.vline(FRAME_W - 7, y - 1, y + 3, R.wheat[1]);
+  },
   razor(g, hand) { // 剃刀：木柄 + 一片亮刃
     g.px(hand.x + 1, hand.y, R.wood[3]); g.px(hand.x + 2, hand.y - 1, R.wood[3]);
     g.hline(hand.x + 3, hand.x + 5, hand.y - 2, R.white[3]); g.px(hand.x + 3, hand.y - 1, R.grey[3]);

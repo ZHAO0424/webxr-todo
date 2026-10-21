@@ -417,12 +417,25 @@ const MORNING = {
   qian_xiaoer: [[6.5, 'yardWork'], [7.5, 'peddle'], [11.8, 'dinner'], [12.5, 'home'], [13.5, 'peddle']],
 };
 // 夜里：小六子打更，提着灯绕村一圈
-const NIGHT = { xiao_liuzi: [[20.7, 'nightWatch'], [21.4, 'home']] };
+const NIGHT = { xiao_liuzi: [[21.2, 'nightWatch'], [22.8, 'home']] }; // 打更：各家吹灯的时候他还在村里转
 
 for (const h of HOUSEHOLDS) for (const p of h.people) {
   const late = (NIGHT[p.id] ?? []);
   const afternoon = p.day.filter(([t, a]) => !(late.length && a === 'home' && t >= 20)); // 打更的那天晚上晚点回屋
   p.day = [...(MORNING[p.id] ?? []), ...afternoon, ...late];
 }
+
+/*
+ * 谁和谁要好（同一家的人本来就亲，不用列）：闲聊、看戏挨着站，老人串门找老伙计，孩子找玩伴。
+ */
+export const FRIENDS = [
+  ['wang_deshan', 'chen_mancang'], ['wang_deshan', 'zhou_jishi'], ['zheng_laotou', 'zhou_jishi'], ['chen_mancang', 'zheng_laotou'], ['ma_laoliu', 'zheng_laotou'], ['li_wenqing', 'zhou_jishi'], // 下棋、讲古的老伙计
+  ['li_guilan', 'feng_yuzhen'], ['li_guilan', 'chen_daniang'], ['he_xiulan', 'liu_cuihua'], ['sun_qiaoyun', 'liu_cuihua'], ['feng_yuzhen', 'sun_qiaoyun'], // 常串门的媳妇们
+  ['zhang_tiechui', 'liu_youfu'], ['yang_erniu', 'wu_dachuan'], ['zhang_tiechui', 'yang_erniu'], // 手艺人、种地的
+  ['xiao_shun', 'xiao_liuzi'], ['xiao_liuzi', 'qian_xiaoer'], // 两个小伙子，加上外来的货郎
+  ['zhang_dabao', 'zhao_shitou'], ['zhao_shitou', 'sun_shuanzi'], ['zhang_dabao', 'sun_shuanzi'], ['yang_xiaohu', 'zhang_dabao'], // 男孩一伙
+  ['wang_xiaomei', 'liu_erya'], ['liu_erya', 'wu_xiaocui'], ['wang_xiaomei', 'wu_xiaocui'], // 女孩一伙
+];
+export const friendsOf = (id) => FRIENDS.flatMap(([a, b]) => (a === id ? [b] : b === id ? [a] : []));
 
 export const RESIDENTS = HOUSEHOLDS.flatMap((h) => h.people.map((p) => ({ ...p, home: h.id, household: h.name })));

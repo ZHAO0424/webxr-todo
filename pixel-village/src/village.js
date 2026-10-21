@@ -16,7 +16,7 @@ import { buildRoadside } from './roadside.js';
 import { fixCoplanar } from './coplanar.js';
 import { snapPerches, findFloating, markReachable, auditPaths } from './audit.js';
 import { daylight } from './daylight.js';
-import { Smoke, Embers, Fireflies } from './fx.js';
+import { Smoke, Embers, Fireflies, Rain } from './fx.js';
 
 /** 石拱桥：桥面 + 两侧带拱洞的立面 + 栏板。b 来自地形（桥中心、走向、桥面高、长度）。 */
 function stoneBridge(M, b) {
@@ -46,7 +46,25 @@ const TORCHES = [['bridgeN', 1.6, 0], ['bridgeS', -1.6, 0], ['sqW', -1.4, 0.8], 
  * 整个山村。object 以米建模，整体缩放到沙盘尺寸（UNIT）。
  * update(t, dt, viewerWorld) 每帧调用，返回 { hour, light }（主程序据此调太阳、天光、天空）。
  */
-export function buildVillage({ startHour = 15.5, event = null } = {}) {
+const grey = new THREE.Color(), tmpC = new THREE.Color();
+/** 阴天 / 雨天的光：太阳减弱、天空色带往灰里拉；雨天"夜色"加一点（白天屋里也点灯，窗户微微亮）。 */
+function overcast(L, weather) {
+  if (weather === 'sunny') return L;
+  const k = (weather === 'rain' ? 0.6 : 0.35) * (1 - L.night * 0.7);
+  grey.set(L.night > 0.5 ? '#2a2e3a' : '#8a909c');
+  const mix = (hex) => `#${tmpC.set(hex).lerp(grey, k).getHexString()}`;
+  return {
+    ...L,
+    sun: mix(L.sun),
+    sunIntensity: L.sunIntensity * (weather === 'rain' ? 0.3 : 0.55),
+    sky: mix(L.sky),
+    hemiIntensity: L.hemiIntensity * (weather === 'rain' ? 0.85 : 0.95),
+    night: Math.min(1, L.night + (weather === 'rain' ? 0.22 : 0.06)),
+    bands: L.bands.map(mix),
+  };
+}
+
+export function buildVillage({ startHour = 15.5, event = null, weather = null } = {}) {
   const M = buildMaterials();
   const root = new THREE.Group();
   root.scale.setScalar(UNIT);
@@ -179,7 +197,9 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
 
   // 6. 每户自己的窗户材质（家里有人、在做饭时更亮）+ 窗前的光晕
   const windowSprites = [];
+  const LATE = { school: 23.5, doctor: 23.2 }; // 晚睡的人家
   for (const c of Object.values(C)) {
+    c.lightsOut = LATE[c.id] ?? 21.3 + ((c.id.split('').reduce((h, ch) => h * 31 + ch.charCodeAt(0), 7) % 100) / 100) * 1.3; // 21:18–22:36 之间各家吹灯
     c.windowMat = M.windowLit.clone();
     c.windowMat.onBeforeCompile = M.windowLit.onBeforeCompile;
     c.windowMat.customProgramCacheKey = M.windowLit.customProgramCacheKey;
@@ -190,6 +210,7 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
       s.scale.set(2.2, 2.2, 1);
       s.position.set(x, c.level + wv.y, z);
       root.add(s);
+      s.userData.c = c;
       windowSprites.push(s);
     }
   }
@@ -252,6 +273,12 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
     well: { center: [WELL.x, WELL.z], spot: () => nav.nearestFree(WELL.x + 1.4, WELL.z + 0.6) },
     duckWater: nav.nearestFree(-12, 28.5),
     // 小孩玩耍的去处：溪北岸能站的地方（脸朝水），村口附近的庄稼地
+    bankClaims: {}, // 溪边洗衣裳的位置有人占了就换一个
+    // 进山砍柴：村外坡上（离村中心 18 米以外、草坡上）走得到的树
+    woods: trunks.filter(([x, z]) => Math.hypot(x, z - 5) > 18 && terrain.typeAt(x, z) === 'grass').map(([x, z]) => {
+      const at = nav.nearestFree(x + 0.9, z + 0.6, false, 2);
+      return nav.freeAt(...at) && nav.reachable(...at) ? { at, tree: [x, z] } : null;
+    }).filter(Boolean),
     streamBank: (() => {
       const out = [];
       for (let x = -22; x <= 30; x += 1.5) {
@@ -268,7 +295,7 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
     ...Array.from({ length: 8 }, (_, i) => ({ kind: 'pigeon', role: 'pigeon', cx: 0, cz: -8, r: 12, y: 22, offset: i * 0.35 })),
   ];
   V.bonfire = { lit: false };
-  const life = populate(V, RESIDENTS, extraAnimals, startHour, event);
+  const life = populate(V, RESIDENTS, extraAnimals, startHour, { event, weather });
   const pitFire = C.square.evening.fire;
 
   // 9. 烟火：炊烟、蒸汽、炉火星、萤火虫、几盏真实的点光源
@@ -283,6 +310,7 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
     if (e.kind === 'ember') embers.push(new Embers(root, M.emberSprite, pos));
   }
   const incense = shrine && new Smoke(root, sprites, shrine.burner.clone().setY(shrine.burner.y + shrine.h), 99, { size: 0.35, rise: 1.6, drift: 0.6, life: 0.25 });
+  const rain = new Rain(root, BOUNDS, terrain.walkAt);
   const fireflies = new Fireflies(root, M.fireflySprite, [[-40, 40, 26, 34, -0.5], [-44, -30, -10, 20, 3], [32, 44, -20, 6, 4]], 50);
   const lights = [];
   const pointLight = (x, y, z, base, color = GLOW.lantern) => {
@@ -326,23 +354,28 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
       last = t;
       life.update(t, dt);
       const hour = life.clock.hour;
-      const L = daylight(hour);
+      const weather = V.weather();
+      const L = overcast(daylight(hour), weather); // 阴天、雨天：太阳弱、天发灰，雨天白天屋里也点灯
       const n = L.night;
+      rain.update(dt, weather === 'rain');
 
       const step = Math.floor(t * 2); // 溪水按整像素往西流
       if (step !== waterStep) { waterStep = step; terrain.water.offset.x = (step % 36) / 36; }
 
-      // 灯火：天一擦黑，窗户、灯笼、火把一盏盏亮起来
+      // 灯火：天一擦黑，窗户、灯笼、火把一盏盏亮起来；夜深了各家按自己的钟点一盏盏吹灯，
+      // 只剩晚睡的两家（学堂李先生看书、药铺周郎中配药）和打更的灯笼；天不亮做早饭时又点上
+      const asleep = (c) => (hour >= c.lightsOut && hour < 24) || hour < 4.6;
       for (const c of Object.values(C)) {
         const home = life.insideCount(c.id) > 0;
         const cooking = life.people.some((v) => v.inside && v.doing === 'cook' && v.p.home === c.id);
-        const k = Math.min(1, n * (home ? 1 : 0.45) + (cooking ? 0.35 : 0));
+        c.lit = !asleep(c) || cooking;
+        const k = c.lit ? Math.min(1, n * (home ? 1 : 0.45) + (cooking ? 0.35 : 0)) : 0;
         c.windowMat.color.setRGB(0.42 + 0.58 * k, 0.36 + 0.64 * k, 0.34 + 0.66 * k);
       }
       M.windowHalo.opacity = 0.75 * n;
       M.haloSprite.opacity = 0.2 + 0.8 * n;
       M.lantern.color.copy(lanternBase).multiplyScalar(0.55 + 0.45 * n);
-      for (const ws of windowSprites) ws.visible = n > 0.05;
+      for (const ws of windowSprites) ws.visible = n > 0.05 && ws.userData.c.lit;
       for (const tr of torches) {
         tr.fire.visible = tr.lit && n > 0.1;
         const f = tr.fire.userData.flame;
@@ -371,7 +404,7 @@ export function buildVillage({ startHour = 15.5, event = null } = {}) {
       if (movieOn) sqC.screen.userData.pic.material = hour >= EVENT_DEFS.movie.from ? M.movie[Math.floor(t / 2.2) % M.movie.length] : M.plaster; // 开演前是一块白布
       incense?.update(dt, V.eventOn('shrine'));
       fireflies.update(t);
-      for (const ff of fireflies.flies) ff.visible &&= n > 0.4;
+      for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain';
 
       for (const g of gates) {
         // 门：有人要过（走到门前推门）、人就在门口、被赶着的牲口还没过完，就开着；人走了顺手带上。
