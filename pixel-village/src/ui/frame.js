@@ -41,6 +41,7 @@ export function setupPixelUI() {
   addEventListener('resize', unit);
   root.style.setProperty('--frame-wood', `url(${frameImage({ light: '#d8955a', mid: '#a8643a', dark: '#6e3e26', inner: '#4a2a1e', fill: '#f4e2bc', shade: '#e2c898' })})`);
   root.style.setProperty('--frame-paper', `url(${frameImage({ outer: '#8a5a3a', light: '#f8ead0', mid: '#ecd6ac', dark: '#d2b080', inner: '#c49c6c', fill: '#f8ecd2', shade: '#efdcb8' })})`);
+  root.style.setProperty('--frame-night', `url(${frameImage({ light: '#8a6a9a', mid: '#5a4870', dark: '#3a2e4a', inner: '#1a1424', fill: '#2a2438', shade: '#241e30' })})`); // 档案页：和之前的深紫卡片同色
   root.style.setProperty('--frame-dark', `url(${frameImage({ light: '#6a5478', mid: '#4a3a58', dark: '#2e2238', inner: '#1e1628', fill: '#3a2e48', shade: '#32283e' })})`);
 }
 
