@@ -10,6 +10,7 @@ import { residentCard, animalCard, thingCard, hm, label } from './ui/cards.js';
 import { pickThing, describe, YARDS } from './things.js';
 import { HOUSEHOLDS } from './residents.js';
 import { createSound } from './audio.js';
+import { createMusic } from './music.js';
 import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 
@@ -123,7 +124,7 @@ const marker = (() => {
 })();
 
 renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
-addEventListener('pointerdown', () => { sound.wake(); syncSoundBtn(); }); // 第一次点页面就打开声音（浏览器要求先有一次点击）
+addEventListener('pointerdown', () => { sound.wake(); music.wake(); syncSoundBtn(); }); // 第一次点页面就打开声音和音乐（浏览器要求先有一次点击）
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return; // 拖动视角不算点击
   ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
@@ -291,6 +292,9 @@ let lastT = 0;
 // 声音：默认关着（浏览器要先点一下才能出声），左下角"声音"按钮打开
 const sound = createSound(village, () => (inXR() ? renderer.xr.getCamera() : camera));
 const soundBtn = document.getElementById('sound');
+// 背景音乐：按时辰轮换，唱戏时让路（见 music.js）
+const music = createMusic({ hour: () => village.life.clock.hour, busy: () => village.life.people.some((v) => v.state === 'fiddle') });
+const musicBtn = document.getElementById('music');
 // ?sound=1：直接打开声音，定时把统计写到 data-sound（无头检查：各种声音有没有触发、有没有报错）
 // &soundsim=秒：等音效都加载完，把村子快进这么多秒（配合 ?cam= 把镜头放近，测"凑近了才响"）
 if (params.has('sound')) {
@@ -308,7 +312,12 @@ if (params.has('sound')) {
     }, 200);
   }
 }
-function syncSoundBtn() { if (soundBtn) { soundBtn.textContent = sound.on ? '声音：开' : '声音：关'; soundBtn.classList.toggle('on', sound.on); } }
+function syncSoundBtn() {
+  if (soundBtn) { soundBtn.textContent = sound.on ? '声音：开' : '声音：关'; soundBtn.classList.toggle('on', sound.on); }
+  if (musicBtn) { musicBtn.textContent = music.on ? '音乐：开' : '音乐：关'; musicBtn.classList.toggle('on', music.on); }
+}
+musicBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.toggle(); syncSoundBtn(); });
+if (params.has('music')) { music.toggle(); setInterval(() => { document.documentElement.dataset.music = `${music.title}|${music.on}`; }, 500); } // ?music=1：直接放（无头检查用）
 soundBtn?.addEventListener('click', (e) => { e.stopPropagation(); sound.toggle(); syncSoundBtn(); });
 const viewer = new THREE.Vector3();
 let lastLabel = '';
@@ -330,6 +339,7 @@ renderer.setAnimationLoop((_, frame) => {
   }
   const s = village.update(t, viewer);
   sound.update(t, dt);
+  music.update(dt);
   if (params.has('sound')) document.documentElement.dataset.sound = JSON.stringify(sound.stats);
   if (marker.visible) marker.position.y = markerH + (Math.floor(t * 3) % 2) * 0.1; // 一上一下跳
   applyLight(s.light);
