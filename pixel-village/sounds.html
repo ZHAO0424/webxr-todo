@@ -25,6 +25,12 @@
     .snd.on b, .snd.on small { color: #2a1a10; }
     .snd.flash { filter: brightness(1.4); }
     .tip { color: var(--dim); margin-top: calc(2 * var(--p)); }
+    .cand { display: grid; grid-template-columns: calc(70 * var(--p)) 1fr; gap: calc(3 * var(--p)); align-items: start; padding: calc(2 * var(--p)) 0; border-bottom: var(--f) solid var(--line); }
+    .cand .cname { color: var(--text); padding-top: calc(2 * var(--p)); }
+    .cand .grid { grid-template-columns: repeat(3, 1fr); }
+    .opt { display: flex; flex-direction: column; gap: var(--f); min-width: 0; }
+    .opt .snd small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .opt .src { color: var(--dim); font-size: inherit; }
   </style>
   <script>
     // 错误直接显示在页面上，并记到 data-errors，供无头检查读取
@@ -48,11 +54,12 @@
     <div class="panel top">
       <h1 class="big">村子声音试听</h1>
       <p class="intro">村里所有声音都是浏览器现场合成的（振荡器 + 噪声 + 滤波器），没有音频文件。点一下播一次；"一直响的"点一下开、再点关。
-        在村子里它们还会按位置分左右、按远近变大小，这里统一放在正前方。</p>
+        在村子里它们还会按位置分左右、按远近变大小，这里统一放在正前方。<br>
+        动物、干活这些改用真实录音：每种 A / B / C 三个候选（都来自 Freesound，CC0 公有领域，可商用、不用署名），挑好告诉我，比如"狗 B、猪 A"。</p>
       <div class="vol">音量 <input id="vol" type="range" min="0" max="1.5" step="0.05" value="0.8"> <a href="./">← 回到村子</a></div>
     </div>
     <div id="list"></div>
-    <p class="tip">听着哪个不对劲（太刺耳、不像、太响），记下名字告诉我。</p>
+    <p class="tip">每种挑一个告诉我（比如"狗 B、猪 A"）；三个都不行的也说一声，我再去找。</p>
   </main>
   <pre id="err" style="position:fixed;left:0;right:0;bottom:0;margin:0;padding:8px;background:#600;color:#fff;font:12px monospace;white-space:pre-wrap;display:none"></pre>
   <script type="module">
@@ -77,26 +84,6 @@
     const once = (name, ...a) => (t, out) => S.SFX[name](t, out, ...a);
     const repeat = (fn, n, gap) => (t, out) => { for (let i = 0; i < n; i++) fn(t + i * gap, out); };
     const GROUPS = [
-      ['动物', [
-        ['公鸡打鸣', '天快亮时', once('rooster')],
-        ['母鸡', '咯咯咯', once('hen')],
-        ['狗叫', '生人走近', once('dog')],
-        ['猪', '哼哼', once('pig')],
-        ['羊', '咩——', once('sheep')],
-        ['毛驴', '嗯昂嗯昂', once('donkey')],
-        ['黄牛', '哞——', once('ox')],
-        ['鸭子', '嘎嘎', once('duck')],
-        ['大白鹅', '昂', once('goose')],
-        ['鸽子', '咕咕', once('pigeon')],
-        ['喜鹊', '喳喳喳', once('magpie')],
-        ['猫', '喵', once('cat')],
-      ]],
-      ['干活', [
-        ['打铁', '锤子砸在砧子上', once('clang')],
-        ['打铁 ×4', '一锤接一锤', repeat((t, o) => S.SFX.clang(t, o), 4, 0.83)],
-        ['劈柴', '斧子劈下去', once('chop')],
-        ['锄地', '锄头落地', once('thud')],
-      ]],
       ['响器', [
         ['梆子', '打更、唱戏打板', once('block')],
         ['打更', '梆、梆 + 小锣', (t, o) => { S.SFX.block(t, o); S.SFX.block(t + 0.35, o); S.SFX.gong(t + 0.8, o); }],
@@ -104,21 +91,12 @@
         ['小锣', '', once('gong', false)],
         ['铃', '祭土地摇铃', once('bell')],
       ]],
-      ['环境（一次）', [
-        ['鸟叫', '白天随机', once('chirp')],
-        ['蛐蛐', '夜里', repeat((t, o) => S.SFX.cricket(t, o), 3, 0.35)],
-        ['篝火噼啪', '一串', repeat((t, o) => S.SFX.crackle(t + Math.random() * 0.2, o), 12, 0.15)],
-      ]],
     ];
     // 一直响的：[名字, 说明, 接线(out) → 停止函数（可选）, 音量]
     const LOOPS = [
       ['风', '一阵大一阵小', (o) => S.LOOPS.wind(o), 0.12],
       ['雨', '下雨天', (o) => S.LOOPS.rain(o), 0.16],
       ['溪水', '沿溪几处', (o) => S.LOOPS.stream(o), 0.5],
-      ['磨盘 / 碾子', '牲口拉着转', (o) => S.LOOPS.rumble(o), 0.6],
-      ['篝火', '呼呼 + 噼啪', (o) => { S.LOOPS.fire(o); const id = setInterval(() => S.SFX.crackle(ctx.currentTime + 0.02, o), 180); return () => clearInterval(id); }, 0.3],
-      ['人声', '人多的地方', (o) => S.LOOPS.babble(o), 0.3],
-      ['放映机', '露天电影', (o) => S.LOOPS.projector(o), 0.1],
       ['唱戏', '板胡 + 梆子 + 锣 + 唱腔', (o) => { const st = {}; const sing = new GainNode(ctx, { gain: 1 }); sing.connect(o); const id = setInterval(() => { while ((st.next ?? 0) < ctx.currentTime + 0.3) S.operaStep(st, o, sing); }, 100); return () => clearInterval(id); }, 1],
     ];
 
@@ -126,8 +104,49 @@
     const section = (title) => { const s = document.createElement('section'); s.innerHTML = `<h2 class="title">${title}</h2><div class="grid"></div>`; list.append(s); return s.querySelector('.grid'); };
     const button = (grid, name, note) => { const b = document.createElement('button'); b.className = 'btn snd'; b.innerHTML = `<b>${name}</b><small>${note || '　'}</small>`; grid.append(b); return b; };
 
+    // ---------------------------------------------------------------- 素材候选（Freesound，CC0）：每种 A / B / C 三个，挑一个
+    const NAMES = {
+      rooster: '公鸡打鸣', hen: '母鸡', dog: '狗叫', pig: '猪', sheep: '羊', donkey: '毛驴', ox: '黄牛', duck: '鸭子', goose: '大白鹅', pigeon: '鸽子', magpie: '喜鹊', cat: '猫',
+      clang: '打铁', chop: '劈柴', thud: '锄地', chirp: '鸟叫', crickets: '蛐蛐（一直响）', fire: '篝火（一直响）', mill: '磨盘 / 碾子（一直响）', crowd: '人声（一直响）', projector: '放映机（一直响）',
+    };
+    const cache = new Map();
+    const load = async (file) => { if (!cache.has(file)) cache.set(file, fetch(`sfx/cand/${file}`).then((r) => r.arrayBuffer()).then((a) => ctx.decodeAudioData(a))); return cache.get(file); };
+    const index = await fetch('sfx/cand/index.json').then((r) => r.json());
+    const cs = section('素材候选（Freesound · CC0 公有领域）');
+    cs.style.gridTemplateColumns = '1fr';
+    for (const [key, list] of Object.entries(index)) {
+      const row = document.createElement('div');
+      row.className = 'cand';
+      row.innerHTML = `<div class="cname title">${NAMES[key] ?? key}</div>`;
+      const opts = document.createElement('div');
+      opts.className = 'grid';
+      row.append(opts);
+      cs.append(row);
+      list.forEach((c, i) => {
+        const b = button(opts, `${'ABC'[i]}${c.loop ? '  ▶ 开/关' : ''}`, `${c.title.slice(0, 26)}`);
+        b.title = `${c.title}
+${c.user} · ${c.license}
+${c.url}`;
+        const link = document.createElement('a');
+        link.href = c.url; link.target = '_blank'; link.textContent = `来源 · ${c.user}`;
+        link.className = 'src';
+        b.after(link);
+        const wrap = document.createElement('div'); wrap.className = 'opt'; b.before(wrap); wrap.append(b, link);
+        let node = null;
+        b.addEventListener('click', async () => {
+          audio();
+          if (node) { node.stop(); node = null; b.classList.remove('on'); return; }
+          const s = new AudioBufferSourceNode(ctx, { buffer: await load(c.file), loop: c.loop });
+          s.connect(master);
+          s.start();
+          if (c.loop) { node = s; b.classList.add('on'); }
+          else { b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 150); }
+        });
+      });
+    }
+
     for (const [title, items] of GROUPS) {
-      const g = section(title);
+      const g = section(`合成的 · ${title}`);
       for (const [name, note, play] of items) {
         const b = button(g, name, note);
         b.addEventListener('click', () => {
@@ -137,7 +156,7 @@
         });
       }
     }
-    const lg = section('一直响的（点一下开 / 关）');
+    const lg = section('合成的 · 一直响的（点一下开 / 关）');
     for (const [name, note, start, level] of LOOPS) {
       const b = button(lg, name, note);
       let g = null, stop = null;

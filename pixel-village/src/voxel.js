@@ -166,6 +166,8 @@ export function voxelCharacter(p, M) {
   const shoulderY = FEET - armTop + 1;
   const legL = build('legL', hipY), legR = build('legR', hipY);
   const armL = build('armL', shoulderY), armR = build('armR', shoulderY);
+  // 胳膊往外挪一点点：贴着身子的那一面和身子侧面不在同一平面上，不然算影子时深度相同会闪
+  armL.position.x = -0.12 * VOX; armR.position.x = 0.12 * VOX;
   body.add(armL, armR);
   rig.add(body, legL, legR);
 
