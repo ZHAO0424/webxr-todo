@@ -4,7 +4,10 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { buildVillage } from './village.js';
 import { buildBackdrop, skyTexture } from './backdrop.js';
 import { createAnchor } from './xr.js';
-import { LABELS } from './labels.js';
+import { LABELS, PLACES } from './labels.js';
+import { setupPixelUI } from './ui/frame.js';
+import { residentCard, animalCard, hm, label } from './ui/cards.js';
+import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 
 const params = new URLSearchParams(location.search);
@@ -89,37 +92,96 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// ---------------------------------------------------------------- 桌面：时钟 + 点人看档案
+// ---------------------------------------------------------------- 桌面：时钟 + 点村民 / 小动物看卡片
 
+setupPixelUI();
 const clockEl = document.getElementById('clock');
-const card = document.getElementById('card');
+const host = document.getElementById('card');
 const ray = new THREE.Raycaster();
+const V = village.life.people[0].V;
+const REST = new Set(['idle', 'sitGate', 'chat', 'dinner', 'home', 'read', 'chess', 'evening', 'play']);
 let down = null;
+let sel = null; // { v | b, card }
+
+// 选中的人 / 动物头顶一个上下跳的像素小箭头
+const marker = (() => {
+  const c = document.createElement('canvas');
+  c.width = 7; c.height = 6;
+  const g = c.getContext('2d');
+  ['#2a1a26', '#ffd84a', '#ffd84a'].forEach((col, k) => { g.fillStyle = col; for (let y = 0; y < 4 - k; y++) g.fillRect(k + y, y + k, 7 - 2 * (k + y), 1); });
+  g.fillStyle = '#2a1a26'; g.fillRect(3, 4, 1, 1);
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+  s.scale.set(0.42, 0.36, 1);
+  s.renderOrder = 10;
+  s.visible = false;
+  return s;
+})();
+
 renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return; // 拖动视角不算点击
   ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
-  const people = village.life.people.filter((v) => !v.inside);
-  const hit = ray.intersectObjects(people.map((v) => v.object), true)[0];
-  if (!hit) { card.hidden = true; selected = null; return; }
+  const targets = [...village.life.people.filter((v) => !v.inside).map((v) => v.object), ...village.life.beasts.filter((b) => b.object.visible).map((b) => b.object)];
+  const hit = ray.intersectObjects(targets, true)[0];
+  if (!hit) { closeCard(); return; }
   let o = hit.object;
-  while (o && !o.userData.resident) o = o.parent;
-  selected = people.find((v) => v.object === o) ?? null;
-  showCard();
+  while (o && !o.userData.resident && !o.userData.beast) o = o.parent;
+  if (o?.userData.beast) selectBeast(o.userData.beast);
+  else if (o) selectPerson(village.life.people.find((v) => v.object === o));
 });
-let selected = null;
-function showCard() {
-  if (!selected) { card.hidden = true; return; }
-  const p = selected.p;
-  const day = p.day.map(([h, a, arg]) => `<li><b>${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}</b> ${LABELS[a] ?? a}${arg && LABELS[`${a}:${arg}`] ? `（${LABELS[`${a}:${arg}`]}）` : ''}</li>`).join('');
-  card.innerHTML = `<h3>${p.name}<small>${p.nick} · ${p.sex} · ${p.age} 岁</small></h3>
-    <p class="job">${p.job} · ${p.household} · ${p.relation}</p>
-    <p class="now">正在：${selected.inside ? '在屋里' : LABELS[selected.doing] ?? selected.doing}</p>
-    <p>${p.bio}</p>
-    <p class="meta">性格：${p.traits.join('、')}　喜欢：${p.likes}</p>
-    ${p.owns.length ? `<p class="meta">家当：${p.owns.join('、')}</p>` : ''}
-    <ul class="day">${day}</ul>`;
-  card.hidden = false;
+
+function closeCard() { sel = null; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; }
+const dockCard = () => { host.style.top = `${clockEl.getBoundingClientRect().bottom + 6}px`; }; // 卡片总在时钟栏下面
+addEventListener('resize', dockCard);
+function show(card, obj, h) { host.innerHTML = ''; host.append(card.el); host.hidden = false; dockCard(); obj.add(marker); marker.position.set(0, h, 0); marker.visible = true; }
+
+function selectPerson(v) {
+  if (!v) return;
+  const card = residentCard(v.p, { onClose: closeCard, onPick: (id) => selectPerson(V.byId[id]) });
+  sel = { v, card };
+  show(card, v.object, 2.2);
+  refreshCard();
+}
+
+function selectBeast(b) {
+  const card = animalCard(b.info, b.s.kind, { onClose: closeCard, ownerId: b.s.owner, onPick: (id) => selectPerson(V.byId[id]) });
+  sel = { b, card };
+  show(card, b.object, 1.3);
+  refreshCard();
+}
+
+/** 卡片上会变的部分：正在干什么、在哪儿、接下来、今天第几项。 */
+function refreshCard() {
+  if (!sel) return;
+  const hour = village.life.clock.hour;
+  if (sel.b) {
+    const b = sel.b;
+    sel.card.update({ doing: animalDoing(b, V), where: b.home ? '' : village.whereAt(b.pos.x, b.pos.z), kind: b.home ? 'sleep' : b.moving ? '' : 'rest' });
+    return;
+  }
+  const v = sel.v, day = v.p.day;
+  let cur = -1;
+  day.forEach(([t], i) => { if (hour >= t) cur = i; });
+  const nxt = day[cur + 1];
+  const night = village.life.clock.night || cur < 0;
+  const key = v.doing.split(':')[0];
+  sel.card.update({
+    doing: v.inside ? (night ? '睡了' : '在屋里') : LABELS[v.doing] ?? v.doing,
+    where: v.inside ? PLACES[v.p.sleepAt ?? v.p.home] : village.whereAt(v.pos.x, v.pos.z),
+    kind: v.inside && night ? 'sleep' : EVENTS[key] ? 'event' : REST.has(v.doing) || v.inside ? 'rest' : '',
+    nextText: nxt ? `接下来 ${hm(nxt[0])}　${label(nxt[1], nxt[2])}` : '今天的事都做完了',
+    cur,
+  });
+}
+
+// ?pick=村民id 或 ?pick=beast:序号：一打开就弹出这张卡（截图检查用）；?unfold=1 把折叠的都展开
+if (params.get('pick')) {
+  const id = params.get('pick');
+  if (id.startsWith('beast:')) selectBeast(village.life.beasts[Number(id.slice(6))]);
+  else selectPerson(V.byId[id]);
+  if (params.get('unfold')) host.querySelectorAll('details').forEach((d) => { d.open = true; });
 }
 
 // ---------------------------------------------------------------- 主循环
@@ -136,13 +198,15 @@ renderer.setAnimationLoop((_, frame) => {
     viewer.copy(camera.position);
   }
   const s = village.update(t, viewer);
+  if (marker.visible) marker.position.y = (sel?.b ? 1.3 : 2.2) + (Math.floor(t * 3) % 2) * 0.1; // 一上一下跳
   applyLight(s.light);
   backdrop.update(t);
   if (clockEl && s.clock.label !== lastLabel) {
     lastLabel = s.clock.label;
     const e = EVENTS[village.life.today()], w = village.life.weather();
-    clockEl.textContent = `${lunarLabel(s.clock.day)} ${WEATHER[w]}　${s.clock.night ? '夜里' : ''}${lastLabel}　今天：${e.name}（${w === 'rain' ? '下雨，改天' : `${fmt(e.from)}–${fmt(e.to)}，${e.place}`}）`;
-    if (selected) showCard();
+    clockEl.innerHTML = `<div class="date">${lunarLabel(s.clock.day)} · ${WEATHER[w]}</div><div class="time">${s.clock.night ? '夜 ' : ''}${lastLabel}</div>`
+      + `<div class="ev"><span class="chip" style="--c:${w === 'rain' ? '#6a7a9a' : '#c8864a'}">今天</span>${e.name}<br><span class="sub">${w === 'rain' ? '下雨，改天再办' : `${fmt(e.from)}–${fmt(e.to)} · ${e.place}`}</span></div>`;
+    refreshCard();
   }
   renderer.render(scene, camera);
 });

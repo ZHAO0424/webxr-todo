@@ -1,0 +1,139 @@
+/*
+ * 像素 UI（参考星露谷的木框羊皮纸、潜水员戴夫的圆润标签和醒目头像），配色取场景的黄昏暖棕和紫。
+ * 所有尺寸都是 --p（一个界面像素，见 frame.js）的整数倍；字体是 Fusion Pixel 12px（OFL），一个字 = 12 个界面像素。
+ */
+@font-face {
+  font-family: 'PixelZh';
+  src: url('../../fonts/pixel-zh.woff') format('woff');
+  font-display: swap;
+}
+
+:root {
+  --p: 2px;
+  --ink: #2a1a26;
+  --wood: #6e3e26;
+  --text: #4a2e22;
+  --dim: #8a6a50;
+  --paper: #f4e2bc;
+  --green: #5a9a3a;
+  --red: #c84a3a;
+  --gold: #e0a83a;
+  --blue: #4a7ab0;
+  --purple: #7a5a9a;
+}
+
+.px, .px * {
+  font-family: 'PixelZh', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  text-rendering: optimizeSpeed;
+  image-rendering: pixelated;
+  box-sizing: border-box;
+}
+.px { font-size: calc(12 * var(--p)); line-height: calc(16 * var(--p)); color: var(--text); }
+
+/* 木框面板 / 羊皮纸内页 / 深色面板 */
+.panel, .paper, .dark {
+  border-style: solid;
+  border-width: calc(5 * var(--p));
+  border-image: var(--frame-wood) 5 fill / calc(5 * var(--p)) round;
+  padding: calc(3 * var(--p)) calc(4 * var(--p));
+}
+.paper { border-image-source: var(--frame-paper); }
+.dark { border-image-source: var(--frame-dark); color: #f6e6c8; }
+
+/* 标签：方角、一像素墨线、下沿暗一道 */
+.chip {
+  display: inline-block;
+  margin: 0 calc(2 * var(--p)) calc(2 * var(--p)) 0;
+  padding: 0 calc(3 * var(--p));
+  line-height: calc(14 * var(--p));
+  border: var(--p) solid var(--ink);
+  background: var(--c, #c8864a);
+  color: #fff8e6;
+  box-shadow: inset 0 calc(-2 * var(--p)) 0 rgba(0, 0, 0, .22), inset 0 var(--p) 0 rgba(255, 255, 255, .25);
+  white-space: nowrap;
+}
+.chip.soft { --c: #e8cfa0; color: var(--text); }
+.chip.link { cursor: pointer; }
+.chip.link:hover { filter: brightness(1.1); }
+
+/* 小按钮（关闭、筛选） */
+.btn {
+  border: var(--p) solid var(--ink);
+  background: var(--c, #c8864a);
+  color: #fff8e6;
+  font: inherit;
+  padding: 0 calc(4 * var(--p));
+  line-height: calc(14 * var(--p));
+  box-shadow: inset 0 calc(-2 * var(--p)) 0 rgba(0, 0, 0, .25), 0 var(--p) 0 var(--ink);
+  cursor: pointer;
+}
+.btn:active { transform: translateY(var(--p)); box-shadow: inset 0 calc(-1 * var(--p)) 0 rgba(0, 0, 0, .25); }
+.btn.on { --c: var(--green); }
+
+/* 可折叠的抽屉 */
+details.fold { margin-top: calc(3 * var(--p)); }
+details.fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--p));
+  color: var(--wood);
+  padding: var(--p) 0;
+  border-bottom: var(--p) dashed #c9a676;
+}
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { /* 像素三角 */
+  content: '';
+  width: calc(4 * var(--p));
+  height: calc(6 * var(--p));
+  background: var(--wood);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  transition: transform .1s steps(2);
+}
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold > summary .count { margin-left: auto; color: var(--dim); }
+details.fold > div { padding: calc(3 * var(--p)) 0 0 calc(7 * var(--p)); }
+
+/* ---------------------------------------------------------------- 卡片（村民 / 动物） */
+.card { width: calc(212 * var(--p)); }
+.card .head { display: flex; gap: calc(4 * var(--p)); align-items: flex-start; }
+.card .face {
+  flex: none;
+  border-style: solid;
+  border-width: calc(5 * var(--p));
+  border-image: var(--frame-dark) 5 fill / calc(5 * var(--p)) round;
+  background: linear-gradient(#4a3a6a, #b0607a 70%, #e89a6a); /* 黄昏天 */
+  display: grid;
+  place-items: end center;
+  overflow: hidden;
+}
+.card .face canvas { display: block; }
+.card .who { flex: 1; min-width: 0; }
+.card .name { font-size: calc(24 * var(--p)); line-height: calc(26 * var(--p)); color: var(--ink); }
+.card .nick { color: var(--dim); margin-left: calc(3 * var(--p)); }
+.card .close { position: absolute; right: calc(4 * var(--p)); top: calc(4 * var(--p)); --c: var(--red); }
+.card .now {
+  margin-top: calc(4 * var(--p));
+  display: flex;
+  gap: calc(3 * var(--p));
+  align-items: center;
+}
+.card .now .dot { width: calc(4 * var(--p)); height: calc(4 * var(--p)); background: var(--green); box-shadow: 0 0 0 var(--p) var(--ink); flex: none; }
+.card .now .dot.rest { background: var(--blue); }
+.card .now .dot.sleep { background: var(--purple); }
+.card .now .dot.event { background: var(--gold); }
+.card .next { color: var(--dim); margin-top: var(--p); }
+.card p { margin: 0 0 calc(3 * var(--p)); }
+.card .row { margin: 0 0 calc(2 * var(--p)); }
+.card .row b { color: var(--wood); font-weight: normal; margin-right: calc(3 * var(--p)); }
+
+/* 一天的安排：按早上 / 中午 / 下午 / 晚上分段，当前那条高亮 */
+.plan { margin: 0; padding: 0; list-style: none; }
+.plan .seg { color: var(--dim); margin-top: calc(2 * var(--p)); }
+.plan li.item { display: flex; gap: calc(4 * var(--p)); }
+.plan li.item .t { color: var(--green); flex: none; width: calc(30 * var(--p)); }
+.plan li.item.past { opacity: .5; }
+.plan li.item.cur { background: #ffe9a8; box-shadow: 0 0 0 var(--p) #e0b850; }

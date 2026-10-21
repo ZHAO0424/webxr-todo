@@ -4,69 +4,157 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>石峪村村民档案</title>
+  <link rel="stylesheet" href="src/ui/ui.css">
   <style>
-    :root { --bg: #1e1a2a; --card: #2a2438; --ink: #eadccc; --dim: #b0a090; --accent: #ffcf8a; --green: #a8d898; }
-    body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.6 system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
-    main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 60px; }
-    h1 { margin: 0 0 6px; color: var(--accent); font-size: 26px; }
-    .intro { color: var(--dim); max-width: 760px; }
-    a { color: var(--accent); }
-    section { margin-top: 28px; }
-    section > h2 { margin: 0 0 2px; font-size: 18px; }
-    section > h2 small { margin-left: 10px; font-size: 12px; color: var(--dim); font-weight: 400; }
-    section > p { margin: 0 0 10px; color: var(--dim); font-size: 13px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
-    .card { background: var(--card); border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: 72px 1fr; gap: 12px; }
-    .card canvas { width: 72px; image-rendering: pixelated; align-self: start; }
-    .card h3 { margin: 0; font-size: 16px; color: var(--accent); }
-    .card h3 small { margin-left: 6px; font-size: 12px; color: var(--dim); font-weight: 400; }
-    .job { color: #d8b890; font-size: 13px; }
-    .bio { margin: 6px 0; }
-    .meta { color: var(--dim); font-size: 12px; margin: 2px 0; }
-    .day { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; color: #c8b8a8; }
-    .day b { color: var(--green); font-weight: 500; margin-right: 6px; font-family: ui-monospace, monospace; }
+    html { background: #2a2238; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(#3a2e52, #6a3e58 60%, #8a4a4a); background-attachment: fixed; }
+    main { max-width: calc(560 * var(--p)); margin: 0 auto; padding: calc(8 * var(--p)) calc(4 * var(--p)) calc(30 * var(--p)); }
+    h1 { margin: 0; font-size: calc(24 * var(--p)); line-height: calc(28 * var(--p)); font-weight: normal; color: var(--ink); }
+    .intro { margin: calc(3 * var(--p)) 0; }
+    .top a { color: #a03a2a; }
+    .filters { display: flex; flex-wrap: wrap; gap: calc(3 * var(--p)); margin: calc(6 * var(--p)) 0; }
+    section.house { margin-top: calc(6 * var(--p)); }
+    .house h2 { margin: 0; font-size: calc(12 * var(--p)); font-weight: normal; color: var(--ink); display: flex; align-items: center; gap: calc(3 * var(--p)); }
+    .house h2 .hname { font-size: calc(24 * var(--p)); line-height: calc(26 * var(--p)); }
+    .house .note { color: var(--dim); margin: calc(2 * var(--p)) 0 calc(4 * var(--p)); }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(150 * var(--p)), 1fr)); gap: calc(4 * var(--p)); }
+    .tile { display: flex; gap: calc(3 * var(--p)); align-items: center; cursor: pointer; padding: calc(2 * var(--p)) calc(3 * var(--p)); }
+    .tile:hover { filter: brightness(1.04); transform: translateY(calc(-1 * var(--p))); }
+    .tile .face { flex: none; width: calc(46 * var(--p)); height: calc(42 * var(--p)); overflow: hidden; display: grid; place-items: end center;
+                  border-style: solid; border-width: calc(3 * var(--p)); border-image: var(--frame-dark) 5 fill / calc(3 * var(--p)) round; background: linear-gradient(#4a3a6a, #b0607a 70%, #e89a6a); }
+    .tile .face canvas { width: calc(40 * var(--p)); }
+    .tile .txt { min-width: 0; }
+    .tile .nm { color: var(--ink); white-space: nowrap; }
+    .tile .nk { color: var(--dim); margin-left: calc(3 * var(--p)); }
+    .tile .jb { color: var(--wood); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .beasts { margin-top: calc(4 * var(--p)); display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)) calc(6 * var(--p)); align-items: flex-end; color: var(--dim); }
+    .beasts .b { display: flex; align-items: flex-end; gap: var(--p); }
+    .beasts canvas { image-rendering: pixelated; }
+    #modal { position: fixed; inset: 0; background: rgba(20, 12, 28, .6); display: grid; place-items: center; padding: calc(6 * var(--p)); }
+    #modal[hidden] { display: none; }
+    #modal .card { max-height: 92vh; overflow: auto; scrollbar-width: none; }
   </style>
+  <script>
+    // 错误直接显示在页面上，并记到 data-errors，供无头检查读取
+    (() => {
+      const errors = [];
+      const show = (m) => {
+        errors.push(String(m));
+        document.documentElement.dataset.errors = String(errors.length);
+        const el = document.getElementById('err');
+        if (el) { el.style.display = 'block'; el.textContent = errors.join('\n'); }
+      };
+      addEventListener('error', (e) => show(`${e.message} @ ${e.filename}:${e.lineno}`));
+      addEventListener('unhandledrejection', (e) => show(`reject: ${e.reason?.stack ?? e.reason}`));
+      const ce = console.error.bind(console);
+      console.error = (...a) => { show(a.join(' ')); ce(...a); };
+    })();
+  </script>
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
   </script>
 </head>
 <body>
-  <main id="main"></main>
+  <main id="main" class="px"></main>
+  <div id="modal" class="px" hidden></div>
+  <pre id="err" style="position:fixed;left:0;right:0;bottom:0;margin:0;padding:8px;background:#600;color:#fff;font:12px monospace;white-space:pre-wrap;display:none"></pre>
   <script type="module">
-    // 村民档案：数据全部来自 src/residents.js，头像用 characters.js 的正面待机帧
-    import { VILLAGE, HOUSEHOLDS } from './src/residents.js';
-    import { LABELS } from './src/labels.js';
+    // 村民档案：按户分组；每户一块羊皮纸，里面是一家人的小卡片和家里的牲口。点小卡片弹出完整的卡（和村子里点人看到的同一张）。
+    import { VILLAGE, HOUSEHOLDS, RESIDENTS } from './src/residents.js';
     import { characterAtlas, CELL_W, CELL_H } from './src/characters.js';
+    import { animalAtlas } from './src/animals.js';
+    import { animalInfo } from './src/animalInfo.js';
+    import { buildMaterials } from './src/textures.js';
+    import { buildCompounds } from './src/compounds.js';
+    import { setupPixelUI, portrait, headCrop } from './src/ui/frame.js';
+    import { residentCard } from './src/ui/cards.js';
+
+    setupPixelUI();
+    const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+    const byId = Object.fromEntries(RESIDENTS.map((p) => [p.id, p]));
+
+    // 家里的牲口：和村子里同样的顺序发名字（同一只动物两边叫同一个名字）
+    const C = buildCompounds(buildMaterials());
+    const beasts = {};
+    for (const [id, c] of Object.entries(C)) beasts[id] = c.animals.map((s) => ({ s, info: animalInfo(s, { id }) }));
+    const extra = [...Array(4).fill('goose'), ...Array(5).fill('duck'), ...Array(8).fill('pigeon')].map((kind) => ({ s: { kind, role: kind }, info: animalInfo({ kind, role: kind }, null) }));
+    beasts.farmC.push(...extra.filter((b) => b.s.kind !== 'pigeon')); // 鸭鹅归吴家
+    beasts.school.push(...extra.filter((b) => b.s.kind === 'pigeon')); // 鸽子落在学堂屋檐下
+    const nBeasts = Object.values(beasts).reduce((n, l) => n + l.length, 0);
+
+    const FILTERS = {
+      全部: () => true,
+      大人: (p) => p.body !== 'child' && p.age < 60,
+      老人: (p) => p.age >= 60,
+      孩子: (p) => p.body === 'child',
+      手艺人: (p) => /匠|郎中|掌柜|剃头|货郎|伙计|徒弟|豆腐/.test(p.job),
+      种地的: (p) => /种地|庄稼|羊倌|喂|农/.test(p.job + p.skills.join()),
+      外来的: (p) => p.relation.includes('外村') || p.relation.includes('寄住') || p.relation.includes('住铺里'),
+    };
 
     const main = document.getElementById('main');
-    const total = HOUSEHOLDS.reduce((n, h) => n + h.people.length, 0);
-    main.innerHTML = `<h1>${VILLAGE.name} · 村民档案</h1><p class="intro">${VILLAGE.intro}全村 ${HOUSEHOLDS.length} 户（含村口），${total} 口人。<a href="./">← 回到村子</a></p>`;
-    const hh = (h) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+    main.innerHTML = `<div class="panel top">
+        <h1>${esc(VILLAGE.name)} · 村民档案</h1>
+        <p class="intro">${esc(VILLAGE.intro)}</p>
+        <span class="chip" style="--c:#b0603a">${HOUSEHOLDS.length} 户</span><span class="chip" style="--c:#5a8a3a">${RESIDENTS.length} 口人</span><span class="chip" style="--c:#4a8ac0">${nBeasts} 只牲口</span>
+        <a href="./">← 回到村子</a>
+      </div>
+      <div class="filters">${Object.keys(FILTERS).map((k, i) => `<button class="btn${i ? '' : ' on'}" data-f="${k}">${k}</button>`).join('')}</div>
+      <div id="houses"></div>`;
+
+    const houses = document.getElementById('houses');
     for (const h of HOUSEHOLDS) {
       const sec = document.createElement('section');
-      sec.innerHTML = `<h2>${h.name}<small>${h.kind}</small></h2><p>${h.note}</p><div class="grid"></div>`;
-      const grid = sec.querySelector('.grid');
-      for (const p of h.people) {
-        const card = document.createElement('div');
-        card.className = 'card';
-        const atlas = characterAtlas(p);
-        const face = document.createElement('canvas');
-        face.width = CELL_W; face.height = CELL_H;
-        face.getContext('2d').drawImage(atlas, 0, 0, CELL_W, CELL_H, 0, 0, CELL_W, CELL_H);
-        const day = p.day.map(([t, a, arg]) => `<li><b>${hh(t)}</b>${LABELS[a] ?? a}${arg && LABELS[`${a}:${arg}`] ? `（${LABELS[`${a}:${arg}`]}）` : ''}</li>`).join('');
-        card.innerHTML = `<div></div><div>
-          <h3>${p.name}<small>${p.nick} · ${p.sex} · ${p.age} 岁</small></h3>
-          <div class="job">${p.job} · ${p.relation}</div>
-          <p class="bio">${p.bio}</p>
-          <p class="meta">性格：${p.traits.join('、')}</p>
-          <p class="meta">手艺：${p.skills.join('、')}　喜欢：${p.likes}</p>
-          ${p.owns.length ? `<p class="meta">家当：${p.owns.join('、')}</p>` : ''}
-          <ul class="day">${day}</ul></div>`;
-        card.firstElementChild.append(face);
-        grid.append(card);
+      sec.className = 'paper house';
+      sec.innerHTML = `<h2><span class="hname">${esc(h.name)}</span><span class="chip soft">${esc(h.kind)}</span></h2><p class="note">${esc(h.note)}</p><div class="tiles"></div><div class="beasts"></div>`;
+      const tiles = sec.querySelector('.tiles');
+      for (const p0 of h.people) {
+        const p = byId[p0.id];
+        const t = document.createElement('div');
+        t.className = 'paper tile';
+        t.dataset.id = p.id;
+        t.innerHTML = `<div class="face"></div><div class="txt"><div class="nm">${esc(p.name)}<span class="nk">${esc(p.nick)}</span></div><div class="jb">${esc(p.job)}</div></div>`;
+        t.querySelector('.face').append(headCrop(characterAtlas(p), CELL_W, CELL_H));
+        t.addEventListener('click', () => open(p.id));
+        tiles.append(t);
       }
-      main.append(sec);
+      const bl = sec.querySelector('.beasts');
+      for (const { s, info } of beasts[h.id] ?? []) {
+        const a = animalAtlas(s.kind);
+        const c = portrait(a.canvas, 0, 0, a.cellW, a.cellH, 1);
+        c.style.width = `calc(${a.cellW * 2} * var(--p))`;
+        const el = document.createElement('span');
+        el.className = 'b';
+        el.title = info.about;
+        el.append(c, `${info.name}`);
+        bl.append(el);
+      }
+      if (!bl.childElementCount) bl.remove();
+      houses.append(sec);
     }
+
+    // 筛选：只看某一类人；一个人都不剩的户藏起来
+    main.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', () => {
+      main.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('on', x === b));
+      const f = FILTERS[b.dataset.f];
+      for (const sec of houses.children) {
+        let any = false;
+        for (const t of sec.querySelectorAll('.tile')) { const on = f(byId[t.dataset.id]); t.hidden = !on; any ||= on; }
+        sec.hidden = !any;
+      }
+    }));
+
+    // 完整的卡（亲近的人里点名字直接换到那个人）
+    const modal = document.getElementById('modal');
+    function open(id) {
+      const card = residentCard(byId[id], { live: false, onClose: () => { modal.hidden = true; }, onPick: open });
+      modal.innerHTML = '';
+      modal.append(card.el);
+      modal.hidden = false;
+    }
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+    const q = new URLSearchParams(location.search);
+    if (q.get('pick')) open(q.get('pick'));
     document.documentElement.dataset.ready = '1';
   </script>
 </body>

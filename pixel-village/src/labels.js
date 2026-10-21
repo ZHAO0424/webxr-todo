@@ -18,3 +18,6 @@ export const LABELS = {
   'field:fieldW': '西坡', 'field:fieldE': '东坡', 'thresh:help': '帮着扫场', 'chore:yardWork': '扫院子', 'chore:fetchWater': '挑水',
   'chore:feedChickens': '喂鸡', 'chore:feedRabbits': '喂兔子', 'chore:work': '看驴推磨',
 };
+
+/** 各个院子 / 地方的叫法（卡片上显示"在哪儿"）。 */
+export const PLACES = { headman: '王家', school: '学堂', shepherd: '马家羊圈', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', square: '村口', threshing: '场院' };

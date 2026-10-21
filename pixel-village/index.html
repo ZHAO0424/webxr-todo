@@ -4,19 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>像素村落</title>
+  <link rel="stylesheet" href="src/ui/ui.css">
   <style>
-    html, body { margin: 0; height: 100%; background: #1b1d24; overflow: hidden; font-family: system-ui, sans-serif; }
-    #hint { position: fixed; left: 12px; top: 10px; color: #f0d8c0; font-size: 13px; opacity: .75; }
-    #clock { position: fixed; right: 14px; top: 10px; color: #f0d8c0; font: 600 18px/1 ui-monospace, monospace; opacity: .85; pointer-events: none; }
-    #card { position: fixed; right: 14px; top: 40px; width: 300px; max-height: 80vh; overflow: auto; padding: 12px 14px; border-radius: 6px;
-            background: rgba(24, 20, 36, .88); color: #eadccc; font-size: 13px; line-height: 1.55; box-shadow: 0 4px 18px rgba(0,0,0,.4); }
-    #card h3 { margin: 0 0 4px; font-size: 18px; color: #ffd8a0; }
-    #card h3 small { margin-left: 8px; font-size: 12px; color: #b8a898; font-weight: 400; }
-    #card p { margin: 6px 0; }
-    #card .job { color: #d0b090; }
-    #card .now { color: #a8e0a0; }
-    #card .meta { color: #b8a898; font-size: 12px; }
-    #card .day { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: #c8b8a8; }
+    html, body { margin: 0; height: 100%; background: #1b1d24; overflow: hidden; }
+    /* 时钟栏：右上角的深色像素面板 */
+    #clock { position: fixed; right: calc(4 * var(--p)); top: calc(4 * var(--p)); min-width: calc(112 * var(--p)); pointer-events: none; }
+    #clock .date { color: #e8c890; }
+    #clock .time { font-size: calc(24 * var(--p)); line-height: calc(26 * var(--p)); color: #fff4dc; }
+    #clock .ev { margin-top: calc(2 * var(--p)); }
+    #clock .sub { color: #c0a8c8; }
+    /* 操作提示：左下角 */
+    #hint { position: fixed; left: calc(4 * var(--p)); bottom: calc(4 * var(--p)); max-width: calc(260 * var(--p)); }
+    #hint a { color: #ffd88a; }
+    /* 卡片：时钟栏下面，靠右 */
+    #card { position: fixed; right: calc(4 * var(--p)); top: calc(66 * var(--p)); max-height: calc(100vh - 72 * var(--p)); overflow: auto; scrollbar-width: none; }
+    #card::-webkit-scrollbar { display: none; }
     #err { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; padding: 8px; background: #600; color: #fff;
            font: 12px monospace; white-space: pre-wrap; display: none; max-height: 40vh; overflow: auto; }
   </style>
@@ -46,8 +48,8 @@
   </script>
 </head>
 <body>
-  <div id="hint">拖动旋转 · 滚轮缩放 · 点一个村民看档案 · 进入 VR 后扳机 / 捏合 = 重新摆到眼前 · <a href="roster.html" style="color:#f0d8c0">村民档案</a></div>
-  <div id="clock"></div>
+  <div id="hint" class="dark px">拖动旋转 · 滚轮缩放 · 点人或小动物看卡片 · <a href="roster.html">村民档案 →</a></div>
+  <div id="clock" class="dark px"></div>
   <div id="card" hidden></div>
   <pre id="err"></pre>
   <script type="module" src="src/main.js"></script>

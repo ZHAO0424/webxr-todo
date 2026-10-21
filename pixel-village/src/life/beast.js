@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WATER_Y } from '../layout.js';
 import { voxelAnimalFrames, VOX } from '../voxel.js';
 import { present } from './motion.js';
+import { animalInfo } from '../animalInfo.js';
 
 // ---------------------------------------------------------------- 动物
 
@@ -19,6 +20,8 @@ export class Beast {
     this.object = new THREE.Group();
     this.frames = V.frameCache.get(s.kind).map((m) => { const k = m.clone(); this.object.add(k); return k; });
     V.root.add(this.object);
+    this.info = animalInfo(s, c); // 名字、品种、谁家的、来历（卡片用）
+    this.object.userData.beast = this;
     this.speed = SPEED[s.kind] ?? 0.5;
     this.swim = s.role === 'duck' || s.role === 'goose';
     this.push = s.role in PUSHERS && !!c; // 能把关着的门拱开（但不会关）

@@ -9,6 +9,7 @@ import * as P from './props.js';
 import { Sprites } from './sprites.js';
 import { RESIDENTS } from './residents.js';
 import { populate, EVENTS as EVENT_DEFS } from './life/index.js';
+import { PLACES } from './labels.js';
 import { voxelTree } from './voxel.js';
 import { NavGrid } from './nav.js';
 import { buildFarmland } from './farmland.js';
@@ -344,11 +345,25 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   let waterStep = 0;
   let last = 0;
 
+  /** 这个位置叫什么：谁家院里 / 村口 / 场院，否则看地面——地里、溪边、路上、山坡上。 */
+  const whereAt = (x, z) => {
+    for (const c of Object.values(C)) {
+      const dx = x - c.object.position.x, dz = z - c.object.position.z, cs = Math.cos(c.rot), sn = Math.sin(c.rot);
+      if (Math.abs(cs * dx - sn * dz) <= c.w / 2 + 0.3 && Math.abs(sn * dx + cs * dz) <= c.d / 2 + 0.3) return PLACES[c.id];
+    }
+    if (shrine && Math.hypot(x - shrine.at[0], z - shrine.at[1]) < 4) return '桥头土地庙';
+    if (terrain.bridge && Math.hypot(x - terrain.bridge.x, z - terrain.bridge.z) < terrain.bridge.len / 2) return '石拱桥上';
+    const t = terrain.typeAt(x, z);
+    if (t === 'stream' || terrain.isWater(x, z + 1.5) || terrain.isWater(x, z - 1.5)) return '溪边';
+    return { field: '地里', path: '路上', pad: '村里', grass: '山坡上' }[t] ?? '村里';
+  };
+
   return {
     object: root,
     life,
     nav,
     gates,
+    whereAt,
     update(t, viewerWorld) {
       const dt = Math.max(0, Math.min(0.1, t - last));
       last = t;
