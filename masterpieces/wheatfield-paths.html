@@ -533,7 +533,7 @@ function updateGaze(dt) {
   U.uFood.value.copy(food);
   if (onPic) { lampPos.lerp(new THREE.Vector2(g.u, g.v), Math.min(1, dt * 7)); lampOn = Math.min(1, lampOn + dt * 2.5); }
   else lampOn = Math.max(0, lampOn - dt * 0.8);
-  U.uLamp.value.set(lampPos.x, lampPos.y, lampOn, 0.09 + 0.15 * dwell);
+  U.uLamp.value.set(lampPos.x, lampPos.y, lampOn, 0.16 + 0.22 * dwell);   // 灯圈：起步约 15°，停久了约 35°
   $('lvl').style.width = `${dwell * 100}%`;
   $('state').textContent = onPic ? (dwell > 0.85 ? '路已经到了你这里' : '路正在向你生长') : (dwell > 0.05 ? '你离开了，路在暗处慢慢回去' : '路回到了麦田里，看不见了');
   if (dwell > 0.85 && !arrived) { arrived = true; arrive(); }

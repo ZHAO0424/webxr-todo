@@ -74,6 +74,19 @@ function buildOverlay() {
   // 换画时的卡片：载入一件作品要好几秒到十几秒，卡片上放原画、介绍和载入进度，等的时候有东西可读
   ov.title = canvasPlane(1.4, 0.784, 2048, 1146, 1001); ov.scene.add(ov.title.m);
   ov.strip = canvasPlane(0.6, 0.15, 1600, 400, 1002); ov.scene.add(ov.strip.m);
+  // 作品里的「回画廊」按钮：视线下方，手的射线指着它捏合才回去（不看停留，免得低头时误触）
+  ov.home = canvasPlane(0.2, 0.068, 640, 216, 1003); ov.scene.add(ov.home.m);
+}
+let homeKey = '';
+function drawHome2(hot) {
+  const key = String(hot); if (key === homeKey) return; homeKey = key;
+  const { g, cv, tex } = ov.home, w = cv.width, h = cv.height;
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = hot ? 'rgba(201,164,92,.35)' : 'rgba(11,10,13,.72)'; g.beginPath(); g.roundRect(8, 8, w - 16, h - 16, (h - 16) / 2); g.fill();
+  g.lineWidth = hot ? 8 : 5; g.strokeStyle = hot ? 'rgba(232,200,128,1)' : 'rgba(201,164,92,.75)'; g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#f6f0e4';
+  fitText(g, '⌂ 回画廊', w / 2, h / 2 + 4, w - 90, 86, `500 $px ${SANS}`, 6);
+  tex.needsUpdate = true;
 }
 
 // 换画时的标题：作品名 + 英文名，落在黑幕上
@@ -292,6 +305,13 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
   sm.material.opacity += (vis - sm.material.opacity) * Math.min(1, dt * (vis ? 5 : 3));
   sm.visible = sm.material.opacity > 0.01;
 
+  // 回画廊按钮：身体朝向锁定，视线下方约 22°、偏左一点
+  const hm = ov.home.m, HP = -22 * Math.PI / 180, HD = 0.8, HY = anchorYaw + 0.12;
+  hm.position.set(head.x - Math.sin(HY) * Math.cos(HP) * HD, head.y + Math.sin(HP) * HD, head.z - Math.cos(HY) * Math.cos(HP) * HD);
+  hm.lookAt(head); hm.updateMatrixWorld(true);
+  const homeOn = onWork() && !hold && !busy && fade < 0.05;
+  const hitHome = (o, d) => { ray.set(o, d); return ray.intersectObject(hm, false).length > 0; };
+
   // 视线和射线落在条上的哪一格
   const zoneOf = (o, d) => {
     ray.set(o, d); const hit = ray.intersectObject(sm, false)[0];
@@ -303,7 +323,7 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
     const p = frame.getPose(src.targetRaySpace, ref); if (!p) continue;
     tmpM.fromArray(p.transform.matrix).premultiply(ov.rig.matrixWorld);
     const o = new THREE.Vector3().setFromMatrixPosition(tmpM), d = new THREE.Vector3(0, 0, -1).transformDirection(tmpM);
-    rays.push({ src, zone: sm.visible ? zoneOf(o, d) : -1 });
+    rays.push({ src, zone: sm.visible ? zoneOf(o, d) : -1, home: homeOn && hitHome(o, d) });
     // 手柄按键：A / X 下一幅，B / Y 上一幅
     const gp = src.gamepad; if (!gp) continue;
     const was = pads.get(src) || [];
@@ -317,8 +337,12 @@ function overlay(dt, frame, ref = R.xr.getReferenceSpace(), draw = true) {
   if (gz >= 0 && gz === dwellZone && cooldown === 0) { dwell += dt; if (dwell > DWELL[gz]) { dwell = 0; request(ACT[gz]); } }
   else { dwellZone = gz; dwell = 0; }
   if (sm.visible) drawStrip(hot, gz >= 0 ? Math.min(1, dwell / DWELL[gz]) : 0);
+  const homeHot = rays.some(r => r.home);
+  hm.material.opacity += ((homeOn ? (homeHot ? 1 : 0.6) : 0) - hm.material.opacity) * Math.min(1, dt * 6);
+  hm.visible = hm.material.opacity > 0.01;
+  if (hm.visible) drawHome2(homeHot);
 
-  if (!draw || (!ov.veil.visible && !tm.visible && !sm.visible)) return;
+  if (!draw || (!ov.veil.visible && !tm.visible && !sm.visible && !hm.visible)) return;
   const ac = R.autoClear; R.autoClear = false;
   R.render(ov.scene, ov.cam);
   R.autoClear = ac;
@@ -424,6 +448,19 @@ async function mount(slug, html, query = '') {
   try { await import(url); } finally { URL.revokeObjectURL(url); }
 }
 
+// 在作品的入场页上直接点了「进入 XR」：网页这边也替观众按下「进入」（还在载入就等载完），两边同步进场景
+function autoEnterPage() {
+  const t0 = performance.now();
+  const tick = () => {
+    if (!R.xr.isPresenting || busy) return;
+    const b = document.getElementById('enter'), intro = document.getElementById('intro');
+    if (!b || !intro || intro.classList.contains('gone')) return;
+    if (b.disabled) { if (performance.now() - t0 < 60000) _st(tick, 200); return; }
+    b.click();
+  };
+  tick();
+}
+
 // ---------- 作品页调用：第一次建渲染器后挂上来；之后的作品直接拿到同一个渲染器 ----------
 export const hop = {
   get renderer() { return R; },
@@ -447,13 +484,18 @@ export const hop = {
     untracked(() => {
       R.xr.addEventListener('sessionstart', () => {
         teaserUntil = performance.now() + 7000; anchorYaw = null;
+        if (onWork() && !busy) autoEnterPage();
         const s = R.xr.getSession();
         recenterIn = 3;
         if (s && !s.__hop) {
           s.__hop = true;
           baseRef = R.xr.getReferenceSpace();
           // 射线指着条上的一格扣扳机 / 捏合，立刻换
-          s.addEventListener('select', e => { if (!XR_SWITCH) return; const r = rays.find(x => x.src === e.inputSource); if (r && r.zone >= 0) act(ACT[r.zone]); });
+          s.addEventListener('select', e => {
+            const r = rays.find(x => x.src === e.inputSource);
+            if (r && r.home && !busy) { go(0, false, 'home'); return; }   // 指着「回画廊」捏合
+            if (!XR_SWITCH) return; if (r && r.zone >= 0) act(ACT[r.zone]);
+          });
         }
       });
       R.xr.addEventListener('sessionend', () => {

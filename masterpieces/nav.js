@@ -53,7 +53,7 @@
     if (i < 0) { nav.innerHTML = ''; return; }
     nav.innerHTML =
     `<a class="p" href="${prev.slug}.html" title="上一幅 [">‹ <span class="lbl">${prev.zh}</span>${peek(prev)}</a>` +
-    `<a class="g" href="index.html?from=${slug}" title="回画廊 G"><span class="count">${i + 1} / ${W.length}</span></a>` +
+    `<a class="g" href="index.html?from=${slug}" title="回到博物馆的画廊 G">⌂ <span class="lbl">画廊</span><span class="count">${i + 1} / ${W.length}</span></a>` +
     `<a class="n" href="${next.slug}.html" title="下一幅 ]"><span class="lbl">${next.zh}</span> ›${peek(next)}</a>`;
   };
 

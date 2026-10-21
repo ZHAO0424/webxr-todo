@@ -87,7 +87,12 @@ camera.position.copy(EYE);
 const world = new THREE.Group();
 world.position.copy(EYE);
 scene.add(world);
+// 构图角 → 实际方向。桌面上原样（天空约 ±44°、仰角 40°）；头显里横向放大 KH、纵向放大 KV 倍，
+// 整片天空铺满前方半球（左右 ±90°、仰角到约 76°）。流场、星星的环、点选都在构图角里算，只有落到空间时才放大
+let KH = 1, KV = 1;
+const XR_KH = 2.05, XR_KV = 1.9;
 function sph(th, ph, r, out = new THREE.Vector3()) {
+  th *= KH; ph *= KV;
   const c = Math.cos(ph);
   return out.set(r * c * Math.sin(th), r * Math.sin(ph), -r * c * Math.cos(th));
 }
@@ -249,8 +254,9 @@ function field(th, ph, t) {
   F[0] = u; F[1] = v;
 }
 
+const SZ = () => Math.pow(KH * KV, 0.38);   // 头显里天空放大了，笔触跟着放大一些（数量也多了）
 // ---------- 天空笔触 ----------
-const SKY_N = 15000;
+const SKY_N = 22000;
 const sky = new Strokes(SKY_N);
 world.add(sky.mesh);
 const S = { th: new Float32Array(SKY_N), ph: new Float32Array(SKY_N), r: new Float32Array(SKY_N), life: new Float32Array(SKY_N), max: new Float32Array(SKY_N) };
@@ -277,7 +283,7 @@ function spawnSky(i, initial) {
   S.max[i] = rand(2.5, 6); S.life[i] = initial ? rand(0, S.max[i]) : 0;
   sky.color(i, col);
   const k = rand(0.7, 1.3);
-  sky.size(i, r * 0.024 * k, r * 0.0058 * k);
+  sky.size(i, r * 0.024 * k * SZ(), r * 0.0058 * k * SZ());
 }
 for (let i = 0; i < SKY_N; i++) spawnSky(i, true);
 
@@ -294,10 +300,11 @@ function updateSky(dt, t, turb) {
     const r = S.r[i];
     sph(th, ph, r, tP);
     // 切向：沿流动方向摆放笔触
-    const cp = Math.cos(ph), sp = Math.sin(ph), ct = Math.cos(th), st = Math.sin(th);
-    eT.set(ct, 0, st); eP.set(-sp * st, cp, sp * ct);
-    tD.copy(eT).multiplyScalar(u * cp).addScaledVector(eP, v);
-    if (tD.lengthSq() < 1e-12) tD.copy(eT);
+    // 切向：构图角里沿 (u, v) 走一小步，落到空间里取差（头显里放大过的天空也顺着流向摆）
+    const sl = Math.hypot(u, v) || 1;
+    sph(th + u / sl * 0.002, ph + v / sl * 0.002, r, tD);
+    tD.sub(tP);
+    if (tD.lengthSq() < 1e-12) sph(th + 0.002, ph, r, tD).sub(tP);
     tD.normalize();
     const f = Math.sin(Math.PI * life / S.max[i]);
     // 边缘羽化：越靠外笔触越短越稀，天空没有一条硬边
@@ -309,7 +316,7 @@ function updateSky(dt, t, turb) {
 
 // ---------- 远山 ----------
 const hill = thd => -1.2 + 1.7 * Math.sin(thd * 0.11 + 1.2) + 0.8 * Math.sin(thd * 0.29 + 0.4);
-const HILL_N = 3800;
+const HILL_N = 5200;
 const hills = new Strokes(HILL_N);
 world.add(hills.mesh);
 const H = { th: new Float32Array(HILL_N), ph: new Float32Array(HILL_N), r: new Float32Array(HILL_N), life: new Float32Array(HILL_N), max: new Float32Array(HILL_N), sp: new Float32Array(HILL_N) };
@@ -319,7 +326,7 @@ function spawnHill(i, initial) {
   H.sp[i] = (Math.random() < 0.5 ? -1 : 1) * rand(0.002, 0.006);
   H.max[i] = rand(4, 9); H.life[i] = initial ? rand(0, H.max[i]) : 0;
   hills.color(i, depth < 0.7 ? pick(PAL.horizon) : pick(PAL.hillDark));
-  hills.size(i, rand(0.16, 0.26), rand(0.04, 0.06));
+  hills.size(i, rand(0.16, 0.26) * SZ(), rand(0.04, 0.06) * SZ());
 }
 for (let i = 0; i < HILL_N; i++) spawnHill(i, true);
 function updateHills(dt) {
@@ -342,10 +349,11 @@ world.add(village);
 const WINDOWS = [];
 const houseMats = ['#1f2b52', '#26345e', '#2c3a63', '#3a3a4a', '#4a4030'].map(c => new THREE.MeshBasicMaterial({ color: c }));
 const roofMats = ['#121a36', '#1a2446', '#3a2e22', '#2a3550'].map(c => new THREE.MeshBasicMaterial({ color: c }));
+const HOUSES = [];
+function placeHouse(g) { const { thd, phd, r } = g.userData; sph(thd * DEG, phd * DEG, r, g.position); g.rotation.y = -thd * DEG * KH; }   // 正面（+z）朝向观众
 function addHouse(thd, phd, r, w, h, church = false) {
   const g = new THREE.Group();
-  sph(thd * DEG, phd * DEG, r, g.position);
-  g.rotation.y = -thd * DEG;   // 正面（+z）朝向观众
+  g.userData = { thd, phd, r }; placeHouse(g); HOUSES.push(g);
   const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.8), pick(houseMats));
   body.position.y = h / 2; g.add(body);
   const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.75, church ? h * 1.8 : h * 0.55, 4), pick(roofMats));
@@ -367,6 +375,7 @@ for (let k = 0; k < 3; k++) WINDOWS[k].lit = true;   // 夜里本来就亮着的
 
 // ---------- 柏树：一团向上燃烧的暗色火焰，连接大地和星空 ----------
 const CYP = { x: -0.95, y: -1.45, z: -3.0, H: 2.55 };
+const CYP0 = { ...CYP };
 const CYP_N = 5200;
 const cyp = new Strokes(CYP_N);
 world.add(cyp.mesh);
@@ -562,7 +571,7 @@ const tmpA = new THREE.Vector3(), tmpO = new THREE.Vector3(), tmpM = new THREE.M
 function aimFromRay(origin, dir, slot) {
   tmpA.copy(origin).addScaledVector(dir, 6);
   world.worldToLocal(tmpA);
-  const th = Math.atan2(tmpA.x, -tmpA.z), ph = Math.atan2(tmpA.y, Math.hypot(tmpA.x, tmpA.z));
+  const th = Math.atan2(tmpA.x, -tmpA.z) / KH, ph = Math.atan2(tmpA.y, Math.hypot(tmpA.x, tmpA.z)) / KV;   // 回到构图角
   const a = aims[slot] || (aims[slot] = { th, ph, prev: null, origin: new THREE.Vector3(), dir: new THREE.Vector3() });
   a.prev = a.prev ? { th: a.th, ph: a.ph } : { th, ph };
   a.th = th; a.ph = ph; a.origin.copy(origin); a.dir.copy(dir);
@@ -578,7 +587,7 @@ function stir(a, dt) {
   energy = Math.min(3, energy + sp * dt * 0.9);
 }
 function starUnder(a) {
-  let best = null, bestAng = 5 * DEG;
+  let best = null, bestAng = (KH > 1 ? 8 : 5) * DEG;
   for (const st of STARS) {
     tmpO.copy(st.pos); world.localToWorld(tmpO); tmpO.sub(a.origin).normalize();
     const ang = Math.acos(Math.min(1, tmpO.dot(a.dir)));
@@ -627,13 +636,30 @@ $('enter').onclick = () => {
   $('hud').classList.add('on');
   vrBtn.style.display = arBtn.style.display = '';
 };
+// 换布局：静止的星、月、村庄、柏树重新摆；流动的笔触全部重新撒一遍
+function relayout(kh, kv) {
+  KH = kh; KV = kv;
+  for (const st of STARS) { sph(st.th, st.ph, st.r, st.pos); st.core.position.copy(st.pos); st.halo.position.copy(st.pos); st.core.scale.setScalar(st.r * 0.022 * SZ()); st.halo.scale.setScalar(st.r * 0.075 * SZ()); }
+  sph(MOON.th, MOON.ph, MOON.r, MOON.pos); moonSprite.position.copy(MOON.pos); moonHalo.position.copy(MOON.pos);
+  moonSprite.scale.setScalar(MOON.r * 0.075 * SZ()); moonHalo.scale.setScalar(MOON.r * 0.16 * SZ());
+  HOUSES.forEach(placeHouse);
+  // 柏树：方位跟着放大；顶端抬到放大后的仰角，根不动
+  const d0 = Math.hypot(CYP0.x, CYP0.z), a0 = Math.atan2(CYP0.x, -CYP0.z) * KH;
+  const top0 = Math.atan2(CYP0.y + CYP0.H, d0) * KV;
+  CYP.x = Math.sin(a0) * d0; CYP.z = -Math.cos(a0) * d0;
+  CYP.H = Math.tan(Math.min(top0, 60 * DEG)) * d0 - CYP0.y;
+  CYP_TOP.set(CYP.x, CYP.y + CYP.H * 0.97, CYP.z);
+  for (let i = 0; i < SKY_N; i++) spawnSky(i, true);
+  for (let i = 0; i < HILL_N; i++) spawnHill(i, true);
+}
 renderer.xr.addEventListener('sessionstart', () => {
+  relayout(XR_KH, XR_KV);
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
   dome.visible = opaque;                       // AR：去掉夜空背景，笔触漂在真实房间里
   plaque.visible = false;
   renderer.setClearColor(0x0a1230, opaque ? 1 : 0);
 });
-renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x0a1230, 1); });
+renderer.xr.addEventListener('sessionend', () => { relayout(1, 1); dome.visible = true; plaque.visible = false; renderer.setClearColor(0x0a1230, 1); });
 renderer.setClearColor(0x0a1230, 1);
 
 addEventListener('resize', () => {
