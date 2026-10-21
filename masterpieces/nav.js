@@ -86,6 +86,7 @@
   // 只留一个「进入 XR」：作品自己按 environmentBlendMode 判断要不要画背景，所以 VR / AR 两个入口在眼镜上
   // 进去是一样的（光学透视的眼镜上黑 = 透明，两种都等于把画挂在房间里）。优先 VR；设备只支持 AR 时
   // （手机）才换成 AR 那个按钮。three 的按钮会自己改字、改 display，这里每次按状态改回来
+  const presenting = () => !!(window.mpHop && window.mpHop.presenting());
   const relabel = () => {
     const vr = dock.querySelector('#VRButton'), ar = dock.querySelector('#ARButton');
     const ok = b => b && b.tagName === 'BUTTON' && !/NOT|不支持/i.test(b.textContent);
@@ -96,11 +97,22 @@
     }
     if (use && use.tagName === 'BUTTON') {
       const s = use.textContent;
-      const t = /EXIT|STOP/i.test(s) ? '退出 XR' : /NOT/i.test(s) ? '此设备不支持 XR' : /ENTER|START/i.test(s) ? '进入 XR' : null;
+      // 头显里换过画：新页面的按钮是新建的，不知道会话还在，会写「ENTER」——以会话实际状态为准
+      const t = presenting() ? '退出 XR' : /EXIT|STOP|退出/i.test(s) ? '进入 XR' : /NOT/i.test(s) ? '此设备不支持 XR' : /ENTER|START/i.test(s) ? '进入 XR' : null;
       if (t && s !== t) use.textContent = t;
     }
   };
   const watch = new MutationObserver(relabel);
+  // 正在 XR 里时点按钮 = 退出：直接结束当前会话（新建的按钮自己不知道有会话，会去再申请一次）
+  dock.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('#VRButton, #ARButton');
+    if (!b || !presenting()) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    const sess = window.mpHop._r().xr.getSession(); if (sess) sess.end();
+  }, true);
+  // 会话开始 / 结束不一定改按钮的字（换画后的按钮收不到事件）：定时按实际状态改一下
+  let wasXR = false;
+  setInterval(() => { const x = presenting(); if (x !== wasXR) { wasXR = x; relabel(); } }, 400);
   const collect = () => {
     for (const el of [...document.body.children]) if (isXRBtn(el)) {
       el.classList.add('st-xrbtn'); dock.appendChild(el);
