@@ -509,6 +509,29 @@ export const ACTIVITIES = {
     };
   },
 
+  /**
+   * 搬条凳（where：'stack' 摞到场子东边腾地方 / 'row' 摆回戏台前）：一条一条扛在肩上搬，几个人一起搬时各搬各的。
+   * 搬完 then(v)（默认回日程）。中途被叫走，肩上那条直接放到要去的地方，不会丢。
+   */
+  moveBenches(v, where, then = (vv) => { if (vv.V.benches.mover === vv) vv.V.benches.mover = null; vv.finish(); }) {
+    const B = v.V.benches;
+    let carrying = null;
+    v.char.setItem(null);
+    const end0 = v.end;
+    v.end = () => { if (carrying != null) B.put(carrying, where); carrying = null; v.char.setBack(null); v.V.release(v); if (B.mover === v) B.mover = null; end0?.(); };
+    v.loop = () => {
+      const name = v.V.claim(v, B, B.todo(where).map((i) => `b${i}`), { strict: true });
+      if (!name) { if (B.allAt(where) || !B.todo(where).length) then(v); else v.do('idle', 2); return; }
+      const i = Number(name.slice(1)), from = B.where(i);
+      v.go(B.pickAt(i));
+      v.do('work', 1.2, { face: B.face(i, from) });
+      v.call(() => { B.take(i); carrying = i; v.char.setBack('bench'); });
+      v.go(B.dropAt(i, where));
+      v.do('work', 1.2, { face: B.face(i, where) });
+      v.call(() => { B.put(i, where); carrying = null; v.char.setBack(null); v.V.release(v); });
+    };
+  },
+
   visitFriend(v, who) { // 老人去老伙计家串门：找到他（在家就进院，不在家就在门口等一会儿）
     const f = v.V.byId[who];
     v.char.setItem(v.p.item ?? null);

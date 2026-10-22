@@ -22,7 +22,7 @@ export const EVENTS = {
   },
   market: {
     name: '赶集', place: '村口', from: 8.5, to: 11.5, prep: 0.6, stay: ['zheng_laotou'], // 剃头匠守着挑子做买卖
-    roles: { feng_yuzhen: 'tofu', qian_xiaoer: 'goods', sun_qiaoyun: 'veg' }, // 豆腐嫂卖豆腐、货郎摆杂货、吴大嫂卖菜
+    roles: { feng_yuzhen: 'tofu', qian_xiaoer: 'goods', sun_qiaoyun: 'veg', xiao_liuzi: 'benches', xiao_shun: 'benches' }, // 豆腐嫂卖豆腐、货郎摆杂货、吴大嫂卖菜；周六子、小顺先把戏台前的条凳搬到东边腾地方
     prob: (p) => (kid(p) ? (p.age < 8 ? 0.8 : 0) : p.sex === '女' ? 0.8 : elder(p) ? 0.6 : 0.4),
   },
   bonfire: {
@@ -223,6 +223,7 @@ export const EVENT_ACTS = {
 
   market(v, role) { // 村口三个摊子：卖的站在摊子后头吆喝，买的挎着篮子一个摊一个摊地看、讲价
     const sq = v.V.C.square, M = sq.market;
+    if (role === 'benches') { ACTIVITIES.moveBenches(v, 'stack', (vv) => { vv.char.setBack(null); EVENT_ACTS.market(vv, null); }); return; } // 先搬条凳，搬完逛集
     if (role) {
       const st = M.stalls.find((s) => s.kind === role);
       v.char.setItem(role === 'tofu' ? 'tray' : null);
@@ -239,7 +240,7 @@ export const EVENT_ACTS = {
         v.do('talk', 6 + v.rand() * 4, { face: sq.at(st.x, st.z) }); // 挑一挑、讲讲价
         v.call(() => v.V.release(v));
       }
-      v.go(sq.randomPoint(sq.playArea)); // 逛一逛，碰见熟人说两句
+      v.go(sq.randomPoint([sq.playArea[0], sq.playArea[1], 6.0, sq.playArea[3]])); // 逛一逛，碰见熟人说两句（东边摞着条凳，不往那儿去）
       v.do(v.rand() < 0.5 ? 'talk' : 'idle', 3 + v.rand() * 3);
     };
   },

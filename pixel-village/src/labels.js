@@ -34,6 +34,7 @@ const NAMES = {
   'thresh@spring': '春耕翻地', 'oxHome@spring': '洒扫庭院',
   // 四季的节日（life/events.js）
   chunjie: '串门拜年',
+  moveBenches: '搬条凳', 'market:benches': '搬条凳腾地方',
   qingming: '上坟踏青', duanwu: '包粽子', 'duanwu:host': '张罗包粽子', zhongqiu: '赏月', 'zhongqiu:leader': '主持拜月',
 };
 /** 按当前季节取名字：先找 "键@季节"，没有就用 "键"。 */

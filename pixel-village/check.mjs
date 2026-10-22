@@ -40,6 +40,7 @@ const things = dom.match(/data-things="([^"]*)"/)?.[1]?.replace(/&quot;/g, "\"")
 const clicked = dom.match(/data-clicked="([^"]*)"/)?.[1]; if (clicked) console.log(`clicked=${clicked}`);
 const snd = dom.match(/data-sound="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"'); if (snd) console.log(`sound=${snd}`);
 const graves = dom.match(/data-graves="([^"]*)"/)?.[1]; if (graves) console.log(`graves=${graves.replace(/&quot;/g, '"')}`);
+const perf = dom.match(/data-perf="([^"]*)"/)?.[1]; if (perf) console.log(`perf=${perf.replace(/&quot;/g, '"')}`);
 const eve = dom.match(/data-eve="([^"]*)"/)?.[1]?.replace(/&quot;/g, "\""); if (eve) console.log(`eve=${eve}`);
 if (errors) console.log(`errors:\n${errors}`);
 console.log(`screenshot: ${join(out, page + '.png')}`);

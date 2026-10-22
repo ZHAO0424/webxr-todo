@@ -423,17 +423,34 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     for (let d = -0.85; d <= 0.86; d += 0.2) for (let e = -0.15; e <= 0.16; e += 0.15) out.push(...nav.discCells(...sqB.at(x + Math.cos(r) * d + Math.sin(r) * e, z - Math.sin(r) * d + Math.cos(r) * e), 0.1));
     return out;
   };
-  const rowCells = [...new Set(sqB.benches.flatMap((b) => benchFoot(...b.row)))], stackCells = [...new Set(sqB.benches.flatMap((b) => benchFoot(...b.stack)))];
-  const benchWas = new Map([...rowCells, ...stackCells].map((k) => [k, nav.blocked[k]]));
-  let benchesStacked = null;
-  const setBenches = (stacked) => {
-    if (stacked === benchesStacked) return;
-    benchesStacked = stacked;
+  // 每条凳子在哪：row 摆在戏台前 / stack 摞在东边 / carried 有人扛着（不挡路、看不见，扛的人肩上有一条）
+  const cellsOf = sqB.benches.map((b) => ({ row: benchFoot(...b.row), stack: benchFoot(...b.stack) }));
+  const benchWas = new Map(cellsOf.flatMap((c) => [...c.row, ...c.stack]).map((k) => [k, nav.blocked[k]]));
+  const where = sqB.benches.map(() => 'row');
+  const refreshBenches = () => {
     for (const [k, v] of benchWas) nav.blocked[k] = v;
-    for (const k of stacked ? stackCells : rowCells) nav.blocked[k] = 1;
-    for (const b of sqB.benches) { const [x, z, r, y] = stacked ? b.stack : b.row; b.obj.position.set(x, y, z); b.obj.rotation.y = r; }
+    sqB.benches.forEach((b, i) => {
+      b.obj.visible = where[i] !== 'carried';
+      if (where[i] === 'carried') return;
+      for (const k of cellsOf[i][where[i]]) nav.blocked[k] = 1;
+      const [x, z, r, y] = b[where[i]];
+      b.obj.position.set(x, y, z); b.obj.rotation.y = r;
+    });
   };
-  setBenches(false);
+  refreshBenches();
+  const benchSide = (i, w) => { const [x, z, r] = sqB.benches[i][w]; return r ? [x - 0.75, z] : [x, z + 0.65]; }; // 搬的人站在凳子哪边（摆着的站南边，摞着的站西边）
+  const benches = { // 给 activities.js 的 moveBenches 用
+    todo: (to) => where.map((w, i) => (w !== to && w !== 'carried' ? i : -1)).filter((i) => i >= 0),
+    allAt: (to) => where.every((w) => w === to),
+    pickAt: (i) => nav.nearestFree(...sqB.at(...benchSide(i, where[i] === 'carried' ? 'row' : where[i]))),
+    dropAt: (i, to) => nav.nearestFree(...sqB.at(...benchSide(i, to))),
+    face: (i, w) => sqB.at(sqB.benches[i][w][0], sqB.benches[i][w][1]),
+    where: (i) => where[i],
+    take: (i) => { where[i] = 'carried'; refreshBenches(); },
+    put: (i, to) => { where[i] = to; refreshBenches(); },
+    mover: null, // 散了集，正在往回搬的人
+  };
+  V.benches = benches;
 
   const lanternBase = M.lantern.color.clone();
   const spinners = Object.values(C).flatMap((c) => c.spinners.map((sp) => ({ ...sp, c })));
@@ -523,7 +540,11 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
       const sqC = C.square;
       const marketOn = V.eventOn('market');
       if (marketOn !== stallsUp) { stallsUp = marketOn; for (const st of sqC.market.stalls) st.obj.visible = marketOn; setStallBlock(marketOn); }
-      setBenches(V.today() === 'market' && hour > EVENT_DEFS.market.from - EVENT_DEFS.market.prep - 0.3 && hour < EVENT_DEFS.market.to + 0.2); // 赶集：条凳先摞到东边
+      // 散了集，条凳还没摆回去：叫周六子（不在就叫小顺）来一条条搬回去（赶集前搬过去是他们俩在集市活动里的差事，见 life/events.js）
+      if (!benches.allAt('row') && !(V.today() === 'market' && hour < EVENT_DEFS.market.to + 0.2) && !benches.mover && hour > 5 && hour < 21) {
+        const v = ['xiao_liuzi', 'xiao_shun'].map((id) => V.byId[id]).find((p) => p && !p.inside && !p.errand && !String(p.doing).startsWith('market'));
+        if (v) { benches.mover = v; v.interrupt('moveBenches', 'row'); }
+      }
       const movieOn = V.eventOn('movie');
       sqC.screen.visible = sqC.projector.visible = movieOn;
       if (movieOn) sqC.screen.userData.pic.material = hour >= EVENT_DEFS.movie.from ? M.movie[Math.floor(t / 2.2) % M.movie.length] : M.plaster; // 开演前是一块白布

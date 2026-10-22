@@ -277,6 +277,7 @@ export function bakeStatic(root) {
     m.castShadow = b.cast;
     m.receiveShadow = b.receive;
     m.renderOrder = b.order;
+    m.userData.baked = true;
     root.add(m);
     n++;
   }

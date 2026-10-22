@@ -413,7 +413,34 @@ renderer.setAnimationLoop((_, frame) => {
     refreshCard();
   }
   renderer.render(scene, camera);
+  if (params.has('perf') && ++perfFrames === 2) perfReport();
 });
+
+// ?perf=1：渲染开销报告（draw call、三角面、材质 / 贴图 / 着色器数，按类别分），写到 data-perf
+let perfFrames = 0;
+function perfReport() {
+  const info = renderer.info, owner = new Map();
+  for (const v of village.life.people) v.object.traverse((o) => owner.set(o, 'people'));
+  for (const b of village.life.beasts) b.object.traverse((o) => owner.set(o, 'animals'));
+  const cat = {}, mats = new Map(), add = (k, o) => { const c = (cat[k] ??= { meshes: 0, shadow: 0, tris: 0 }); c.meshes++; if (o.castShadow) c.shadow++; c.tris += Math.round(((o.geometry?.index?.count ?? o.geometry?.attributes.position?.count ?? 0) / 3) * (o.isInstancedMesh ? o.count : 1)); };
+  scene.traverseVisible((o) => {
+    if (!o.isMesh && !o.isSprite) return;
+    const k = owner.get(o) ?? (o.isSprite ? 'sprites' : o.isInstancedMesh ? 'instanced' : o.userData.baked ? 'baked' : o.material?.side === THREE.BackSide ? 'outlines(dynamic)' : 'dynamic');
+    add(k, o);
+    const m = o.material, key = `${m.type}:${m.map?.name || m.map?.uuid?.slice(0, 4) || (m.vertexColors ? 'vcol' : m.color?.getHexString?.())}`;
+    mats.set(m, (mats.get(m) ?? 0) + 1);
+  });
+  const inst = [], dyn = {};
+  const texName = new Map(Object.entries(village.M).filter(([, v]) => v?.isMaterial).map(([k, v]) => [v, k]));
+  const label = (o) => { for (let p = o; p; p = p.parent) { if (p.userData.thing) return p.userData.thing; if (p.userData.label) return p.userData.label; } return (texName.get(o.material) ?? (o.isSprite ? 'sprite' : `misc:${o.material.type}:${o.geometry.type}:${o.parent?.type}`)) + (o.parent?.userData.dynamic ? '@dyn' : ''); };
+  scene.traverseVisible((o) => {
+    if (o.isInstancedMesh) inst.push(`${o.userData.label ?? o.geometry.attributes.position.count}:${o.count}x${Math.round((o.geometry.index?.count ?? 0) / 3)}`);
+    else if ((o.isMesh || o.isSprite) && !owner.has(o) && !o.userData.baked) { const k = label(o); dyn[k] = (dyn[k] ?? 0) + 1; }
+  });
+  cat.inst = inst; cat.dynBy = Object.entries(dyn).sort((a, b) => b[1] - a[1]).slice(0, 20);
+  const byMat = [...mats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([m, n]) => `${m.type}${m.vertexColors ? '(vcol)' : ''}${m.side === THREE.BackSide ? '(hull)' : ''}${m.transparent ? '(alpha)' : ''}×${n}`);
+  document.documentElement.dataset.perf = JSON.stringify({ calls: info.render.calls, tris: info.render.triangles, programs: info.programs.length, textures: info.memory.textures, geometries: info.memory.geometries, materials: mats.size, shadowMap: sun.shadow.mapSize.x, cat, byMat });
+}
 
 // ---------------------------------------------------------------- 无头检查
 

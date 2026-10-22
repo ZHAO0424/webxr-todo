@@ -40,24 +40,46 @@ function rgb(hex) {
 /**
  * 通用体素网格：在整数包围盒 [min, max) 里，solid(x,y,z) 为真的格子是实心；
  * 只为"朝向空格"的面生成四边形，颜色 = color(x,y,z,face)。size 是体素边长，origin 是 (0,0,0) 格的角落位置。
+ * 贪心合并：同一层、同一朝向、同一颜色、挨着的面拼成一个大矩形（颜色和形状不变，三角面少很多——
+ * 一棵玉米原来一千七百多个三角面）。
  */
 export function voxelGeometry(min, max, solid, color, size = VOX, origin = [0, 0, 0]) {
   const pos = [], nor = [], col = [], idx = [];
-  for (let z = min[2]; z < max[2]; z++) for (let y = min[1]; y < max[1]; y++) for (let x = min[0]; x < max[0]; x++) {
-    if (!solid(x, y, z)) continue;
-    for (let f = 0; f < 6; f++) {
-      const [nx, ny, nz] = FACES[f].n;
-      if (solid(x + nx, y + ny, z + nz)) continue;
-      const hex = color(x, y, z, f);
-      if (!hex) continue;
-      const c = rgb(hex);
-      const base = pos.length / 3;
-      for (const [cx, cy, cz] of FACES[f].c) {
-        pos.push(origin[0] + (x + cx) * size, origin[1] + (y + cy) * size, origin[2] + (z + cz) * size);
-        nor.push(nx, ny, nz);
-        col.push(c.r, c.g, c.b);
+  const D = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+  const at = (x, y, z) => ((z - min[2]) * D[1] + (y - min[1])) * D[0] + (x - min[0]);
+  const S = new Uint8Array(D[0] * D[1] * D[2]);
+  for (let z = min[2]; z < max[2]; z++) for (let y = min[1]; y < max[1]; y++) for (let x = min[0]; x < max[0]; x++) if (solid(x, y, z)) S[at(x, y, z)] = 1;
+  const filled = (x, y, z) => x >= min[0] && x < max[0] && y >= min[1] && y < max[1] && z >= min[2] && z < max[2] && S[at(x, y, z)] === 1;
+  const p = [0, 0, 0];
+  for (let f = 0; f < 6; f++) {
+    const n = FACES[f].n, a = n[0] ? 0 : n[1] ? 1 : 2, u = a === 0 ? 1 : 0, v = a === 2 ? 1 : 2; // 法线轴 a，面内两轴 u、v
+    const mask = new Array(D[u] * D[v]);
+    for (let s = min[a]; s < max[a]; s++) {
+      mask.fill(null);
+      for (let j = 0; j < D[v]; j++) for (let i = 0; i < D[u]; i++) {
+        p[a] = s; p[u] = min[u] + i; p[v] = min[v] + j;
+        if (!filled(p[0], p[1], p[2]) || filled(p[0] + n[0], p[1] + n[1], p[2] + n[2])) continue;
+        mask[j * D[u] + i] = color(p[0], p[1], p[2], f) || null;
       }
-      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      for (let j = 0; j < D[v]; j++) for (let i = 0; i < D[u];) {
+        const hex = mask[j * D[u] + i];
+        if (!hex) { i++; continue; }
+        let w = 1;
+        while (i + w < D[u] && mask[j * D[u] + i + w] === hex) w++;
+        let h = 1;
+        grow: while (j + h < D[v]) { for (let k = 0; k < w; k++) if (mask[(j + h) * D[u] + i + k] !== hex) break grow; h++; }
+        for (let jj = 0; jj < h; jj++) for (let k = 0; k < w; k++) mask[(j + jj) * D[u] + i + k] = null;
+        const c = rgb(hex), base = pos.length / 3;
+        for (const cr of FACES[f].c) { // 四个角：法线方向取这一层的里 / 外，面内两轴取矩形的两头
+          const q = [0, 0, 0];
+          q[a] = s + cr[a]; q[u] = min[u] + i + (cr[u] ? w : 0); q[v] = min[v] + j + (cr[v] ? h : 0);
+          pos.push(origin[0] + q[0] * size, origin[1] + q[1] * size, origin[2] + q[2] * size);
+          nor.push(n[0], n[1], n[2]);
+          col.push(c.r, c.g, c.b);
+        }
+        idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+        i += w;
+      }
     }
   }
   const geo = new THREE.BufferGeometry();
@@ -268,6 +290,10 @@ export function voxelCharacter(p, M) {
       const top = { corn: M.corn, grass: M.veg, dung: M.flatRoof, persimmon: M.gold }[fill];
       if (top) add(-0.2, 0.1, -0.16, 0.2, 0.24, 0.16, top);
       g.position.set(0, sh - 0.05, -0.42);
+    } else if (kind === 'bench') { // 扛条凳：凳面顺着前后搭在右肩上，四条腿朝上
+      g.add(block(-0.13, 0, -0.85, 0.13, 0.07, 0.85, M.wood, { outline: false }));
+      for (const z of [-0.7, 0.7]) for (const x of [-0.08, 0.08]) g.add(block(x - 0.035, 0.07, z - 0.035, x + 0.035, 0.45, z + 0.035, M.wood, { outline: false }));
+      g.position.set(0.3, sh + 0.02, 0.05 / 0.8);
     } else if (kind === 'sack') { // 粮袋：一口袋粮食扛在背上，口扎着
       add(-0.26, -0.5, -0.17, 0.26, 0.16, 0.17, M.plaster);
       add(-0.07, 0.16, -0.07, 0.07, 0.27, 0.07, M.straw);

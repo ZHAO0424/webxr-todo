@@ -146,5 +146,6 @@ export class Sprites {
       const b = m.userData.blob;
       if (b) b.position.set(m.position.x, (m.userData.ground ?? 0) + 0.03, m.position.z);
     }
+    for (const pool of this.pools ?? []) pool.flush(v); // 烟（fx.js 的 SmokePool）
   }
 }

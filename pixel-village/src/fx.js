@@ -9,13 +9,14 @@ import { TPU, snap, makeRng, paint, toTexture, flat } from './pixel.js';
  * 炊烟：像素团从烟囱口飘起，被晚风往右带、慢慢变大再缩小消失。
  * 用不同大小的帧而不是半透明渐隐——像素画里"淡出"就是变小、变稀。
  */
-export class Smoke {
-  constructor(parent, sprites, origin, seed, { size = 1.2, rise = 4.5, drift = 3.5, life = 0.12, colors = [R.smoke[1], R.smoke[0]] } = {}) {
-    this.origin = origin;
-    this.rise = rise;
-    this.drift = drift;
-    this.life = life;
-    this.rand = makeRng(seed);
+/**
+ * 一缕烟（炊烟、蒸汽、香火、水雾）：9 团烟一团接一团往上飘，越飘越大、越淡，最后散掉。
+ * 画法：同一个父节点下、同一组颜色的烟共用一个 SmokePool——5 种形态各一个实例化网格，
+ * 所有烟囱的烟团按当时的形态分到这 5 个网格里一起画（原来每团一个网格，一村子烟就是一百多个 draw call）。
+ */
+const POOLS = new Map();
+class SmokePool {
+  constructor(parent, colors) {
     const puff = (s, dense) => toTexture(paint(8, 8, (g) => {
       const o = (8 - s) / 2;
       for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
@@ -24,30 +25,63 @@ export class Smoke {
         g.px(o + x, o + y, y < s / 2 ? colors[0] : colors[1]); // 上半被夕阳照亮一点
       }
     }));
-    this.frames = [[4, true], [6, true], [6, false], [4, false], [2, false]]
-      .map(([s, d]) => flat(puff(s, d), { alphaTest: 0.5, side: THREE.DoubleSide }));
+    this.frames = [[4, true], [6, true], [6, false], [4, false], [2, false]].map(([s, d]) => flat(puff(s, d), { alphaTest: 0.5, side: THREE.DoubleSide }));
+    this.parent = parent;
+    this.puffs = [];
+    this.meshes = [];
+    this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.s = new THREE.Vector3(); this.e = new THREE.Euler(); this.p = new THREE.Vector3();
+  }
+  add(puff) { this.puffs.push(puff); this.meshes.forEach((m) => m.removeFromParent()); this.meshes = []; } // 加了烟团：网格按新的容量重建
+  /** 每帧：按形态把烟团分到 5 个网格里，面朝观察者（只绕竖轴转，和原来的面片一样）。v：观察者在父节点里的位置。 */
+  flush(v) {
+    if (!this.meshes.length) this.meshes = this.frames.map((mat) => {
+      const im = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, this.puffs.length);
+      im.frustumCulled = false;
+      im.userData.dynamic = true;
+      this.parent.add(im);
+      return im;
+    });
+    const n = this.meshes.map(() => 0);
+    for (const pf of this.puffs) {
+      if (!pf.visible) continue;
+      const k = pf.frame, im = this.meshes[k];
+      this.q.setFromEuler(this.e.set(0, Math.atan2(v.x - pf.x, v.z - pf.z), 0));
+      im.setMatrixAt(n[k]++, this.m.compose(this.p.set(pf.x, pf.y, pf.z), this.q, this.s.setScalar(pf.size)));
+    }
+    this.meshes.forEach((im, k) => { im.count = n[k]; im.instanceMatrix.needsUpdate = true; });
+  }
+}
+
+export class Smoke {
+  constructor(parent, sprites, origin, seed, { size = 1.2, rise = 4.5, drift = 3.5, life = 0.12, colors = [R.smoke[1], R.smoke[0]] } = {}) {
+    this.origin = origin;
+    this.rise = rise;
+    this.drift = drift;
+    this.life = life;
+    this.rand = makeRng(seed);
+    const key = colors.join();
+    if (!POOLS.has(parent)) POOLS.set(parent, new Map());
+    const pools = POOLS.get(parent);
+    if (!pools.has(key)) { const pool = new SmokePool(parent, colors); pools.set(key, pool); (sprites.pools ??= []).push(pool); }
+    this.pool = pools.get(key);
+    this.frames = this.pool.frames; // 夜里调暗（village.js）：同一组颜色的烟共用材质
     this.puffs = Array.from({ length: 9 }, (_, i) => {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), this.frames[0]);
-      m.userData.age = i / 9;
-      m.userData.drift = 0;
-      parent.add(m);
-      sprites.items.push(m); // 也转向观察者
-      return m;
+      const pf = { age: i / 9, drift: 0, x: origin.x, y: origin.y, z: origin.z, size, frame: 0, visible: true };
+      this.pool.add(pf);
+      return pf;
     });
   }
 
   /** active = false：不再冒新的，已经飘出去的那几团照样飘完、散掉。 */
   update(dt, active = true) {
-    for (const m of this.puffs) {
-      let a = m.userData.age + dt * this.life;
-      if (a > 1) { a -= 1; m.userData.drift = (this.rand() - 0.5) * 0.5; m.visible = active; }
-      m.userData.age = a;
-      m.position.set(
-        snap(this.origin.x + a * a * this.drift + Math.sin(a * 6) * 0.2 + m.userData.drift),
-        snap(this.origin.y + a * this.rise),
-        snap(this.origin.z + a * 0.6),
-      );
-      m.material = this.frames[Math.min(this.frames.length - 1, Math.floor(a * this.frames.length))];
+    for (const pf of this.puffs) {
+      let a = pf.age + dt * this.life;
+      if (a > 1) { a -= 1; pf.drift = (this.rand() - 0.5) * 0.5; pf.visible = active; }
+      pf.age = a;
+      pf.x = snap(this.origin.x + a * a * this.drift + Math.sin(a * 6) * 0.2 + pf.drift);
+      pf.y = snap(this.origin.y + a * this.rise);
+      pf.z = snap(this.origin.z + a * 0.6);
+      pf.frame = Math.min(this.frames.length - 1, Math.floor(a * this.frames.length));
     }
   }
 }
