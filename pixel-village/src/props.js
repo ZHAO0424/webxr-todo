@@ -588,15 +588,18 @@ export function dryingMat(M, fill, w = 2.4, d = 1.6) {
   return g;
 }
 
-/** 粮堆：场院上摊开扬过的粮食堆成一个矮堆，插着一把木锨（fill：粮食的材质）。 */
-export function grainHeap(M, fill, r = 0.75, h = 0.42) {
+/** 粮堆：碾净扬净的粮食在场院上堆成一个大圆锥（坡度和粮食自然堆起来的差不多，三十度上下），
+ *  堆尖撒一圈白石灰的"灰印"（谁动过一眼就看得出），插着一把木锨（fill：粮食的材质）。 */
+export function grainHeap(M, fill, r = 1.4, h = 0.85) {
   const g = new THREE.Group();
-  const heap = prism(0.15, r, h, fill, 8);
+  const heap = prism(0.22, r, h, fill, 12);
   heap.position.y = h / 2;
-  g.add(heap);
+  const stamp = prism(0.2, 0.24, 0.03, M.plaster, 12); // 灰印
+  stamp.position.y = h + 0.005;
+  g.add(heap, stamp);
   const shovel = new THREE.Group(); // 木锨斜插在堆上：长把 + 宽板头
   shovel.add(block(-0.025, 0, -0.025, 0.025, 1.3, 0.025, M.wood, { outline: false }), block(-0.16, -0.05, -0.02, 0.16, 0.28, 0.02, M.wood));
-  shovel.position.set(0.25, h * 0.55, 0.1);
+  shovel.position.set(r * 0.35, h * 0.55, r * 0.15);
   shovel.rotation.set(0.15, 0.6, -0.55);
   g.add(shovel);
   return g;

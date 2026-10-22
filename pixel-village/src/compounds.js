@@ -551,16 +551,17 @@ function threshing(M) {
   const roller = P.roller(M, 0, 0);
   g.add(roller);
   for (const [x, z, r, h] of [[6.8, -3.0, 1.3, 2.8], [7.6, 1.4, 1.2, 2.5], [3.6, -3.4, 0.9, 1.9]]) g.add(P.haystack(M, x, z, r, h)); // 麦秸垛都在东半边，西边的门口和路让开
-  // 西半边和南沿：按季节摊着晒的粮食、粮堆插着木锨、一排粮袋、簸箕（门口进来那条道和碾子那一圈让开）
+  // 北边一排晒席；南边两个大粮堆（碾完扬净堆起来的，堆尖撒灰印），一排粮袋、簸箕。门口进来那条道、牛拉碾子那一圈让开
   const props = []; // [x, z, 半径]：打场站人的点躲开
   const lay = (obj, x, z, rot, r) => { put(g, obj, x, z, rot); props.push([x, z, r]); };
   const grain = is('summer') ? [M.wheat, M.wheat, M.wheat] : is('autumn') ? [M.corn, M.millet, M.corn] : null;
   if (grain) {
-    lay(P.dryingMat(M, grain[0]), -6.4, -2.9, 0.05, 1.5);
-    lay(P.dryingMat(M, grain[1]), -6.4, 3.2, -0.04, 1.5);
-    lay(P.dryingMat(M, grain[2]), 1.9, 3.9, 0, 1.5);
-    lay(P.grainHeap(M, is('summer') ? M.wheat : M.corn), -3.4, -3.6, 0, 1.0);
-    lay(P.winnower(M), -4.6, 3.5, -0.5, 0.5);
+    lay(P.dryingMat(M, grain[0]), -6.6, -3.6, 0.04, 1.5);
+    lay(P.dryingMat(M, grain[1]), -3.6, -3.9, -0.03, 1.5);
+    lay(P.dryingMat(M, grain[2]), 0.4, -3.9, 0.02, 1.5);
+    lay(P.grainHeap(M, is('summer') ? M.wheat : M.corn), -5.9, 2.9, 0, 1.7);
+    lay(P.grainHeap(M, is('summer') ? M.wheat : M.millet, 1.15, 0.7), -2.6, 3.55, 0.8, 1.45);
+    lay(P.winnower(M), 0.7, 4.1, -0.4, 0.5);
   }
   if (!is('winter')) lay(P.sacks(M, is('autumn') ? 4 : 3), 5.2, 3.9, 0.1, 1.1); // 春天是留的种子，夏秋是新打的粮食
   // 打场那天大伙儿围着碾子站的一圈（在牛走的圈外、躲开麦秸垛、不出场院）

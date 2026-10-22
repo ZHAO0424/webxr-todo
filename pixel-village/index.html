@@ -29,6 +29,14 @@
     /* 卡片：时钟栏下面，靠右 */
     #card { position: fixed; right: calc(4 * var(--p)); top: calc(66 * var(--p)); max-height: calc(100vh - 72 * var(--p)); overflow: auto; scrollbar-width: none; }
     #card::-webkit-scrollbar { display: none; }
+    /* 右上角的日期栏和卡片放大一号：正文换成 16px 点阵（字还是整数倍、不糊），面板加宽 */
+    #clock, #card { --panel-w: calc(146 * var(--p)); }
+    #clock.px, #card .px { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
+    #clock { padding: calc(3 * var(--p)) calc(4 * var(--p)); }
+    #clock .time { font-size: calc(32 * var(--f)); line-height: calc(34 * var(--f)); }
+    #clock .date { line-height: calc(17 * var(--f)); }
+    #card .card { padding: calc(3 * var(--p)) calc(4 * var(--p)); }
+    #card .card .chip, #card .card .follow, #card .card .close { line-height: calc(20 * var(--f)); }
     /* 换场景：屏幕左右边缘正中的像素按钮（像素三角 + 那边的地名） */
     .scene-nav { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
                  padding: calc(3 * var(--p)) calc(2 * var(--p)); cursor: pointer; color: var(--text); background: none; }

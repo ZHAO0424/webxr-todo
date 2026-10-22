@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { block, prism, makeRng } from './pixel.js';
 import { R } from './palette.js';
-import { voxelGeometry } from './voxel.js';
+import { voxelGeometry, FACE } from './voxel.js';
 import { BOUNDS, streamZ, STREAM_HALF } from './layout.js';
 
 /*
@@ -17,7 +17,7 @@ function plant(fn, size) {
   const vox = new Map();
   fn((x, y, z, c) => vox.set(`${x},${y},${z}`, c));
   const [sx, sy, sz] = size;
-  return voxelGeometry([-sx, 0, -sz], [sx + 1, sy, sz + 1], (x, y, z) => vox.has(`${x},${y},${z}`), (x, y, z) => vox.get(`${x},${y},${z}`), PV, [-PV / 2, 0, -PV / 2]);
+  return voxelGeometry([-sx, 0, -sz], [sx + 1, sy, sz + 1], (x, y, z) => vox.has(`${x},${y},${z}`), (x, y, z) => vox.get(`${x},${y},${z}`), PV, [-PV / 2, 0, -PV / 2], { skip: [FACE.ny] }); // 贴地的花草：朝下的面看不见
 }
 
 const SHAPES = {

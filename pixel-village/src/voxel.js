@@ -43,7 +43,7 @@ function rgb(hex) {
  * 贪心合并：同一层、同一朝向、同一颜色、挨着的面拼成一个大矩形（颜色和形状不变，三角面少很多——
  * 一棵玉米原来一千七百多个三角面）。
  */
-export function voxelGeometry(min, max, solid, color, size = VOX, origin = [0, 0, 0]) {
+export function voxelGeometry(min, max, solid, color, size = VOX, origin = [0, 0, 0], { skip = [] } = {}) { // skip：不生成的朝向（FACE.ny：朝下的面，镜头总在上方看不见）
   const pos = [], nor = [], col = [], idx = [];
   const D = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
   const at = (x, y, z) => ((z - min[2]) * D[1] + (y - min[1])) * D[0] + (x - min[0]);
@@ -52,6 +52,7 @@ export function voxelGeometry(min, max, solid, color, size = VOX, origin = [0, 0
   const filled = (x, y, z) => x >= min[0] && x < max[0] && y >= min[1] && y < max[1] && z >= min[2] && z < max[2] && S[at(x, y, z)] === 1;
   const p = [0, 0, 0];
   for (let f = 0; f < 6; f++) {
+    if (skip.includes(f)) continue;
     const n = FACES[f].n, a = n[0] ? 0 : n[1] ? 1 : 2, u = a === 0 ? 1 : 0, v = a === 2 ? 1 : 2; // 法线轴 a，面内两轴 u、v
     const mask = new Array(D[u] * D[v]);
     for (let s = min[a]; s < max[a]; s++) {
@@ -609,9 +610,22 @@ export function voxelTree(kind, seed = 1, scale = 1) {
     const lean = r() * Math.PI * 2;
     const axis = (y) => { const k = Math.max(0, y - 6) * 0.05; return [Math.cos(lean) * k, Math.sin(lean) * k]; };
     const radius = (y, a) => s.gnarl.r + s.gnarl.flare * Math.exp(-y / 3.2) - (y > th * 0.7 ? 0.7 : 0)
-      + 0.45 * Math.cos(a * 7 + y * 0.12) + 0.6 * Math.exp(-(((y - 17) / 3) ** 2)) * Math.max(0, Math.cos(a - lean - 2)); // 竖棱 + 半腰一个树瘤
+      + 0.45 * Math.cos(a * 7 + y * 0.12) + 0.6 * Math.exp(-(((y - 13) / 3) ** 2)) * Math.max(0, Math.cos(a - lean - 2)); // 竖棱 + 半腰一个树瘤
+    // 主干只到分杈处（全树三分之一多高），往上分成几根粗枝，一根伸进一团树冠——树冠就不会悬空
+    const fork = Math.round(th * 0.5), limbs = new Set(), key = (x, y, z) => ((x + 256) * 512 + y) * 512 + (z + 256);
+    blobs.forEach(([bx, by, bz, , ry], i) => {
+      const [ax, az] = axis(fork), y0 = fork - 2 - r() * 5;
+      const end = [bx * 0.8, by - ry * 0.25, bz * 0.8], mid = [ax + (end[0] - ax) * 0.55, y0 + (end[1] - y0) * 0.5, az + (end[2] - az) * 0.55]; // 一出杈就斜着往外伸，伸进树冠再往上
+      const r0 = i ? 2.4 : 3.0, r1 = i ? 0.8 : 1.2, n = Math.ceil(Math.hypot(end[0] - ax, end[1] - y0, end[2] - az) * 2);
+      for (let k = 0; k <= n; k++) {
+        const t = k / n, u = 1 - t, rr = r0 + (r1 - r0) * t;
+        const px = u * u * ax + 2 * u * t * mid[0] + t * t * end[0], py = u * u * y0 + 2 * u * t * mid[1] + t * t * end[1], pz = u * u * az + 2 * u * t * mid[2] + t * t * end[2];
+        for (let x = Math.floor(px - rr); x <= px + rr; x++) for (let y = Math.floor(py - rr); y <= py + rr; y++) for (let z = Math.floor(pz - rr); z <= pz + rr; z++) if (Math.hypot(x - px, y - py, z - pz) <= rr) limbs.add(key(x, y, z));
+      }
+    });
     const solid = (x, y, z) => {
-      if (y >= th) return false;
+      if (limbs.has(key(x, y, z))) return true;
+      if (y >= fork + 4) return false;
       const [ax, az] = axis(y), dx = x - ax, dz = z - az;
       if (Math.hypot(dx, dz) <= radius(y, Math.atan2(dz, dx))) return true;
       if (y > 3) return false;
@@ -628,7 +642,7 @@ export function voxelTree(kind, seed = 1, scale = 1) {
   const trunk = (x, y, z) => {
     const rw = tw - 1 + (s.flare ? Math.max(0, s.flare - y) : 0) + (s.flare && y > th * 0.6 ? -1 : 0); // flare：根部往外扎开；粗树干往上收一点
     if (G ? G.solid(x, y, z) : y < th && Math.abs(x) <= rw && Math.abs(z) <= rw && !(s.flare && Math.abs(x) === rw && Math.abs(z) === rw)) return true;
-    for (const br of branches) {
+    if (!G) for (const br of branches) {
       if (y < br.y0 || y > br.y0 + br.len) continue;
       const t = y - br.y0, bx = Math.round(Math.cos(br.a) * t * 0.8), bz = Math.round(Math.sin(br.a) * t * 0.8);
       if (s.thick ? Math.abs(bx - x) + Math.abs(bz - z) <= (t < br.len * 0.6 ? 2 : 1) : bx === x && bz === z) return true; // thick：粗枝

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { makeRng } from './pixel.js';
 import { R } from './palette.js';
-import { voxelGeometry } from './voxel.js';
+import { voxelGeometry, FACE } from './voxel.js';
 import * as PROPS from './props.js';
 import { tagged } from './things.js';
 import { inSoy } from './layout.js';
@@ -28,7 +28,7 @@ function plant(fn, size) {
   const vox = new Map();
   fn((x, y, z, c) => vox.set(`${x},${y},${z}`, c));
   const [sx, sy, sz] = size;
-  return voxelGeometry([-sx, 0, -sz], [sx + 1, sy, sz + 1], (x, y, z) => vox.has(`${x},${y},${z}`), (x, y, z) => vox.get(`${x},${y},${z}`), PV, [-PV / 2, 0, -PV / 2]);
+  return voxelGeometry([-sx, 0, -sz], [sx + 1, sy, sz + 1], (x, y, z) => vox.has(`${x},${y},${z}`), (x, y, z) => vox.get(`${x},${y},${z}`), PV, [-PV / 2, 0, -PV / 2], { skip: [FACE.ny] }); // 朝下的面（叶子、穗子底下）镜头看不见，省掉
 }
 const leaf = (v, x, y, z, dx, dz, len, c) => { for (let k = 1; k <= len; k++) v(x + dx * k, y - Math.floor((k * k) / 6), z + dz * k, c); }; // 一片往外耷拉的叶子
 
