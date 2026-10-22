@@ -331,7 +331,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     return { ...S, front, wait, spots: {} };
   })();
 
-  const ducks = [-20, 27.2 + BAND.d, -6, 33 + BAND.d];
+  const ducks = [-26, 22, -6, 33 + BAND.d]; // 溪里、溪北岸，往西到铁匠铺门口那片草滩
   const V = {
     M, root, nav, C, nodes, torches, shrine,
     // 祖坟：每个坟头前一个磕头的位置（清明上坟）
@@ -351,6 +351,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     duckWater: nav.nearestFree(-12, 28.5),
     // 小孩玩耍的去处：溪北岸能站的地方（脸朝水），村口附近的庄稼地
     bankClaims: {}, // 溪边洗衣裳的位置有人占了就换一个
+    pool: west.work.pool.map((p) => ({ ...p, at: nav.nearestFree(...p.at) })).filter((p) => nav.reachable(...p.at) && Math.hypot(p.at[0] - p.face[0], p.at[1] - p.face[1]) < 6), // 西沟瀑布下水潭边钓鱼的位置
+    poolClaims: {},
     // 进山砍柴：村外坡上（离村中心 18 米以外、草坡上）、西沟林子里路边的树，走得到的
     woods: [...trunks.filter(([x, z]) => Math.hypot(x, z - 5) > 18 && terrain.typeAt(x, z) === 'grass').map(([x, z]) => ({ at: nav.nearestFree(x + 0.9, z + 0.6, false, 2), tree: [x, z] })), ...west.work.woods]
       .filter((w) => nav.freeAt(...w.at) && nav.reachable(...w.at)),

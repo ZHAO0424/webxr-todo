@@ -533,7 +533,7 @@ if (params.has('sim')) {
     for (const b of village.life.beasts) {
       if (b.home || b.s.perches || b.s.role === 'pigeon' || b.circling) continue;
       if (!nav.freeAt(b.pos.x, b.pos.z, b.swim) && !nav.door[nav.index(b.pos.x, b.pos.z)]) { clipA++; const k = `${b.s.role}@${Math.round(b.pos.x)},${Math.round(b.pos.z)}`; whyA[k] = (whyA[k] ?? 0) + 1; }
-      if ((b.stuck ?? 0) > 0.3) beastStuck++;
+      if ((b.stuck ?? 0) > 0.3) { beastStuck++; const k = `stuck:${b.s.role}@${b.c?.id ?? Math.round(b.pos.x) + ',' + Math.round(b.pos.z)}`; whyA[k] = (whyA[k] ?? 0) + 1; }
       // 逃逸：没人赶、没人喂的时候，圈养的牲口跑出了自己的院子
       if (b.stroll) strolls++;
       if (b.c && b.s.area && !b.follow && !b.graze && !b.stroll && !b.returning && ['chicken', 'pig', 'sheep'].includes(b.s.role)) {

@@ -361,6 +361,19 @@ export const ACTIVITIES = {
 
   garden(v) { v.char.setItem('hoe'); v.go(v.home.spot('garden')); v.loop = () => v.do('work', 8); },
 
+  fish(v, where) { // 钓鱼：举着竹竿去溪边坐着（where = 'pool'：老把式走去西沟瀑布下的水潭），一坐半天，时不时提一下竿
+    const V = v.V, pool = where === 'pool' && V.pool.length;
+    const spots = pool ? V.pool : V.streamBank.map(([x, z]) => ({ at: [x, z], face: [x, z + 3] }));
+    const name = spots.length ? V.claim(v, pool ? V.poolClaims : V.bankClaims, spots.map((_, i) => `b${i}`), { strict: true }) : null; // 溪边和洗衣裳的抢同一排位置
+    if (!name) { ACTIVITIES.sitGate(v); return; }
+    const spot = spots[Number(name.slice(1))];
+    if (pool) v.doing = 'fish:pool'; // 卡片上写去西沟水潭
+    v.char.setItem('rod');
+    v.go(spot.at);
+    v.loop = () => { v.seat = 0.1; v.do('sit', 12, { face: spot.face }); }; // 坐在岸边，腿伸向水面
+    v.end = () => { v.seat = null; v.char.setItem(v.p.item ?? null); V.release(v); };
+  },
+
   laundry(v) { // 去溪边洗衣裳：挎着一篮子衣裳，蹲在溪边搓洗，洗完回院里晾
     v.char.setItem('basket');
     const banks = v.V.streamBank;

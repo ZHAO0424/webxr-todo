@@ -376,6 +376,10 @@ const ITEMS = {
     g.hline(0, FRAME_W - 1, y, R.wood[3]);
     cabinet(0); cabinet(FRAME_W - 6);
   },
+  rod(g, hand) { // 钓鱼竿：竹竿往前上方斜挑，竿梢垂线和浮子
+    g.line(hand.x + 1, hand.y, hand.x + 5, hand.y - 12, R.wheat[3]);
+    g.vline(hand.x + 5, hand.y - 11, hand.y - 5, R.white[3]); g.px(hand.x + 5, hand.y - 4, R.red[3]);
+  },
   book(g, hand, work) {
     const y = hand.y - (work === 1 ? 5 : 2);
     g.rect(hand.x - 1, y, 4, 3, R.indigo[3]); g.hline(hand.x - 1, hand.x + 2, y, R.paper[2]);

@@ -19,7 +19,7 @@ const NAMES = {
   laundry: '溪边洗衣', firewood: '进西沟砍柴', visitFriend: '探望老友', mill: '去水磨坊磨面', worship: '去山神庙上香', caravan: '赶着骡子进村赶集', caravanHome: '赶着骡子回山外',
   'work:bellows': '拉风箱', 'work:stove': '看守灶火', 'work:sweep': '清扫街道', 'work:work': '照看驴拉磨',
   'visit:tofu': '去豆腐坊', 'visit:doctor': '去药铺', 'visit:farmA': '去陈家出诊', 'deliver:headman': '送往村长家',
-  'field:fieldW': '西坡', 'field:fieldSoy': '豆子地', 'field:fieldE': '东坡', 'field:fieldWest': '西沟梯田', 'thresh:help': '帮忙扫场', 'chore:yardWork': '洒扫庭院', 'chore:fetchWater': '挑水',
+  'fish': '溪边钓鱼', 'fish:pool': '去西沟水潭钓鱼', 'field:fieldW': '西坡', 'field:fieldSoy': '豆子地', 'field:fieldE': '东坡', 'field:fieldWest': '西沟梯田', 'thresh:help': '帮忙扫场', 'chore:yardWork': '洒扫庭院', 'chore:fetchWater': '挑水',
   'chore:feedChickens': '喂鸡', 'chore:feedRabbits': '喂兔', 'chore:work': '照看驴拉磨',
   // 四季的农活（life/variety.js 的 seasonal）
   sow: '下地点种', plowHoe: '春耕翻地', weed: '锄地除草', reapWheat: '下地割麦', carrySheaves: '背麦个子上场',

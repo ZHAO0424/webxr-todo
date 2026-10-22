@@ -795,6 +795,10 @@ export function buildWest(M) {
       for (let u = 10; u < 35; u += 1) for (let z = -34; z < -24; z += 1) if (terrain.typeAt(W(u), z) === 'grass' && zTop(u) - z > 3) out.push([W(u), z]);
       return out;
     })(),
+    pool: Array.from({ length: 9 }, (_, i) => { // 瀑布下的水潭：南半圈岸上坐着钓鱼（北边是崖和瀑布），脸朝潭心
+      const a = Math.PI * (0.1 + 0.8 * (i / 8)), x = W(POOL.u) + Math.cos(a) * (POOL.r + 1.0), z = POOL.z + Math.sin(a) * (POOL.r + 1.0);
+      return { at: [x, z], face: [W(POOL.u), POOL.z] };
+    }).filter((p) => !terrain.isWater(...p.at)),
     caravan: ['outW', 'cw2', 'd1', 'g-16', 'g4', 'g28', GNAME(GALLERY[0])].map((n) => [nodes[n].x, nodes[n].z]), // 骡帮进村：山外 → 崖脚 → 挂壁古道 → 古道东头（再往东是村子）
   };
 

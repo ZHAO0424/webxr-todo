@@ -13,7 +13,7 @@ import { season } from '../season.js';
  * 同一天、同一个人、同一条日程结果固定（hash），模拟能复现。
  */
 
-const OUTDOOR = new Set(['field', 'haul', 'herd', 'herdHome', 'thresh', 'oxHome', 'play', 'garden', 'yardWork', 'sitGate', 'chess', 'patrol', 'evening', 'sellTofu', 'tendBees', 'peddle', 'peddlerChat', 'visit', 'dinner', 'firewood']);
+const OUTDOOR = new Set(['field', 'haul', 'herd', 'herdHome', 'thresh', 'oxHome', 'play', 'garden', 'yardWork', 'sitGate', 'chess', 'patrol', 'evening', 'sellTofu', 'tendBees', 'peddle', 'peddlerChat', 'visit', 'dinner', 'firewood', 'fish']);
 const FIREWOOD = new Set(['yang_erniu', 'wu_dachuan', 'liu_youfu']);
 const LAUNDRY = new Set(['li_guilan', 'he_xiulan', 'feng_yuzhen', 'liu_cuihua', 'sun_qiaoyun', 'chen_daniang']);
 const ELDERS = new Set(['wang_deshan', 'chen_mancang', 'chen_daniang', 'zhou_jishi', 'zheng_laotou']);

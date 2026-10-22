@@ -231,6 +231,23 @@ export function voxelCharacter(p, M) {
       armR.add(holder);
       return holder;
     }
+    if (name === 'rod') { // 钓鱼竿：一根竹竿从手里往前斜挑出去，竿梢垂一根线、一个红白浮子（坐着钓鱼时才放线）
+      const holder = new THREE.Group();
+      holder.position.set(hx * VOX, (hy - shoulderY) * VOX, 0);
+      const rod = new THREE.Group();
+      rod.rotation.x = 0.48; // 胳膊往前抬 1 弧度时，竿子朝前上方斜三十度
+      rod.add(block(-0.018, -0.018, 0, 0.018, 0.018, 1.7, M.straw, { outline: false }), block(-0.025, -0.025, -0.05, 0.025, 0.025, 0.25, M.wood, { outline: false }));
+      const line = new THREE.Group(); // 线：从竿梢垂到水面（在竿子的坐标里斜着放，看上去是竖直往下）
+      line.position.z = 1.7;
+      line.rotation.x = 0.52;
+      line.add(block(-0.006, -1.0, -0.006, 0.006, 0, 0.006, M.plaster, { outline: false }), block(-0.03, -1.06, -0.03, 0.03, -0.98, 0.03, M.redCloth, { outline: false }));
+      line.visible = false;
+      rod.add(line);
+      holder.add(rod);
+      holder.userData.line = line;
+      armR.add(holder);
+      return holder;
+    }
     if (name === 'peddler') { // 货郎担：右肩一根长扁担，前后各挑一只带腿的木货柜（两排抽屉、顶上围栏货盘、门字架上挂拨浪鼓和头绳）
       const V = new Map(), set = (x, y, z, c) => V.set(`${x},${y},${z}`, c);
       const top = FEET - L.torsoTop; // 肩头高（体素）
@@ -358,6 +375,8 @@ export function voxelCharacter(p, M) {
     pose(state, t, phase = 0, { seat = 0.45, cadence = 1 } = {}) {
       const w = (state === 'run' ? 13 : 8 * cadence) * t + phase;
       rest();
+      const line = current && items.get(current)?.userData.line;
+      if (line) line.visible = state === 'sit'; // 鱼线只在坐下钓鱼时放下来
       if (state === 'sit' || state === 'squat' || state === 'fiddle') {
         legL.rotation.x = legR.rotation.x = -1.45;
         rig.position.y = state === 'squat' ? -legLen * 0.55 : seat - legLen + 0.05;
@@ -369,6 +388,7 @@ export function voxelCharacter(p, M) {
           return;
         }
         if (state === 'squat') { armR.rotation.x = -0.9 - (Math.sin(t * 2.2 + phase) > 0.6 ? 0.6 : 0); armL.rotation.x = -0.7; }
+        else if (current === 'rod') { armR.rotation.x = Math.sin(t * 0.35 + phase) > 0.95 ? -1.5 : -1.0 + Math.sin(t * 1.3 + phase) * 0.03; armL.rotation.x = -0.8; } // 坐着钓鱼：竿子微微颤，隔一阵往上一提
         else if (current === 'bowl') { armR.rotation.x = Math.sin(t * 2.2 + phase) > 0.4 ? -1.7 : -1.0; armL.rotation.x = -0.9; } // 坐着端碗扒饭：碗凑到嘴边
         else armR.rotation.x = Math.sin(t * 0.8 + phase) > 0.7 ? -0.5 : -0.2;
         return;
@@ -446,6 +466,7 @@ export function voxelCharacter(p, M) {
         if (current === 'umbrella') armR.rotation.x = -0.9; // 打伞的那只手举着不摆
         if (current === 'pole' || current === 'buckets') armR.rotation.x = -1.3; // 挑担子：右手扶着扁担前半截
         if (current === 'peddler') armR.rotation.x = -1.5; // 货郎担：右手往前扶着扁担
+        if (current === 'rod') armR.rotation.x = -1.0; // 举着鱼竿走
         body.position.y = Math.abs(Math.cos(w)) > 0.7 ? VOX : 0; // 每步起伏一个像素
       } else if (state === 'work') {
         WORK_MOTION[current ?? 'none']?.(t + phase, armL, armR, body) ?? WORK_MOTION.hammer(t + phase, armL, armR, body);

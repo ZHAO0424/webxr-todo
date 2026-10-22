@@ -122,7 +122,8 @@ export class Beast {
       if (o) {
         const lat = -(o.pos.x - this.pos.x) * uz + (o.pos.z - this.pos.z) * ux;
         const sd = lat > 0 ? -1 : 1, mx = ux - uz * sd * 1.1, mz = uz + ux * sd * 1.1, m = Math.hypot(mx, mz);
-        if (nav.freeAt(this.pos.x + (mx / m) * 0.35, this.pos.z + (mz / m) * 0.35, this.swim)) { ux = mx / m; uz = mz / m; steer = true; this.steered = true; }
+        const sx = this.pos.x + (mx / m) * 0.35, sz = this.pos.z + (mz / m) * 0.35;
+        if (nav.freeAt(sx, sz, this.swim) && Math.abs(nav.heightAt(sx, sz) - nav.heightAt(this.pos.x, this.pos.z)) <= 0.36) { ux = mx / m; uz = mz / m; steer = true; this.steered = true; } // 绕人也不能一步跨下坎（猪、狗以前会被挤到下一级梯田上回不来）
         else if (o.tasks[0]?.type === 'go' && Math.sin(o.heading) * ux + Math.cos(o.heading) * uz > 0.3) budget = Math.min(budget, o.speed * dt * 0.95);
         else break;
       }
