@@ -661,7 +661,7 @@ export function sacks(M, n = 3) {
 /** 簸箕：柳条编的，后高前低的浅斗。 */
 export function winnower(M) {
   const g = new THREE.Group();
-  g.add(block(-0.32, 0, -0.26, 0.32, 0.04, 0.26, M.straw, { outline: false }), block(-0.32, 0.04, -0.26, 0.32, 0.16, -0.2, M.straw), ...[-1, 1].map((sx) => block(sx * 0.32 - 0.03, 0.04, -0.26, sx * 0.32 + 0.03, 0.1, 0.18, M.straw)));
+  g.add(block(-0.32, 0, -0.26, 0.32, 0.04, 0.26, M.straw, { outline: false }), block(-0.32, 0.04, -0.26, 0.32, 0.16, -0.2, M.straw), ...[-1, 1].map((sx) => block(sx * 0.32 - 0.03, 0.04, -0.2, sx * 0.32 + 0.03, 0.1, 0.18, M.straw)));
   return g;
 }
 

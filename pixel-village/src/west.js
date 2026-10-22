@@ -107,6 +107,9 @@ function peaks(u, z) {
 /** 庙龛四周的山：龛口上方先压到 3.6 米，再往后、往两边一级级升高（不会一整块石头悬在庙顶上）。 */
 const nicheCap = (u, back) => NICHE.h + 3.6 + 1.2 * Math.max(0, back - NICHE.depth) + 1.5 * Math.max(0, Math.abs(u - NICHE.c) - nicheHalf(Math.min(back, NICHE.depth)));
 const springFloor = (z) => PLATEAU + (zTop(FALL_U) - z) * 0.3; // 泉水沟的沟底，往北一路升高
+/** 崖顶边上一道裸岩宽多少：有宽有窄，窄的地方草一直长到崖边（挂壁古道头顶的崖石顶面跟着它铺草 / 露岩）。 */
+const rimRock = (u) => 0.8 + 1.7 * (0.5 + 0.5 * Math.sin(u * 0.55 + 0.8)) * (0.5 + 0.5 * Math.sin(u * 0.17 + 2.1));
+
 function plateau(u, z) {
   const zt = zTop(u);
   let h = PLATEAU + (z < -31 ? 0.6 : 0);
@@ -119,7 +122,7 @@ function plateau(u, z) {
     if (d < 6) h = Math.min(h, q(springFloor(z) + 0.6 + Math.max(0, d - 0.9) * 1.8, 0.6));
     h = Math.max(PLATEAU, Math.min(h, q(nicheCap(u, zt - z), 0.6)));
   }
-  const rocky = zt - z < 2.5 || (w < 1 && peaks(u, z) > 5 && (Math.floor(u * 0.7) + Math.floor(z * 0.5)) % 3 !== 0);
+  const rocky = zt - z < rimRock(u) || (w < 1 && peaks(u, z) > 5 && (Math.floor(u * 0.7) + Math.floor(z * 0.5)) % 3 !== 0);
   return { h, type: rocky ? 'rock' : 'grass' };
 }
 
@@ -444,7 +447,7 @@ function logPile(M) {
  */
 function cliffRoad(M, pts, terrain) {
   const g = new THREE.Group();
-  const lidMats = [M.cliff, M.cliff, M.rockTop, M.cliff, M.cliff, M.cliff]; // +x -x +y -y +z -z
+  const lidMats = (top) => [M.cliff, M.cliff, top, M.cliff, M.cliff, M.cliff]; // +x -x +y -y +z -z：只有顶面不一样
   for (let i = 0; i < pts.length - 1; i++) {
     const A = pts[i], B = pts[i + 1];
     const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;
@@ -462,7 +465,15 @@ function cliffRoad(M, pts, terrain) {
     const inTunnel = Math.min(u0, u1) >= TUNNEL[0] - 0.01 && Math.max(u0, u1) <= TUNNEL[1] + 0.01;
     if (inTunnel) {
       const base = Math.min(A.h, B.h), top = base + 2.6;
-      piece(L / 2, -0.05, top, PLATEAU + 0.06, L + 0.4, 3.9, lidMats); // 头顶的崖石
+      // 头顶的崖石：一米一段。离洞口 3 米以内往崖里收（洞口像个自然的崖口，不是齐刷刷切断的一块方砖）；
+      // 顶面接着崖顶的草坡，大半是草、零星露红岩，最外沿一道岩边
+      for (let s = -0.2; s < L + 0.2; s += 1) {
+        const len = Math.min(1.02, L + 0.2 - s), u = A.x + ux * (s + len / 2) - OX;
+        const dEnd = Math.min(u - TUNNEL[0], TUNNEL[1] - u), out = dEnd >= 3 ? 1.9 : -0.6 + Math.floor((Math.max(0, dEnd) / 3) * 5) * 0.5;
+        const grass = rimRock(u) < 1.5; // 跟身后崖顶那道裸岩一致：身后是草就铺草
+        piece(s + len / 2, (-2.0 + out - 0.5) / 2, top, PLATEAU + 0.06, len, out - 0.5 + 2.0, lidMats(grass ? M.grass : M.rockTop));
+        piece(s + len / 2, out - 0.25, top, PLATEAU + 0.02, len, 0.5, lidMats(M.rockTop)); // 外沿岩边，比草面低一个像素
+      }
       piece(L / 2, 1.45, base - 0.1, base + 0.9, L + 0.4, 0.7, M.cliff); // 窗台
       piece(L / 2, 1.45, top - 0.4, top, L + 0.4, 0.7, M.cliff); // 窗楣
       for (let s = 0.2; s < L; s += 4) piece(s + 1.1, 1.45, base + 0.9, top - 0.4, 2.2, 0.7, M.cliff); // 窗洞之间的石柱
