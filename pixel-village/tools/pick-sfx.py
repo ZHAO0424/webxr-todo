@@ -15,6 +15,7 @@ PICK = {
     'goose': ('B', 0.5, '', -22), 'pigeon': ('C', 1.4, '', -22), 'magpie': ('A', 1.5, 'lowpass=f=6000', -24), 'cat': ('C', 0.9, '', -22),
     'clang': ('C', 0.6, 'lowpass=f=3500', -22), 'chop': ('B', 0.4, '', -20), 'thud': ('B', 0.6, 'lowpass=f=4000', -22), 'chirp': ('C', 1.5, 'lowpass=f=6500', -28),
     'crickets': ('C', 0, '', -28), 'fire': ('B', 0, '', -22), 'mill': ('B', 0, '', -22), 'crowd': ('B', 0, '', -24), 'projector': ('C', 0, '', -26),
+    'waterwheel': ('C', 0, 'lowpass=f=3500', -24), 'waterfall': ('A', 0, 'lowpass=f=2000', -26), 'woodpecker': ('B', 1.6, 'lowpass=f=5000', -24), 'owl': ('A', 1.8, 'lowpass=f=4000', -26),
 }
 
 index = json.loads((CAND / 'index.json').read_text(encoding='utf-8'))

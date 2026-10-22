@@ -25,3 +25,7 @@
 | mill.mp3 | Inside a traditional Dutch windmill, 2 | pcwvdmark | https://freesound.org/people/pcwvdmark/sounds/345846/ |
 | crowd.mp3 | Busy Room Ambience / People talking in background #2 | Breviceps | https://freesound.org/people/Breviceps/sounds/465699/ |
 | projector.mp3 | VideoTronic Super 8mm Projector | ajoyce86 | https://freesound.org/people/ajoyce86/sounds/213741/ |
+| waterwheel.mp3 | water_wheel.wav | ondrosik | https://freesound.org/people/ondrosik/sounds/195324/ |
+| waterfall.mp3 | Wilkies Pools Waterfalls.mp3 | laughatlantic | https://freesound.org/people/laughatlantic/sounds/565737/ |
+| woodpecker.mp3 | Woodpecker Pecking | Terry93D | https://freesound.org/people/Terry93D/sounds/342096/ |
+| owl.mp3 | Owl Hoot | Breviceps | https://freesound.org/people/Breviceps/sounds/465697/ |

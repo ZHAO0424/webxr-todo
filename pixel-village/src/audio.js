@@ -11,6 +11,8 @@ import { makeSynth } from './synth.js';
  *   凑近石磨、碾子，牲口拉着转就有隆隆声。离远了这些都听不见。
  * - 特定时候：清早公鸡各打两三声鸣（小声）；办活动时人群嗡嗡、唱戏（板胡梆子锣，合成）、篝火、放电影的放映机、祭土地摇铃；
  *   深夜打更的梆子和小锣。
+ * - 西沟（镜头在西沟那块沙盘时）：瀑布水声、水磨坊的水车吱呀（离得越近越响）；有人在山神庙上香时摇铃；
+ *   白天林子里偶尔啄木鸟、鸟叫更勤，夜里偶尔一声猫头鹰。
  *
  * 声源都放在村子坐标（米）里，听者 = 相机（换算到村子坐标），HRTF 声像：分得出左右，离得越远越小。
  * 录音素材在 sfx/（Freesound，CC0，来源见 sfx/CREDITS.md），合成的音色在 synth.js。
@@ -22,12 +24,13 @@ const NEAR = 14; // 凑到这么近，动物才会自己叫
 const WORK_NEAR = 45; // 干活的声音在这个距离以内才放
 const ANIMAL_GAIN = 0.45; // 动物叫声整体音量
 const AUDIBLE = 160; // 再远的一次性声音就不播了
+const WEST_X = -45; // 听者在这条线以西 = 在看西沟（west.js 的 WEST_BOUNDS.x1）
 
-const SAMPLES = ['rooster', 'hen', 'dog', 'pig', 'sheep', 'donkey', 'ox', 'duck', 'goose', 'pigeon', 'magpie', 'cat', 'clang', 'chop', 'thud', 'chirp', 'crickets', 'fire', 'mill', 'crowd', 'projector'];
-const LONG = new Set(['crickets', 'fire', 'mill', 'crowd', 'projector']); // 长录音（循环用），不等它们
+const SAMPLES = ['rooster', 'hen', 'dog', 'pig', 'sheep', 'donkey', 'ox', 'duck', 'goose', 'pigeon', 'magpie', 'cat', 'clang', 'chop', 'thud', 'chirp', 'crickets', 'fire', 'mill', 'crowd', 'projector', 'woodpecker', 'owl', 'waterwheel', 'waterfall'];
+const LONG = new Set(['crickets', 'fire', 'mill', 'crowd', 'projector', 'waterwheel', 'waterfall']); // 长录音（循环用），不等它们
 const ANIMAL = { rooster: 'rooster', hen: 'hen', henBrown: 'hen', dog: 'dog', dogBlack: 'dog', pig: 'pig', sheep: 'sheep', donkey: 'donkey', ox: 'ox', duck: 'duck', goose: 'goose', pigeon: 'pigeon', magpie: 'magpie', cat: 'cat' };
 // 点物件时放什么：录音名，或 synth:合成音色
-const THING_SOUND = { forge: 'clang', millstone: 'mill', roller: 'mill', firePit: 'fire', coop: 'hen', pigsty: 'pig', shed: 'ox', duckHouse: 'duck', movieScreen: 'projector', stage: 'synth:gong', shrine: 'synth:bell', well: 'synth:block', lumber: 'chop', firewood: 'chop', workbench: 'chop', watermill: 'mill', weir: 'mill', mountainTemple: 'synth:bell' };
+const THING_SOUND = { forge: 'clang', millstone: 'mill', roller: 'mill', firePit: 'fire', coop: 'hen', pigsty: 'pig', shed: 'ox', duckHouse: 'duck', movieScreen: 'projector', stage: 'synth:gong', shrine: 'synth:bell', well: 'synth:block', lumber: 'chop', firewood: 'chop', workbench: 'chop', watermill: 'waterwheel', weir: 'waterfall', waterfall: 'waterfall', mountainTemple: 'synth:bell' };
 
 export function createSound(village, getCamera) {
   let ctx = null, master = null, on = false, S = null, ready = false, muted = false;
@@ -38,9 +41,9 @@ export function createSound(village, getCamera) {
   const crowed = new Map(); // 公鸡今天早上叫了几声
   let lp = new THREE.Vector3();
   const op = {}; // 唱戏的拍子
-  let nextBird = 3, nextCricket = 5; // 按村子的秒数（t）算
+  let nextBird = 3, nextCricket = 5, nextPeck = 8, nextOwl = 10; // 按村子的秒数（t）算
 
-  const thing = (k) => village.things.find((t) => t.thing === k);
+  const thing = (k) => village.things.find((t) => t.thing === k) ?? village.west.things.find((t) => t.thing === k);
   const centerOf = (t) => t && [(t.box.min.x + t.box.max.x) / 2, t.box.min.y + 0.8, (t.box.min.z + t.box.max.z) / 2];
   const dist = ([x, y, z]) => Math.hypot(x - lp.x, y - lp.y, z - lp.z);
   const posOf = (o, h = 0.6) => [o.pos.x, o.pos.y + h, o.pos.z];
@@ -91,7 +94,7 @@ export function createSound(village, getCamera) {
   // 长录音循环：加载完了再接上（短的音效先能用）
   const bufLoop = (key) => (out) => LOAD[key].then((b) => { if (!b) return; const s = new AudioBufferSourceNode(ctx, { buffer: b, loop: true }); s.connect(out); s.start(0, Math.random() * b.duration); });
 
-  let rain, mill, roller, fire, firePos, crowd, projector;
+  let rain, mill, roller, fire, firePos, crowd, projector, wheel, fall;
 
   function setup() {
     const L = S.LOOPS;
@@ -102,6 +105,8 @@ export function createSound(village, getCamera) {
     fire = loop(firePos, bufLoop('fire'));
     crowd = loop([0, 0, 0], bufLoop('crowd'));
     projector = loop(centerOf(thing('movieScreen')), bufLoop('projector'));
+    wheel = loop(centerOf(thing('watermill')), bufLoop('waterwheel'));
+    fall = loop(centerOf(thing('waterfall')), bufLoop('waterfall'));
     ready = true;
   }
 
@@ -156,8 +161,17 @@ export function createSound(village, getCamera) {
 
     // 时不时：白天鸟叫、夜里蛐蛐（在听者周围随机一处）
     const around = () => [lp.x + (Math.random() - 0.5) * 50, lp.y - 20, lp.z + (Math.random() - 0.5) * 50];
-    if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { sample('chirp', around(), { gain: 0.45 }); nextBird = t + 10 + Math.random() * 18; }
+    const inWest = lp.x < WEST_X;
+    if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { sample('chirp', around(), { gain: 0.45 }); nextBird = t + (inWest ? 6 + Math.random() * 10 : 10 + Math.random() * 18); }
     if ((hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextCricket) { sample('crickets', around(), { dur: 3 + Math.random() * 3, offset: Math.random() * 30, jitter: 0, gain: 0.5 }); nextCricket = t + 12 + Math.random() * 20; }
+
+    // 西沟：瀑布、水车一直在响（只在看西沟时放，近了更响）；林子里啄木鸟，夜里猫头鹰；有人在山神庙上香就摇铃
+    fall.set(inWest ? 0.5 : 0, 1.2);
+    wheel.set(inWest ? 0.6 : 0, 1.2);
+    if (inWest && !night && hour > 6 && weather !== 'rain' && t > nextPeck) { sample('woodpecker', around(), { gain: 0.4 }); nextPeck = t + 20 + Math.random() * 25; }
+    if (inWest && night && weather !== 'rain' && t > nextOwl) { sample('owl', around(), { gain: 0.4, jitter: 0.03 }); nextOwl = t + 25 + Math.random() * 30; }
+    const worship = people.find((v) => v.doing === 'worship' && !v.inside && v.state !== 'walk');
+    if (worship && t > (cool.get('temple') ?? 0)) { synth('bell', posOf(worship, 1.2)); cool.set('temple', t + 9 + Math.random() * 8); }
 
     // 清早：每只公鸡叫两三声
     if (hour > 4.9 && hour < 6.6) {
@@ -255,7 +269,7 @@ export function createSound(village, getCamera) {
       const k = THING_SOUND[t.thing];
       if (!on || !ready || !k) return;
       if (k.startsWith('synth:')) synth(k.slice(6), null);
-      else sample(k, null, { gain: 0.9, dur: ['mill', 'fire', 'projector'].includes(k) ? 2.5 : 0, offset: Math.random() * 8 });
+      else sample(k, null, { gain: 0.9, dur: LONG.has(k) ? 2.5 : 0, offset: Math.random() * 8 });
     },
     update,
   };

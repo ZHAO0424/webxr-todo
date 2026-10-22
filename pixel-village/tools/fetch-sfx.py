@@ -36,6 +36,11 @@ WANT = {
     'mill': (['millstone', 'quern', 'hand mill grinding', 'grinding grain', 'stone mill', 'mortar grinding'], 120, 12.0, True),
     'crowd': (['crowd murmur outdoor', 'crowd talking', 'people talking ambience', 'market crowd'], 180, 20.0, True),
     'projector': ('film projector', 60, 12.0, True),
+    # 西沟
+    'waterwheel': (['water wheel', 'watermill', 'water mill wheel'], 180, 16.0, True),
+    'waterfall': (['small waterfall', 'waterfall', 'brook stream water'], 180, 20.0, True),
+    'woodpecker': (['woodpecker', 'woodpecker drumming'], 20, 2.0, False),
+    'owl': (['owl hoot', 'owl'], 15, 2.5, False),
 }
 N = 3
 # 标题里有这些字的不要（城市、车、音乐）
@@ -46,6 +51,7 @@ MUST = {
     'donkey': 'donkey|bray', 'ox': 'cow|moo|cattle', 'duck': 'duck|quack', 'goose': 'goose|geese', 'pigeon': 'pigeon|dove|coo',
     'magpie': 'magpie', 'cat': 'cat|meow', 'clang': 'anvil|hammer|smith', 'chop': 'axe|chop', 'thud': 'dig|shovel|hoe|dirt',
     'chirp': 'sparrow|chirp|bird', 'crickets': 'cricket', 'fire': 'fire|crackl', 'mill': 'grind|mill|quern', 'crowd': 'crowd|murmur|people|chatter', 'projector': 'projector',
+    'waterwheel': 'wheel|mill', 'waterfall': 'waterfall|stream|brook|creek', 'woodpecker': 'woodpecker', 'owl': 'owl',
 }
 
 
