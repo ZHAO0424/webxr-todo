@@ -5,7 +5,7 @@
 **▶ [打开](https://zhao0424.github.io/webxr-todo/pixel-village/)** · [村民档案](https://zhao0424.github.io/webxr-todo/pixel-village/roster.html) · [体素演员表](https://zhao0424.github.io/webxr-todo/pixel-village/cast.html)
 — 电脑上拖动旋转、滚轮缩放、点人看档案；头显里点 ENTER VR。`?time=6` 从早上六点看起；`?event=opera|market|bonfire|harvest|movie|shrine|meeting` 指定今天的活动（比如 `?time=8.6&event=market` 看赶集）；`?weather=sunny|cloudy|rain` 指定天气。
 屏幕左边的"西沟"按钮（或键盘 ←）往西走到[西沟](#西沟westjs)，右边"村子"（→）走回来；`?scene=west` 直接从西沟开始。
-左下角"季节"按钮按春 → 夏 → 秋 → 冬轮换（重新加载页面）；`?season=spring|summer|autumn|winter` 直接指定，默认秋天。见[四季](#四季seasonjs)。
+左下角"设置"里的"季节"按钮按春 → 夏 → 秋 → 冬轮换（重新加载页面）；`?season=spring|summer|autumn|winter` 直接指定，默认秋天。见[四季](#四季seasonjs)。
 
 ## 运行
 
@@ -36,8 +36,9 @@ PC 上的 Chrome 打开页面 → ENTER VR（Chromium → OpenXR → VITURE runt
 - 村口南边插进了一条 6 米宽的地（`layout.js` 的 `BAND`）：z ≥ 26 的东西（小溪、石拱桥和桥头两个路口、溪南草滩、场院）都往南挪了 6 米，
   两块沙盘底座都跟着加长（z 到 42）；地形用 `squeeze` 把新坐标折回原来的坐标算高度，所以以北一点没变。村口场子往南接了一块一样高的平地
   （`compounds.js` 的 square 多铺一块地皮、`village.js` 多压一块平台），场子南口挪到新那块的南沿，去西边的路绕它的西南角（`sqSW`）。
-  新那块平时也有东西：戏台正对着三排条石长凳（中间留过道，18 个座，看戏、开会、看电影大人先坐长凳，坐满了站后头）；
-  西边是晒场（春天空晒席，夏天晒麦粒，秋天晒玉米、谷子，冬天码柴火）；东边停着一辆大车。看戏的站位、火塘外圈、孩子玩的地方也扩到了南边。
+  新那块平时也有东西：戏台正对着三排木条凳（中间留过道，18 个座，看戏、开会、看电影大人先坐条凳，坐满了站后头）；
+  条凳能搬（不合批，`village.js` 的 `setBenches`）：赶集那天两条一摞摞到场子东边腾地方，导航里挡路的格子跟着换。
+  西边是晒场（春天空晒席，夏天晒麦粒，秋天晒玉米、谷子，冬天码柴火）。看戏的站位、火塘外圈、孩子玩的地方也扩到了南边。
   西沟一起加长（`west.js` 的 `ground` 同样按 `squeeze` 折回原坐标）：小溪、拦河坝、水轮、水磨坊跟着溪往南挪，两块拼起来（`?seam=1`）是对得上的。
 
 ## 一天的生活（`life/`、`residents.js`）
@@ -190,6 +191,7 @@ PC 上的 Chrome 打开页面 → ENTER VR（Chromium → OpenXR → VITURE runt
 参考潜水员戴夫：深色面板 + 亮的细边，正文奶白、名字金黄、标签是压低饱和度的实色小块（切掉四个角）；配色取场景黄昏的紫。
 - 两个像素单位，都落在整数个屏幕像素上：`--f` 是字的一个点（1 个设备像素，高分屏 2 个），`--p` 是边框和间距的一个像素（= 2 个 `--f`）。
 - 面板、凹进去的内框、头像框是代码画的 10×10 像素 9 宫格边框图（`frame.js`），多大都清楚。
+- 左下角只有两个按钮："设置"（点开往上弹出声音、音乐、季节，再点或点场景收起；`?settings=1` 一打开就展开）和"村民档案"。操作说明不再写在界面上。
 - 字体：凤凰点阵体（Haoyu Qiu，CC0 公有领域，`fonts/LICENSE-vonwaon.txt`）：正文 12px、名字和标题 16px，都按原大小（整数倍）显示。
   用 `python tools/subset-font.py` 裁成只含项目里用到的字（各约 100 KB）；字体缺的几个符号（· — ▸ ✓）借相近的字形顶上。
   加了新文字要重跑一次，不然新字会落回系统字体。

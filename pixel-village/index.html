@@ -16,9 +16,13 @@
     #clock .ev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #clock .ev .name { color: var(--gold); } /* 今日活动：金色活动名 + 时间地点 */
     #clock .sub { color: var(--dim); }
-    /* 操作提示：左下角 */
-    #hint { position: fixed; left: calc(4 * var(--p)); bottom: calc(4 * var(--p)); max-width: calc(260 * var(--p)); }
-    #hint a { color: var(--gold); }
+    /* 左下角：设置（点开往上弹出声音、音乐、季节）+ 村民档案，都是一样的像素按钮 */
+    #hint { position: fixed; left: calc(4 * var(--p)); bottom: calc(4 * var(--p)); }
+    #hint .bar { display: flex; gap: calc(3 * var(--p)); }
+    #hint a.btn { display: inline-block; text-decoration: none; }
+    #settings { position: absolute; left: 0; bottom: calc(100% + 3 * var(--p)); display: flex; flex-direction: column; gap: calc(3 * var(--p)); padding: calc(3 * var(--p)); }
+    #settings[hidden] { display: none; }
+    #settings .btn { text-align: left; white-space: nowrap; }
     /* 卡片：时钟栏下面，靠右 */
     #card { position: fixed; right: calc(4 * var(--p)); top: calc(66 * var(--p)); max-height: calc(100vh - 72 * var(--p)); overflow: auto; scrollbar-width: none; }
     #card::-webkit-scrollbar { display: none; }
@@ -63,7 +67,10 @@
   </script>
 </head>
 <body>
-  <div id="hint" class="dark px"><button id="sound" class="btn">声音：关</button> <button id="music" class="btn">音乐：关</button> <button id="season" class="btn">季节：秋</button> 拖动旋转 · 滚轮缩放 · 点击村民、动物、房屋或物件查看详情 · <a href="roster.html">村民档案 →</a></div>
+  <div id="hint">
+    <div id="settings" class="dark px" hidden><button id="sound" class="btn">声音：关</button><button id="music" class="btn">音乐：关</button><button id="season" class="btn">季节：秋</button></div>
+    <div class="bar"><button id="settingsBtn" class="btn">设置</button><a class="btn" href="roster.html">村民档案</a></div>
+  </div>
   <div id="clock" class="dark px"></div>
   <button id="goLeft" class="scene-nav dark px" title="往西走（←）" hidden><span class="tri"></span><span class="label"></span></button>
   <button id="goRight" class="scene-nav dark px" title="往东走（→）" hidden><span class="tri"></span><span class="label"></span></button>

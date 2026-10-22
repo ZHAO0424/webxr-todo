@@ -417,6 +417,24 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   const setStallBlock = (on) => stallCells.forEach((k, i) => { nav.blocked[k] = on ? 1 : stallWas[i]; });
   for (const st of C.square.market.stalls) st.obj.visible = false;
 
+  // 戏台前的木条凳：平时摆成排；赶集那天摞到场子东边腾地方。导航里挡路的格子跟着摆法换
+  const sqB = C.square, benchFoot = (x, z, r) => {
+    const out = [];
+    for (let d = -0.85; d <= 0.86; d += 0.2) for (let e = -0.15; e <= 0.16; e += 0.15) out.push(...nav.discCells(...sqB.at(x + Math.cos(r) * d + Math.sin(r) * e, z - Math.sin(r) * d + Math.cos(r) * e), 0.1));
+    return out;
+  };
+  const rowCells = [...new Set(sqB.benches.flatMap((b) => benchFoot(...b.row)))], stackCells = [...new Set(sqB.benches.flatMap((b) => benchFoot(...b.stack)))];
+  const benchWas = new Map([...rowCells, ...stackCells].map((k) => [k, nav.blocked[k]]));
+  let benchesStacked = null;
+  const setBenches = (stacked) => {
+    if (stacked === benchesStacked) return;
+    benchesStacked = stacked;
+    for (const [k, v] of benchWas) nav.blocked[k] = v;
+    for (const k of stacked ? stackCells : rowCells) nav.blocked[k] = 1;
+    for (const b of sqB.benches) { const [x, z, r, y] = stacked ? b.stack : b.row; b.obj.position.set(x, y, z); b.obj.rotation.y = r; }
+  };
+  setBenches(false);
+
   const lanternBase = M.lantern.color.clone();
   const spinners = Object.values(C).flatMap((c) => c.spinners.map((sp) => ({ ...sp, c })));
   const spinLocal = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
@@ -505,6 +523,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
       const sqC = C.square;
       const marketOn = V.eventOn('market');
       if (marketOn !== stallsUp) { stallsUp = marketOn; for (const st of sqC.market.stalls) st.obj.visible = marketOn; setStallBlock(marketOn); }
+      setBenches(V.today() === 'market' && hour > EVENT_DEFS.market.from - EVENT_DEFS.market.prep - 0.3 && hour < EVENT_DEFS.market.to + 0.2); // 赶集：条凳先摞到东边
       const movieOn = V.eventOn('movie');
       sqC.screen.visible = sqC.projector.visible = movieOn;
       if (movieOn) sqC.screen.userData.pic.material = hour >= EVENT_DEFS.movie.from ? M.movie[Math.floor(t / 2.2) % M.movie.length] : M.plaster; // 开演前是一块白布

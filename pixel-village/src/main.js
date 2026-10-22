@@ -354,6 +354,12 @@ function syncSoundBtn() {
   if (musicBtn) { musicBtn.textContent = music.on ? '音乐：开' : '音乐：关'; musicBtn.classList.toggle('on', music.on); }
 }
 musicBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.toggle(); syncSoundBtn(); });
+// 设置按钮：点一下往上弹出声音、音乐、季节，再点（或点场景）收起
+const settingsEl = document.getElementById('settings'), settingsBtn = document.getElementById('settingsBtn');
+const showSettings = (on) => { if (!settingsEl) return; settingsEl.hidden = !on; settingsBtn.classList.toggle('on', on); };
+settingsBtn?.addEventListener('click', (e) => { e.stopPropagation(); showSettings(settingsEl.hidden); });
+renderer.domElement.addEventListener('pointerdown', () => showSettings(false));
+if (params.has('settings')) showSettings(true); // ?settings=1：一打开就展开（截图检查用）
 // 季节按钮：春 → 夏 → 秋 → 冬，换季节要重建整个场景，带着新参数重新加载页面（其余参数保留）
 const seasonBtn = document.getElementById('season');
 if (seasonBtn) {

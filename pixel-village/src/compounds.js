@@ -482,12 +482,15 @@ function square(M) {
   put(g, projector, -0.4, 3.6, Math.atan2(3.5 + 0.4, -0.35 - 3.6) - Math.PI / 2);
   const lanterns = [];
   for (const sx of [-1, 1]) { const l = lantern(M); l.position.set(3.5 + sx * 3.2, 4.0, -d / 2 + 5.4); g.add(l); lanterns.push(l); }
-  // 场子南边接出来的那块：戏台正对着三排条石长凳（中间留一条过道，正对台口）；西边是晒场，东边停着大车
-  const benchSeats = [], BENCHES = [];
+  // 场子南边接出来的那块：戏台正对着三排木条凳（中间留一条过道，正对台口）；西边是晒场。
+  // 木条凳能搬：赶集要腾地方时两条一摞摞到东边（village.js 按当天活动换摆法，导航里挡路的格子跟着换）
+  const benchSeats = [], BENCHES = [], benches = [];
+  const STACK = [[7.6, 6.8], [7.6, 8.6], [7.6, 10.4]];
   for (const z of [7.0, 8.5, 10.0]) for (const x of [1.6, 5.4]) {
-    put(g, P.bench(M, 0, 0), x, z);
+    const i = benches.length, obj = put(g, P.woodBench(M), x, z);
     BENCHES.push([x, z]);
-    for (const dx of [-0.6, 0, 0.6]) benchSeats.push({ x: x + dx, z, seat: 0.5, perch: true });
+    benches.push({ obj, row: [x, z, 0, 0], stack: [STACK[i >> 1][0], STACK[i >> 1][1], Math.PI / 2, (i % 2) * 0.47] });
+    for (const dx of [-0.6, 0, 0.6]) benchSeats.push({ x: x + dx, z, seat: 0.46, perch: true });
   }
   if (is('winter')) { put(g, P.firewood(M, 0, 0, 3.0), -6.2, 8.0); put(g, P.firewood(M, 0, 0, 2.4), -4.2, 10.4, 0.2); } // 冬天：晒场上码着柴火
   else {
@@ -495,7 +498,6 @@ function square(M) {
     put(g, P.dryingMat(M, fill[0]), -6.3, 7.6); // 夏天晒麦粒，秋天晒玉米、谷子，春天席子空着
     put(g, P.dryingMat(M, fill[1]), -3.8, 10.2, 0.15);
   }
-  put(g, P.cart(M, 0, 0), 7.4, 9.0, Math.PI / 2); // 车辕朝北
   const nearProps = (x, z) => BENCHES.some(([bx, bz]) => Math.abs(x - bx) < 1.15 && Math.abs(z - bz) < 0.6) || (x < -2.4 && z > 6.2) || (x > 6.2 && z > 5.4);
   // 傍晚的活动（戏、篝火、村会）用到的位置。台上的点 lift = 台面高
   // 台下围成弧：以台口为圆心一圈一圈往外排（小孩蹲最里圈），躲开火塘、石桌、场子边；相邻两人、两圈之间都隔 1 米
@@ -520,7 +522,7 @@ function square(M) {
   const evSpots = Object.fromEntries([...front.map((p, i) => [`front${i}`, p]), ...rows.map((p, i) => [`row${i}`, p]), ...ring.map((r, i) => [`ring${i}`, [r.x, r.z, ...PIT]]), ...outer.map((p, i) => [`outer${i}`, [...p, ...PIT]]), ...benchSeats.map((b, i) => [`bench${i}`, [b.x, b.z, 3.5, -2.4]])]);
   return result(w, d, g, {
     // gate：场子的南口，在接出来那块的南沿外，下台阶到石桥
-    gate: [0, S + 1.2], lanterns, evening, ringSeats: ring, benchSeats, barber, market, chat, chatCenter, screen, projector,
+    gate: [0, S + 1.2], lanterns, evening, ringSeats: ring, benchSeats, benches, barber, market, chat, chatCenter, screen, projector,
     discs: [[...PIT, 0.75]],
     spots: {
       ...evSpots, ...marketSpots, ...chatSpots, stageFoot: [3.5, 1.1, 3.5, -1],

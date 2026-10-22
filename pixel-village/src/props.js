@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { block, box, prism, decal } from './pixel.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { doorLeaves } from './buildings.js';
 
 // 院里院外的物件。单位米，原点在物件底部中心。每个函数返回一个 Group。
@@ -563,6 +564,19 @@ export function snowman(M, x, z, rotY = 0) {
   g.add(block(-0.2, 1.18, -0.2, 0.2, 1.32, 0.2, M.straw)); // 簸箕当帽子
   g.userData.thing = 'snowman';
   return at(g, x, z, rotY);
+}
+
+/** 木条凳：一块长木板、四条腿，轻，办事的时候搬得动（合成一个网格，不参与合批，位置随时能改）。 */
+export function woodBench(M) {
+  const parts = [[-0.85, 0.38, -0.16, 0.85, 0.46, 0.16], ...[-0.7, 0.7].flatMap((x) => [-0.1, 0.1].map((z) => [x - 0.05, 0, z - 0.04, x + 0.05, 0.38, z + 0.04])), [-0.7, 0.14, -0.03, 0.7, 0.2, 0.03]]
+    .map((b) => { const m = block(...b, M.wood, { outline: false }); m.updateMatrix(); return m.geometry.clone().applyMatrix4(m.matrix); });
+  const mesh = new THREE.Mesh(mergeGeometries(parts), M.wood);
+  mesh.castShadow = mesh.receiveShadow = true;
+  const g = new THREE.Group();
+  g.add(mesh);
+  g.userData.dynamic = true;
+  g.userData.thing = 'woodBench';
+  return g;
 }
 
 /** 晒席：苇席铺在地上，四边压着木条，上面摊着晒的东西（fill：材质）。 */
