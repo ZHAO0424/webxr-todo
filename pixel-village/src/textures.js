@@ -407,9 +407,9 @@ const glows = {
   halo: () => paint(16, 16, (g) => {
     for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
       const d = Math.hypot(x - 7.5, y - 7.5);
-      if (d < 2.5) g.px(x, y, '#a06030');
-      else if (d < 4.5) g.px(x, y, '#6a3a20');
-      else if (d < 7.5 && (x + y) % 2 === 0) g.px(x, y, '#3a2010');
+      if (d < 2.5) g.px(x, y, '#a07a3a'); // 暖黄，不往红里偏（叠加混合，几盏叠一起就是一片红）
+      else if (d < 4.5) g.px(x, y, '#6a4c24');
+      else if (d < 7.5 && (x + y) % 2 === 0) g.px(x, y, '#3a2a14');
     }
   }),
   firefly: () => paint(3, 3, (g) => {

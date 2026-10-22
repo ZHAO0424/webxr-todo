@@ -132,6 +132,7 @@ const WORK_MOTION = {
   none(t, L, Rt) { const k = Math.sin(t * 3) * 0.4; Rt.rotation.x = L.rotation.x = -0.9 + k; return true; }, // 空手：拉风箱、推磨
   pole(t, L, Rt) { Rt.rotation.x = -1.3; L.rotation.x = -0.3; return true; }, // 右手往前扶着肩上的扁担
   buckets(t, L, Rt) { Rt.rotation.x = -1.3; L.rotation.x = -0.3; return true; },
+  peddler(t, L, Rt) { Rt.rotation.x = -1.5; L.rotation.x = Math.sin(t * 6) > 0.3 ? -1.6 : -1.2; return true; }, // 停下来：左手摇拨浪鼓
   pipe(t, L, Rt) { Rt.rotation.x = Math.sin(t * 0.8) > 0.5 ? -1.9 : -1.2; return true; }, // 嘬一口旱烟
   cane(t, L, Rt) { Rt.rotation.x = -0.3; return true; },
   axe(t, L, Rt) { return WORK_MOTION.hammer(t * 0.9, L, Rt); }, // 劈柴：举起来、劈下去
@@ -228,6 +229,34 @@ export function voxelCharacter(p, M) {
       holder.add(block(-hx * VOX * 0.9, 0.9, -0.025, 0, 0.95, 0.025, M.wood, { outline: false }));
       holder.add(top);
       armR.add(holder);
+      return holder;
+    }
+    if (name === 'peddler') { // 货郎担：右肩一根长扁担，前后各挑一只带腿的木货柜（两排抽屉、顶上围栏货盘、门字架上挂拨浪鼓和头绳）
+      const V = new Map(), set = (x, y, z, c) => V.set(`${x},${y},${z}`, c);
+      const top = FEET - L.torsoTop; // 肩头高（体素）
+      for (let z = -14; z <= 14; z++) set(0, top, z, z % 4 ? R.wood[3] : R.wood[2]); // 扁担
+      for (const sz of [-1, 1]) {
+        const cz = sz * 9;
+        for (let x = -4; x <= 3; x++) for (let z = cz - 3; z <= cz + 3; z++) {
+          const edgeX = x === -4 || x === 3, edgeZ = z === cz - 3 || z === cz + 3;
+          if (edgeX && edgeZ) for (let y = 1; y < 3; y++) set(x, y, z, R.wood[1]); // 四条腿（挑起来离地一点）
+          for (let y = 3; y <= 10; y++) { // 柜身：两排抽屉，铜拉手
+            const drawer = (y === 4 || y === 5 || y === 7 || y === 8) && !edgeZ && (edgeX || z === cz - 3 || z === cz + 3);
+            set(x, y, z, y === 3 || y === 6 || y === 10 ? R.wood[1] : drawer && (z === cz) && (y === 5 || y === 8) ? R.gold[4] : drawer ? R.wood[3] : R.wood[2]);
+          }
+          if (edgeX || edgeZ) set(x, 11, z, R.wood[1]); // 货盘的矮围栏
+          else if ((x * 3 + z) % 4 === 0) set(x, 11, z, [R.red[3], R.gold[3], R.blue[3], R.white[3], R.pink[3]][(x + z + 20) % 5]); // 盘里的针线、头绳、糖块
+        }
+        for (const z of [cz - 3, cz + 3]) for (let y = 11; y < top; y++) set(0, y, z, R.wood[2]); // 门字架两根立柱，扁担压在上头
+        for (let z = cz - 4; z <= cz + 4; z++) set(0, top - 1, z, Math.abs(z - cz) === 4 ? R.wood[3] : R.wood[2]); // 横梁，两头翘
+        set(0, top - 2, cz - 1, R.red[3]); set(0, top - 3, cz - 1, R.red[2]); // 挂着的头绳穗子
+        set(0, top - 2, cz + 1, R.pink[3]); set(0, top - 3, cz + 1, R.pink[2]);
+        set(0, top - 2, cz, R.wood[3]); set(-1, top - 3, cz, R.red[3]); set(1, top - 3, cz, R.red[3]); set(0, top - 3, cz, R.white[3]); // 拨浪鼓
+      }
+      const holder = new THREE.Group();
+      holder.add(shadowMesh(voxelGeometry([-5, 0, -15], [5, top + 2, 16], (x, y, z) => V.has(`${x},${y},${z}`), (x, y, z) => V.get(`${x},${y},${z}`), VOX, [-0.5 * VOX, 0, -0.5 * VOX]), M));
+      holder.position.x = (hx - 1) * VOX; // 搭在右肩
+      body.add(holder);
       return holder;
     }
     const grid = itemGrid(p, 0, name);
@@ -416,6 +445,7 @@ export function voxelCharacter(p, M) {
         armL.rotation.x = -s * 0.8; armR.rotation.x = s * 0.8;
         if (current === 'umbrella') armR.rotation.x = -0.9; // 打伞的那只手举着不摆
         if (current === 'pole' || current === 'buckets') armR.rotation.x = -1.3; // 挑担子：右手扶着扁担前半截
+        if (current === 'peddler') armR.rotation.x = -1.5; // 货郎担：右手往前扶着扁担
         body.position.y = Math.abs(Math.cos(w)) > 0.7 ? VOX : 0; // 每步起伏一个像素
       } else if (state === 'work') {
         WORK_MOTION[current ?? 'none']?.(t + phase, armL, armR, body) ?? WORK_MOTION.hammer(t + phase, armL, armR, body);
@@ -542,7 +572,7 @@ const LIGHT = new THREE.Vector3(-0.65, 0.65, 0.4).normalize();
  */
 const TREE_SPECS = {
   // 村口的古槐：树干一抱多粗、根往外扎开，几根粗枝撑开一个又宽又高的大树冠
-  oldLocust: (r) => ({ trunk: [4, 34], gnarl: { r: 3.6, flare: 4.8, roots: 5 }, branches: 7, thick: true, ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 40 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, (13 + r() * 6) * 1.2, (8 + r() * 3) * 1.2, (13 + r() * 6) * 1.2]; }) }),
+  oldLocust: (r) => ({ trunk: [4, 34], gnarl: { r: 3.6, flare: 4.8, roots: 5 }, branches: 7, thick: true, ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 40 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, (13 + r() * 6) * 1.2, (8 + r() * 3) * 1.2, (13 + r() * 6) * 1.2]; }).concat([[-22, 31, 3, 13, 8, 12], [-15, 30, -10, 11, 7, 10]]) }), // 末两团：背着戏台的西侧往外、往下多垂一些
   locust: (r) => ({ trunk: [2, 30], branches: 4, ramp: R.leaf, blobs: Array.from({ length: 7 }, () => [(r() - 0.5) * 40, 34 + r() * 14, (r() - 0.5) * 34, 14 + r() * 7, 9 + r() * 4, 14 + r() * 7]) }),
   poplar: () => ({ trunk: [1, 16], branches: 0, ramp: R.leaf, blobs: [[0, 30, 0, 6, 26, 6], [0, 20, 0, 5, 10, 5]] }),
   cypress: () => ({ trunk: [1, 6], branches: 0, ramp: R.green, blobs: [[0, 16, 0, 5, 14, 5], [0, 26, 0, 3, 8, 3]] }),

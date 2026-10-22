@@ -204,7 +204,7 @@ export class Beast {
     this.lure = lure;
     if (lure && !lure.inside) {
       const tx = s.trough ? this.c.at(...s.trough) : [lure.pos.x, lure.pos.z];
-      if (!this.lureAt) this.lureAt = [tx[0] + (this.rand() - 0.5) * 2.2, tx[1] + (this.rand() - 0.5) * 2.2];
+      if (!this.lureAt) this.lureAt = s.trough ? this.c.at(s.trough[0] + (this.rand() - 0.5) * 1.4, s.trough[1] - 0.45) : [tx[0] + (this.rand() - 0.5) * 2.2, tx[1] + (this.rand() - 0.5) * 2.2]; // 有食槽的（猪）：凑到槽里边这一侧，不会跑到圈外
       if (this.moveTo(...V.nav.nearestFree(...this.lureAt), dt, this.speed * 1.8)) this.pecking = true;
       return;
     }

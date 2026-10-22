@@ -364,6 +364,18 @@ const ITEMS = {
       g.rect(bx, y + 7, 4, 4, R.wheat[2]); g.hline(bx, bx + 3, y + 7, R.wheat[3]); g.rect(bx, y + 6, 4, 1, R.cabbage[3]);
     }
   },
+  peddler(g, hand, work, view) { // 货郎担：扁担两头各挑一只带腿的木货柜，顶上货盘摆着彩色小货
+    const y = hand.y - 12;
+    const cabinet = (bx) => {
+      g.vline(bx + 2, y + 1, y + 3, R.wood[2]); // 门字架立柱
+      g.rect(bx, y + 4, 6, 1, R.wood[1]); for (let i = 1; i < 5; i += 2) g.px(bx + i, y + 3, [R.red[3], R.gold[3]][i >> 1]); // 货盘 + 小货
+      g.rect(bx, y + 5, 6, 7, R.wood[2]); g.hline(bx, bx + 5, y + 8, R.wood[1]); g.px(bx + 2, y + 6, R.gold[4]); g.px(bx + 2, y + 10, R.gold[4]); // 柜身、两排抽屉
+      g.vline(bx, y + 12, y + 13, R.wood[1]); g.vline(bx + 5, y + 12, y + 13, R.wood[1]); // 腿
+    };
+    if (view === 'side') { g.hline(hand.x - 11, hand.x + 11, y, R.wood[3]); cabinet(hand.x - 12); cabinet(hand.x + 7); return; }
+    g.hline(0, FRAME_W - 1, y, R.wood[3]);
+    cabinet(0); cabinet(FRAME_W - 6);
+  },
   book(g, hand, work) {
     const y = hand.y - (work === 1 ? 5 : 2);
     g.rect(hand.x - 1, y, 4, 3, R.indigo[3]); g.hline(hand.x - 1, hand.x + 2, y, R.paper[2]);
@@ -554,7 +566,7 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
 function frontOrBack(p, b, view, pose, work, { item = true } = {}) {
   const g = new Grid(FRAME_W, FRAME_H);
   const L = layout(b, pose.bob);
-  if (item && view === 'back' && p.item === 'pole') ITEMS.pole(g, { x: CX, y: L.torsoTop + 12 }, 0, 'front');
+  if (item && view === 'back' && (p.item === 'pole' || p.item === 'peddler')) ITEMS[p.item](g, { x: CX, y: L.torsoTop + 12 }, 0, 'front');
   legs(g, p, b, L, pose);
   const arms = torso(g, p, b, L, view, pose);
   apron(g, p, b, L, view);

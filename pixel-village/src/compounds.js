@@ -175,7 +175,8 @@ function farmA(M) { // 陈家：老两口，猪圈 + 院里的小菜园
   for (const [k, x] of [['cornString', -2.1], ['chiliString', -1.5], ['cornString', 2.3]]) if (k === 'chiliString' || is('autumn', 'winter')) facade(g, M, k, x, 1.5, main.object.position.z + 2.25);
   const kitchen = house(M, { w: 3.4, d: 2.8, h: 2.5, wall: 'rubble', roof: 'shed', rise: 0.7, chimney: true, roofMat: 'slate', front: [{ k: 'door', x: 0.4 }] });
   put(g, kitchen.object, -w / 2 + 2.0, 1.4, Math.PI / 2);
-  g.add(P.pigsty(M, 3.0, -0.2, 6.6, 3.4));
+  const sty = P.pigsty(M, 3.0, -0.2, 6.6, 3.4, { gate: [3.35, 4.25] }); // 猪圈门在南墙西头，喂猪的站在食槽外头
+  g.add(sty);
   put(g, P.coop(M, 0, 0), -2.4, 4.8);
   g.add(block(1.2, 0, 3.9, 5.2, 0.06, 5.6, M.veg, { outline: false })); // 小菜园
   const garden = P.fence(M, 1.2, 3.9, 5.2, 5.6, { h: 0.7, gap: [0, 0.3] });
@@ -186,7 +187,7 @@ function farmA(M) { // 陈家：老两口，猪圈 + 院里的小菜园
   const gg = garden.userData.gate;
   return result(w, d, g, {
     ...gt, doors,
-    gates: [...gt.gates, { leaves: gg.leaves, center: gg.center, w: gg.w }],
+    gates: [...gt.gates, { leaves: gg.leaves, center: gg.center, w: gg.w }, sty.userData.gate],
     spots: { yard: [-0.8, 2.6], feedPigs: [4.8, 3.9, 4.8, 1.6], feedChickens: [-1.0, 3.4], garden: [3.2, 4.8, 3.2, 4.0] },
     windows: windowsOf(main),
     emitters: [{ kind: 'smoke', pos: at(main, main.chimney) }, { kind: 'smoke', pos: at(kitchen, kitchen.chimney) }],
@@ -240,7 +241,8 @@ function farmC(M) { // 吴家：猪圈、兔笼、鸭棚
   for (const [k, x] of [['cornString', -2.1], ['chiliString', -1.5], ['cornString', 2.3]]) if (k === 'chiliString' || is('autumn', 'winter')) facade(g, M, k, x, 1.5, main.object.position.z + 2.25);
   const kitchen = house(M, { w: 3.4, d: 2.8, h: 2.5, wall: 'rubble', roof: 'shed', rise: 0.7, chimney: true, roofMat: 'slate', front: [{ k: 'door', x: 0.4 }] });
   put(g, kitchen.object, w / 2 - 2.0, 1.2, -Math.PI / 2);
-  g.add(P.pigsty(M, -6.6, 0.2, -3.0, 3.4));
+  const sty = P.pigsty(M, -6.6, 0.2, -3.0, 3.4, { gate: [-4.25, -3.35] }); // 猪圈门在南墙东头
+  g.add(sty);
   put(g, P.hutch(M, 0, 0), 2.8, 4.4);
   put(g, P.duckHouse(M, 0, 0), 5.4, 4.3);
   put(g, P.coop(M, 0, 0), -0.6, 4.6);
@@ -249,6 +251,7 @@ function farmC(M) { // 吴家：猪圈、兔笼、鸭棚
   walkways(g, M, gt.inside, Object.values(doors));
   return result(w, d, g, {
     ...gt, doors,
+    gates: [...gt.gates, sty.userData.gate],
     spots: { yard: [-1.2, 2.4], feedPigs: [-4.8, 4.1, -4.8, 2.0], feedChickens: [0.4, 3.4], rabbits: [2.8, 3.4, 2.8, 4.4], duckHouse: [4.2, 3.4] },
     windows: windowsOf(main),
     emitters: [{ kind: 'smoke', pos: at(main, main.chimney) }, { kind: 'smoke', pos: at(kitchen, kitchen.chimney) }],
@@ -459,7 +462,7 @@ function square(M) {
   const market = { stalls: [], buyers: [] };
   const marketSpots = {};
   [{ kind: 'tofu', x: 1.2, z: 4.8, rot: 0 }, { kind: 'goods', x: 3.9, z: 4.8, rot: 0 }, { kind: 'veg', x: -1.6, z: 0.9, rot: -Math.PI / 2 }].forEach((st, i) => {
-    const obj = put(g, P.stall(M, st.kind), st.x, st.z, st.rot);
+    const obj = put(g, st.kind === 'goods' ? P.peddlerCart(M) : P.stall(M, st.kind), st.x, st.z, st.rot); // 货郎的杂货摊是他推来的货郎车
     market.stalls.push({ ...st, i, obj });
     const at = (dx, dz) => { const [ox, oz] = rot2(dx, dz, st.rot); return [st.x + ox, st.z + oz]; };
     marketSpots[`stall${i}_seller`] = [...at(0, 0.8), st.x, st.z];
@@ -523,13 +526,13 @@ function square(M) {
   const evSpots = Object.fromEntries([...front.map((p, i) => [`front${i}`, p]), ...rows.map((p, i) => [`row${i}`, p]), ...ring.map((r, i) => [`ring${i}`, [r.x, r.z, ...PIT]]), ...outer.map((p, i) => [`outer${i}`, [...p, ...PIT]]), ...benchSeats.map((b, i) => [`bench${i}`, [b.x, b.z, 3.5, -2.4]])]);
   return result(w, d, g, {
     // gate：场子的南口，在接出来那块的南沿外，下台阶到石桥
-    gate: [0, S + 1.2], lanterns, evening, ringSeats: ring, benchSeats, benches, barber, market, chat, chatCenter, screen, projector,
+    gate: [0, S + 1.2], lanterns, evening, ringSeats: ring, stools: { tableW: [-1.45, 3.6], tableE: [0.65, 3.6], table: [-0.4, 4.65] }, benchSeats, benches, barber, market, chat, chatCenter, screen, projector,
     discs: [[...PIT, 0.75]],
     spots: {
       ...evSpots, ...marketSpots, ...chatSpots, stageFoot: [3.5, 1.1, 3.5, -1],
       barberChair: [...barber.chair], barberWork: [-1.65, -5.15, ...barber.chair], ...Object.fromEntries(barber.wait.map((p, i) => [`barberWait${i}`, [...p, ...barber.chair]])),
       projector: [0.45, 4.5, 3.5, -0.6],
-      tree: [-4.4, 4.2, -5.2, 1.0], tableW: [-1.6, 3.6, -0.4, 3.6], tableE: [0.8, 3.6, -0.4, 3.6], table: [-0.4, 4.9, -0.4, 3.6],
+      tree: [-4.4, 4.2, -5.2, 1.0], tableW: [-2.0, 3.6, -0.4, 3.6], tableE: [1.2, 3.6, -0.4, 3.6], table: [-0.4, 5.2, -0.4, 3.6], // 石桌边：先走到石墩外头，再上石墩坐（stools）
       stage: [3.5, 1.2, 3.5, 6], barber: [-2.6, -3.5, -2.6, -4.4], tofu: [-0.2, 5.5], // 卖豆腐的地方躲开集市的豆腐摊
     },
     playArea: [-2, 0.6, 7.6, S - 1.2], // 孩子玩、逛集市：连同南边接出来的那块

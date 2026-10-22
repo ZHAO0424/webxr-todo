@@ -368,7 +368,7 @@ export const HOUSEHOLDS = [
         likes: '与小顺闲谈',
         owns: ['一副货郎担'],
         day: [[15, 'peddle'], [18.6, 'dinner'], [19.0, 'evening'], [20.6, 'home']],
-        body: 'man', skin: 'skinTan', hair: 'short', hat: 'felt', top: 'grey', pants: 'black', legwrap: true, item: 'pole',
+        body: 'man', skin: 'skinTan', hair: 'short', hat: 'felt', top: 'grey', pants: 'black', legwrap: true, item: 'peddler',
       },
       {
         id: 'niu_wanshan', name: '牛万山', nick: '骡帮牛老大', age: 46, sex: '男', relation: '外村人（骡帮，逢集来）', caravan: 'lead',

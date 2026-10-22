@@ -218,11 +218,19 @@ export function fence(M, x0, z0, x1, z1, { h = 1.1, gap = null, gapSide = 'south
   return g;
 }
 
-/** 猪圈：矮砖墙 + 半边棚顶。 */
-export function pigsty(M, x0, z0, x1, z1) {
+/** 猪圈：矮砖墙 + 半边棚顶；朝院子那面墙（z1）开一个猪圈门（gate：[门洞两边的 x]），装一扇木栅门。 */
+export function pigsty(M, x0, z0, x1, z1, { gate = null } = {}) {
   const g = new THREE.Group();
   const t = 0.3, h = 1.0;
-  g.add(block(x0, 0, z0, x1, h, z0 + t, M.brickDark), block(x0, 0, z1 - t, x1, h, z1, M.brickDark));
+  g.add(block(x0, 0, z0, x1, h, z0 + t, M.brickDark));
+  if (gate) {
+    const [gx0, gx1] = gate, W = gx1 - gx0 - 0.06;
+    g.add(block(x0, 0, z1 - t, gx0, h, z1, M.brickDark), block(gx1, 0, z1 - t, x1, h, z1, M.brickDark));
+    const leaf = doorLeaves(M, 'fenceGate', W, h * 0.9, 0.04, { single: true });
+    leaf.group.position.set((gx0 + gx1) / 2, 0, z1 - t / 2);
+    g.add(leaf.group);
+    g.userData.gate = { leaves: leaf.leaves, center: [(gx0 + gx1) / 2, z1 - t / 2], w: W };
+  } else g.add(block(x0, 0, z1 - t, x1, h, z1, M.brickDark));
   g.add(block(x0, 0, z0 + t, x0 + t, h, z1 - t, M.brickDark), block(x1 - t, 0, z0 + t, x1, h, z1 - t, M.brickDark));
   g.add(block(x0, 0, z0, x1, 0.05, z1, M.flatRoof, { outline: false }));
   const roofD = (z1 - z0) * 0.45;
@@ -516,6 +524,41 @@ export function stall(M, kind) {
     veg: [[-0.5, 0.22, M.veg], [-0.1, 0.18, M.redCloth], [0.3, 0.24, M.corn], [0.6, 0.15, M.millet]],
   }[kind];
   for (const [gx, h, mat] of goods) g.add(block(gx - 0.15, 0.75, -0.23, gx + 0.15, 0.75 + h, 0.13, mat));
+  g.userData.dynamic = true;
+  g.visible = false;
+  return g;
+}
+
+/**
+ * 货郎车：赶集那天货郎推来的小车，当杂货摊。两只大木轮在一头，另一头两条腿撑着、伸出两根车把；
+ * 车厢上摆着筐、布匹、糖块，前面（-z，买东西的人站这边）一溜窄台面；四根柱子撑一块带花边的布篷，
+ * 篷檐下挂着草帽、小筐、红头绳。平日收起（和别的摊子一样，userData.dynamic、默认不显示）。
+ */
+export function peddlerCart(M) {
+  const g = new THREE.Group();
+  const piece = (w, h, d, mat, x, y, z, rz = 0, opts) => { const m = block(-w / 2, -h / 2, -d / 2, w / 2, h / 2, d / 2, mat, opts); m.position.set(x, y, z); m.rotation.z = rz; g.add(m); return m; };
+  piece(1.5, 0.42, 0.8, M.wood, 0, 0.6, 0); // 车厢
+  piece(1.52, 0.05, 0.82, M.trayWood, 0, 0.58, 0, 0, { outline: false }); // 一道压条
+  piece(1.5, 0.04, 0.22, M.wood, 0, 0.8, -0.51); // 前面的台面
+  for (const z of [-0.36, 0.36]) piece(0.08, 0.4, 0.08, M.wood, 0.65, 0.2, z); // 腿
+  for (const z of [-0.3, 0.3]) piece(0.4, 0.05, 0.05, M.wood, 0.95, 0.62, z); // 车把
+  for (const sz of [-1, 1]) { // 大木轮：一圈轮辋 + 六根辐条 + 轮毂
+    const R0 = 0.38, cx = -0.38, cz = sz * 0.47;
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; piece(0.22, 0.06, 0.05, M.wood, cx + Math.cos(a) * R0, R0 + Math.sin(a) * R0, cz, a + Math.PI / 2); }
+    for (let i = 0; i < 3; i++) piece(R0 * 2 - 0.06, 0.035, 0.03, M.wood, cx, R0, cz, (i / 3) * Math.PI, { outline: false });
+    piece(0.12, 0.12, 0.1, M.iron, cx, R0, cz);
+  }
+  for (const x of [-0.72, 0.72]) for (const z of [-0.36, 0.36]) piece(0.05, 1.15, 0.05, M.wood, x, 1.38, z); // 篷柱
+  const roof = piece(1.75, 0.05, 1.05, M.cloth, 0, 1.98, -0.05); // 布篷，前低后高一点
+  roof.rotation.x = 0.12;
+  for (let i = 0; i < 9; i++) piece(0.17, 0.08, 0.03, i % 2 ? M.cloth : M.redCloth, -0.8 + i * 0.2, 1.88, -0.6, 0, { outline: false }); // 篷檐的花边
+  const hat = prism(0.06, 0.17, 0.05, M.straw, 8); hat.position.set(-0.45, 1.6, -0.48); g.add(hat); // 挂着的草帽
+  const hatTop = prism(0.07, 0.08, 0.08, M.straw, 8); hatTop.position.set(-0.45, 1.66, -0.48); g.add(hatTop);
+  for (const [x, mat] of [[0.05, M.straw], [0.45, M.straw]]) { const b = prism(0.1, 0.08, 0.12, mat, 8); b.position.set(x, 1.58, -0.46); g.add(b); } // 小筐
+  for (const x of [-0.15, 0.25, 0.6]) piece(0.03, 0.22, 0.03, M.redCloth, x, 1.66, -0.5, 0, { outline: false }); // 红头绳
+  for (const [x, z, r] of [[-0.45, -0.1, 0.2], [0.05, 0.12, 0.17]]) { const b = prism(r, r * 0.85, 0.16, M.straw, 10); b.position.set(x, 0.89, z); g.add(b); } // 车厢上的大筐
+  for (const [x, h, mat] of [[0.45, 0.12, M.redCloth], [0.62, 0.08, M.cloth], [-0.05, 0.06, M.gold]]) piece(0.22, h, 0.26, mat, x, 0.81 + h / 2, -0.1);
+  for (const [x, mat] of [[-0.5, M.gold], [-0.2, M.redCloth], [0.15, M.cloth], [0.5, M.gold]]) piece(0.18, 0.05, 0.14, mat, x, 0.845, -0.51, 0, { outline: false }); // 台面上一小份一小份的货
   g.userData.dynamic = true;
   g.visible = false;
   return g;

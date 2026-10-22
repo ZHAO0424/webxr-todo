@@ -401,8 +401,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     lights.push({ l, base });
   };
   if (embers[0]) pointLight(embers[0].origin.x, embers[0].origin.y + 0.6, embers[0].origin.z, 0.05, GLOW.fire);
-  pointLight(...[C.square.at(3.5, 0.5)].map(([x, z]) => [x, C.square.level + 3, z])[0], 0.07);
-  pointLight(...[C.store.at(0, 6)].map(([x, z]) => [x, C.store.level + 3, z])[0], 0.05);
+  pointLight(...[C.square.at(3.5, 0.5)].map(([x, z]) => [x, C.square.level + 3, z])[0], 0.055, GLOW.lamp); // 戏台灯笼打下来的光：暖黄，不是灯笼本身那么红
+  pointLight(...[C.store.at(0, 6)].map(([x, z]) => [x, C.store.level + 3, z])[0], 0.04, GLOW.lamp);
   pointLight(torches[0].pos[0], terrain.walkAt(...torches[0].pos) + 2.4, torches[0].pos[1], 0.05, GLOW.fire);
   const [px, pz] = C.square.at(...C.square.evening.pit);
   pointLight(px, C.square.level + 1.2, pz, 0, GLOW.fire);
@@ -467,7 +467,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     return Math.abs(cs * dx - sn * dz) <= c.w / 2 + pad && Math.abs(sn * dx + cs * dz) <= c.d / 2 + pad;
   }) ?? null;
   const whereAt = (x, z) => {
-    if (x < BOUNDS.x0) return Math.hypot(x - V.mill.at[0], z - V.mill.at[1]) < 6 ? '水磨坊' : west.placeAt(x, z).name; // 西沟
+    if (x < BOUNDS.x0) return Math.hypot(x - V.mill.at[0], z - V.mill.at[1]) < 6 ? '水磨坊' : Math.hypot(x - V.temple.at[0], z - V.temple.at[1]) < 4 ? '山神庙' : west.placeAt(x, z).name; // 西沟
     const c = compoundAt(x, z);
     if (c) return PLACES[c.id];
     if (shrine && Math.hypot(x - shrine.at[0], z - shrine.at[1]) < 4) return '桥头土地庙';

@@ -277,7 +277,7 @@ function lanternAt(M, x, y, z) {
   const g = new THREE.Group();
   g.add(block(-0.12, 0, -0.12, 0.12, 0.32, 0.12, M.lantern, { outline: false }));
   const halo = new THREE.Sprite(M.haloSprite);
-  halo.scale.set(1.6, 1.6, 1);
+  halo.scale.set(0.9, 0.9, 1); // 光晕小一圈：两盏挨着的灯笼叠在一起，大了整片崖壁发红
   halo.position.y = 0.16;
   g.add(halo);
   g.position.set(x, y, z);
@@ -731,14 +731,14 @@ export function buildWest(M) {
   const fireflies = new Fireflies(root, M.fireflySprite, [[W(-30), W(-20), POOL.z - 3, POOL.z + 3, POOL.level], [W(-31), W(-21), 0, 16, 2], [W(14), W(26), MILL.z + 2, MILL.z + 6, 0]], 36, 9);
   const rain = new Rain(root, WEST_BOUNDS, terrain.walkAt, 2200, 13);
   const lights = [];
-  const pointLight = (x, y, z, base, color = GLOW.lantern) => {
-    const l = new THREE.PointLight(color, 0, 0.12, 1.4);
+  const pointLight = (x, y, z, base, color = GLOW.lamp, dist = 0.07) => { // 只照亮门口一小片（西沟大半是黑的，光铺太开整片崖都发红）
+    const l = new THREE.PointLight(color, 0, dist, 1.4);
     l.position.set(x, y, z);
     root.add(l);
     lights.push({ l, base });
   };
-  pointLight(W(WHEEL_U + 1.7), millLevel + 2.6, MILL.z + 3.1, 0.06);
-  pointLight(W(NICHE.c), NICHE.h + 2.2, templeZ + TEMPLE.d / 2 + 0.6, 0.045);
+  pointLight(W(WHEEL_U + 1.7), millLevel + 2.2, MILL.z + 3.1, 0.032);
+  pointLight(W(NICHE.c), NICHE.h + 1.2, templeZ + TEMPLE.d / 2 + 1.0, 0.014, GLOW.lamp, 0.045); // 只照栈台：崖壁是红石头，光铺开了整面崖都发红
   const millWindow = M.windowLit.clone(); // 磨坊自己的窗户：天黑才亮
   millWindow.onBeforeCompile = M.windowLit.onBeforeCompile;
   millWindow.customProgramCacheKey = M.windowLit.customProgramCacheKey;

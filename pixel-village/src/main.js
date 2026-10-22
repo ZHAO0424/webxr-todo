@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { buildVillage } from './village.js';
+import { BOUNDS } from './layout.js';
 import { buildBackdrop, skyTexture } from './backdrop.js';
 import { createAnchor } from './xr.js';
 import { LABELS, PLACES } from './labels.js';
@@ -295,7 +296,7 @@ function refreshCard() {
   const key = v.doing.split(':')[0];
   sel.card.update({
     doing: v.inside ? (night ? '已入睡' : '屋内') : LABELS[v.doing] ?? v.doing,
-    where: v.inside ? PLACES[v.p.sleepAt ?? v.p.home] : village.whereAt(v.pos.x, v.pos.z),
+    where: v.inside ? (v.pos.x < BOUNDS.x0 ? village.whereAt(v.pos.x, v.pos.z) : PLACES[v.p.sleepAt ?? v.p.home]) : village.whereAt(v.pos.x, v.pos.z), // 在西沟的磨坊、山神庙里过夜的，写那个地方
     kind: v.inside && night ? 'sleep' : EVENTS[key] ? 'event' : REST.has(v.doing) || v.inside ? 'rest' : '',
     nextText: nxt ? `下一项 ${hm(nxt[0])}　${label(nxt[1], nxt[2])}` : '今日安排已全部完成',
     cur,
@@ -519,7 +520,7 @@ if (params.has('sim')) {
     for (const v of village.life.people) {
       if (v.inside) continue;
       samples++;
-      if (v.perched || v.lift > 0) continue; // 台上、凳上不算
+      if (v.perched || v.lift > 0 || v.tasks[0]?.type === 'climb') continue; // 台上、凳上、正在爬上爬下（石墩、戏台台阶）的不算
       if (!nav.freeAt(v.pos.x, v.pos.z, false, true)) { clipP++; const k = `${v.p.id}/${v.doing}/${v.state}`; why[k] = (why[k] ?? 0) + 1; }
       const lp = lastPos.get(v);
       if (v.state === 'walk' && lp && Math.hypot(lp[0] - v.pos.x, lp[1] - v.pos.z) < 0.01) stuck++;
@@ -557,7 +558,7 @@ if (params.has('sim')) {
   for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) { const d = Math.hypot(out[i].pos.x - out[j].pos.x, out[i].pos.z - out[j].pos.z); if (d < 0.7) close.push(`${out[i].p.id}(${out[i].state},${out[i].tasks[0]?.type ?? '-'})~${out[j].p.id}(${out[j].state},${out[j].tasks[0]?.type ?? '-'})=${d.toFixed(2)}`); }
   eve.push(...close.map((c) => 'CLOSE ' + c));
   document.documentElement.dataset.eve = JSON.stringify(eve);
-  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, ms: Math.round(performance.now() - simT0), hour: village.life.clock.label, westWho, whyA, caravan: [V.byId.niu_wanshan, V.byId.shi_wa, ...village.life.beasts.filter((b) => b.s.caravan)].map((a) => `${(a.p ? a.inside : a.home) ? '不在村里' : a.p ? a.doing : '骡子'}@${Math.round(a.pos.x)},${Math.round(a.pos.z)}`), samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, seen: [...seen].sort(), litLog, leaveLog, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
+  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, ms: Math.round(performance.now() - simT0), hour: village.life.clock.label, westWho, whyA, caravan: [V.byId.niu_wanshan, V.byId.shi_wa, ...village.life.beasts.filter((b) => b.s.caravan)].map((a) => `${(a.p ? a.inside : a.home) ? '不在村里' : a.p ? a.doing : '骡子'}@${Math.round(a.pos.x)},${Math.round(a.pos.z)}`), samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, seen: [...seen].sort(), litLog, leaveLog, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, lodged: village.life.people.filter((v) => v.inside && v.pos.x < BOUNDS.x0).map((v) => `${v.p.name}@${village.whereAt(v.pos.x, v.pos.z)}`), pigsOut: village.life.beasts.filter((b) => b.s.role === 'pig').map((b) => { const [x0, z0, x1, z1] = b.s.area, [cx, cz] = b.c.at((x0 + x1) / 2, (z0 + z1) / 2); return Math.hypot(b.pos.x - cx, b.pos.z - cz) > 2.2 ? `${b.c.id}@${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)}${b.stroll || b.returning ? '(溜达)' : ''}` : null; }).filter(Boolean), ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
 }
 
 let drawables = 0;

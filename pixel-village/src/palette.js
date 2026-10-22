@@ -62,6 +62,7 @@ export const HILLS = {
 export const GLOW = {
   lantern: '#ff7a3a',
   lanternCore: '#ffd27a',
+  lamp: '#ffb45a', // 灯笼、窗户打到四周的光：比灯笼本身黄一些，不把墙和地染成一片红
   window: '#ffb35a',
   windowHi: '#ffe0a0',
   fire: '#ff8a2a',

@@ -1,4 +1,4 @@
-import { ACTIVITIES, R, kinOf } from './activities.js';
+import { ACTIVITIES, R, kinOf, toStool } from './activities.js';
 import { season, is, festival } from '../season.js';
 
 /*
@@ -145,6 +145,7 @@ function onStage(v, to) {
 /** 走到村口的某个位置；火塘边的石凳要爬上去坐。返回那个座（不是火塘边的座返回 null）。 */
 function takeSquare(v, name) {
   const sq = v.V.C.square;
+  if (sq.stools[name]) { toStool(v, name); return { seat: 0.45, perch: true }; } // 石桌边的石墩
   const seat = name.startsWith('ring') ? sq.ringSeats[Number(name.slice(4))] : name.startsWith('bench') ? sq.benchSeats[Number(name.slice(5))] : null;
   v.go(sq.spot(name));
   if (seat?.perch) { const [x, z] = sq.at(seat.x, seat.z); v.climb([[x, z, 0]], [[...sq.spot(name), 0]]); }
@@ -356,7 +357,7 @@ Object.assign(EVENT_ACTS, {
       v.char.setItem(null);
       v.go(sq.spot('table'));
       v.do('bow', 4, { face: table });
-      v.go(sq.spot('tableE')); // 拜完挪到石桌边坐（别堵着石桌南边的过道）
+      toStool(v, 'tableE'); // 拜完挪到石桌东边的石墩上坐（别堵着石桌南边的过道）
       v.loop = () => { v.seat = 0.45; v.do('sit', 10, { face: moon }); };
       return;
     }

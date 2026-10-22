@@ -1,5 +1,6 @@
 import { makeRng } from '../pixel.js';
 import { friendsOf } from '../residents.js';
+import { BOUNDS } from '../layout.js';
 // ---------------------------------------------------------------- 活动
 // 每个活动往村民的任务队列里塞一串任务；loop 是任务做完后（活动还没到点结束时）接着做什么。
 
@@ -37,10 +38,31 @@ function wallSpot(v, { sill = false } = {}) { // 门槛上、门口墙根底下�
   return name ? spots[Number(name.slice(4))] : null;
 }
 
+/**
+ * 天黑了人还在西沟深处（离村子 30 米开外，赶回去太远）：就近在水磨坊、山神庙里过一夜，第二天一早从那儿出来。
+ * 吃晚饭、晚上闲逛、回家睡觉这几样开头先问一声；返回 true 就是留在西沟了。
+ */
+function lodgeWest(v) {
+  const V = v.V;
+  if (v.p.caravan || V.hour() < 17 || v.pos.x > BOUNDS.x0 - 30) return false;
+  const spots = [V.mill.at, V.temple.at], d = (p) => Math.hypot(p[0] - v.pos.x, p[1] - v.pos.z);
+  v.char.setItem(null);
+  v.go(d(spots[0]) < d(spots[1]) ? spots[0] : spots[1]);
+  v.tasks.push({ type: 'inside' });
+  return true;
+}
+
+/** 坐到村口石桌边的石墩上：先走到石墩外头（导航管得到的地方），再直线上去；起身时原路下来。 */
+export function toStool(v, name) {
+  const sq = v.V.C.square, [x, z] = sq.at(...sq.stools[name]);
+  v.go(sq.spot(name));
+  v.climb([[x, z, 0]], [[...sq.spot(name), 0]]);
+}
+
 export const ACTIVITIES = {
   idle(v) { v.loop = () => v.do('idle', 5); },
 
-  home(v) { v.char.setItem(null); v.enter(v.bed, 'house'); },
+  home(v) { if (lodgeWest(v)) return; v.char.setItem(null); v.enter(v.bed, 'house'); },
 
   cook(v) {
     v.char.setItem(null);
@@ -131,12 +153,13 @@ export const ACTIVITIES = {
     v.char.setItem(v.p.item ?? null);
     const sq = v.V.C.square;
     const seat = v.p.id === 'wang_deshan' ? 'tableW' : 'tableE';
-    v.go(sq.spot(seat));
+    toStool(v, seat);
     v.loop = () => { v.seat = 0.45; v.do('sit', 10, { face: sq.at(-0.4, 3.6) }); };
     v.end = () => { v.seat = null; };
   },
 
   dinner(v) { // 北方的"饭场"：端着碗坐在自家门槛上、门口墙根底下吃，脸朝外看着街上（不坐在路上）
+    if (lodgeWest(v)) return;
     v.char.setItem('bowl');
     const c = v.home, spot = wallSpot(v, { sill: true });
     const [gx, gz] = c.gate, k = 4 / Math.hypot(gx, gz), out = c.at(gx * (1 + k), gz * (1 + k)); // 从院子当中往院门外
@@ -147,6 +170,7 @@ export const ACTIVITIES = {
   },
 
   evening(v) { // 没有晚上的活动时：吃过晚饭，有的到大槐树下围一圈闲聊，有的坐自家门口，有的早早歇了
+    if (lodgeWest(v)) return;
     if (v.p.body === 'child') { ACTIVITIES.play(v); v.doing = 'play'; return; }
     const r = v.rand(), sq = v.V.C.square;
     const spot = r < 0.45 ? v.V.claimNear(v, sq, sq.chat, kinOf(v), (n) => sq.spots[n]) : null; // 挨着自家人、老伙计坐
@@ -293,8 +317,8 @@ export const ACTIVITIES = {
 
   peddle(v) { // 货郎：挨家挨户在门口停一停
     const stops = ['store', 'headman', 'farmB', 'tofu', 'smith', 'carpenter', 'farmA', 'doctor', 'school', 'farmC'];
-    v.char.setItem('pole');
-    v.loop = () => { v.go(v.V.C[R(stops)].gateOut()); v.do('talk', 14); };
+    v.char.setItem('peddler');
+    v.loop = () => { v.go(v.V.C[R(stops)].gateOut()); v.do(v.rand() < 0.5 ? 'work' : 'talk', 14); }; // 停在门口：摇拨浪鼓吆喝 / 跟人搭话
   },
 
   peddlerChat(v) {
