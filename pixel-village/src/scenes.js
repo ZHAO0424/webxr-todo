@@ -3,19 +3,15 @@ import { UNIT, block, decal, paint, toTexture, toon } from './pixel.js';
 import { R, INK } from './palette.js';
 
 /*
- * 换场景：村子 ⇄ 西沟。几块沙盘在同一个世界里（西沟接在村子西边）。换的时候先把当前这块收起来（压扁、
- * 往里缩，沉进桌面），再把世界平移过去，新的一块从桌面上长出来。两块不同时出现。平时只画当前这一块（XR 里每个网格要画两遍）。
+ * 换场景：村子 ⇄ 西沟。几块沙盘在同一个世界里（西沟接在村子西边）。换的时候当前这块直接藏起来，
+ * 空一小会儿（GAP 秒），世界平移过去，新的一块再出来——不做缩放之类的特效。平时只画当前这一块（XR 里每个网格要画两遍）。
  * 不显示的那块照样在模拟（村民该干嘛干嘛）。
  *   桌面：屏幕左右两边的像素按钮（index.html 的 #goLeft / #goRight），键盘 ← →
  *   XR：沙盘两侧各插一块木路牌，手柄扳机 / 捏合指着它就换（不会重新摆沙盘，见 xr.js 的 onSelect）
  * scenes 从东往西排：往左（西）走 = 下标 +1。
  */
 
-const HIDE = 0.4; // 收起多久（秒）
-const SHOW = 0.55; // 长出来多久（秒）
-const ease = (t) => t * t * (3 - 2 * t);
-const easeIn = (t) => t * t * t;
-const back = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2; // 长出来时稍微冒过头再回落
+const GAP = 0.25; // 藏起来以后空多久再出新的一块（秒）
 
 /** 路牌上的画：木板 + 金色箭头 + 那边是什么（西沟：红石崖和松树；村子：灰瓦房）。 */
 function signArt(left) {
@@ -63,12 +59,6 @@ function signpost(M, left) {
 export function createSceneSwitch({ world, stage, scenes, M, start = 0, onChange, showAll = false }) {
   let cur = start, slide = null;
   const showOnly = () => scenes.forEach((s, i) => { s.object.visible = showAll || i === cur; });
-  /** 以这块沙盘的中心为原点缩放：k = 0 收没了，1 原样。y 压扁，xz 缩一点。 */
-  const squash = (s, k) => {
-    const ky = Math.max(0.02, k), kxz = 0.8 + 0.2 * Math.min(1, k);
-    s.object.scale.set(UNIT * kxz, UNIT * ky, UNIT * kxz);
-    s.object.position.x = UNIT * (1 - kxz) * -s.shift; // 中心（x = -shift 米）不动
-  };
   world.position.x = scenes[cur].shift * UNIT;
   showOnly();
 
@@ -120,19 +110,9 @@ export function createSceneSwitch({ world, stage, scenes, M, start = 0, onChange
     go,
     update(dt, inXR) {
       if (slide) {
-        slide.t = Math.min(HIDE + SHOW, slide.t + dt);
-        if (slide.t < HIDE) squash(slide.from, 1 - easeIn(ease(slide.t / HIDE))); // 先收起当前这块
-        else {
-          if (!slide.swapped) { // 收没了：藏起来，世界平移过去，新的一块从扁的开始长
-            slide.swapped = true;
-            squash(slide.from, 1);
-            world.position.x = slide.to.shift * UNIT;
-            showOnly();
-          }
-          const k = (slide.t - HIDE) / SHOW;
-          squash(slide.to, k >= 1 ? 1 : back(k));
-          if (k >= 1) slide = null;
-        }
+        slide.from.object.visible = showAll; // 当前这块先藏起来
+        slide.t += dt;
+        if (slide.t >= GAP) { world.position.x = slide.to.shift * UNIT; showOnly(); slide = null; } // 空一下，新的一块出来
       }
       for (const s of signs) s.group.visible = inXR && !!scenes[cur + s.step];
     },

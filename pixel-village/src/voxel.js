@@ -540,6 +540,8 @@ const LIGHT = new THREE.Vector3(-0.65, 0.65, 0.4).normalize();
  * 单位：体素（TREE_VOX 米）。返回 BufferGeometry（原点在树根）。
  */
 const TREE_SPECS = {
+  // 村口的古槐：树干一抱多粗、根往外扎开，几根粗枝撑开一个又宽又高的大树冠；树干上系着祈福的红布条
+  oldLocust: (r) => ({ trunk: [4, 34], flare: 3, branches: 7, thick: true, ribbon: [10, 12], ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 48 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, 13 + r() * 6, 8 + r() * 3, 13 + r() * 6]; }) }),
   locust: (r) => ({ trunk: [2, 30], branches: 4, ramp: R.leaf, blobs: Array.from({ length: 7 }, () => [(r() - 0.5) * 40, 34 + r() * 14, (r() - 0.5) * 34, 14 + r() * 7, 9 + r() * 4, 14 + r() * 7]) }),
   poplar: () => ({ trunk: [1, 16], branches: 0, ramp: R.leaf, blobs: [[0, 30, 0, 6, 26, 6], [0, 20, 0, 5, 10, 5]] }),
   cypress: () => ({ trunk: [1, 6], branches: 0, ramp: R.green, blobs: [[0, 16, 0, 5, 14, 5], [0, 26, 0, 3, 8, 3]] }),
@@ -558,6 +560,12 @@ const EVERGREEN = new Set(['pine', 'cypress']);
 /** 按季节改一棵树：冬天落叶树只剩枝条（bare）、常绿树顶上积雪（snowTop）；春天开花、发新叶；夏天一片深绿。 */
 function seasonTree(kind, s) {
   const S = season();
+  if (kind === 'oldLocust') { // 古槐：春天嫩叶 + 一串串白槐花，夏天深绿，秋天叶子变金黄，冬天光枝积雪
+    if (S === 'spring') return { ...s, fruit: R.white[3], fruitRate: 0.1 };
+    if (S === 'autumn') return { ...s, ramp: ['#3a2a1e', '#6e5a2a', '#a88a36', '#d8b44a', '#f4d878'] };
+    if (S === 'winter') return { ...s, bare: true, branches: s.branches + 6 };
+    return s;
+  }
   if (S === 'winter') return EVERGREEN.has(kind) ? { ...s, snowTop: true } : { ...s, bare: true, branches: s.branches + 5, fruit: kind === 'persimmon' ? R.autumn[3] : null, fruitRate: 0.02 }; // 柿子树梢上留几个"老鸹食"
   if (EVERGREEN.has(kind) || kind === 'poplar' || kind === 'willow') return s; // 杨柳用 R.leaf，季节色阶已经换过
   if (S === 'spring') {
@@ -596,11 +604,12 @@ export function voxelTree(kind, seed = 1, scale = 1) {
     return best;
   };
   const trunk = (x, y, z) => {
-    if (y < th && Math.abs(x) <= tw - 1 && Math.abs(z) <= tw - 1) return true;
+    const rw = tw - 1 + (s.flare ? Math.max(0, s.flare - y) : 0) + (s.flare && y > th * 0.6 ? -1 : 0); // flare：根部往外扎开；粗树干往上收一点
+    if (y < th && Math.abs(x) <= rw && Math.abs(z) <= rw && !(s.flare && Math.abs(x) === rw && Math.abs(z) === rw)) return true;
     for (const br of branches) {
       if (y < br.y0 || y > br.y0 + br.len) continue;
-      const t = y - br.y0;
-      if (Math.round(Math.cos(br.a) * t * 0.8) === x && Math.round(Math.sin(br.a) * t * 0.8) === z) return true;
+      const t = y - br.y0, bx = Math.round(Math.cos(br.a) * t * 0.8), bz = Math.round(Math.sin(br.a) * t * 0.8);
+      if (s.thick ? Math.abs(bx - x) + Math.abs(bz - z) <= (t < br.len * 0.6 ? 2 : 1) : bx === x && bz === z) return true; // thick：粗枝
     }
     return false;
   };
@@ -608,7 +617,10 @@ export function voxelTree(kind, seed = 1, scale = 1) {
   const solid = (x, y, z) => trunk(x, y, z) || !!crown(x, y, z) || strand(x, y, z);
   const color = (x, y, z, f) => {
     const top = f === 2 && !solid(x, y + 1, z); // 朝上的面：冬天积雪
-    if (trunk(x, y, z) && !crown(x, y, z)) return s.bare && top && hash(x, y, z) > 0.3 ? R.snow[4] : (x + y) % 5 === 0 ? R.wood[2] : R.wood[1];
+    if (trunk(x, y, z) && !crown(x, y, z)) {
+      if (s.ribbon && y >= s.ribbon[0] && y <= s.ribbon[1] && Math.max(Math.abs(x), Math.abs(z)) >= tw - 1) return y === s.ribbon[0] ? R.red[2] : R.red[3]; // 红布条
+      return s.bare && top && hash(x, y, z) > 0.3 ? R.snow[4] : (x + y) % 5 === 0 ? R.wood[2] : (x * 3 + y * 7 + z) % 11 === 0 ? R.wood[0] : R.wood[1]; // 老树皮：深一道浅一道
+    }
     const c = crown(x, y, z);
     if (!c) return s.bare ? ((y % 3) ? R.khaki[3] : R.wood[3]) : (y % 3) ? s.ramp[3] : s.ramp[2]; // 柳条（冬天是光秃秃的黄枝条）
     if (s.bare) return s.fruit && hash(x, y, z) < s.fruitRate * 6 ? s.fruit : top ? R.snow[3] : (x + z) % 3 ? R.wood[2] : R.wood[3];

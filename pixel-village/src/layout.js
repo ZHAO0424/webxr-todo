@@ -29,7 +29,7 @@ export const WATER_Y = -0.9;
 /** 院落：id 对应 compounds.js 里的建造函数和 residents.js 里的户；x/z 是平台中心，rot 是转角（度）。 */
 export const PLACEMENTS = [
   { id: 'square', x: 4, z: 19.5, rot: -4 },
-  { id: 'threshing', x: 24, z: 25.5 + BAND.d, rot: 6 }, // 场院跨在插进来的那条地上，整个往南挪
+  { id: 'threshing', x: 24.5, z: 24 + BAND.d, rot: 6 }, // 场院：往南挪过（插进来的那条地），又扩大了（南沿不动，往北、往两边扩）
   { id: 'headman', x: -2, z: -12, rot: 3 },
   { id: 'school', x: 19, z: -22.3, rot: -7 },
   { id: 'smith', x: -22, z: 14, rot: 8 },
@@ -74,7 +74,7 @@ export const NODES = {
 /** 路（两端是节点名）。 */
 export const EDGES = [
   ['edgeS', 'bridgeS'], ['bridgeS', 'bridgeN'], ['bridgeN', 'gate:square'],
-  ['gate:square', 'sqSW'], ['sqSW', 'sqW'], ['gate:threshing', 'sqE'], ['sqE', 'east'], ['gate:square', 'gate:threshing'], ['east', 'gate:farmB'],
+  ['gate:square', 'sqSW'], ['sqSW', 'sqW'], ['gate:threshing', 'sqE'], ['sqE', 'east'], ['sqE', 'sqEast'], ['gate:square', 'gate:threshing'], ['east', 'gate:farmB'],
   ['sqW', 'gate:smith'], ['sqW', 'sqNW'], ['sqNW', 'gate:tofu'], ['sqNW', 'mid'], ['mid', 'gate:tofu'], ['mid', 'gate:store'],
   ['mid', 'well'], ['well', 'gate:headman'], ['well', 'w1'], ['well', 'e1'],
   ['e1', 'e2'], ['e2', 'gate:doctor'], ['e1', 'L1'], ['L1', 'gate:school'], ['L1', 'L2'], ['L2', 'gate:farmC'],

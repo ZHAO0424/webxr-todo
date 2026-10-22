@@ -534,7 +534,7 @@ function square(M) {
     playArea: [-2, 0.6, 7.6, S - 1.2], // 孩子玩、逛集市：连同南边接出来的那块
     doors: { house: xz(at(hut, hut.door)) },
     windows: windowsOf(hut),
-    trees: [['locust', -5.2, 1.0, { seed: 71, y: 0.45 }]],
+    trees: [['oldLocust', -5.2, 1.0, { seed: 71, y: 0.45 }]], // 村口的古槐（voxel.js 单独一种）
     animals: [
       { kind: 'cat', role: 'cat', perches: [[-3.1, 0.45, 3.0], [-6.5, 0.45, 2.6]] },
       { kind: 'magpie', role: 'bird', perches: [[-6.5, 8.6, 1.0], [-3.8, 8.0, 0.2]] },
@@ -545,13 +545,13 @@ function square(M) {
 // ---------------------------------------------------------------- 场院：碾子 + 麦秸垛
 
 function threshing(M) {
-  const w = 13, d = 6.5, g = new THREE.Group();
+  const w = 18, d = 9.5, g = new THREE.Group(); // 扩大过：原来 13 × 6.5，打场的人站不开
   ground(g, M, w, d, M.threshing, 0.2);
   const roller = P.roller(M, 0, 0);
   g.add(roller);
-  for (const [x, z, r, h] of [[-5, -1.6, 1.3, 2.8], [5, -1.4, 1.2, 2.5], [4.6, 1.8, 0.9, 1.9]]) g.add(P.haystack(M, x, z, r, h));
+  for (const [x, z, r, h] of [[6.8, -3.0, 1.3, 2.8], [7.6, 1.4, 1.2, 2.5], [3.6, -3.4, 0.9, 1.9]]) g.add(P.haystack(M, x, z, r, h)); // 麦秸垛都在东半边，西边的门口和路让开
   // 打场那天大伙儿围着碾子站的一圈（在牛走的圈外、躲开麦秸垛、不出场院）
-  const stacks = [[-5, -1.6, 1.3], [5, -1.4, 1.2], [4.6, 1.8, 0.9]];
+  const stacks = [[6.8, -3.0, 1.3], [7.6, 1.4, 1.2], [3.6, -3.4, 0.9]];
   const harvest = {};
   for (let x = -w / 2 + 0.6; x <= w / 2 - 0.6; x += 1.1) for (let z = -d / 2 + 0.5; z <= d / 2 - 0.5; z += 1.1) { // 1.1 米一格撒点（人是大头娃娃，挨太近看着挤）
     if (Math.hypot(x, z) > 3.8 && stacks.every(([sx, sz, r]) => Math.hypot(x - sx, z - sz) > r + 0.5)) harvest[`h${Object.keys(harvest).length}`] = [x, z, 0, 0];

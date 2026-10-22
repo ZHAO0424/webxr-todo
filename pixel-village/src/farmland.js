@@ -56,8 +56,7 @@ const CROPS = {
     for (const [ox, oz, h, d] of [[-1, -1, 28, 1], [2, 1, 26, -1]]) {
       for (let y = 0; y < h; y++) { v(ox, y, oz, y % 5 === 0 ? K[2] : K[3]); if (y < 4) v(ox + 1, y, oz, K[2]); }
       [[1, 0, 7], [-1, 0, 11], [0, 1, 15], [0, -1, 19], [1, 1, 23]].forEach(([dx, dz, y], i) => { // 宽叶子：两排体素
-        leaf(v, ox, y, oz, dx, dz, 6, i % 2 ? K[4] : K[3]);
-        leaf(v, ox + (dz ? 1 : 0), y - 1, oz + (dx ? 1 : 0), dx, dz, 5, K[2]);
+        leaf(v, ox, y, oz, dx, dz, 6, i % 2 ? K[4] : K[3]); // 叶子一排体素（原来两排，一丛玉米一千多个三角面，太费）
       });
       for (let y = 11; y < 16; y++) { v(ox + d, y, oz, green ? R.cabbage[3] : R.wheat[4]); v(ox + d, y, oz + 1, green ? R.cabbage[4] : y > 13 ? R.wheat[3] : R.wheat[4]); }
       v(ox + d, 16, oz, green ? R.red[2] : R.gold[3]);

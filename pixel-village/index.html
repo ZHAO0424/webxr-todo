@@ -23,6 +23,9 @@
     #settings { position: absolute; left: 0; bottom: calc(100% + 3 * var(--p)); display: flex; flex-direction: column; gap: calc(3 * var(--p)); padding: calc(3 * var(--p)); }
     #settings[hidden] { display: none; }
     #settings .btn { text-align: left; white-space: nowrap; }
+    #debug { position: absolute; left: 0; bottom: calc(100% + 3 * var(--p)); padding: calc(3 * var(--p)) calc(4 * var(--p)); white-space: pre; line-height: calc(14 * var(--f)); min-width: calc(110 * var(--p)); }
+    #debug[hidden] { display: none; }
+    #debug b { color: var(--gold); font-weight: normal; }
     /* 卡片：时钟栏下面，靠右 */
     #card { position: fixed; right: calc(4 * var(--p)); top: calc(66 * var(--p)); max-height: calc(100vh - 72 * var(--p)); overflow: auto; scrollbar-width: none; }
     #card::-webkit-scrollbar { display: none; }
@@ -69,7 +72,8 @@
 <body>
   <div id="hint">
     <div id="settings" class="dark px" hidden><button id="sound" class="btn">声音：关</button><button id="music" class="btn">音乐：关</button><button id="season" class="btn">季节：秋</button></div>
-    <div class="bar"><button id="settingsBtn" class="btn">设置</button><a class="btn" href="roster.html">村民档案</a></div>
+    <div id="debug" class="dark px" hidden></div>
+    <div class="bar"><button id="settingsBtn" class="btn">设置</button><button id="debugBtn" class="btn">调试</button><a class="btn" href="roster.html">村民档案</a></div>
   </div>
   <div id="clock" class="dark px"></div>
   <button id="goLeft" class="scene-nav dark px" title="往西走（←）" hidden><span class="tri"></span><span class="label"></span></button>

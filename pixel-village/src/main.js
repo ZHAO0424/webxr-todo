@@ -24,6 +24,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false; // 阴影隔一帧重画一次（每帧重画要把三百来个投影的东西再画一遍；人走得慢，看不出差别）
 renderer.xr.enabled = true;
 document.body.append(renderer.domElement, VRButton.createButton(renderer));
 
@@ -356,9 +357,36 @@ function syncSoundBtn() {
 musicBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.toggle(); syncSoundBtn(); });
 // 设置按钮：点一下往上弹出声音、音乐、季节，再点（或点场景）收起
 const settingsEl = document.getElementById('settings'), settingsBtn = document.getElementById('settingsBtn');
-const showSettings = (on) => { if (!settingsEl) return; settingsEl.hidden = !on; settingsBtn.classList.toggle('on', on); };
+const showSettings = (on) => { if (!settingsEl) return; settingsEl.hidden = !on; settingsBtn.classList.toggle('on', on); if (on) showDebug(false); };
+// 调试按钮：往上弹出实时数值（帧率、每帧耗时、draw call、三角面、着色器 / 贴图 / 几何体数、在外面的人和动物、时钟流速）
+const debugEl = document.getElementById('debug'), debugBtn = document.getElementById('debugBtn');
+function showDebug(on) { if (!debugEl) return; debugEl.hidden = !on; debugBtn.classList.toggle('on', on); if (on && !settingsEl.hidden) { settingsEl.hidden = true; settingsBtn.classList.remove('on'); } }
+debugBtn?.addEventListener('click', (e) => { e.stopPropagation(); showDebug(debugEl.hidden); });
+const dbg = { frames: 0, ms: 0, t: performance.now(), last: performance.now(), worst: 0 };
+function debugTick() { // 每帧记一下，半秒刷新一次面板
+  const now = performance.now(), d = now - dbg.last;
+  dbg.last = now; dbg.frames++; dbg.ms += d; dbg.worst = Math.max(dbg.worst, d);
+  if (debugEl.hidden || now - dbg.t < 500) return;
+  const info = renderer.info, life = village.life, out = life.people.filter((v) => !v.inside).length;
+  const row = (k, v) => `${k}  <b>${v}</b>`;
+  debugEl.innerHTML = [
+    row('帧率', `${Math.round((dbg.frames * 1000) / (now - dbg.t))} fps`),
+    row('每帧', `${(dbg.ms / dbg.frames).toFixed(1)} ms（最慢 ${dbg.worst.toFixed(0)}）`),
+    row('Draw call', info.render.calls),
+    row('三角面', `${(info.render.triangles / 10000).toFixed(1)} 万`),
+    row('着色器', info.programs.length),
+    row('贴图 / 几何体', `${info.memory.textures} / ${info.memory.geometries}`),
+    row('像素比', renderer.getPixelRatio().toFixed(2)),
+    row('XR', renderer.xr.isPresenting ? '是' : '否'),
+    row('在外面', `${out} 人 · ${life.beasts.filter((b) => !b.home).length} 只`),
+    row('时钟', `${life.clock.label}（1 秒 = ${(life.clock.rate).toFixed(2)} 分钟）`),
+    row('场景', scenes.current.name),
+  ].join('\n');
+  dbg.frames = 0; dbg.ms = 0; dbg.worst = 0; dbg.t = now;
+}
 settingsBtn?.addEventListener('click', (e) => { e.stopPropagation(); showSettings(settingsEl.hidden); });
 renderer.domElement.addEventListener('pointerdown', () => showSettings(false));
+if (params.has('debug')) showDebug(true); // ?debug=1：一打开就显示调试面板
 if (params.has('settings')) showSettings(true); // ?settings=1：一打开就展开（截图检查用）
 // 季节按钮：春 → 夏 → 秋 → 冬，换季节要重建整个场景，带着新参数重新加载页面（其余参数保留）
 const seasonBtn = document.getElementById('season');
@@ -375,6 +403,7 @@ if (params.has('music')) { music.toggle(); setInterval(() => { document.document
 soundBtn?.addEventListener('click', (e) => { e.stopPropagation(); sound.toggle(); syncSoundBtn(); });
 const viewer = new THREE.Vector3();
 let lastLabel = '';
+let shadowFrame = 1;
 const first = village.update(0, camera.position);
 applyLight(first.light);
 renderer.setAnimationLoop((_, frame) => {
@@ -412,7 +441,9 @@ renderer.setAnimationLoop((_, frame) => {
       + `<div class="ev"><span class="name">${e.name}</span> <span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} ${e.place}`}</span></div>`;
     refreshCard();
   }
+  if ((shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
   renderer.render(scene, camera);
+  debugTick();
   if (params.has('perf') && ++perfFrames === 2) perfReport();
 });
 

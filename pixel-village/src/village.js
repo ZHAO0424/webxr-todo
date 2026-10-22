@@ -97,6 +97,9 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   // 村口的场子往南接一块（插进来的那条地上，见 layout.js 的 BAND）：和场子一样高、一样宽
   { const sq = C.square, [x, z] = sq.at(0, sq.d / 2 + BAND.d / 2); pads.push({ x, z, rot: sq.rot, w: sq.w, d: BAND.d, level: sq.level }); }
 
+  // 村口场子东沿外一步的路口：杨家那条路下到 sqE，再上几级台阶直接进场子（和场子一样高）
+  { const [x, z] = C.square.at(C.square.w / 2 + 1.0, 1.5); nodes.sqEast = { x, z, h: C.square.level }; }
+
   // 井台单独压一块平地（和旁边路口一样高），井不会半边悬在台阶上
   pads.push({ x: WELL.x, z: WELL.z, rot: 0, w: 3.2, d: 3.2, level: nodes.well.h });
 
@@ -133,7 +136,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     m.position.set(x, y ?? terrain.heightAt(x, z), z);
     m.userData.tree = true;
     root.add(m);
-    trunks.push([x, z, kind === 'locust' ? 0.6 : 0.35]);
+    trunks.push([x, z, kind === 'oldLocust' ? 0.9 : kind === 'locust' ? 0.6 : 0.35]);
   };
   for (const c of Object.values(C)) for (const [kind, lx, lz, opts = {}] of c.trees) {
     const [x, z] = c.at(lx, lz);
