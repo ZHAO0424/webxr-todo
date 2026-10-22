@@ -542,7 +542,7 @@ const LIGHT = new THREE.Vector3(-0.65, 0.65, 0.4).normalize();
  */
 const TREE_SPECS = {
   // 村口的古槐：树干一抱多粗、根往外扎开，几根粗枝撑开一个又宽又高的大树冠
-  oldLocust: (r) => ({ trunk: [4, 34], gnarl: { r: 3.6, flare: 4.8, roots: 5 }, branches: 7, thick: true, ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 48 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, (13 + r() * 6) * 1.2, (8 + r() * 3) * 1.2, (13 + r() * 6) * 1.2]; }) }),
+  oldLocust: (r) => ({ trunk: [4, 34], gnarl: { r: 3.6, flare: 4.8, roots: 5 }, branches: 7, thick: true, ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 40 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, (13 + r() * 6) * 1.2, (8 + r() * 3) * 1.2, (13 + r() * 6) * 1.2]; }) }),
   locust: (r) => ({ trunk: [2, 30], branches: 4, ramp: R.leaf, blobs: Array.from({ length: 7 }, () => [(r() - 0.5) * 40, 34 + r() * 14, (r() - 0.5) * 34, 14 + r() * 7, 9 + r() * 4, 14 + r() * 7]) }),
   poplar: () => ({ trunk: [1, 16], branches: 0, ramp: R.leaf, blobs: [[0, 30, 0, 6, 26, 6], [0, 20, 0, 5, 10, 5]] }),
   cypress: () => ({ trunk: [1, 6], branches: 0, ramp: R.green, blobs: [[0, 16, 0, 5, 14, 5], [0, 26, 0, 3, 8, 3]] }),
@@ -561,9 +561,8 @@ const EVERGREEN = new Set(['pine', 'cypress']);
 /** 按季节改一棵树：冬天落叶树只剩枝条（bare）、常绿树顶上积雪（snowTop）；春天开花、发新叶；夏天一片深绿。 */
 function seasonTree(kind, s) {
   const S = season();
-  if (kind === 'oldLocust') { // 古槐：春天嫩叶 + 一串串白槐花，夏天深绿，秋天叶子变金黄，冬天光枝积雪
+  if (kind === 'oldLocust') { // 古槐：春天嫩叶 + 一串串白槐花，夏秋和村里别的槐树一样绿，冬天光枝积雪
     if (S === 'spring') return { ...s, fruit: R.white[3], fruitRate: 0.1 };
-    if (S === 'autumn') return { ...s, ramp: ['#3a2a1e', '#6e5a2a', '#a88a36', '#d8b44a', '#f4d878'] };
     if (S === 'winter') return { ...s, bare: true, branches: s.branches + 6 };
     return s;
   }
