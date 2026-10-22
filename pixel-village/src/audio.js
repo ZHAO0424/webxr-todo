@@ -11,7 +11,7 @@ import { makeSynth } from './synth.js';
  *   凑近石磨、碾子，牲口拉着转就有隆隆声。离远了这些都听不见。
  * - 特定时候：清早公鸡各打两三声鸣（小声）；办活动时人群嗡嗡、唱戏（板胡梆子锣，合成）、篝火、放电影的放映机、祭土地摇铃；
  *   深夜打更的梆子和小锣。
- * - 西沟（镜头在西沟那块沙盘时）：瀑布水声、水磨坊的水车吱呀（离得越近越响）；有人在山神庙上香时摇铃；
+ * - 西沟（镜头在西沟那块沙盘时）：水磨坊的水车吱呀（离得越近越响），凑近瀑布才有水声；有人在山神庙上香时摇铃；
  *   白天林子里偶尔啄木鸟、鸟叫更勤，夜里偶尔一声猫头鹰。
  *
  * 声源都放在村子坐标（米）里，听者 = 相机（换算到村子坐标），HRTF 声像：分得出左右，离得越远越小。
@@ -165,8 +165,8 @@ export function createSound(village, getCamera) {
     if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { sample('chirp', around(), { gain: 0.45 }); nextBird = t + (inWest ? 6 + Math.random() * 10 : 10 + Math.random() * 18); }
     if ((hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextCricket) { sample('crickets', around(), { dur: 3 + Math.random() * 3, offset: Math.random() * 30, jitter: 0, gain: 0.5 }); nextCricket = t + 12 + Math.random() * 20; }
 
-    // 西沟：瀑布、水车一直在响（只在看西沟时放，近了更响）；林子里啄木鸟，夜里猫头鹰；有人在山神庙上香就摇铃
-    fall.set(inWest ? 0.5 : 0, 1.2);
+    // 西沟：水车在响（只在看西沟时放，近了更响），瀑布凑近才响；林子里啄木鸟，夜里猫头鹰；有人在山神庙上香就摇铃
+    fall.set(near(centerOf(thing('waterfall')), 35) ? 0.5 : 0, 1.2); // 瀑布：凑近了才听得见
     wheel.set(inWest ? 0.6 : 0, 1.2);
     if (inWest && !night && hour > 6 && weather !== 'rain' && t > nextPeck) { sample('woodpecker', around(), { gain: 0.4 }); nextPeck = t + 20 + Math.random() * 25; }
     if (inWest && night && weather !== 'rain' && t > nextOwl) { sample('owl', around(), { gain: 0.4, jitter: 0.03 }); nextOwl = t + 25 + Math.random() * 30; }
