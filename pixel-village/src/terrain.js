@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { block } from './pixel.js';
-import { BOUNDS, streamZ, STREAM_HALF, WATER_Y } from './layout.js';
+import { BOUNDS, streamZ, streamZ0, squeeze, STREAM_HALF, WATER_Y } from './layout.js';
 
 /*
  * 山地地形：高度场 → 梯田 → 挖院子平台 → 修台阶路 → 一次性生成网格。
@@ -23,7 +23,8 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
 
 /** 原始地形高度（米）：北高南低 + 东西山梁 + 起伏；小溪以南是一条矮河滩。 */
 export function rawHeight(x, z) {
-  const zs = streamZ(x);
+  z = squeeze(z); // 村口南边插进来的那条地：折回原来的坐标（见 layout.js 的 BAND）
+  const zs = streamZ0(x);
   if (z > zs + STREAM_HALF) return 0.5 + Math.min(1.0, (z - zs - STREAM_HALF) * 0.18) + 0.25 * Math.sin(x * 0.3);
   const north = Math.max(0, zs - STREAM_HALF - z);
   let h = north * 0.17 + (north / 66) ** 2 * 4;

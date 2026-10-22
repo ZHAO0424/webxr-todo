@@ -11,17 +11,25 @@
 //       ～～～～～～～～小溪～～石拱桥～～～～～～～
 //                 南（低处，进村）
 
-export const BOUNDS = { x0: -45, x1: 45, z0: -36, z1: 36 };
+/**
+ * 村口南边插进的一条地（米）：z ≥ BAND.z 的东西（溪水、石桥、溪南草滩、场院）都往南挪 BAND.d，
+ * 插进来的这条地是平的，村口的场子往南接上一块（compounds.js 的 square、village.js 里多压一块平地）。
+ * 地形用 squeeze 把新坐标折回原来的坐标算高度，所以 BAND.z 以北的地形一点都不变。
+ */
+export const BAND = { z: 26, d: 6 };
+export const squeeze = (z) => (z < BAND.z ? z : z < BAND.z + BAND.d ? BAND.z : z - BAND.d);
+export const BOUNDS = { x0: -45, x1: 45, z0: -36, z1: 36 + BAND.d };
 
 /** 小溪中心线（z 随 x 弯曲）和半宽。 */
-export const streamZ = (x) => 30 + 2.5 * Math.sin(x * 0.09 + 0.6);
+export const streamZ0 = (x) => 30 + 2.5 * Math.sin(x * 0.09 + 0.6); // 原来的位置（西沟的溪还在这儿）
+export const streamZ = (x) => streamZ0(x) + BAND.d;
 export const STREAM_HALF = 1.6;
 export const WATER_Y = -0.9;
 
 /** 院落：id 对应 compounds.js 里的建造函数和 residents.js 里的户；x/z 是平台中心，rot 是转角（度）。 */
 export const PLACEMENTS = [
   { id: 'square', x: 4, z: 19.5, rot: -4 },
-  { id: 'threshing', x: 24, z: 25.5, rot: 6 },
+  { id: 'threshing', x: 24, z: 25.5 + BAND.d, rot: 6 }, // 场院跨在插进来的那条地上，整个往南挪
   { id: 'headman', x: -2, z: -12, rot: 3 },
   { id: 'school', x: 19, z: -22.3, rot: -7 },
   { id: 'smith', x: -22, z: 14, rot: 8 },
@@ -37,10 +45,11 @@ export const PLACEMENTS = [
 
 /** 路网上不属于任何院子的点（院门口的点由院落自动生成，名字是 gate:院落id）。 */
 export const NODES = {
-  edgeS: { x: -1, z: 35.6 },
-  bridgeS: { x: 0.5, z: 34.2 },
-  bridgeN: { x: 0.8, z: 28.3 },
+  edgeS: { x: -1, z: 35.6 + BAND.d },
+  bridgeS: { x: 0.5, z: 34.2 + BAND.d },
+  bridgeN: { x: 0.8, z: 28.3 + BAND.d },
   sqW: { x: -6.8, z: 22 },
+  sqSW: { x: -7.4, z: 29.8 }, // 场子往南接了一块以后，村口南口去西边的路绕着它的西南角走
   sqNW: { x: -6.8, z: 11.6 },
   mid: { x: 2.9, z: 11.4 },
   well: { x: 2.9, z: -1.7 },
@@ -65,7 +74,7 @@ export const NODES = {
 /** 路（两端是节点名）。 */
 export const EDGES = [
   ['edgeS', 'bridgeS'], ['bridgeS', 'bridgeN'], ['bridgeN', 'gate:square'],
-  ['gate:square', 'sqW'], ['gate:threshing', 'sqE'], ['sqE', 'east'], ['gate:square', 'gate:threshing'], ['east', 'gate:farmB'],
+  ['gate:square', 'sqSW'], ['sqSW', 'sqW'], ['gate:threshing', 'sqE'], ['sqE', 'east'], ['gate:square', 'gate:threshing'], ['east', 'gate:farmB'],
   ['sqW', 'gate:smith'], ['sqW', 'sqNW'], ['sqNW', 'gate:tofu'], ['sqNW', 'mid'], ['mid', 'gate:tofu'], ['mid', 'gate:store'],
   ['mid', 'well'], ['well', 'gate:headman'], ['well', 'w1'], ['well', 'e1'],
   ['e1', 'e2'], ['e2', 'gate:doctor'], ['e1', 'L1'], ['L1', 'gate:school'], ['L1', 'L2'], ['L2', 'gate:farmC'],

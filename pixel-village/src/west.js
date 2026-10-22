@@ -3,7 +3,7 @@ import { UNIT, block, box, prism, bakeStatic, makeRng } from './pixel.js';
 import { R, GLOW } from './palette.js';
 import { addWestMaterials } from './textures.js';
 import { buildTerrain, rawHeight } from './terrain.js';
-import { streamZ, STREAM_HALF, WATER_Y } from './layout.js';
+import { streamZ0 as streamZ, STREAM_HALF, WATER_Y } from './layout.js'; // 西沟的溪还在原来的位置（村子南边插进的那条地不在西沟，见 layout.js 的 BAND）
 import { house, facade } from './buildings.js';
 import * as PROPS from './props.js';
 import { tagged, tag, collectThings } from './things.js';

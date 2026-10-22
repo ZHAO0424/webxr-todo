@@ -57,7 +57,7 @@ export const EVENTS = {
   },
   qingming: { // 清明：上午各家去西坡祖坟添土、烧纸、磕头；孩子在地头放风筝
     name: '清明·上坟踏青', place: '西坡祖坟', from: 8.0, to: 11.0, prep: 0.3, roles: {},
-    prob: (p) => (kid(p) ? 0.9 : elder(p) ? 0.85 : outsider(p) ? 0 : 0.75),
+    prob: (p) => (kid(p) ? 0.9 : outsider(p) ? 0 : head(p) ? 0.95 : elder(p) ? 0.6 : 0.25), // 上坟多是户主、老人去；孩子去地头放风筝
   },
   duanwu: { // 端午：上午妇女们在村口围坐包粽子，孩子们跑来跑去，男人在旁边说话
     name: '端午·包粽子', place: '村口', from: 9.0, to: 11.4, prep: 0.3, roles: { feng_yuzhen: 'host' },
@@ -331,10 +331,11 @@ Object.assign(EVENT_ACTS, {
         v.go(sp.at);
         v.do('bow', 4, { face: sp.face });
         v.do('work', 3, { face: sp.face }); // 添土、压纸
-        v.call(() => { v.V.release(v); done = true; });
+        v.call(() => { v.V.release(v); done = true; }); // 磕完头就回去了（坟前地方窄，别站着挡后来的人）
+        return;
       }
-      v.go(v.V.nav.nearestFree(G.at[0] + (v.rand() - 0.5) * 7, G.at[1] + 2.5 + v.rand() * 2.5)); // 等着、磕完了在坟前稍远处站一会儿
-      v.do(v.rand() < 0.5 ? 'talk' : 'idle', 4, { face: G.at });
+      v.go(v.V.nav.nearestFree(G.at[0] + (v.rand() - 0.5) * 9, G.at[1] + 3.5 + v.rand() * 3)); // 坟前没空：在稍远处等一会儿
+      v.do('idle', 3, { face: G.at });
     };
   },
 
@@ -360,7 +361,7 @@ Object.assign(EVENT_ACTS, {
     }
     if (kid(v.p)) {
       v.char.setItem('lantern'); // 提着小红灯笼（不加光晕：一群孩子的光晕叠在一起，整个场子都发红）
-      v.loop = () => { v.go(sq.randomPoint([-2, 0.6, 3.6, 2.4])); v.do('idle', 5 + v.rand() * 4, { face: moon }); }; // 只在戏台前那块空地转（别在坐着的人中间穿）
+      v.loop = () => { v.go(sq.randomPoint([-4, 6.6, 8, 10.6])); v.do('idle', 5 + v.rand() * 4, { face: moon }); }; // 在场子南边接出来的那块空地上转（别在坐着的人中间穿）
       return;
     }
     v.char.setItem(v.p.item === 'pipe' ? 'pipe' : null);

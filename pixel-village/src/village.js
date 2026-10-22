@@ -4,7 +4,7 @@ import { GLOW } from './palette.js';
 import { buildMaterials } from './textures.js';
 import { buildTerrain, rawHeight, padLevel } from './terrain.js';
 import { buildCompounds } from './compounds.js';
-import { PLACEMENTS, NODES, EDGES, WELL, BOUNDS, streamZ, STREAM_HALF, inSoy } from './layout.js';
+import { PLACEMENTS, NODES, EDGES, WELL, BOUNDS, BAND, streamZ, STREAM_HALF, inSoy } from './layout.js';
 import * as PROPS from './props.js';
 import { tagged, tag, collectThings } from './things.js';
 
@@ -93,6 +93,9 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     c.object.position.set(p.x, level, p.z);
     c.object.rotation.y = rot;
   }
+
+  // 村口的场子往南接一块（插进来的那条地上，见 layout.js 的 BAND）：和场子一样高、一样宽
+  { const sq = C.square, [x, z] = sq.at(0, sq.d / 2 + BAND.d / 2); pads.push({ x, z, rot: sq.rot, w: sq.w, d: BAND.d, level: sq.level }); }
 
   // 井台单独压一块平地（和旁边路口一样高），井不会半边悬在台阶上
   pads.push({ x: WELL.x, z: WELL.z, rot: 0, w: 3.2, d: 3.2, level: nodes.well.h });
@@ -325,7 +328,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     return { ...S, front, wait, spots: {} };
   })();
 
-  const ducks = [-20, 27.2, -6, 33];
+  const ducks = [-20, 27.2 + BAND.d, -6, 33 + BAND.d];
   const V = {
     M, root, nav, C, nodes, torches, shrine,
     // 祖坟：每个坟头前一个磕头的位置（清明上坟）
@@ -386,7 +389,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   const graveSmoke = graveAt && new Smoke(root, sprites, new THREE.Vector3(graveAt[0], graveAt[2] + 0.2, graveAt[1] + 0.5), 97, { size: 0.45, rise: 2.0, drift: 0.8, life: 0.3 }); // 清明：坟前烧纸
   const incense = shrine && new Smoke(root, sprites, shrine.burner.clone().setY(shrine.burner.y + shrine.h), 99, { size: 0.35, rise: 1.6, drift: 0.6, life: 0.25 });
   const rain = new Rain(root, BOUNDS, terrain.walkAt);
-  const fireflies = new Fireflies(root, M.fireflySprite, [[-40, 40, 26, 34, -0.5], [-44, -30, -10, 20, 3], [32, 44, -20, 6, 4]], 50);
+  const fireflies = new Fireflies(root, M.fireflySprite, [[-40, 40, 26 + BAND.d, 34 + BAND.d, -0.5], [-44, -30, -10, 20, 3], [32, 44, -20, 6, 4]], 50);
   const lights = [];
   const pointLight = (x, y, z, base, color = GLOW.lantern) => {
     const l = new THREE.PointLight(color, 0, 0.12, 1.4);

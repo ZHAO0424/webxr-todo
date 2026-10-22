@@ -4,6 +4,7 @@ import { house, enclose, wallSeg, gate, screenWall, lantern, facade } from './bu
 import * as PROPS from './props.js';
 import { tagged } from './things.js';
 import { is } from './season.js';
+import { BAND } from './layout.js';
 
 const P = tagged(PROPS); // 建出来的物件都带上 userData.thing，点它能看卡片
 
@@ -427,7 +428,9 @@ function tofu(M) {
 
 function square(M) {
   const w = 18, d = 12, g = new THREE.Group();
+  const S = d / 2 + BAND.d; // 场子往南接了一块（插进来的那条地），南沿到这儿；看戏、围坐、孩子玩都能站到那边去
   ground(g, M, w, d, M.threshing, 0.4);
+  g.add(block(-w / 2 + 0.4, 0, d / 2 - 0.4, w / 2 - 0.4, 0.03, S - 0.4, M.threshing, { outline: false }));
   put(g, P.stage(M, 0, 0), 3.5, -d / 2 + 3.0);
   g.add(block(-7.6, 0, -1.4, -2.8, 0.45, 3.4, M.rubble)); // 槐树下的石台
   put(g, P.stoneTable(M, 0, 0), -0.4, 3.6);
@@ -481,17 +484,17 @@ function square(M) {
   for (const sx of [-1, 1]) { const l = lantern(M); l.position.set(3.5 + sx * 3.2, 4.0, -d / 2 + 5.4); g.add(l); lanterns.push(l); }
   // 傍晚的活动（戏、篝火、村会）用到的位置。台上的点 lift = 台面高
   // 台下围成弧：以台口为圆心一圈一圈往外排（小孩蹲最里圈），躲开火塘、石桌、场子边；相邻两人、两圈之间都隔 1 米
-  const clear = (x, z) => Math.hypot(x - PIT[0], z - PIT[1]) > 2.0 && Math.hypot(x + 0.4, z - 3.6) > 1.5 && Math.abs(x) < w / 2 - 0.8 && z < d / 2 - 0.6 && z > 0.9;
+  const clear = (x, z) => Math.hypot(x - PIT[0], z - PIT[1]) > 2.0 && Math.hypot(x + 0.4, z - 3.6) > 1.5 && Math.abs(x) < w / 2 - 0.8 && z < S - 0.8 && z > 0.9;
   const arc = (r) => {
     const out = [], n = Math.floor(Math.PI * r);
     for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI, x = 3.5 + Math.cos(a) * r, z = -0.5 + Math.sin(a) * r; if (clear(x, z)) out.push([x, z]); }
     return out;
   };
   const front = arc(2.2);
-  const rows = [...arc(3.2), ...arc(4.2), ...arc(5.2), ...arc(6.2)];
+  const rows = [...arc(3.2), ...arc(4.2), ...arc(5.2), ...arc(6.2), ...arc(7.2), ...arc(8.2), ...arc(9.2)]; // 场子南边接出来以后能多站三圈
   // 篝火外圈站着的位置（石头、石凳坐满了以后）
   const outer = [];
-  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, x = PIT[0] + Math.cos(a) * 2.5, z = PIT[1] + Math.sin(a) * 2.5; if (Math.abs(x) < w / 2 - 0.6 && z < d / 2 - 0.6 && z > 0.8) outer.push([x, z]); }
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, x = PIT[0] + Math.cos(a) * 2.5, z = PIT[1] + Math.sin(a) * 2.5; if (Math.abs(x) < w / 2 - 0.6 && z < S - 0.6 && z > 0.8) outer.push([x, z]); }
   const evening = {
     foot: [3.5, 1.1], top: [3.5, -0.9], lift: 1.3, // 台阶下、台口
     singer: [3.5, -1.15], speaker: [3.5, -1.2], chairL: [1.2, -1.75], chairR: [5.8, -1.75],
@@ -500,7 +503,8 @@ function square(M) {
   };
   const evSpots = Object.fromEntries([...front.map((p, i) => [`front${i}`, p]), ...rows.map((p, i) => [`row${i}`, p]), ...ring.map((r, i) => [`ring${i}`, [r.x, r.z, ...PIT]]), ...outer.map((p, i) => [`outer${i}`, [...p, ...PIT]])]);
   return result(w, d, g, {
-    gate: [0, d / 2 + 1.2], lanterns, evening, ringSeats: ring, barber, market, chat, chatCenter, screen, projector,
+    // gate：场子的南口，在接出来那块的南沿外，下台阶到石桥
+    gate: [0, S + 1.2], lanterns, evening, ringSeats: ring, barber, market, chat, chatCenter, screen, projector,
     discs: [[...PIT, 0.75]],
     spots: {
       ...evSpots, ...marketSpots, ...chatSpots, stageFoot: [3.5, 1.1, 3.5, -1],
@@ -509,7 +513,7 @@ function square(M) {
       tree: [-4.4, 4.2, -5.2, 1.0], tableW: [-1.6, 3.6, -0.4, 3.6], tableE: [0.8, 3.6, -0.4, 3.6], table: [-0.4, 4.9, -0.4, 3.6],
       stage: [3.5, 1.2, 3.5, 6], barber: [-2.6, -3.5, -2.6, -4.4], tofu: [-0.2, 5.5], // 卖豆腐的地方躲开集市的豆腐摊
     },
-    playArea: [-2, 0.6, 7.6, 5.4],
+    playArea: [-2, 0.6, 7.6, S - 1.2], // 孩子玩、逛集市：连同南边接出来的那块
     doors: { house: xz(at(hut, hut.door)) },
     windows: windowsOf(hut),
     trees: [['locust', -5.2, 1.0, { seed: 71, y: 0.45 }]],
