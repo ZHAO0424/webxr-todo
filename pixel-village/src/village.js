@@ -186,6 +186,16 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     }
   }
 
+  // 3.6 祖坟：村西荒坡上找一块 4.5 x 3 米的平草地（四季都在；清明上坟用）
+  let graveAt = null;
+  for (let r = 0; r < 26 && !graveAt; r += 0.5) for (let a = 0; a < 36 && !graveAt; a++) {
+    const x = -34 + Math.cos(a * 0.1745) * r, z = -3 + Math.sin(a * 0.1745) * r, h = terrain.heightAt(x, z);
+    if (x > -20) continue; // 只在村西
+    const ok = [-2.3, -1.2, 0, 1.2, 2.3].every((dx) => [-1.4, -0.5, 0.5, 1.6].every((dz) => terrain.typeAt(x + dx, z + dz) === 'grass' && terrain.heightAt(x + dx, z + dz) === h));
+    if (ok && !nearPath(x, z) && !trunks.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 2.4) && Object.values(nodes).every((n) => Math.hypot(n.x - x, n.z - z) > 3.5)) graveAt = [x, z, h];
+  }
+  if (graveAt) root.add(P.graves(M, is('spring')).translateX(graveAt[0]).translateY(graveAt[2]).translateZ(graveAt[1]));
+
   // 4. 火把、庄稼地里的稻草人和看青棚
   const torches = TORCHES.map(([n, dx, dz]) => {
     const x = nodes[n].x + dx, z = nodes[n].z + dz;
@@ -318,6 +328,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   const ducks = [-20, 27.2, -6, 33];
   const V = {
     M, root, nav, C, nodes, torches, shrine,
+    // 祖坟：每个坟头前一个磕头的位置（清明上坟）
+    graves: graveAt && { at: [graveAt[0], graveAt[1]], spots: [-1.5, 0, 1.5].map((dx) => ({ at: nav.nearestFree(graveAt[0] + dx, graveAt[1] + 1.0), face: [graveAt[0] + dx, graveAt[1] - 0.6] })) },
     fields: { ...farm.fields, ...Object.fromEntries(['wheatW', 'wheatE', 'milletW', 'milletE', 'cornW', 'cornE'].map((k) => [k, farm.fields[k].filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p))])), fieldWest: west.work.fieldWest.filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p)) }, // fieldWest：西沟主路边的梯田；wheat / millet / corn：按庄稼分的（各季节的农活用）
     mill: { at: nav.nearestFree(...west.work.mill.at), face: west.work.mill.face }, // 西沟水磨坊：磨台北边磨面的位置
     temple: { at: nav.nearestFree(...west.work.temple.at), face: west.work.temple.face, light: west.work.temple.light }, // 西沟山神庙：栈台上、庙门前上香
@@ -371,6 +383,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     if (e.kind === 'steam') smokes.push(Object.assign(new Smoke(root, sprites, pos, s++, { size: 0.7, rise: 2.5, drift: 0.8, life: 0.3 }), { home: c.id, steam: true }));
     if (e.kind === 'ember') embers.push(new Embers(root, M.emberSprite, pos));
   }
+  const graveSmoke = graveAt && new Smoke(root, sprites, new THREE.Vector3(graveAt[0], graveAt[2] + 0.2, graveAt[1] + 0.5), 97, { size: 0.45, rise: 2.0, drift: 0.8, life: 0.3 }); // 清明：坟前烧纸
   const incense = shrine && new Smoke(root, sprites, shrine.burner.clone().setY(shrine.burner.y + shrine.h), 99, { size: 0.35, rise: 1.6, drift: 0.6, life: 0.25 });
   const rain = new Rain(root, BOUNDS, terrain.walkAt);
   const fireflies = new Fireflies(root, M.fireflySprite, [[-40, 40, 26, 34, -0.5], [-44, -30, -10, 20, 3], [32, 44, -20, 6, 4]], 50);
@@ -493,6 +506,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
       sqC.screen.visible = sqC.projector.visible = movieOn;
       if (movieOn) sqC.screen.userData.pic.material = hour >= EVENT_DEFS.movie.from ? M.movie[Math.floor(t / 2.2) % M.movie.length] : M.plaster; // 开演前是一块白布
       incense?.update(dt, V.eventOn('shrine'));
+      graveSmoke?.update(dt, V.eventOn('qingming'));
       fireflies.update(t);
       for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain' && is('summer'); // 萤火虫：夏夜
 

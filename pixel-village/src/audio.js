@@ -16,6 +16,7 @@ import { is } from './season.js';
  *   白天林子里偶尔啄木鸟、鸟叫更勤，夜里偶尔一声猫头鹰。
  * - 四季：春天鸟叫勤、偶尔一声布谷（"布谷布谷，快快播谷"）；夏天白天一阵阵蝉鸣、夜里溪边蛙声；秋天夜里蛐蛐；
  *   冬天鸟少、没有虫叫，下的是雪（没有雨声），瀑布和水车冻住了也不响。
+ * - 春节：天蒙蒙亮到早饭前，各家门口此起彼伏放鞭炮。
  *
  * 声源都放在村子坐标（米）里，听者 = 相机（换算到村子坐标），HRTF 声像：分得出左右，离得越远越小。
  * 录音素材在 sfx/（Freesound，CC0，来源见 sfx/CREDITS.md），合成的音色在 synth.js。
@@ -29,7 +30,7 @@ const ANIMAL_GAIN = 0.45; // 动物叫声整体音量
 const AUDIBLE = 160; // 再远的一次性声音就不播了
 const WEST_X = -45; // 听者在这条线以西 = 在看西沟（west.js 的 WEST_BOUNDS.x1）
 
-const SAMPLES = ['rooster', 'hen', 'dog', 'pig', 'sheep', 'donkey', 'ox', 'duck', 'goose', 'pigeon', 'magpie', 'cat', 'clang', 'chop', 'thud', 'chirp', 'crickets', 'fire', 'mill', 'crowd', 'projector', 'woodpecker', 'owl', 'waterwheel', 'waterfall', 'cicada', 'frogs', 'cuckoo'];
+const SAMPLES = ['rooster', 'hen', 'dog', 'pig', 'sheep', 'donkey', 'ox', 'duck', 'goose', 'pigeon', 'magpie', 'cat', 'clang', 'chop', 'thud', 'chirp', 'crickets', 'fire', 'mill', 'crowd', 'projector', 'woodpecker', 'owl', 'waterwheel', 'waterfall', 'cicada', 'frogs', 'cuckoo', 'firecracker'];
 const LONG = new Set(['crickets', 'fire', 'mill', 'crowd', 'projector', 'waterwheel', 'waterfall', 'cicada', 'frogs']); // 长录音（循环用），不等它们
 const ANIMAL = { rooster: 'rooster', hen: 'hen', henBrown: 'hen', dog: 'dog', dogBlack: 'dog', pig: 'pig', sheep: 'sheep', donkey: 'donkey', ox: 'ox', duck: 'duck', goose: 'goose', pigeon: 'pigeon', magpie: 'magpie', cat: 'cat' };
 // 点物件时放什么：录音名，或 synth:合成音色
@@ -212,6 +213,15 @@ export function createSound(village, getCamera) {
     const fiddler = people.find((v) => v.state === 'fiddle');
     if (fiddler) opera(fiddler, people.find((v) => v.state === 'sing'));
     if (V.eventOn('shrine') && t > (cool.get('shrine') ?? 0)) { const s = centerOf(thing('shrine')); if (s) synth('bell', s); cool.set('shrine', t + 8 + Math.random() * 8); }
+
+    // 春节：天亮前后各家门口放鞭炮
+    if (V.today() === 'chunjie') {
+      if (hour > 5.6 && hour < 8.2 && t > (cool.get('cracker') ?? 0)) {
+        const gates = village.things.filter((x) => x.thing === 'gate');
+        if (gates.length) sample('firecracker', centerOf(gates[Math.floor(Math.random() * gates.length)]), { gain: 0.6, jitter: 0.1 });
+        cool.set('cracker', t + 4 + Math.random() * 9);
+      }
+    }
 
     // 打更：边走边敲梆子，每隔一会儿一声小锣
     const watch = people.find((v) => v.doing === 'nightWatch' && !v.inside);

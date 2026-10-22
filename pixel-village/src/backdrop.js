@@ -69,6 +69,18 @@ function sunDisc() {
   });
 }
 
+/** 月亮：圆盘 + 一圈淡淡的光晕；big：中秋的大圆月（金黄、更大）。 */
+function moonDisc(big) {
+  const S = 40, r = big ? 9 : 6;
+  return paint(S, S, (g) => {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const d = Math.hypot(x + 0.5 - S / 2, y + 0.5 - S / 2);
+      if (d < r) g.px(x, y, (x * 7 + y * 3) % 11 === 0 && d < r - 2 ? (big ? '#c8a050' : '#9aa0c0') : big ? '#ffe6a0' : '#dfe4f4'); // 几块暗斑
+      else if (d < r + 4 && dither(x, y, 0.4)) g.px(x, y, big ? '#5a4628' : '#3a3e5a');
+    }
+  });
+}
+
 /** 桌面模式的天空：竖向硬色带（背景会拉伸到全屏，抖动会变条纹，所以不抖）。 */
 export function skyTexture(bands = SKY) {
   const c = paint(1, bands.length, (g) => bands.forEach((b, y) => g.px(0, y, b)));
@@ -108,16 +120,28 @@ export function buildBackdrop({ dist = 1.05, height = 0.38, back = 0.33 } = {}) 
   const sunTex = toTexture(sunDisc());
   const sunRange = dist + 2.4;
   const sunSize = 40 * sunRange * pxAngle;
-  const sun = new THREE.Mesh(new THREE.PlaneGeometry(sunSize, sunSize), pixelize(new THREE.MeshBasicMaterial({
-    map: sunTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-  })));
+  const sunMat = pixelize(new THREE.MeshBasicMaterial({ map: sunTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const sun = new THREE.Mesh(new THREE.PlaneGeometry(sunSize, sunSize), sunMat);
   sun.position.set(-0.7, 0.0, -2.4);
   g.add(sun);
+
+  // 月亮在东边（右），天黑了才出来；中秋是一轮又大又黄的圆月
+  const moonMat = pixelize(new THREE.MeshBasicMaterial({ map: toTexture(moonDisc(is('autumn'))), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 }));
+  const moonSize = sunSize * (is('autumn') ? 1.7 : 1.1); // 中秋的月亮格外大
+  const moon = new THREE.Mesh(new THREE.PlaneGeometry(moonSize, moonSize), moonMat);
+  moon.position.set(0.7, 0.02, -2.4);
+  g.add(moon);
 
   place(-1.9, (w, h, peak) => hillLayer({ w, h, peak, seed: 23, ramp: HILLS.far, rough: 0.16, snow: is('winter') ? '#d8c8d8' : null }), { rise: 0.17 });
   place(-1.35, (w, h) => mistBand(w, h), { rise: 0.03, below: 0.03, peak: 0.6, widthAngle: 1.4 });
   place(-1.0, (w, h, peak) => hillLayer({ w, h, peak, seed: 11, ramp: HILLS.mid, rough: 0.14, pagoda: true, snow: is('winter') ? '#b4a6c4' : null }), { rise: 0.1 });
   place(-0.45, (w, h, peak) => hillLayer({ w, h, peak, seed: 3, ramp: HILLS.near, rough: 0.1, trees: true, snow: is('winter') ? '#86829e' : null }), { rise: 0.04 });
 
-  return { object: g, update() {} };
+  return {
+    object: g,
+    update(t, night = 0) { // 天黑了太阳隐去、月亮出来
+      moonMat.opacity = Math.max(0, night - 0.3) / 0.7; moon.visible = night > 0.3;
+      sunMat.opacity = Math.max(0, 1 - night * 1.4); sun.visible = sunMat.opacity > 0;
+    },
+  };
 }

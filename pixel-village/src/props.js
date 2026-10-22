@@ -565,6 +565,42 @@ export function snowman(M, x, z, rotY = 0) {
   return at(g, x, z, rotY);
 }
 
+/** 祖坟：坡上一排三个坟头，前面各立一块小石碑；清明时坟头压着白纸条、插着柳枝。原点在中间坟头前。 */
+export function graves(M, spring = false) {
+  const g = new THREE.Group();
+  for (const x of [-1.5, 0, 1.5]) {
+    const mound = prism(0.25, 0.65, 0.55, M.flatRoof, 8);
+    mound.position.set(x, 0.27, -0.6);
+    g.add(mound, block(x - 0.18, 0, -0.05, x + 0.18, 0.5, 0.05, M.stone));
+    if (spring) { // 挂纸、插柳
+      g.add(block(x - 0.12, 0.54, -0.68, x + 0.12, 0.56, -0.52, M.plaster, { outline: false }));
+      g.add(block(x + 0.18, 0.3, -0.45, x + 0.22, 0.85, -0.41, M.wood, { outline: false }), block(x + 0.08, 0.7, -0.48, x + 0.32, 0.88, -0.38, M.veg, { outline: false }));
+    }
+  }
+  g.userData.thing = 'graves';
+  return g;
+}
+
+/** 中秋拜月的供桌：石桌上摆一摞月饼、一盘苹果石榴、一个西瓜（切成莲花瓣）、一个小香炉。 */
+export function moonOffering(M) {
+  const g = new THREE.Group();
+  for (let i = 0; i < 4; i++) { const c = prism(0.13, 0.13, 0.05, M.gold, 8); c.position.set(-0.22, 0.87 + i * 0.05, 0.05); g.add(c); } // 月饼
+  const plate = prism(0.2, 0.15, 0.04, M.plaster, 8); plate.position.set(0.18, 0.86, 0.12); g.add(plate);
+  for (const [x, z] of [[0.12, 0.08], [0.24, 0.1], [0.18, 0.2], [0.16, 0.14]]) g.add(block(x - 0.05, 0.88, z - 0.05, x + 0.05, 0.97, z + 0.05, M.redCloth, { outline: false }));
+  const melon = prism(0.14, 0.16, 0.16, M.veg, 8); melon.position.set(0.05, 0.92, -0.25); g.add(melon);
+  g.add(block(-0.32, 0.84, -0.3, -0.2, 0.94, -0.18, M.iron)); // 香炉
+  return g;
+}
+
+/** 端午：石桌上一盆包好的粽子、一摞泡好的苇叶。 */
+export function zongziPlate(M) {
+  const g = new THREE.Group();
+  const basin = prism(0.28, 0.2, 0.1, M.wood, 8); basin.position.set(-0.1, 0.89, 0); g.add(basin);
+  for (const [x, z] of [[-0.18, -0.06], [-0.02, 0.06], [-0.12, 0.1], [-0.02, -0.08], [-0.2, 0.06]]) { const z1 = prism(0.0, 0.07, 0.1, M.veg, 3); z1.position.set(x, 0.99, z); g.add(z1); } // 三角粽子
+  g.add(block(0.15, 0.84, -0.2, 0.42, 0.9, 0.15, M.veg, { outline: false })); // 苇叶
+  return g;
+}
+
 /** 粪堆 / 堆肥。 */
 export function compost(M, x, z) {
   const g = new THREE.Group();

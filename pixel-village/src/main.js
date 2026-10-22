@@ -397,7 +397,7 @@ renderer.setAnimationLoop((_, frame) => {
   if (params.has('sound')) document.documentElement.dataset.sound = JSON.stringify(sound.stats);
   if (marker.visible) marker.position.y = markerH + (Math.floor(t * 3) % 2) * 0.1; // 一上一下跳
   applyLight(s.light);
-  backdrop.update(t);
+  backdrop.update(t, s.light.night);
   if (clockEl && s.clock.label !== lastLabel) {
     lastLabel = s.clock.label;
     const e = EVENTS[village.life.today()], w = village.life.weather();
@@ -477,6 +477,7 @@ scene.traverseVisible((o) => { // 只算当前这块沙盘（另一块藏着不�
   if (o.isMesh) tris += ((o.geometry.index?.count ?? o.geometry.attributes.position?.count ?? 0) / 3) * (o.isInstancedMesh ? o.count : 1);
 });
 document.documentElement.dataset.tris = String(Math.round(tris)); // 三角面数（不含阴影那一遍）
+document.documentElement.dataset.graves = JSON.stringify(village.life.people[0].V.graves?.at ?? null); // 祖坟在哪（截图对镜头用）
 document.documentElement.dataset.calls = String(drawables); // 每只眼大约这么多 draw call（不含阴影）
 document.documentElement.dataset.west = JSON.stringify({ audit: west.object.userData.audit, pasture: V.pasture.length, work: { fieldWest: V.fields.fieldWest.length, woods: V.woods.filter((w) => w.at[0] < -45).length, mill: V.mill.at.map((v) => +v.toFixed(1)) }, bake: west.object.userData.bake, flora: west.object.userData.flora, floating: west.object.userData.floating, coplanar: { found: west.object.userData.coplanar.found, left: west.object.userData.coplanar.left, leftSamples: west.object.userData.coplanar.leftSamples }, bridges: west.terrain.bridges.length, things: west.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
 document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);

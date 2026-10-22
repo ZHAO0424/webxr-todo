@@ -431,6 +431,8 @@ function square(M) {
   put(g, P.stage(M, 0, 0), 3.5, -d / 2 + 3.0);
   g.add(block(-7.6, 0, -1.4, -2.8, 0.45, 3.4, M.rubble)); // 槐树下的石台
   put(g, P.stoneTable(M, 0, 0), -0.4, 3.6);
+  if (is('autumn')) put(g, P.moonOffering(M), -0.4, 3.6); // 中秋：石桌上摆供拜月
+  if (is('summer')) put(g, P.zongziPlate(M), -0.4, 3.6); // 端午：石桌上一盆粽子
   // 戏台东边的火塘：篝火晚上围着它坐；两条石凳、几块石头当凳子
   const PIT = [6.4, 2.9];
   const pit = P.firePit(M);

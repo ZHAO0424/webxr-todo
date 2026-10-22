@@ -17,6 +17,8 @@
     import { RESIDENTS } from './src/residents.js';
     import { voxelCharacter, voxelAnimalFrames } from './src/voxel.js';
     import { ANIMAL_NAMES } from './src/animals.js';
+    import { setSeason } from './src/season.js';
+    setSeason(new URLSearchParams(location.search).get('season') ?? 'autumn'); // ?season= 看四季的衣服
 
     const q = new URLSearchParams(location.search);
     const renderer = new THREE.WebGLRenderer({ antialias: true });

@@ -17,6 +17,7 @@ PICK = {
     'crickets': ('C', 0, '', -28), 'fire': ('B', 0, '', -22), 'mill': ('B', 0, '', -22), 'crowd': ('B', 0, '', -24), 'projector': ('C', 0, '', -26),
     'waterwheel': ('C', 0, 'lowpass=f=3500', -24), 'waterfall': ('A', 0, 'lowpass=f=2000', -26), 'woodpecker': ('B', 1.6, 'lowpass=f=5000', -24), 'owl': ('A', 1.8, 'lowpass=f=4000', -26),
     'cicada': ('A', 0, 'lowpass=f=3200', -30), 'frogs': ('A', 0, 'lowpass=f=4000', -27), 'cuckoo': ('B', 2.0, 'lowpass=f=3500', -26),
+    'firecracker': ('B', 2.8, 'lowpass=f=4500', -27),
 }
 
 index = json.loads((CAND / 'index.json').read_text(encoding='utf-8'))

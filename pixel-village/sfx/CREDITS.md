@@ -32,3 +32,4 @@
 | cicada.mp3 | Cicadas  | dethrok | https://freesound.org/people/dethrok/sounds/272169/ |
 | frogs.mp3 | Toads and frogs are singing at night in the pond, in the center of the small village of Diafarabe, on the Niger river. (Africa, Mali) | felix.blume | https://freesound.org/people/felix.blume/sounds/135561/ |
 | cuckoo.mp3 | Cuckoo 9.WAV | Monkay | https://freesound.org/people/Monkay/sounds/81971/ |
+| firecracker.mp3 | firecrackers.wav | sbarncar | https://freesound.org/people/sbarncar/sounds/121557/ |

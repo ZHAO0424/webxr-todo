@@ -1,4 +1,5 @@
 import { R, INK } from './palette.js';
+import { season } from './season.js';
 
 /*
  * 程序化像素人物（纸娃娃系统）。
@@ -62,6 +63,36 @@ function shadedRect(g, x, y, w, h, r, base = 2, { round = false, light = true, c
     if (collar && j === 1 && i > w / 2 - 3 && i < w / 2 + 2) k = base - 1; // 下巴投在领口的影子
     g.px(x + i, y + j, r[Math.max(0, Math.min(r.length - 1, k))]);
   }
+}
+
+// ---------------------------------------------------------------- 四季的衣服
+
+/**
+ * 按季节换一身衣服（季节见 season.js）。residents.js 里写的是秋天的穿着：
+ * - 冬天：都穿棉袄（衣服上一道道绗线、毛领子），坎肩换成棉袄；男人戴棉帽（狗皮帽子，护耳放下来），
+ *   妇女包头巾；过年穿新衣——孩子一身红（女孩粉）、年轻媳妇穿红袄扎红头巾。
+ * - 夏天：短袖（胳膊露出来）、不打绑腿；男人换白粗布褂子，下地的戴草帽（毡帽也换成草帽）。
+ * - 春秋：照原样。
+ */
+export function dress(p) {
+  if (p.dressed) return p;
+  const S = season(), kid = p.body === 'child', man = p.sex === '男';
+  const q = { ...p, dressed: true };
+  if (S === 'winter') {
+    q.padded = true;
+    if (q.style === 'vest') q.style = undefined;
+    if (kid) { q.top = man ? 'red' : 'pink'; q.hat = man ? 'furcap' : 'scarf'; q.scarfRamp = 'red'; }
+    else if (man) { if (!q.hat || q.hat === 'straw') q.hat = 'furcap'; }
+    else { q.hat = 'scarf'; if (p.age < 50) { q.scarfRamp = 'red'; q.top = 'red'; } }
+  } else if (S === 'summer') {
+    q.short = q.style !== 'gown';
+    q.legwrap = false;
+    if (man && !kid && q.style !== 'gown') {
+      if (q.style !== 'vest') { q.top = 'grey'; q.style = undefined; }
+      if ((!q.hat || q.hat === 'felt') && p.age < 65) q.hat = 'straw';
+    }
+  }
+  return q;
 }
 
 // ---------------------------------------------------------------- 部件
@@ -187,6 +218,15 @@ function hat(g, p, H, view) {
       g.hline(x0 - 3, x0 + w + 2, y0 + 1, R.wheat[1]);
       break;
     }
+    case 'furcap': { // 棉帽（狗皮帽子）：毛茸茸的帽檐，两边护耳放下来
+      g.rect(x0, y0 - 2, w, 4, R.brown[2]);
+      g.hline(x0 + 1, x0 + 3, y0 - 2, R.brown[3]);
+      g.hline(x0 - 1, x0 + w, y0 + 1, R.khaki[3]);
+      g.hline(x0, x0 + w - 1, y0 + 2, R.khaki[2]);
+      if (view === 'side') g.rect(x0 + 2, y0 + 2, 3, 4, R.khaki[3]);
+      else { g.vline(x0 - 1, y0 + 2, y0 + 5, R.khaki[3]); g.vline(x0 + w, y0 + 2, y0 + 5, R.khaki[2]); }
+      break;
+    }
     case 'scarf': { // 头巾（妇女），带小碎花
       const r = R[p.scarfRamp ?? 'indigo'];
       for (let j = -1; j < H.h - 2; j++) for (let i = -1; i <= w; i++) {
@@ -211,6 +251,10 @@ function torso(g, p, b, L, view, pose) {
   shadedRect(g, x0, y0, w, h, top, 2, { round: true, collar: true });
   // 立领
   g.rect(CX - 2, y0, 5, 1, top[1]);
+  if (p.padded) { // 棉袄：一道道绗线，毛领子
+    for (let y = y0 + 3; y < y0 + h - 1; y += 3) for (let i = 1; i < w - 1; i += 2) g.px(x0 + i, y, top[1]);
+    g.rect(CX - 3, y0, 7, 1, R.khaki[3]);
+  }
   if (view === 'front') {
     if (p.style === 'side') { // 大襟：斜襟到右腋下
       for (let i = 0; i < 4; i++) g.px(CX - 1 + i, y0 + 1 + i, top[1]);
@@ -237,7 +281,10 @@ function torso(g, p, b, L, view, pose) {
   const arms = [];
   for (const [side, ax] of [[-1, x0 - 2], [1, x0 + w]]) {
     const dy = side < 0 ? pose.armL : pose.armR;
-    shadedRect(g, ax, y0 + 1 + dy, 2, armH, sleeve, 2, { light: side < 0 });
+    if (p.short) { // 短袖：袖子到胳膊肘，底下露着胳膊
+      shadedRect(g, ax, y0 + 1 + dy, 2, 2, sleeve, 2, { light: side < 0 });
+      shadedRect(g, ax, y0 + 3 + dy, 2, armH - 2, S, 3, { light: side < 0 });
+    } else shadedRect(g, ax, y0 + 1 + dy, 2, armH, sleeve, 2, { light: side < 0 });
     g.rect(ax, y0 + 1 + armH + dy, 2, 2, side < 0 ? S[3] : S[2]);
     arms.push({ x: ax, y: y0 + 1 + armH + dy });
   }
@@ -538,6 +585,7 @@ const IDLE = [
 
 /** 生成一个人的全部帧（每帧一个 Grid，已描边）。 */
 export function characterFrames(p) {
+  p = dress(p);
   const b = BODIES[p.body];
   const frames = [];
   frames.push(frontOrBack(p, b, 'front', IDLE[0], 0), frontOrBack(p, b, 'front', IDLE[1], 0));
@@ -572,6 +620,7 @@ export function characterAtlas(p) {
  * voxel.js 用它们做"视觉外壳雕刻"：正面轮廓 ∩ 侧面轮廓 = 人的体积，表面取对应视角的像素颜色。
  */
 export function restViews(p) {
+  p = dress(p);
   const b = BODIES[p.body];
   const front = frontOrBack(p, b, 'front', IDLE[0], 0, { item: false });
   const back = frontOrBack(p, b, 'back', IDLE[0], 0, { item: false });

@@ -268,10 +268,27 @@ export function gate(M, type, width = 3.4) {
     if (is('winter')) for (const sx of [-1, 1]) facade(g, M, 'fu', sx * 1.35, 1.5, 0.13, { scale: 0.45 }); // 柴门的木桩上也贴个福字
   }
   g.add(doors.group);
+  festive(g, M, type, width);
   const widthOf = { grand: 2.4, wall: 2.4, brush: 2.46, plank: width };
   g.userData.thing = 'gate';
   g.userData.thingSpec = { type };
   return { object: g, lanterns, leaves: doors.leaves, width: widthOf[type] };
+}
+
+/**
+ * 过节的门（见 season.js 的 FESTIVALS）：清明门楣上插柳，端午门两边挂艾草，春节门口一地鞭炮碎屑
+ * （对联、灯笼、福字在各种门里各自加了）。按门的样式找位置：门楣中间、两边门柱（门垛）的正面。
+ */
+function festive(g, M, type, width) {
+  const spot = {
+    grand: { lintel: [2.85, 1.52], posts: [1.95, 1.55, 1.52], ground: 0.31 },
+    wall: { lintel: [2.6, 0.33], posts: [1.5, 1.9, 0.33], ground: 0 },
+    plank: { lintel: [2.45, 0.14], posts: [width / 2 + 0.15, 1.5, 0.17], ground: 0 },
+    brush: { lintel: null, posts: [1.35, 1.2, 0.14], ground: 0 },
+  }[type];
+  if (is('spring') && spot.lintel) facade(g, M, 'willowSprig', 0, spot.lintel[0], spot.lintel[1], { scale: 0.9 });
+  if (is('summer')) for (const sx of [-1, 1]) facade(g, M, 'mugwort', sx * spot.posts[0], spot.posts[1], spot.posts[2] + 0.02);
+  if (is('winter')) g.add(block(-1.3, spot.ground + 0.01, 0.3, 1.3, spot.ground + 0.025, 2.0, M.scraps, { outline: false }));
 }
 
 /** 影壁：门内正对大门的一面砖墙，中间白灰墙心 + 斗方福字。 */

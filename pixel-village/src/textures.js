@@ -366,6 +366,18 @@ const decals = {
     }
   }),
 
+  willowSprig: () => paint(16, 10, (g) => { // 清明插柳：门楣上插一把柳枝，细条往下垂
+    for (let i = 0; i < 6; i++) { const x = 2 + i * 2 + (i % 2); g.rect(x, 0, 1, 4 + (i * 3) % 6, R.khaki[3]); for (let y = 1; y < 4 + (i * 3) % 6; y += 2) g.px(x + (y % 4 ? 1 : -1), y, R.leaf[4]); }
+    g.rect(1, 0, 14, 1, R.wood[2]);
+  }),
+  mugwort: () => paint(6, 18, (g) => { // 端午的艾草：一束青灰的叶子，红绳扎着
+    for (let y = 0; y < 18; y++) { const w = y < 4 ? 2 : y < 12 ? 6 : 4; const x0 = Math.floor((6 - w) / 2); for (let x = x0; x < x0 + w; x++) if ((x + y) % 3) g.px(x, y, y % 4 < 2 ? R.green[3] : R.green[2]); }
+    g.rect(1, 12, 4, 1, R.red[3]); g.rect(2, 13, 1, 5, R.green[1]); g.rect(3, 13, 1, 5, R.green[2]);
+  }),
+  scraps: (r) => paint(36, 36, (g) => { // 春节：门口放过鞭炮，一地红纸屑
+    for (let i = 0; i < 70; i++) { const x = r() * 36, y = r() * 36; g.pxw(x, y, r() > 0.3 ? R.red[3] : R.red[2]); if (r() > 0.6) g.pxw(x + 1, y, R.red[2]); }
+    for (let i = 0; i < 6; i++) g.pxw(r() * 36, r() * 36, R.gold[3]);
+  }),
   blob: () => paint(16, 8, (g) => {
     g.rect(3, 0, 10, 8, INK); g.rect(1, 1, 14, 6, INK); g.rect(0, 2, 16, 4, INK);
   }),
@@ -571,6 +583,7 @@ export function buildMaterials(seed = 7) {
   for (const k of Object.keys(decals)) M[k] = toon(tex[k], { alphaTest: 0.5 });
   for (const k of Object.keys(lit)) M[k] = flat(tex[k]);
   M.herbRack = toon(tex.herbRack, { alphaTest: 0.5, side: THREE.DoubleSide });
+  tex.scraps.wrapS = tex.scraps.wrapT = THREE.RepeatWrapping; tex.scraps.repeat.set(0.5, 0.5); // 鞭炮碎屑铺在地上（按米平铺，36 像素 = 2 米）
   M.bridgeSide = toon(tex.bridgeSide, { alphaTest: 0.5, side: THREE.DoubleSide });
   M.voxel = toon(null, { vertexColors: true }); // 体素（人物、动物、树）：颜色在顶点上
   M.blob = flat(tex.blob, { transparent: true, opacity: 0.35, depthWrite: false });

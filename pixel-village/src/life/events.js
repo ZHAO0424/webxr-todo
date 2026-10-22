@@ -1,5 +1,5 @@
 import { ACTIVITIES, R, kinOf } from './activities.js';
-import { season, is, SEASONS } from '../season.js';
+import { season, is, festival } from '../season.js';
 
 /*
  * 每天一样全村的活动，有白天的也有晚上的：
@@ -50,6 +50,23 @@ export const EVENTS = {
     roles: { wang_deshan: 'speaker', li_wenqing: 'clerk' }, // 村长主持，李先生记账
     prob: (p) => (kid(p) ? 0 : head(p) ? 1 : outsider(p) ? 0.15 : 0.45),
   },
+  // ---- 四季的大节日（第 1 天，见 season.js 的 FESTIVALS）
+  chunjie: { // 春节：上午各家穿着新衣出门拜年，挨家走到门口道一声"过年好"，站着说会儿话；孩子跟着大人
+    name: '春节·拜年', place: '各家门口', from: 8.6, to: 11.4, prep: 0, roles: {},
+    prob: (p) => (outsider(p) ? 0.3 : 0.9),
+  },
+  qingming: { // 清明：上午各家去西坡祖坟添土、烧纸、磕头；孩子在地头放风筝
+    name: '清明·上坟踏青', place: '西坡祖坟', from: 8.0, to: 11.0, prep: 0.3, roles: {},
+    prob: (p) => (kid(p) ? 0.9 : elder(p) ? 0.85 : outsider(p) ? 0 : 0.75),
+  },
+  duanwu: { // 端午：上午妇女们在村口围坐包粽子，孩子们跑来跑去，男人在旁边说话
+    name: '端午·包粽子', place: '村口', from: 9.0, to: 11.4, prep: 0.3, roles: { feng_yuzhen: 'host' },
+    prob: (p) => (kid(p) ? 0.8 : p.sex === '女' ? 0.9 : elder(p) ? 0.6 : 0.3),
+  },
+  zhongqiu: { // 中秋：晚上村口石桌摆供，村长领着拜月，大伙儿围坐赏月、吃月饼，孩子提着灯笼跑
+    name: '中秋·赏月', place: '村口', from: 19.0, to: 21.0, prep: 0.3, roles: { wang_deshan: 'leader' },
+    prob: (p) => (kid(p) ? 0.95 : elder(p) ? 0.85 : 0.75),
+  },
 };
 export const ORDER = ['opera', 'market', 'bonfire', 'harvest', 'movie', 'shrine', 'meeting'];
 export const EVENT_NAMES = new Proxy({}, { get: (_, k) => EVENTS[k]?.name }); // 名字跟季节走（打麦 / 打场）
@@ -64,9 +81,10 @@ export function hash(str) {
 
 // ---------------------------------------------------------------- 农历、天气
 
-// 第 1 天是这个季节那个月的初四（春三月、夏六月、秋九月、冬腊月；每月按 30 天算）
+// 第 1 天是这个季节的节日（春三月初五清明、夏五月初五端午、秋八月十五中秋、冬正月初一春节；每月按 30 天算）
 export function lunarOf(day) {
-  let m = SEASONS[season()].month, d = 4 + day - 1;
+  const F = festival();
+  let m = F.m, d = F.d + day - 1;
   while (d > 30) { d -= 30; m = (m % 12) + 1; }
   return { m, d };
 }
@@ -81,6 +99,7 @@ export function lunarLabel(day) {
 /** 这天村里办什么：逢五逢十赶集，其余日子轮着来（打场只在夏秋农忙时办）。 */
 export function eventOf(day, forced) {
   if (forced) return forced;
+  if (day === 1) return festival().key; // 头一天过节
   if (lunarOf(day).d % 5 === 0) return 'market';
   const others = ORDER.filter((k) => k !== 'market' && (k !== 'harvest' || is('summer', 'autumn')));
   let k = 0;
@@ -271,6 +290,85 @@ export const EVENT_ACTS = {
     v.end = () => v.V.release(v);
   },
 };
+
+// ---------------------------------------------------------------- 节日（见 season.js 的 FESTIVALS）
+
+/** 围着火塘那一圈坐（篝火、包粽子、赏月）：石头、石凳坐满了在外圈站着。返回 { seat, face }，占不到返回 null。 */
+function ringSeat(v, key, skip = []) {
+  const sq = v.V.C.square, E = sq.evening;
+  const name = v.V.claimNear(v, sq, [...E.ring.filter((n) => !skip.includes(n)), ...E.outer], kinOf(v), (n) => sq.spots[n]);
+  if (!name) { giveUp(v, key); return null; }
+  return { seat: takeSquare(v, name) };
+}
+
+Object.assign(EVENT_ACTS, {
+  chunjie(v) { // 拜年：挨家走到门口，朝着院门说会儿话，再去下一家（不进院、不磕头，动作都是平常的）
+    const homes = Object.values(v.V.C).filter((c) => c.gates?.length && c.id !== v.p.home);
+    v.char.setItem(v.p.item === 'cane' || v.p.item === 'pipe' ? v.p.item : null);
+    v.loop = () => {
+      const c = R(homes), [gx, gz] = c.gateOut();
+      v.go(v.V.nav.nearestFree(gx + (v.rand() - 0.5) * 1.6, gz + 0.6 + v.rand() * 0.8));
+      v.do('talk', 5 + v.rand() * 4, { face: c.at(...c.gate) });
+      v.do('idle', 1 + v.rand() * 2);
+    };
+  },
+
+  qingming(v) { // 上坟：去西坡祖坟，在坟前磕头、烧纸，站一会儿说说话；孩子在地头放风筝
+    const G = v.V.graves;
+    if (kid(v.p) || !G) {
+      v.char.setItem('kite');
+      const fields = v.V.playFields;
+      v.loop = () => { v.go(R(fields), { run: true }); v.do('work', 6 + v.rand() * 4); };
+      return;
+    }
+    v.char.setItem(v.p.item === 'cane' ? 'cane' : 'basket'); // 挎着篮子：纸钱、供品
+    let done = false;
+    v.loop = () => {
+      if (done) { v.leftEvent = `${v.V.clockDay()}/qingming`; v.finish(); return; } // 磕完头、说两句话就回去了
+      const name = v.V.claim(v, G, G.spots.map((_, i) => `g${i}`), { strict: true });
+      if (name) {
+        const sp = G.spots[Number(name.slice(1))];
+        v.go(sp.at);
+        v.do('bow', 4, { face: sp.face });
+        v.do('work', 3, { face: sp.face }); // 添土、压纸
+        v.call(() => { v.V.release(v); done = true; });
+      }
+      v.go(v.V.nav.nearestFree(G.at[0] + (v.rand() - 0.5) * 7, G.at[1] + 2.5 + v.rand() * 2.5)); // 等着、磕完了在坟前稍远处站一会儿
+      v.do(v.rand() < 0.5 ? 'talk' : 'idle', 4, { face: G.at });
+    };
+  },
+
+  duanwu(v, role) { // 包粽子：妇女、老人围着火塘坐一圈，手里端着盆包；孩子跑着玩；男人站在外圈说话
+    const sq = v.V.C.square, pit = sq.at(...sq.evening.pit);
+    if (kid(v.p)) { v.char.setItem(null); v.loop = () => { v.go(sq.randomPoint(sq.playArea), { run: true }); v.do(v.rand() < 0.4 ? 'cheer' : 'idle', 2 + v.rand() * 3, { face: pit }); }; return; }
+    if (v.p.sex === '男' && !elder(v.p)) { v.char.setItem(v.p.item === 'pipe' ? 'pipe' : null); v.loop = () => { v.go(sq.randomPoint(sq.playArea)); v.do('talk', 6, { face: pit }); }; return; }
+    v.char.setItem('bowl');
+    const r = ringSeat(v, 'duanwu');
+    if (!r) return;
+    v.loop = () => { if (r.seat) { v.seat = r.seat.seat; v.do(v.rand() < 0.3 ? 'talk' : 'sit', 8, { face: pit }); } else v.do('work', 8, { face: pit }); };
+  },
+
+  zhongqiu(v, role) { // 赏月：村长先在石桌供前拜月，大伙儿围坐火塘一圈（不点火）吃月饼说话；孩子提着灯笼满场跑
+    const sq = v.V.C.square, table = sq.at(-0.4, 3.6), moon = sq.at(30, 0); // 月亮从东边升起来
+    if (role === 'leader') {
+      v.char.setItem(null);
+      v.go(sq.spot('table'));
+      v.do('bow', 4, { face: table });
+      v.go(sq.spot('tableE')); // 拜完挪到石桌边坐（别堵着石桌南边的过道）
+      v.loop = () => { v.seat = 0.45; v.do('sit', 10, { face: moon }); };
+      return;
+    }
+    if (kid(v.p)) {
+      v.char.setItem('lantern'); // 提着小红灯笼（不加光晕：一群孩子的光晕叠在一起，整个场子都发红）
+      v.loop = () => { v.go(sq.randomPoint([-2, 0.6, 3.6, 2.4])); v.do('idle', 5 + v.rand() * 4, { face: moon }); }; // 只在戏台前那块空地转（别在坐着的人中间穿）
+      return;
+    }
+    v.char.setItem(v.p.item === 'pipe' ? 'pipe' : null);
+    const r = ringSeat(v, 'zhongqiu');
+    if (!r) return;
+    v.loop = () => { if (r.seat) { v.seat = r.seat.seat; v.do(v.rand() < 0.25 ? 'eat' : v.rand() < 0.4 ? 'talk' : 'sit', 8, { face: moon }); } else v.do(v.rand() < 0.4 ? 'talk' : 'idle', 8, { face: moon }); };
+  },
+});
 
 /** 让 v 参加今天的活动。 */
 export function joinEvent(v, key) {

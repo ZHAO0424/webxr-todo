@@ -21,7 +21,20 @@ export const SEASONS = {
 };
 export const ORDER = ['spring', 'summer', 'autumn', 'winter'];
 
+// 每个季节一个大节日：场景就从过节那天开始（第 1 天），节日的装饰整个季节都在
+//   春·清明（三月初五）：家家门上插柳，上坟扫墓，孩子放风筝
+//   夏·端午（五月初五）：门上挂艾草，村口包粽子
+//   秋·中秋（八月十五）：村口石桌上摆月饼瓜果拜月，晚上赏月，孩子提灯笼；天上一轮大圆月
+//   冬·春节（正月初一）：对联、红灯笼、福字、门口一地鞭炮碎屑，天亮放鞭炮，上午穿新衣挨家拜年
+export const FESTIVALS = {
+  spring: { key: 'qingming', name: '清明', m: 3, d: 5 },
+  summer: { key: 'duanwu', name: '端午', m: 5, d: 5 },
+  autumn: { key: 'zhongqiu', name: '中秋', m: 8, d: 15 },
+  winter: { key: 'chunjie', name: '春节', m: 1, d: 1 },
+};
+
 let cur = 'autumn';
+export const festival = () => FESTIVALS[cur];
 export const season = () => cur;
 export const is = (...list) => list.includes(cur);
 
