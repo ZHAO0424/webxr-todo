@@ -482,9 +482,24 @@ function square(M) {
   put(g, projector, -0.4, 3.6, Math.atan2(3.5 + 0.4, -0.35 - 3.6) - Math.PI / 2);
   const lanterns = [];
   for (const sx of [-1, 1]) { const l = lantern(M); l.position.set(3.5 + sx * 3.2, 4.0, -d / 2 + 5.4); g.add(l); lanterns.push(l); }
+  // 场子南边接出来的那块：戏台正对着三排条石长凳（中间留一条过道，正对台口）；西边是晒场，东边停着大车
+  const benchSeats = [], BENCHES = [];
+  for (const z of [7.0, 8.5, 10.0]) for (const x of [1.6, 5.4]) {
+    put(g, P.bench(M, 0, 0), x, z);
+    BENCHES.push([x, z]);
+    for (const dx of [-0.6, 0, 0.6]) benchSeats.push({ x: x + dx, z, seat: 0.5, perch: true });
+  }
+  if (is('winter')) { put(g, P.firewood(M, 0, 0, 3.0), -6.2, 8.0); put(g, P.firewood(M, 0, 0, 2.4), -4.2, 10.4, 0.2); } // 冬天：晒场上码着柴火
+  else {
+    const fill = { spring: [null, null], summer: [M.wheat, M.wheat], autumn: [M.corn, M.millet] }[is('spring') ? 'spring' : is('summer') ? 'summer' : 'autumn'];
+    put(g, P.dryingMat(M, fill[0]), -6.3, 7.6); // 夏天晒麦粒，秋天晒玉米、谷子，春天席子空着
+    put(g, P.dryingMat(M, fill[1]), -3.8, 10.2, 0.15);
+  }
+  put(g, P.cart(M, 0, 0), 7.4, 9.0, Math.PI / 2); // 车辕朝北
+  const nearProps = (x, z) => BENCHES.some(([bx, bz]) => Math.abs(x - bx) < 1.15 && Math.abs(z - bz) < 0.6) || (x < -2.4 && z > 6.2) || (x > 6.2 && z > 5.4);
   // 傍晚的活动（戏、篝火、村会）用到的位置。台上的点 lift = 台面高
   // 台下围成弧：以台口为圆心一圈一圈往外排（小孩蹲最里圈），躲开火塘、石桌、场子边；相邻两人、两圈之间都隔 1 米
-  const clear = (x, z) => Math.hypot(x - PIT[0], z - PIT[1]) > 2.0 && Math.hypot(x + 0.4, z - 3.6) > 1.5 && Math.abs(x) < w / 2 - 0.8 && z < S - 0.8 && z > 0.9;
+  const clear = (x, z) => Math.hypot(x - PIT[0], z - PIT[1]) > 2.0 && Math.hypot(x + 0.4, z - 3.6) > 1.5 && Math.abs(x) < w / 2 - 0.8 && z < S - 0.8 && z > 0.9 && !nearProps(x, z);
   const arc = (r) => {
     const out = [], n = Math.floor(Math.PI * r);
     for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI, x = 3.5 + Math.cos(a) * r, z = -0.5 + Math.sin(a) * r; if (clear(x, z)) out.push([x, z]); }
@@ -500,11 +515,12 @@ function square(M) {
     singer: [3.5, -1.15], speaker: [3.5, -1.2], chairL: [1.2, -1.75], chairR: [5.8, -1.75],
     face: [3.5, -2.4], pit: PIT, fire: pit.fire, ring: ring.map((_, i) => `ring${i}`), outer: outer.map((_, i) => `outer${i}`),
     front: front.map((_, i) => `front${i}`), rows: rows.map((_, i) => `row${i}`), elders: ['tableW', 'tableE', 'table'],
+    benches: benchSeats.map((_, i) => `bench${i}`), // 戏台前长凳上的座位
   };
-  const evSpots = Object.fromEntries([...front.map((p, i) => [`front${i}`, p]), ...rows.map((p, i) => [`row${i}`, p]), ...ring.map((r, i) => [`ring${i}`, [r.x, r.z, ...PIT]]), ...outer.map((p, i) => [`outer${i}`, [...p, ...PIT]])]);
+  const evSpots = Object.fromEntries([...front.map((p, i) => [`front${i}`, p]), ...rows.map((p, i) => [`row${i}`, p]), ...ring.map((r, i) => [`ring${i}`, [r.x, r.z, ...PIT]]), ...outer.map((p, i) => [`outer${i}`, [...p, ...PIT]]), ...benchSeats.map((b, i) => [`bench${i}`, [b.x, b.z, 3.5, -2.4]])]);
   return result(w, d, g, {
     // gate：场子的南口，在接出来那块的南沿外，下台阶到石桥
-    gate: [0, S + 1.2], lanterns, evening, ringSeats: ring, barber, market, chat, chatCenter, screen, projector,
+    gate: [0, S + 1.2], lanterns, evening, ringSeats: ring, benchSeats, barber, market, chat, chatCenter, screen, projector,
     discs: [[...PIT, 0.75]],
     spots: {
       ...evSpots, ...marketSpots, ...chatSpots, stageFoot: [3.5, 1.1, 3.5, -1],

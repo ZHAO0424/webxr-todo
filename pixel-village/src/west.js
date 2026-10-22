@@ -3,7 +3,7 @@ import { UNIT, block, box, prism, bakeStatic, makeRng } from './pixel.js';
 import { R, GLOW } from './palette.js';
 import { addWestMaterials } from './textures.js';
 import { buildTerrain, rawHeight } from './terrain.js';
-import { streamZ0 as streamZ, STREAM_HALF, WATER_Y } from './layout.js'; // 西沟的溪还在原来的位置（村子南边插进的那条地不在西沟，见 layout.js 的 BAND）
+import { streamZ, BAND, squeeze, STREAM_HALF, WATER_Y } from './layout.js';
 import { house, facade } from './buildings.js';
 import * as PROPS from './props.js';
 import { tagged, tag, collectThings } from './things.js';
@@ -35,7 +35,8 @@ const P = tagged(PROPS);
  * 下面的坐标都写成"西沟本地"的 u（= 世界 x + 90，-45 … 45），z 和村子一样；W(u) 换回世界 x。
  */
 
-export const WEST_BOUNDS = { x0: -135, x1: -45, z0: -36, z1: 36 };
+// 和村子一样，南边插进一条 BAND.d 宽的地（layout.js 的 BAND）：小溪、拦河坝、水轮、水磨坊跟着溪往南挪，地形按 squeeze 折回原来的坐标算
+export const WEST_BOUNDS = { x0: -135, x1: -45, z0: -36, z1: 36 + BAND.d };
 const OX = -90;
 const W = (u) => OX + u;
 
@@ -86,6 +87,7 @@ function streamAt(u) {
   const k = smooth(STRAIGHT[0] - 4, STRAIGHT[0], u) * (1 - smooth(STRAIGHT[1], STRAIGHT[1] + 4, u));
   return streamZ(W(u)) + (WHEEL_Z - streamZ(W(u))) * k;
 }
+const streamAt0 = (u) => streamAt(u) - BAND.d; // 插那条地之前的位置（地形按原来的坐标算）
 const MILL = { u: 16, w: 9, d: 6.4, level: -0.6 }; // 磨坊挖低一级，贴着坝下的水面（水轮下沿才浸得到水），整个平台都在坝下游
 MILL.z = Math.min(...[-4.5, 0, 4.5].map((du) => streamAt(MILL.u + du))) - STREAM_HALF - 0.4 - MILL.d / 2;
 
@@ -123,6 +125,7 @@ function plateau(u, z) {
 
 /** 西沟自己的地面（还没和村子的山梁接上）：{ h, type, crop }。 */
 function ground(u, z) {
+  z = squeeze(z); // 南边插进来的那条地：折回原来的坐标
   const zt = zTop(u);
   if (z < zt) {
     const back = zt - z;
@@ -131,7 +134,7 @@ function ground(u, z) {
     return plateau(u, z);
   }
   if (u >= -16 && z < zt + BENCH_W) return { h: q(benchH(u), 0.3), type: 'rock' };
-  const x = W(u), zs = streamAt(u);
+  const x = W(u), zs = streamAt0(u);
   if (z > zs + STREAM_HALF) return { h: Math.max(0, Math.floor((0.5 + Math.min(1.0, (z - zs - STREAM_HALF) * 0.18) + 0.25 * Math.sin(x * 0.3)) / 1.2) * 1.2), type: 'grass' }; // 溪南的河滩，和村子一样
   const s = z - zt - (u >= -16 ? BENCH_W : 0); // 离崖脚多远
   let h = 10.5 - 5.5 * smooth(0, 22, s) - 0.15 * Math.max(0, s - 16) + 0.7 * Math.sin(u * 0.21 + z * 0.13) + 0.5 * Math.sin(u * 0.07 - z * 0.2);

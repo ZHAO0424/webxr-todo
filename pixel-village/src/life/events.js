@@ -145,7 +145,7 @@ function onStage(v, to) {
 /** 走到村口的某个位置；火塘边的石凳要爬上去坐。返回那个座（不是火塘边的座返回 null）。 */
 function takeSquare(v, name) {
   const sq = v.V.C.square;
-  const seat = name.startsWith('ring') ? sq.ringSeats[Number(name.slice(4))] : null;
+  const seat = name.startsWith('ring') ? sq.ringSeats[Number(name.slice(4))] : name.startsWith('bench') ? sq.benchSeats[Number(name.slice(5))] : null;
   v.go(sq.spot(name));
   if (seat?.perch) { const [x, z] = sq.at(seat.x, seat.z); v.climb([[x, z, 0]], [[...sq.spot(name), 0]]); }
   return seat;
@@ -162,7 +162,7 @@ function giveUp(v, key) {
 function audience(v, key) {
   const sq = v.V.C.square, E = sq.evening, face = sq.at(...E.face), isKid = kid(v.p);
   v.char.setItem(key !== 'meeting' && v.p.item === 'pipe' ? 'pipe' : null);
-  const pool = isKid && key !== 'meeting' ? [...E.front, ...E.rows, ...E.ring] : elder(v.p) ? [...E.elders, ...E.ring, ...E.rows] : [...E.rows, ...E.ring];
+  const pool = isKid && key !== 'meeting' ? [...E.front, ...E.rows, ...E.ring] : elder(v.p) ? [...E.elders, ...E.benches, ...E.ring, ...E.rows] : [...E.benches, ...E.rows, ...E.ring]; // 大人先坐戏台前的长凳，坐满了站后头
   const spot = v.V.claimNear(v, sq, pool, kinOf(v), (n) => sq.spots[n]); // 一圈圈从里往外，挨着自家人、要好的站
   if (!spot) { giveUp(v, key); return; }
   const seat = takeSquare(v, spot);
@@ -342,7 +342,7 @@ Object.assign(EVENT_ACTS, {
   duanwu(v, role) { // 包粽子：妇女、老人围着火塘坐一圈，手里端着盆包；孩子跑着玩；男人站在外圈说话
     const sq = v.V.C.square, pit = sq.at(...sq.evening.pit);
     if (kid(v.p)) { v.char.setItem(null); v.loop = () => { v.go(sq.randomPoint(sq.playArea), { run: true }); v.do(v.rand() < 0.4 ? 'cheer' : 'idle', 2 + v.rand() * 3, { face: pit }); }; return; }
-    if (v.p.sex === '男' && !elder(v.p)) { v.char.setItem(v.p.item === 'pipe' ? 'pipe' : null); v.loop = () => { v.go(sq.randomPoint(sq.playArea)); v.do('talk', 6, { face: pit }); }; return; }
+    if (v.p.sex === '男' && !elder(v.p)) { v.char.setItem(v.p.item === 'pipe' ? 'pipe' : null); v.go(sq.randomPoint([-2.4, 6.2, 8.4, 11.6])); v.loop = () => v.do(v.rand() < 0.6 ? 'talk' : 'idle', 6, { face: pit }); return; } // 男人在场子南边站着说话（不满场转）
     v.char.setItem('bowl');
     const r = ringSeat(v, 'duanwu');
     if (!r) return;
@@ -361,7 +361,7 @@ Object.assign(EVENT_ACTS, {
     }
     if (kid(v.p)) {
       v.char.setItem('lantern'); // 提着小红灯笼（不加光晕：一群孩子的光晕叠在一起，整个场子都发红）
-      v.loop = () => { v.go(sq.randomPoint([-4, 6.6, 8, 10.6])); v.do('idle', 5 + v.rand() * 4, { face: moon }); }; // 在场子南边接出来的那块空地上转（别在坐着的人中间穿）
+      v.loop = () => { v.go(sq.randomPoint([-2.4, 6.2, 8.4, 11.6])); v.do('idle', 5 + v.rand() * 4, { face: moon }); }; // 在场子南边接出来的那块（长凳之间、过道里）转，别在围坐的人中间穿
       return;
     }
     v.char.setItem(v.p.item === 'pipe' ? 'pipe' : null);

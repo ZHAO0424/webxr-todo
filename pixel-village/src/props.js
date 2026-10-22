@@ -565,6 +565,15 @@ export function snowman(M, x, z, rotY = 0) {
   return at(g, x, z, rotY);
 }
 
+/** 晒席：苇席铺在地上，四边压着木条，上面摊着晒的东西（fill：材质）。 */
+export function dryingMat(M, fill, w = 2.4, d = 1.6) {
+  const g = new THREE.Group();
+  g.add(block(-w / 2, 0, -d / 2, w / 2, 0.04, d / 2, M.straw, { outline: false }));
+  if (fill) g.add(block(-w / 2 + 0.15, 0.04, -d / 2 + 0.15, w / 2 - 0.15, 0.09, d / 2 - 0.15, fill, { outline: false }));
+  for (const sz of [-1, 1]) g.add(block(-w / 2, 0.04, sz * d / 2 - 0.04, w / 2, 0.1, sz * d / 2 + 0.04, M.wood, { outline: false }));
+  return g;
+}
+
 /** 祖坟：坡上一排三个坟头，前面各立一块小石碑；清明时坟头压着白纸条、插着柳枝。原点在中间坟头前。 */
 export function graves(M, spring = false) {
   const g = new THREE.Group();
