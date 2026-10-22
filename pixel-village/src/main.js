@@ -98,7 +98,12 @@ function applyLight(L) {
 
 // 光学透视眼镜上黑色 = 透明：XR 里去掉天空，让沙盘直接浮在真实桌面上（?sky=1 可保留）
 const anchor = createAnchor(renderer, stage, {
-  onSession(active) { scene.background = active && !params.has('sky') ? null : sky; },
+  onSession(active) {
+    scene.background = active && !params.has('sky') ? null : sky;
+    // 阴影贴图：XR 里两只眼各画一遍，贴图降到 2048（一格影子差不多就是场景里一个像素那么大）；出来再换回 4096
+    const size = active ? 2048 : 4096;
+    if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); sun.shadow.map?.dispose(); sun.shadow.map = null; renderer.shadowMap.needsUpdate = true; }
+  },
   onSelect: (controller) => scenes.onSelect(controller), // 指着路牌：换场景，不重新摆沙盘
 });
 // 换场景：屏幕左右的按钮、键盘 ← →、XR 里沙盘两边的路牌；?scene=west 直接从西沟开始，?seam=1 两块都画（看接缝）

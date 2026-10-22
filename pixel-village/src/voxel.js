@@ -541,8 +541,8 @@ const LIGHT = new THREE.Vector3(-0.65, 0.65, 0.4).normalize();
  * 单位：体素（TREE_VOX 米）。返回 BufferGeometry（原点在树根）。
  */
 const TREE_SPECS = {
-  // 村口的古槐：树干一抱多粗、根往外扎开，几根粗枝撑开一个又宽又高的大树冠；树干上系着祈福的红布条
-  oldLocust: (r) => ({ trunk: [4, 34], gnarl: { r: 3.6, flare: 4.8, roots: 5 }, branches: 7, thick: true, ribbon: [10, 12], ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 48 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, 13 + r() * 6, 8 + r() * 3, 13 + r() * 6]; }) }),
+  // 村口的古槐：树干一抱多粗、根往外扎开，几根粗枝撑开一个又宽又高的大树冠
+  oldLocust: (r) => ({ trunk: [4, 34], gnarl: { r: 3.6, flare: 4.8, roots: 5 }, branches: 7, thick: true, ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 48 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, (13 + r() * 6) * 1.2, (8 + r() * 3) * 1.2, (13 + r() * 6) * 1.2]; }) }),
   locust: (r) => ({ trunk: [2, 30], branches: 4, ramp: R.leaf, blobs: Array.from({ length: 7 }, () => [(r() - 0.5) * 40, 34 + r() * 14, (r() - 0.5) * 34, 14 + r() * 7, 9 + r() * 4, 14 + r() * 7]) }),
   poplar: () => ({ trunk: [1, 16], branches: 0, ramp: R.leaf, blobs: [[0, 30, 0, 6, 26, 6], [0, 20, 0, 5, 10, 5]] }),
   cypress: () => ({ trunk: [1, 6], branches: 0, ramp: R.green, blobs: [[0, 16, 0, 5, 14, 5], [0, 26, 0, 3, 8, 3]] }),
@@ -609,14 +609,14 @@ export function voxelTree(kind, seed = 1, scale = 1) {
     const roots = Array.from({ length: s.gnarl.roots }, (_, i) => ({ a: (i / s.gnarl.roots) * Math.PI * 2 + r() * 0.7, len: s.gnarl.r + 5 + r() * 4, w: 1.6 + r() * 0.8 }));
     const lean = r() * Math.PI * 2;
     const axis = (y) => { const k = Math.max(0, y - 6) * 0.05; return [Math.cos(lean) * k, Math.sin(lean) * k]; };
-    const radius = (y, a) => s.gnarl.r + s.gnarl.flare * Math.exp(-y / 3.2) - (y > th * 0.7 ? 0.7 : 0)
+    const radius = (y, a) => s.gnarl.r * (1 - 0.2 * Math.min(1, y / (th * 0.5))) + s.gnarl.flare * Math.exp(-y / 3.2) // 根部最粗，往上一路收细
       + 0.45 * Math.cos(a * 7 + y * 0.12) + 0.6 * Math.exp(-(((y - 13) / 3) ** 2)) * Math.max(0, Math.cos(a - lean - 2)); // 竖棱 + 半腰一个树瘤
     // 主干只到分杈处（全树三分之一多高），往上分成几根粗枝，一根伸进一团树冠——树冠就不会悬空
     const fork = Math.round(th * 0.5), limbs = new Set(), key = (x, y, z) => ((x + 256) * 512 + y) * 512 + (z + 256);
     blobs.forEach(([bx, by, bz, , ry], i) => {
       const [ax, az] = axis(fork), y0 = fork - 2 - r() * 5;
       const end = [bx * 0.8, by - ry * 0.25, bz * 0.8], mid = [ax + (end[0] - ax) * 0.55, y0 + (end[1] - y0) * 0.5, az + (end[2] - az) * 0.55]; // 一出杈就斜着往外伸，伸进树冠再往上
-      const r0 = i ? 2.4 : 3.0, r1 = i ? 0.8 : 1.2, n = Math.ceil(Math.hypot(end[0] - ax, end[1] - y0, end[2] - az) * 2);
+      const r0 = i ? 1.7 : 2.2, r1 = i ? 0.7 : 1.0, n = Math.ceil(Math.hypot(end[0] - ax, end[1] - y0, end[2] - az) * 2);
       for (let k = 0; k <= n; k++) {
         const t = k / n, u = 1 - t, rr = r0 + (r1 - r0) * t;
         const px = u * u * ax + 2 * u * t * mid[0] + t * t * end[0], py = u * u * y0 + 2 * u * t * mid[1] + t * t * end[1], pz = u * u * az + 2 * u * t * mid[2] + t * t * end[2];
@@ -654,7 +654,6 @@ export function voxelTree(kind, seed = 1, scale = 1) {
   const color = (x, y, z, f) => {
     const top = f === 2 && !solid(x, y + 1, z); // 朝上的面：冬天积雪
     if (trunk(x, y, z) && !crown(x, y, z)) {
-      if (s.ribbon && y >= s.ribbon[0] && y <= s.ribbon[1] && (G ? !G.solid(x + 1, y, z) || !G.solid(x - 1, y, z) || !G.solid(x, y, z + 1) || !G.solid(x, y, z - 1) : Math.max(Math.abs(x), Math.abs(z)) >= tw - 1)) return y === s.ribbon[0] ? R.red[2] : R.red[3]; // 红布条
       return s.bare && top && hash(x, y, z) > 0.3 ? R.snow[4] : (x + y) % 5 === 0 ? R.wood[2] : (x * 3 + y * 7 + z) % 11 === 0 ? R.wood[0] : R.wood[1]; // 老树皮：深一道浅一道
     }
     const c = crown(x, y, z);

@@ -12,7 +12,7 @@ const P = tagged(PROPS); // 建出来的物件都带上 userData.thing，点它�
 /*
  * 庄稼地。地形里每一级梯田已经定了种什么（crop：0 割完的茬地 / 1 谷子 / 2 玉米 / 3 白菜），
  * 这里把它们种成立体的体素庄稼（实例化渲染，几千棵也只占几个 draw call）。按垄种：垄沿着梯田（东西向），
- * 一米两垄、留一道垄沟，高秆的一米一丛，地皮（terrain.js 的 furrow / stubbleW）的垄和它对得上：
+ * 一米两垄、留一道垄沟，谷子一米一丛、高秆的一米半一丛，地皮（terrain.js 的 furrow / stubbleW）的垄和它对得上：
  *   - 谷子：三棵一丛，弯着腰的金黄谷穗；隔一级种红高粱（两棵一丛，长叶子）
  *   - 玉米：秆子、宽叶子都干成灰黄，腰上一个包皮的棒子
  *   - 茬地：谷个子 / 麦个子一行行错开立着
@@ -133,7 +133,7 @@ function cropLists(cells, S) {
     if (iz % 2) continue; // 垄沟
     if (S === 'spring') { if (ix % 2 === 0) lists.seedling.push(c); continue; } // 刚出苗
     const kind = c.crop === 2 ? 'corn' : Math.round(c.h / 1.2) % 2 ? 'sorghum' : 'millet';
-    if (kind !== 'millet' && ix % 2) continue; // 高秆的一米一丛，垄和地皮露得出来
+    if (kind === 'millet' ? ix % 2 : ix % 3) continue; // 谷子一米一丛，高秆的一米半一丛（省面数；垄和地皮露得出来）
     lists[kind].push(c);
   }
   return lists;
@@ -164,7 +164,7 @@ export function buildFarmland(M, terrain, nodes) {
   const g = fieldCrops(M, terrain.fieldCells.filter((c) => !inSoy(c.x, c.z)), rand);
   // 赵家（豆腐坊）的大豆地：村西坡最高的几级梯田，一垄一垄的
   // 冬天菜收了、豆子割了；春天都是苗（换成小苗的样子）
-  const lists = { cabbage: terrain.fieldCells.filter((c) => c.crop === 3 && !inSoy(c.x, c.z)), soy: soyCells.filter((c) => Math.floor((c.z + 100) / 0.5) % 2 === 0 || rand() < 0.3) };
+  const lists = { cabbage: terrain.fieldCells.filter((c) => c.crop === 3 && !inSoy(c.x, c.z) && Math.floor((c.z + 100) / 0.5) % 2 === 0), soy: soyCells.filter((c) => Math.floor((c.z + 100) / 0.5) % 2 === 0 || rand() < 0.3) }; // 白菜一垄隔一垄（省面数）
   if (is('spring')) { geos.cabbage = geos.soy = CROPS.seedling(); }
   if (is('summer')) geos.soy = SHAPES.soy(true);
 

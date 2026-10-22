@@ -14,12 +14,16 @@ const chrome = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Pro
 const port = 8093;
 
 const server = spawn(process.execPath, [join(here, 'serve.mjs'), String(port)], { stdio: 'ignore' });
-await new Promise((r) => setTimeout(r, 800));
+for (let i = 0; i < 50; i++) { // 等服务器真的能应答了再开浏览器（机器忙的时候 0.8 秒不一定起得来，页面打不开就成了"没跑完"）
+  if (await fetch(`http://localhost:${port}/`).then((r) => r.ok, () => false)) break;
+  await new Promise((r) => setTimeout(r, 200));
+}
 
 const size = page === 'sheet' || page === 'roster' ? '1400,2000' : page === 'cast' ? '1600,900' : '1280,800';
 const flags = ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--hide-scrollbars', '--autoplay-policy=no-user-gesture-required', `--virtual-time-budget=${process.env.VT ?? 10000}`, `--window-size=${size}`];
 const url = `http://localhost:${port}/${page === 'index' ? '' : page + '.html'}${process.env.Q ?? ''}`;
-const dom = spawnSync(chrome, [...flags, '--dump-dom', url], { encoding: 'utf8', timeout: 400000 }).stdout ?? '';
+// maxBuffer：页面里塞的调试数据多，默认 1 MB 的输出上限会把 DOM 截断（读不到 data-ready，看着像没跑完）
+const dom = spawnSync(chrome, [...flags, '--dump-dom', url], { encoding: 'utf8', timeout: 400000, maxBuffer: 64 * 1024 * 1024 }).stdout ?? '';
 spawnSync(chrome, [...flags, `--screenshot=${join(out, page + '.png')}`, url], { timeout: 400000 });
 server.kill();
 
