@@ -44,7 +44,7 @@
     const M = buildMaterials();
     const t = Number(q.get('t') ?? 0.3);
     const yaw = (Number(q.get('yaw') ?? 20) * Math.PI) / 180;
-    // ?only=id,id 只看这几个人（排一排、放大）；?pose=work|walk|idle|sit|squat|scatter|eat 统一姿势；?item=名 换手持物
+    // ?only=id,id 只看这几个人（排一排、放大）；?pose=work|walk|idle|sit|squat|scatter|eat 统一姿势；?item=名 换手持物；?back=名 背上背的（firewood / sheaf / basket:corn / sack）；?items=a,b&backs=c,d 按顺序一人一样（- 表示没有）
     const only = q.get('only')?.split(',');
     const list = only ? RESIDENTS.filter((p) => only.includes(p.id)) : RESIDENTS;
     list.forEach((p, i) => {
@@ -52,7 +52,9 @@
       if (only) c.object.position.set((i - (list.length - 1) / 2) * 2.2, 0, 8);
       else c.object.position.set((i % 14 - 6.5) * 1.6, 0, i < 14 ? -1.5 : 1.5);
       c.object.rotation.y = yaw;
-      if (q.get('item')) c.setItem(q.get('item'));
+      const item = q.get('items')?.split(',')[i] ?? q.get('item'), back = q.get('backs')?.split(',')[i] ?? q.get('back');
+      if (item) c.setItem(item === '-' ? null : item);
+      if (back && back !== '-') c.setBack(back);
       c.pose(q.get('pose') ?? (i % 3 === 0 ? 'walk' : i % 3 === 1 ? 'work' : 'idle'), t, i);
       scene.add(c.object);
     });

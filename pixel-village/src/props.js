@@ -11,7 +11,7 @@ export function haystack(M, x, z, r = 1.4, h = 2.8) {
   const g = new THREE.Group();
   const body = prism(r, r * 0.9, h * 0.6, M.straw, 10);
   body.position.y = h * 0.3;
-  const cap = prism(0.15, r * 1.05, h * 0.4, M.straw, 10);
+  const cap = prism(0.15, r * 1.05, h * 0.4, M.strawTop, 10);
   cap.position.y = h * 0.6 + h * 0.2;
   g.add(body, cap, block(-0.06, h, -0.06, 0.06, h + 0.4, 0.06, M.wood));
   return at(g, x, z);
@@ -22,7 +22,7 @@ export function cornCrib(M, x, z) {
   const g = new THREE.Group();
   const body = prism(0.8, 0.8, 1.6, M.corn, 10);
   body.position.y = 0.8;
-  const cap = prism(0.1, 0.95, 0.6, M.straw, 10);
+  const cap = prism(0.1, 0.95, 0.6, M.strawTop, 10);
   cap.position.y = 1.9;
   g.add(body, cap);
   return at(g, x, z);
@@ -225,7 +225,7 @@ export function pigsty(M, x0, z0, x1, z1) {
   g.add(block(x0, 0, z0 + t, x0 + t, h, z1 - t, M.brickDark), block(x1 - t, 0, z0 + t, x1, h, z1 - t, M.brickDark));
   g.add(block(x0, 0, z0, x1, 0.05, z1, M.flatRoof, { outline: false }));
   const roofD = (z1 - z0) * 0.45;
-  const slab = box(x1 - x0 + 0.2, 0.15, roofD + 0.3, M.straw);
+  const slab = box(x1 - x0 + 0.2, 0.15, roofD + 0.3, M.strawTop);
   slab.position.set((x0 + x1) / 2, 1.7, z0 + roofD / 2);
   slab.rotation.x = 0.25;
   g.add(slab, block(x0 + 0.2, h, z0 + roofD - 0.1, x0 + 0.4, 1.6, z0 + roofD + 0.1, M.wood), block(x1 - 0.4, h, z0 + roofD - 0.1, x1 - 0.2, 1.6, z0 + roofD + 0.1, M.wood));
@@ -236,7 +236,7 @@ export function pigsty(M, x0, z0, x1, z1) {
 export function coop(M, x, z) {
   const g = new THREE.Group();
   g.add(block(-0.8, 0, -0.6, 0.8, 1.0, 0.6, M.adobe));
-  g.add(block(-0.95, 1.0, -0.75, 0.95, 1.2, 0.75, M.straw));
+  g.add(block(-0.95, 1.0, -0.75, 0.95, 1.2, 0.75, M.strawTop));
   g.add(block(-0.25, 0.1, 0.6, 0.25, 0.6, 0.62, M.ink, { outline: false }));
   return at(g, x, z);
 }
@@ -431,7 +431,7 @@ export function beehive(M, x, z, rotY = 0) {
 export function shed(M, x, z, w = 3.2, d = 2.6, rotY = 0) {
   const g = new THREE.Group();
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(block(sx * (w / 2 - 0.15) - 0.1, 0, sz * (d / 2 - 0.15) - 0.1, sx * (w / 2 - 0.15) + 0.1, sz < 0 ? 2.4 : 2.0, sz * (d / 2 - 0.15) + 0.1, M.wood));
-  const slab = box(w + 0.4, 0.15, d + 0.5, M.straw);
+  const slab = box(w + 0.4, 0.15, d + 0.5, M.strawTop);
   slab.position.set(0, 2.25, 0);
   slab.rotation.x = 0.16;
   g.add(slab);
@@ -454,7 +454,7 @@ export function hutch(M, x, z, rotY = 0) {
 export function duckHouse(M, x, z, rotY = 0) {
   const g = new THREE.Group();
   g.add(block(-0.9, 0, -0.6, 0.9, 0.8, 0.6, M.adobe));
-  g.add(block(-1.05, 0.8, -0.75, 1.05, 0.95, 0.75, M.straw));
+  g.add(block(-1.05, 0.8, -0.75, 1.05, 0.95, 0.75, M.strawTop));
   g.add(block(-0.3, 0, 0.6, 0.3, 0.5, 0.62, M.ink, { outline: false }));
   return at(g, x, z, rotY);
 }
@@ -546,6 +546,23 @@ export function sheaf(M, x, z) {
   top.position.y = 0.8;
   g.add(s, top);
   return at(g, x, z);
+}
+
+/** 雪人（冬天）：三个雪球摞起来，煤球眼睛、胡萝卜鼻子、红围巾、树枝胳膊，头上扣一只破簸箕。 */
+export function snowman(M, x, z, rotY = 0) {
+  const g = new THREE.Group();
+  for (const [r0, r1, h, y] of [[0.36, 0.42, 0.5, 0.25], [0.26, 0.32, 0.38, 0.69], [0.19, 0.22, 0.3, 1.03]]) {
+    const ball = prism(r0, r1, h, M.snowPlain, 8);
+    ball.position.y = y;
+    g.add(ball);
+  }
+  g.add(block(-0.3, 0.86, -0.3, 0.3, 0.94, 0.3, M.redCloth)); // 围巾
+  for (const sx of [-1, 1]) g.add(block(sx * 0.09 - 0.03, 1.07, 0.18, sx * 0.09 + 0.03, 1.13, 0.22, M.ink, { outline: false })); // 眼睛
+  g.add(block(-0.03, 0.98, 0.2, 0.03, 1.04, 0.36, M.gold)); // 胡萝卜鼻子
+  for (const sx of [-1, 1]) g.add(block(sx > 0 ? 0.25 : -0.62, 0.72, -0.02, sx > 0 ? 0.62 : -0.25, 0.76, 0.02, M.wood)); // 树枝胳膊
+  g.add(block(-0.2, 1.18, -0.2, 0.2, 1.32, 0.2, M.straw)); // 簸箕当帽子
+  g.userData.thing = 'snowman';
+  return at(g, x, z, rotY);
 }
 
 /** 粪堆 / 堆肥。 */

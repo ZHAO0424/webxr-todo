@@ -48,6 +48,7 @@ export class Villager {
   enter(c, which = 'house') { this.go(c.door(which)); this.tasks.push({ type: 'inside' }); }
   call(fn) { this.tasks.push({ type: 'call', fn }); }
   item(name) { this.tasks.push({ type: 'call', fn: () => this.char.setItem(name) }); }
+  back(name) { this.tasks.push({ type: 'call', fn: () => this.char.setBack(name) }); } // 背上背的东西（背篓、柴捆、麦个子、粮袋）
   /** 走直线爬上 / 下到导航网格管不到的地方（戏台台阶、石凳）。pts：[[x, z, 离地高], …]，down：下来时怎么走。 */
   climb(pts, down) {
     this.tasks.push({ type: 'climb', pts: pts.map((q) => [...q]) });
@@ -86,6 +87,7 @@ export class Villager {
   reset() {
     this.end?.();
     this.end = null;
+    this.char.setBack(null); // 换活了：背上的东西放下
     this.tasks = [];
     this.loop = null;
     this.seat = null;

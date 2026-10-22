@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { makeSynth } from './synth.js';
+import { is } from './season.js';
 
 /*
  * 村子的声音：什么时候、在哪儿响。原则是"安静为主，有事才响"：
@@ -13,6 +14,8 @@ import { makeSynth } from './synth.js';
  *   深夜打更的梆子和小锣。
  * - 西沟（镜头在西沟那块沙盘时）：水磨坊的水车吱呀（离得越近越响），凑近瀑布才有水声；有人在山神庙上香时摇铃；
  *   白天林子里偶尔啄木鸟、鸟叫更勤，夜里偶尔一声猫头鹰。
+ * - 四季：春天鸟叫勤、偶尔一声布谷（"布谷布谷，快快播谷"）；夏天白天一阵阵蝉鸣、夜里溪边蛙声；秋天夜里蛐蛐；
+ *   冬天鸟少、没有虫叫，下的是雪（没有雨声），瀑布和水车冻住了也不响。
  *
  * 声源都放在村子坐标（米）里，听者 = 相机（换算到村子坐标），HRTF 声像：分得出左右，离得越远越小。
  * 录音素材在 sfx/（Freesound，CC0，来源见 sfx/CREDITS.md），合成的音色在 synth.js。
@@ -26,8 +29,8 @@ const ANIMAL_GAIN = 0.45; // 动物叫声整体音量
 const AUDIBLE = 160; // 再远的一次性声音就不播了
 const WEST_X = -45; // 听者在这条线以西 = 在看西沟（west.js 的 WEST_BOUNDS.x1）
 
-const SAMPLES = ['rooster', 'hen', 'dog', 'pig', 'sheep', 'donkey', 'ox', 'duck', 'goose', 'pigeon', 'magpie', 'cat', 'clang', 'chop', 'thud', 'chirp', 'crickets', 'fire', 'mill', 'crowd', 'projector', 'woodpecker', 'owl', 'waterwheel', 'waterfall'];
-const LONG = new Set(['crickets', 'fire', 'mill', 'crowd', 'projector', 'waterwheel', 'waterfall']); // 长录音（循环用），不等它们
+const SAMPLES = ['rooster', 'hen', 'dog', 'pig', 'sheep', 'donkey', 'ox', 'duck', 'goose', 'pigeon', 'magpie', 'cat', 'clang', 'chop', 'thud', 'chirp', 'crickets', 'fire', 'mill', 'crowd', 'projector', 'woodpecker', 'owl', 'waterwheel', 'waterfall', 'cicada', 'frogs', 'cuckoo'];
+const LONG = new Set(['crickets', 'fire', 'mill', 'crowd', 'projector', 'waterwheel', 'waterfall', 'cicada', 'frogs']); // 长录音（循环用），不等它们
 const ANIMAL = { rooster: 'rooster', hen: 'hen', henBrown: 'hen', dog: 'dog', dogBlack: 'dog', pig: 'pig', sheep: 'sheep', donkey: 'donkey', ox: 'ox', duck: 'duck', goose: 'goose', pigeon: 'pigeon', magpie: 'magpie', cat: 'cat' };
 // 点物件时放什么：录音名，或 synth:合成音色
 const THING_SOUND = { forge: 'clang', millstone: 'mill', roller: 'mill', firePit: 'fire', coop: 'hen', pigsty: 'pig', shed: 'ox', duckHouse: 'duck', movieScreen: 'projector', stage: 'synth:gong', shrine: 'synth:bell', well: 'synth:block', lumber: 'chop', firewood: 'chop', workbench: 'chop', watermill: 'waterwheel', weir: 'waterfall', waterfall: 'waterfall', mountainTemple: 'synth:bell' };
@@ -41,7 +44,7 @@ export function createSound(village, getCamera) {
   const crowed = new Map(); // 公鸡今天早上叫了几声
   let lp = new THREE.Vector3();
   const op = {}; // 唱戏的拍子
-  let nextBird = 3, nextCricket = 5, nextPeck = 8, nextOwl = 10; // 按村子的秒数（t）算
+  let nextBird = 3, nextCricket = 5, nextPeck = 8, nextOwl = 10, nextCicada = 6, nextFrog = 8, nextCuckoo = 12; // 按村子的秒数（t）算
 
   const thing = (k) => village.things.find((t) => t.thing === k) ?? village.west.things.find((t) => t.thing === k);
   const centerOf = (t) => t && [(t.box.min.x + t.box.max.x) / 2, t.box.min.y + 0.8, (t.box.min.z + t.box.max.z) / 2];
@@ -157,17 +160,21 @@ export function createSound(village, getCamera) {
     const near = (pos, r) => pos && dist(pos) < r;
 
     // 下雨天才有雨声（风声、溪水这类一直响的噪声底子听着像收音机杂音，去掉了）
-    rain.gain.setTargetAtTime(weather === 'rain' ? 0.14 : 0, now, 1);
+    rain.gain.setTargetAtTime(weather === 'rain' && !is('winter') ? 0.14 : 0, now, 1); // 冬天下的是雪，没有雨声
 
     // 时不时：白天鸟叫、夜里蛐蛐（在听者周围随机一处）
     const around = () => [lp.x + (Math.random() - 0.5) * 50, lp.y - 20, lp.z + (Math.random() - 0.5) * 50];
     const inWest = lp.x < WEST_X;
-    if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { sample('chirp', around(), { gain: 0.45 }); nextBird = t + (inWest ? 6 + Math.random() * 10 : 10 + Math.random() * 18); }
-    if ((hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextCricket) { sample('crickets', around(), { dur: 3 + Math.random() * 3, offset: Math.random() * 30, jitter: 0, gain: 0.5 }); nextCricket = t + 12 + Math.random() * 20; }
+    const birdEvery = is('winter') ? 3 : is('spring') ? 0.6 : 1; // 冬天鸟少，春天鸟多
+    if (!night && hour > 5.5 && weather !== 'rain' && t > nextBird) { sample('chirp', around(), { gain: 0.45 }); nextBird = t + (inWest ? 6 + Math.random() * 10 : 10 + Math.random() * 18) * birdEvery; }
+    if (is('spring') && !night && hour > 5.5 && hour < 17 && weather !== 'rain' && t > nextCuckoo) { sample('cuckoo', around(), { gain: 0.35, jitter: 0.02 }); nextCuckoo = t + 35 + Math.random() * 40; }
+    if (is('summer') && !night && hour > 9 && hour < 18.5 && weather !== 'rain' && t > nextCicada) { sample('cicada', around(), { dur: 4 + Math.random() * 4, offset: Math.random() * 30, jitter: 0, gain: 0.3 }); nextCicada = t + 18 + Math.random() * 25; } // 夏天：一阵阵蝉鸣
+    if (is('summer') && (hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextFrog) { sample('frogs', around(), { dur: 4 + Math.random() * 3, offset: Math.random() * 30, jitter: 0, gain: 0.35 }); nextFrog = t + 14 + Math.random() * 18; } // 夏夜：溪边蛙声
+    if (is('summer', 'autumn') && (hour >= 19.5 || hour < 4.8) && weather !== 'rain' && t > nextCricket) { sample('crickets', around(), { dur: 3 + Math.random() * 3, offset: Math.random() * 30, jitter: 0, gain: 0.5 }); nextCricket = t + 12 + Math.random() * 20; }
 
     // 西沟：水车在响（只在看西沟时放，近了更响），瀑布凑近才响；林子里啄木鸟，夜里猫头鹰；有人在山神庙上香就摇铃
-    fall.set(near(centerOf(thing('waterfall')), 35) ? 0.5 : 0, 1.2); // 瀑布：凑近了才听得见
-    wheel.set(inWest ? 0.6 : 0, 1.2);
+    fall.set(!is('winter') && near(centerOf(thing('waterfall')), 35) ? 0.5 : 0, 1.2); // 瀑布：凑近了才听得见（冬天冻住了）
+    wheel.set(inWest && !is('winter') ? 0.6 : 0, 1.2);
     if (inWest && !night && hour > 6 && weather !== 'rain' && t > nextPeck) { sample('woodpecker', around(), { gain: 0.4 }); nextPeck = t + 20 + Math.random() * 25; }
     if (inWest && night && weather !== 'rain' && t > nextOwl) { sample('owl', around(), { gain: 0.4, jitter: 0.03 }); nextOwl = t + 25 + Math.random() * 30; }
     const worship = people.find((v) => v.doing === 'worship' && !v.inside && v.state !== 'walk');
@@ -267,7 +274,7 @@ export function createSound(village, getCamera) {
     /** 点了物件：放对应的声音。 */
     clickThing(t) {
       const k = THING_SOUND[t.thing];
-      if (!on || !ready || !k) return;
+      if (!on || !ready || !k || (is('winter') && (k === 'waterwheel' || k === 'waterfall'))) return; // 冬天瀑布、水车冻住了
       if (k.startsWith('synth:')) synth(k.slice(6), null);
       else sample(k, null, { gain: 0.9, dur: LONG.has(k) ? 2.5 : 0, offset: Math.random() * 8 });
     },

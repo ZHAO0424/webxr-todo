@@ -21,6 +21,7 @@ import { fixCoplanar } from './coplanar.js';
 import { snapPerches, findFloating, markReachable, auditPaths } from './audit.js';
 import { daylight } from './daylight.js';
 import { Smoke, Embers, Fireflies, Rain } from './fx.js';
+import { is } from './season.js';
 import { buildWest, WEST_BOUNDS } from './west.js';
 
 /** 石拱桥：桥面 + 两侧带拱洞的立面 + 栏板。b 来自地形（桥中心、走向、桥面高、长度）。 */
@@ -167,6 +168,24 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     plant(kind, px, pz, { seed: seed++, scale: kind === 'bush' ? 0.7 + rand() * 0.4 : kind === 'locust' ? 0.5 : 0.7 + rand() * 0.2 });
   }
 
+  // 3.5 冬天：孩子们在几家门外的空地上堆的雪人（草地上、不挨路和院墙）
+  if (is('winter')) {
+    const rs = makeRng(91);
+    let n = 0;
+    for (const id of ['headman', 'school', 'farmA', 'farmB', 'farmC', 'store', 'tofu', 'shepherd']) {
+      const g0 = nodes[`gate:${id}`];
+      if (!g0 || n >= 6) continue;
+      for (let k = 0; k < 40; k++) {
+        const a = rs() * Math.PI * 2, d = 2.6 + rs() * 3, x = g0.x + Math.cos(a) * d, z = g0.z + Math.sin(a) * d;
+        if (terrain.typeAt(x, z) !== 'grass' || trunks.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 1.6)) continue;
+        if ([[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].some(([dx, dz]) => ['path', 'pad'].includes(terrain.typeAt(x + dx, z + dz)) || terrain.heightAt(x + dx, z + dz) !== terrain.heightAt(x, z))) continue;
+        root.add(P.snowman(M, x, z, Math.atan2(g0.x - x, g0.z - z)).translateY(terrain.heightAt(x, z))); // 脸朝着院门
+        n++;
+        break;
+      }
+    }
+  }
+
   // 4. 火把、庄稼地里的稻草人和看青棚
   const torches = TORCHES.map(([n, dx, dz]) => {
     const x = nodes[n].x + dx, z = nodes[n].z + dz;
@@ -299,7 +318,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   const ducks = [-20, 27.2, -6, 33];
   const V = {
     M, root, nav, C, nodes, torches, shrine,
-    fields: { ...farm.fields, fieldWest: west.work.fieldWest.filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p)) }, // fieldWest：西沟主路边的梯田
+    fields: { ...farm.fields, ...Object.fromEntries(['wheatW', 'wheatE', 'milletW', 'milletE', 'cornW', 'cornE'].map((k) => [k, farm.fields[k].filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p))])), fieldWest: west.work.fieldWest.filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p)) }, // fieldWest：西沟主路边的梯田；wheat / millet / corn：按庄稼分的（各季节的农活用）
     mill: { at: nav.nearestFree(...west.work.mill.at), face: west.work.mill.face }, // 西沟水磨坊：磨台北边磨面的位置
     temple: { at: nav.nearestFree(...west.work.temple.at), face: west.work.temple.face, light: west.work.temple.light }, // 西沟山神庙：栈台上、庙门前上香
     // 羊吃草的坡：西沟崖顶的草坡（走得到的话），不然村西的荒草坡
@@ -431,7 +450,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
       rain.update(dt, weather === 'rain');
 
       const step = Math.floor(t * 2); // 溪水按整像素往西流
-      if (step !== waterStep) { waterStep = step; terrain.water.offset.x = (step % 36) / 36; }
+      if (step !== waterStep && !is('winter')) { waterStep = step; terrain.water.offset.x = (step % 36) / 36; } // 冬天溪面结冰，不流
 
       // 灯火：天一擦黑，窗户、灯笼、火把一盏盏亮起来；夜深了各家按自己的钟点一盏盏吹灯，
       // 只剩晚睡的两家（学堂李先生看书、药铺周郎中配药）和打更的灯笼；天不亮做早饭时又点上
@@ -475,7 +494,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
       if (movieOn) sqC.screen.userData.pic.material = hour >= EVENT_DEFS.movie.from ? M.movie[Math.floor(t / 2.2) % M.movie.length] : M.plaster; // 开演前是一块白布
       incense?.update(dt, V.eventOn('shrine'));
       fireflies.update(t);
-      for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain';
+      for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain' && is('summer'); // 萤火虫：夏夜
 
       for (const g of gates) {
         // 门：有人要过（走到门前推门）、人就在门口、被赶着的牲口还没过完，就开着；人走了顺手带上。

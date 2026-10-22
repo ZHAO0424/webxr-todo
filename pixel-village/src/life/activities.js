@@ -386,10 +386,13 @@ export const ACTIVITIES = {
     v.call(() => caravanAway(v, mules));
   },
 
-  mill(v) { // 去西沟的水磨坊磨面：挎着篮子去，站在磨台边守着（往斗里添粮、扫磨下来的面）
+  mill(v) { // 去西沟的水磨坊磨面：背一口袋粮食去，放下袋子，站在磨台边守着（往斗里添粮、扫磨下来的面）
     const m = v.V.mill;
-    v.char.setItem('basket');
+    v.char.setItem(null);
+    v.char.setBack('sack');
     v.go(m.at);
+    v.back(null);
+    v.item('basket');
     v.loop = () => v.do('work', 10, { face: m.face });
   },
 
@@ -400,11 +403,110 @@ export const ACTIVITIES = {
     v.char.setItem('axe');
     v.go(spot.at);
     v.do('work', 14, { face: spot.tree });
-    v.item('firewood');
+    v.back('firewood'); // 砍下来的柴捆成一捆背回家，斧子拎在手里
     v.go(v.home.spot('yard'));
+    v.back(null);
     v.item(null);
     v.do('work', 3);
     v.loop = () => { v.go(v.home.randomPoint()); v.do('idle', 6); };
+  },
+
+  // ---------------------------------------------------------------- 四季的农活（variety.js 按季节把日程里的 field / haul 等换成这些）
+
+  sow(v, node) { // 春：挎着篮子下地点种，一把一把往垄沟里撒
+    v.char.setItem('basket');
+    const cells = v.V.fields[node] ?? [];
+    v.loop = () => { if (cells.length) { v.go(R(cells)); v.do('scatter', 8); } else v.do('idle', 5); };
+  },
+
+  plowHoe(v, node) { // 春：扛着锄头翻地、打垄
+    v.char.setItem('hoe');
+    const cells = v.V.fields[node] ?? [];
+    v.loop = () => { if (cells.length) { v.go(R(cells)); v.do('work', 10); } else v.do('idle', 5); };
+  },
+
+  weed(v, node) { // 夏：顶着日头锄草（"锄禾日当午"）
+    ACTIVITIES.plowHoe(v, node);
+  },
+
+  reapWheat(v, node) { // 夏：拿镰刀割麦，割一阵就背一捆麦个子送到场院
+    const F = v.V.fields, cells = { fieldW: F.wheatW, fieldE: F.wheatE }[node]?.length ? { fieldW: F.wheatW, fieldE: F.wheatE }[node] : F[node] ?? [];
+    const th = v.V.C.threshing;
+    v.char.setItem('sickle');
+    v.loop = () => {
+      if (!cells.length) { v.do('idle', 5); return; }
+      v.go(R(cells));
+      v.do('work', 12);
+      if (v.rand() < 0.45 && th) {
+        v.back('sheaf');
+        v.go(th.randomPoint());
+        v.back(null);
+        v.do('idle', 2);
+      }
+    };
+  },
+
+  carrySheaves(v) { // 夏：把地里割好的麦个子一捆捆背到场院
+    const F = v.V.fields, cells = [...(F.wheatE ?? []), ...(F.wheatW ?? [])], th = v.V.C.threshing;
+    v.char.setItem(null);
+    v.loop = () => {
+      if (!cells.length || !th) { v.do('idle', 5); return; }
+      v.go(R(cells));
+      v.do('work', 3);
+      v.back('sheaf');
+      v.go(th.randomPoint());
+      v.back(null);
+      v.do('work', 2);
+    };
+  },
+
+  reap(v, node) { // 秋：割谷子、割高粱
+    const F = v.V.fields, cells = { fieldW: F.milletW, fieldE: F.milletE }[node]?.length ? { fieldW: F.milletW, fieldE: F.milletE }[node] : F[node] ?? [];
+    v.char.setItem('sickle');
+    v.loop = () => { if (cells.length) { v.go(R(cells)); v.do('work', 12); } else v.do('idle', 5); };
+  },
+
+  pickCorn(v, node) { // 秋：背着背篓掰玉米，掰满一篓背回家倒在院里
+    const F = v.V.fields, cells = { fieldW: F.cornW, fieldE: F.cornE }[node]?.length ? { fieldW: F.cornW, fieldE: F.cornE }[node] : F[node] ?? [];
+    v.char.setItem(null);
+    v.char.setBack('basket');
+    v.loop = () => {
+      if (!cells.length) { v.do('idle', 5); return; }
+      v.go(R(cells)); v.do('work', 8);
+      v.go(R(cells)); v.do('work', 8);
+      v.back('basket:corn');
+      v.go(v.home.spot('yard'));
+      v.do('work', 2);
+      v.back('basket');
+    };
+  },
+
+  haulManure(v) { // 春：挑着粪筐往地里送粪
+    v.char.setItem('pole');
+    const cells = [...(v.V.fields.fieldE ?? []), ...(v.V.fields.fieldW ?? [])];
+    v.loop = () => { v.go(v.home.spot('yard')); v.do('work', 3); if (cells.length) { v.go(R(cells)); v.do('work', 4); } };
+  },
+
+  sweepSnow(v) { // 冬：雪后扫院子（男的拿木锨铲，女的、老人拿扫帚扫）
+    v.char.setItem(v.p.sex === '男' && v.p.age < 60 ? 'shovel' : 'broom');
+    v.loop = () => { // 一块一块地扫：挑院里离自己近的一处（路短，一家几口都在院里扫也不来回挤）
+      const pts = [v.home.randomPoint(), v.home.randomPoint(), v.home.randomPoint()];
+      v.go(pts.reduce((a, b) => (Math.hypot(b[0] - v.pos.x, b[1] - v.pos.z) < Math.hypot(a[0] - v.pos.x, a[1] - v.pos.z) ? b : a)));
+      v.do('work', 14);
+    };
+  },
+
+  gatherDung(v) { // 冬：背着粪筐、拿着粪杈沿路拾粪（冬闲时攒肥，开春上地）
+    v.char.setItem('fork');
+    v.char.setBack('basket:dung');
+    const [hx, hz] = v.home.gateOut(), N = v.V.nodes; // 自家附近的几条路上转（30 米以内的路口）
+    const names = Object.keys(N).filter((n) => !n.startsWith('gate:') && N[n].x > -45 && Math.hypot(N[n].x - hx, N[n].z - hz) < 30);
+    if (!names.length) { ACTIVITIES.sweepSnow(v); return; }
+    v.loop = () => {
+      const nd = v.V.nodes[R(names)];
+      v.go(v.V.nav.nearestFree(nd.x, nd.z));
+      v.do('work', 2.5);
+    };
   },
 
   visitFriend(v, who) { // 老人去老伙计家串门：找到他（在家就进院，不在家就在门口等一会儿）

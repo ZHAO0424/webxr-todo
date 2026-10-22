@@ -175,4 +175,4 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 .card.thing .now .what { flex-basis: 100%; }
 .card .who-now:empty { display: none; }
 .card .who-now { margin-top: var(--p); }
-#sound, #music { margin-right: calc(2 * var(--p)); }
+#sound, #music, #season { margin-right: calc(2 * var(--p)); }

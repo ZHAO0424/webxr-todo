@@ -29,3 +29,6 @@
 | waterfall.mp3 | Wilkies Pools Waterfalls.mp3 | laughatlantic | https://freesound.org/people/laughatlantic/sounds/565737/ |
 | woodpecker.mp3 | Woodpecker Pecking | Terry93D | https://freesound.org/people/Terry93D/sounds/342096/ |
 | owl.mp3 | Owl Hoot | Breviceps | https://freesound.org/people/Breviceps/sounds/465697/ |
+| cicada.mp3 | Cicadas  | dethrok | https://freesound.org/people/dethrok/sounds/272169/ |
+| frogs.mp3 | Toads and frogs are singing at night in the pond, in the center of the small village of Diafarabe, on the Niger river. (Africa, Mali) | felix.blume | https://freesound.org/people/felix.blume/sounds/135561/ |
+| cuckoo.mp3 | Cuckoo 9.WAV | Monkay | https://freesound.org/people/Monkay/sounds/81971/ |

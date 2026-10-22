@@ -3,6 +3,7 @@ import { TPU, makeRng, block, prism } from './pixel.js';
 import { R } from './palette.js';
 import { restViews, itemGrid } from './characters.js';
 import { animalGrids } from './animals.js';
+import { season } from './season.js';
 
 /*
  * 体素：把像素画变成立体的。
@@ -115,6 +116,22 @@ const WORK_MOTION = {
   earpick(t, L, Rt) { Rt.rotation.x = -1.95 + Math.sin(t * 9) * 0.05; L.rotation.x = -1.5; return true; }, // 掏耳朵：手举到耳边轻轻转
   lantern(t, L, Rt) { Rt.rotation.x = -1.5 + Math.sin(t * 2) * 0.1; return true; }, // 举灯照一照
   kite(t, L, Rt) { Rt.rotation.x = -1.3 + Math.sin(t * 2) * 0.3; return true; }, // 拽风筝线
+  sickle(t, L, Rt, body) { // 割麦、割谷子：弯着腰，左手攥住一把秆子，右手的镰刀往怀里一拉
+    const k = (t * 1.3) % 1;
+    body.rotation.x = 0.3;
+    L.rotation.x = -1.1 + (k > 0.6 ? 0.25 : 0);
+    Rt.rotation.x = -0.9 - Math.sin(k * Math.PI) * 0.35;
+    Rt.rotation.z = 0.5 - k * 0.9;
+    return true;
+  },
+  shovel(t, L, Rt, body) { // 铲雪 / 扬场：两手握把，往前一铲、往旁边一扬
+    const k = (t * 0.8) % 1, a = k < 0.5 ? k / 0.5 : 1 - (k - 0.5) / 0.5;
+    body.rotation.x = 0.15 + (1 - a) * 0.1;
+    Rt.rotation.x = L.rotation.x = -0.5 - a * 1.0;
+    Rt.rotation.z = a * 0.3;
+    return true;
+  },
+  fork(t, L, Rt, body) { return WORK_MOTION.shovel(t * 1.2, L, Rt, body); }, // 拾粪：拿杈子往背篓里一挑
 };
 
 /**
@@ -224,14 +241,63 @@ export function voxelCharacter(p, M) {
     if (items.get(name)) items.get(name).visible = true;
   };
   setItem(p.item ?? null);
+
+  // 背在背上的东西（和手里的家伙是两回事，可以一手拿镰刀、背上背着麦个子）：用方块搭的小模型，挂在身子背后
+  const backs = new Map();
+  let backCur = null;
+  const sh = shoulderY * VOX; // 肩膀高度（米）
+  const makeBack = (name) => {
+    const g = new THREE.Group();
+    const add = (x0, y0, z0, x1, y1, z1, mat) => g.add(block(x0, y0, z0, x1, y1, z1, mat, { outline: false })); // 不描边：和体素小人一样
+    const [kind, fill] = name.split(':');
+    if (kind === 'firewood') { // 背柴：七八根柴棍捆成一捆，斜靠在背上，两道草绳
+      for (let i = 0; i < 7; i++) { const x = -0.24 + i * 0.08, d = ((i * 37) % 5) * 0.03; add(x - 0.035, -0.62 + d, -0.07 + (i % 2) * 0.05, x + 0.035, 0.42 + d, 0.0 + (i % 2) * 0.05, M.wood); }
+      for (const y of [-0.32, 0.12]) add(-0.29, y, -0.1, 0.29, y + 0.06, 0.08, M.straw);
+      g.rotation.x = -0.25;
+      g.position.set(0, sh - 0.1, -0.36);
+    } else if (kind === 'sheaf') { // 背麦个子：一大捆，穗子朝上
+      add(-0.2, -0.62, -0.12, 0.2, 0.2, 0.12, M.straw);
+      add(-0.27, 0.2, -0.17, 0.27, 0.5, 0.17, M.wheat);
+      add(-0.22, -0.22, -0.14, 0.22, -0.16, 0.14, M.wood);
+      g.rotation.set(-0.2, 0, 0.25);
+      g.position.set(0, sh - 0.05, -0.34);
+    } else if (kind === 'basket') { // 背篓：下窄上宽的荆条筐，筐里装着东西（corn 玉米棒子 / grass 青草 / dung 粪 / persimmon 柿子）
+      add(-0.17, -0.72, -0.14, 0.17, -0.42, 0.14, M.straw);
+      add(-0.24, -0.42, -0.2, 0.24, 0.08, 0.2, M.straw);
+      add(-0.26, 0.04, -0.22, 0.26, 0.11, 0.22, M.wood);
+      const top = { corn: M.corn, grass: M.veg, dung: M.flatRoof, persimmon: M.gold }[fill];
+      if (top) add(-0.2, 0.1, -0.16, 0.2, 0.24, 0.16, top);
+      g.position.set(0, sh - 0.05, -0.42);
+    } else if (kind === 'sack') { // 粮袋：一口袋粮食扛在背上，口扎着
+      add(-0.26, -0.5, -0.17, 0.26, 0.16, 0.17, M.plaster);
+      add(-0.07, 0.16, -0.07, 0.07, 0.27, 0.07, M.straw);
+      g.rotation.z = 0.15;
+      g.position.set(0, sh - 0.02, -0.34);
+    }
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    g.scale.setScalar(0.72); // 按 Q 版小人的身量缩一点（模型按真实尺寸搭的）
+    g.position.z *= 0.8;
+    body.add(g);
+    return g;
+  };
+  const setBack = (name) => {
+    if (name === backCur) return;
+    if (backCur) backs.get(backCur).visible = false;
+    backCur = name;
+    if (!name) return;
+    if (!backs.has(name)) backs.set(name, makeBack(name));
+    backs.get(name).visible = true;
+  };
   const legLen = hipY * VOX;
 
   const swing = p.body === 'child' ? 0.7 : 0.5;
-  const rest = () => { legL.rotation.x = legR.rotation.x = armL.rotation.x = armR.rotation.x = 0; armR.rotation.z = armL.rotation.z = body.rotation.z = 0; rig.position.y = 0; body.position.y = 0; };
+  const rest = () => { legL.rotation.x = legR.rotation.x = armL.rotation.x = armR.rotation.x = 0; armR.rotation.z = armL.rotation.z = body.rotation.z = body.rotation.x = 0; rig.position.y = 0; body.position.y = body.position.z = 0; };
   return {
     object: root,
     setItem,
     get item() { return current; },
+    setBack,
+    get back() { return backCur; },
     /** state：idle / walk / run / work / sit（坐凳子，seat = 凳面高）/ squat（蹲着端碗吃饭）/ talk / eat / scatter（撒食） */
     pose(state, t, phase = 0, { seat = 0.45, cadence = 1 } = {}) {
       const w = (state === 'run' ? 13 : 8 * cadence) * t + phase;
@@ -326,6 +392,11 @@ export function voxelCharacter(p, M) {
         body.position.y = Math.abs(Math.cos(w)) > 0.7 ? VOX : 0; // 每步起伏一个像素
       } else if (state === 'work') {
         WORK_MOTION[current ?? 'none']?.(t + phase, armL, armR, body) ?? WORK_MOTION.hammer(t + phase, armL, armR, body);
+        if (body.rotation.x) { // 弯腰：绕胯转（身子的原点在脚底，挪回来让腰和腿接上）
+          const hh = hipY * VOX, a = body.rotation.x;
+          body.position.z = -hh * Math.sin(a);
+          body.position.y += hh * (1 - Math.cos(a));
+        }
       } else {
         body.position.y = Math.floor(t * 1.2 + phase) % 2 ? 0 : -VOX * 0.5; // 呼吸
         if (current === 'umbrella') armR.rotation.x = -0.9;
@@ -457,14 +528,34 @@ const TREE_SPECS = {
   walnut: (r) => ({ trunk: [2, 14], branches: 4, ramp: R.grass, blobs: Array.from({ length: 5 }, () => [(r() - 0.5) * 24, 22 + r() * 4, (r() - 0.5) * 20, 10 + r() * 3, 6 + r(), 10 + r() * 3]) }), // 核桃：树冠宽，叶子黄绿
 };
 
+const EVERGREEN = new Set(['pine', 'cypress']);
+/** 按季节改一棵树：冬天落叶树只剩枝条（bare）、常绿树顶上积雪（snowTop）；春天开花、发新叶；夏天一片深绿。 */
+function seasonTree(kind, s) {
+  const S = season();
+  if (S === 'winter') return EVERGREEN.has(kind) ? { ...s, snowTop: true } : { ...s, bare: true, branches: s.branches + 5, fruit: kind === 'persimmon' ? R.autumn[3] : null, fruitRate: 0.02 }; // 柿子树梢上留几个"老鸹食"
+  if (EVERGREEN.has(kind) || kind === 'poplar' || kind === 'willow') return s; // 杨柳用 R.leaf，季节色阶已经换过
+  if (S === 'spring') {
+    if (kind === 'persimmon') return { ...s, ramp: R.leaf, sparse: 0.35, fruit: R.blossom[3], fruitRate: 0.45 }; // 杏花、桃花开满枝头
+    if (kind === 'jujube') return { ...s, ramp: R.leaf, sparse: 0.3, fruit: R.blossom[4], fruitRate: 0.3 }; // 梨花一样的白花
+    if (kind === 'bush') return { ...s, ramp: R.leaf, fruit: R.gold[4], fruitRate: 0.35 }; // 连翘：满枝的小黄花
+    if (kind === 'locust') return { ...s, ramp: R.leaf, fruit: R.white[3], fruitRate: 0.1 }; // 一串串槐花
+    return { ...s, ramp: R.leaf, sparse: Math.max(s.sparse ?? 0, 0.2), fruit: null };
+  }
+  if (S === 'summer') {
+    if (kind === 'persimmon' || kind === 'jujube') return { ...s, ramp: R.leaf, sparse: 0.05, fruit: R.green[4], fruitRate: 0.04 }; // 青果子
+    return { ...s, ramp: R.leaf, fruit: null };
+  }
+  return s;
+}
+
 export function voxelTree(kind, seed = 1, scale = 1) {
   const r = makeRng(seed);
-  const s = TREE_SPECS[kind](r);
+  const s = seasonTree(kind, TREE_SPECS[kind](r));
   const blobs = s.blobs.map(([x, y, z, rx, ry, rz]) => [x * scale, y * scale, z * scale, rx * scale, ry * scale, rz * scale]);
   const [tw, th] = [s.trunk[0], s.trunk[1] * scale];
   const branches = Array.from({ length: s.branches }, (_, i) => {
     const a = (i / Math.max(1, s.branches)) * Math.PI * 2 + r();
-    return { a, y0: th * (0.55 + r() * 0.3), len: 6 + r() * 6 };
+    return { a, y0: th * (0.55 + r() * 0.3), len: (6 + r() * 6) * (s.bare ? 1.7 : 1) };
   });
   const noise = (x, y, z) => Math.sin(x * 0.9 + y * 0.3) * Math.sin(y * 0.7 + z * 1.1) * Math.sin(z * 0.8 + x * 0.5);
   const hash = (x, y, z) => { const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); };
@@ -475,6 +566,7 @@ export function voxelTree(kind, seed = 1, scale = 1) {
       if (d < 1 + noise(x, y, z) * 0.18 && (!best || d < best.d)) best = { b, d };
     }
     if (best && s.sparse && hash(x, y, z) < s.sparse && best.d > 0.75) return null; // 柿子树叶子稀
+    if (best && s.bare && !(hash(x, y, z) < 0.07 && best.d > 0.4)) return null; // 落了叶：树冠里只剩零星的细枝
     return best;
   };
   const trunk = (x, y, z) => {
@@ -488,10 +580,13 @@ export function voxelTree(kind, seed = 1, scale = 1) {
   };
   const strand = (x, y, z) => s.willow && (x + z * 3) % 3 === 0 && hash(x, 0, z) > 0.3 && y > 6 + hash(z, 1, x) * 8 && y < 20 && blobs.some((b) => Math.hypot((x - b[0]) / b[3], (z - b[2]) / b[5]) > 0.75 && Math.hypot((x - b[0]) / b[3], (z - b[2]) / b[5]) < 1.05);
   const solid = (x, y, z) => trunk(x, y, z) || !!crown(x, y, z) || strand(x, y, z);
-  const color = (x, y, z) => {
-    if (trunk(x, y, z) && !crown(x, y, z)) return (x + y) % 5 === 0 ? R.wood[2] : R.wood[1];
+  const color = (x, y, z, f) => {
+    const top = f === 2 && !solid(x, y + 1, z); // 朝上的面：冬天积雪
+    if (trunk(x, y, z) && !crown(x, y, z)) return s.bare && top && hash(x, y, z) > 0.3 ? R.snow[4] : (x + y) % 5 === 0 ? R.wood[2] : R.wood[1];
     const c = crown(x, y, z);
-    if (!c) return (y % 3) ? s.ramp[3] : s.ramp[2]; // 柳条
+    if (!c) return s.bare ? ((y % 3) ? R.khaki[3] : R.wood[3]) : (y % 3) ? s.ramp[3] : s.ramp[2]; // 柳条（冬天是光秃秃的黄枝条）
+    if (s.bare) return s.fruit && hash(x, y, z) < s.fruitRate * 6 ? s.fruit : top ? R.snow[3] : (x + z) % 3 ? R.wood[2] : R.wood[3];
+    if (s.snowTop && top && hash(x, y, z) > 0.2) return hash(z, x, y) > 0.5 ? R.snow[4] : R.snow[3];
     if (s.fruit && hash(x, y, z) < (s.fruitRate ?? 0.04)) return s.fruit;
     const [bx, by, bz, rx, ry, rz] = c.b;
     const n = new THREE.Vector3((x - bx) / rx, (y - by) / ry, (z - bz) / rz).normalize();

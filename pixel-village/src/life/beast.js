@@ -66,6 +66,8 @@ export class Beast {
   plan(tx, tz) {
     const nav = this.V.nav, inDoor = nav.door[nav.index(this.pos.x, this.pos.z)] > 0; // 门关上时正站在门洞里：允许挤回去
     const opts = { swim: this.swim, person: this.push || inDoor };
+    const tk = `${Math.round(tx * 2)},${Math.round(tz * 2)}`;
+    if (this.lostFor > 0 && this.lostKey === tk) return []; // 刚找过、这个目标走不到：10 秒内别再找（不然每帧都搜一遍全图，很卡）
     let path = nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: 8000 });
     if (!path && Math.hypot(tx - this.pos.x, tz - this.pos.z) > 6 && !(this.lostFor > 0)) {
       path = nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: Infinity });
@@ -73,10 +75,16 @@ export class Beast {
         this.lostFor = 10; // 10 秒内别再搜全图
         for (let r = 0.25; r <= 2; r += 0.25) for (let a = 0; a < 16; a++) {
           const x = this.pos.x + Math.cos(a * 0.3927) * r, z = this.pos.z + Math.sin(a * 0.3927) * r;
-          if (nav.freeAt(x, z, this.swim) && nav.reachable(x, z)) { this.pos.x = x; this.pos.z = z; this.lostFor = 0; return nav.find(x, z, tx, tz, { ...opts, maxNodes: Infinity }) ?? []; }
+          if (nav.freeAt(x, z, this.swim) && nav.reachable(x, z)) {
+            this.pos.x = x; this.pos.z = z; this.lostFor = 0;
+            const p2 = nav.find(x, z, tx, tz, { ...opts, maxNodes: Infinity });
+            if (!p2) { this.lostFor = 10; this.lostKey = tk; }
+            return p2 ?? [];
+          }
         }
       }
     }
+    if (!path) { this.lostFor = Math.max(this.lostFor ?? 0, 10); this.lostKey = tk; }
     return path ?? [];
   }
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { R } from './palette.js';
+import { is } from './season.js';
 import { TPU, snap, makeRng, paint, toTexture, flat } from './pixel.js';
 
 // 氛围层：炊烟、萤火虫、斜光束。都在沙盘的格坐标里，位置吸附像素网格。
@@ -128,9 +129,12 @@ export class Rain {
   constructor(parent, bounds, groundAt, count = 3000, seed = 11) {
     const r = makeRng(seed);
     this.groundAt = groundAt;
-    this.drops = Array.from({ length: count }, () => { const x = bounds.x0 + r() * (bounds.x1 - bounds.x0), z = bounds.z0 + r() * (bounds.z1 - bounds.z0); return { x, z, y: groundAt(x, z) + r() * 9, v: 7 + r() * 3, top: 7 + r() * 3 }; });
+    this.snow = is('winter'); // 冬天下的是雪：一片片慢慢飘，左右晃
+    if (this.snow) count = Math.round(count * 0.6);
+    this.drops = Array.from({ length: count }, () => { const x = bounds.x0 + r() * (bounds.x1 - bounds.x0), z = bounds.z0 + r() * (bounds.z1 - bounds.z0); return { x, z, y: groundAt(x, z) + r() * 9, v: this.snow ? 0.7 + r() * 0.6 : 7 + r() * 3, top: 7 + r() * 3, ph: r() * 6 }; });
     const w = 1 / TPU;
-    this.object = new THREE.InstancedMesh(new THREE.BoxGeometry(w, 0.5, w), new THREE.MeshBasicMaterial({ color: '#c4d0e4', transparent: true, opacity: 0.65, depthWrite: false }), count);
+    const geo = this.snow ? new THREE.BoxGeometry(w * 2, w * 2, w * 2) : new THREE.BoxGeometry(w, 0.5, w);
+    this.object = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: this.snow ? '#f4f0f4' : '#c4d0e4', transparent: true, opacity: this.snow ? 0.9 : 0.65, depthWrite: false }), count);
     this.object.frustumCulled = false;
     this.object.userData.dynamic = true;
     this.object.visible = false;
@@ -146,9 +150,9 @@ export class Rain {
     if (!on) return;
     this.drops.forEach((d, i) => {
       d.y -= d.v * dt;
-      d.x += 1.2 * dt; // 风往东吹一点
+      d.x += (this.snow ? 0.3 + Math.sin(d.y * 1.7 + d.ph) * 0.5 : 1.2) * dt; // 风往东吹一点；雪花左右飘
       const g = this.groundAt(d.x, d.z);
-      if (d.y < g) { d.y = g + d.top; d.x -= 1.2 * (d.top / d.v); } // 落地了回到上面（只在地面以上几米落，雨丝才密）
+      if (d.y < g) { d.y = g + d.top; d.x -= (this.snow ? 0.3 : 1.2) * (d.top / d.v); } // 落地了回到上面（只在地面以上几米落，雨丝才密）
       this.object.setMatrixAt(i, this.m.compose(this.p.set(d.x, d.y, d.z), this.q, this.s));
     });
     this.object.instanceMatrix.needsUpdate = true;

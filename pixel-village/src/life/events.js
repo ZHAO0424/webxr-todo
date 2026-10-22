@@ -1,4 +1,5 @@
 import { ACTIVITIES, R, kinOf } from './activities.js';
+import { season, is, SEASONS } from '../season.js';
 
 /*
  * 每天一样全村的活动，有白天的也有晚上的：
@@ -30,7 +31,7 @@ export const EVENTS = {
     prob: (p) => (kid(p) ? 0.55 : elder(p) ? 0.6 : p.sex === '男' ? 0.75 : 0.4),
   },
   harvest: {
-    name: '打场', place: '场院', from: 14.0, to: 17.5, prep: 0.5, stay: ['zheng_laotou'],
+    get name() { return is('summer') ? '打麦' : '打场'; }, place: '场院', // 夏天打麦子、秋天打谷子；春冬不办 from: 14.0, to: 17.5, prep: 0.5, stay: ['zheng_laotou'],
     roles: { yang_erniu: 'ox' }, // 杨二哥赶牛拉碾子，大伙儿扫场、翻场；农忙，孩子也逃学来疯
     prob: (p) => (kid(p) ? 0.5 : elder(p) ? 0.25 : p.sex === '男' ? 0.7 : 0.45),
   },
@@ -51,7 +52,7 @@ export const EVENTS = {
   },
 };
 export const ORDER = ['opera', 'market', 'bonfire', 'harvest', 'movie', 'shrine', 'meeting'];
-export const EVENT_NAMES = Object.fromEntries(Object.entries(EVENTS).map(([k, e]) => [k, e.name]));
+export const EVENT_NAMES = new Proxy({}, { get: (_, k) => EVENTS[k]?.name }); // 名字跟季节走（打麦 / 打场）
 export const fmt = (h) => `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 
 /** 字符串 → [0, 1) 的固定随机数（同一天、同一个人结果不变）。 */
@@ -63,9 +64,9 @@ export function hash(str) {
 
 // ---------------------------------------------------------------- 农历、天气
 
-const LUNAR0 = { m: 9, d: 4 }; // 第 1 天是九月初四（每月按 30 天算）
+// 第 1 天是这个季节那个月的初四（春三月、夏六月、秋九月、冬腊月；每月按 30 天算）
 export function lunarOf(day) {
-  let m = LUNAR0.m, d = LUNAR0.d + day - 1;
+  let m = SEASONS[season()].month, d = 4 + day - 1;
   while (d > 30) { d -= 30; m = (m % 12) + 1; }
   return { m, d };
 }
@@ -77,23 +78,26 @@ export function lunarLabel(day) {
   return month + dd;
 }
 
-const OTHERS = ORDER.filter((k) => k !== 'market');
-/** 这天村里办什么：逢五逢十赶集，其余日子轮着来。 */
+/** 这天村里办什么：逢五逢十赶集，其余日子轮着来（打场只在夏秋农忙时办）。 */
 export function eventOf(day, forced) {
   if (forced) return forced;
   if (lunarOf(day).d % 5 === 0) return 'market';
+  const others = ORDER.filter((k) => k !== 'market' && (k !== 'harvest' || is('summer', 'autumn')));
   let k = 0;
   for (let i = 1; i < day; i++) if (lunarOf(i).d % 5) k++;
-  return OTHERS[k % OTHERS.length];
+  return others[k % others.length];
 }
 
-export const WEATHER = { sunny: '晴', cloudy: '阴', rain: '小雨' };
-/** 这天的天气：头一天晴，之后晴六成、阴两成半、小雨一成半。 */
+// 冬天的 'rain' 是下雪：活动照样按"下雨"处理（户外的事改天），只是画面是雪花、叫"小雪"
+const WEATHER_NAMES = { sunny: '晴', cloudy: '阴', rain: '小雨' };
+export const WEATHER = new Proxy(WEATHER_NAMES, { get: (o, k) => (k === 'rain' && is('winter') ? '小雪' : o[k]) });
+const WET = { spring: 0.12, summer: 0.2, autumn: 0.15, winter: 0.18 }; // 下雨（雪）的几率：夏天雨多
+/** 这天的天气：头一天晴，之后晴、阴、雨（雪）按季节的几率。 */
 export function weatherOf(day, forced) {
   if (forced) return forced;
   if (day === 1) return 'sunny';
-  const h = hash(`${day}/weather`);
-  return h < 0.6 ? 'sunny' : h < 0.85 ? 'cloudy' : 'rain';
+  const h = hash(`${day}/weather`), wet = WET[season()];
+  return h < 0.75 - wet ? 'sunny' : h < 1 - wet ? 'cloudy' : 'rain';
 }
 export const roleOf = (key, p) => EVENTS[key].roles[p.id] ?? null;
 export const attends = (p, key, day) => !p.caravan && (!!roleOf(key, p) || (!EVENTS[key].stay?.includes(p.id) && hash(`${day}/${p.id}/${key}`) < EVENTS[key].prob(p))); // stay：手上有买卖走不开的；骡帮自己走自己的（activities.js 的 caravan）

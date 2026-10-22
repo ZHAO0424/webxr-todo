@@ -9,6 +9,7 @@ import * as PROPS from './props.js';
 import { tagged, tag, collectThings } from './things.js';
 import { voxelTree, voxelGeometry } from './voxel.js';
 import { fieldCrops } from './farmland.js';
+import { is } from './season.js';
 import { findFloating } from './audit.js';
 import { fixCoplanar } from './coplanar.js';
 import { Sprites } from './sprites.js';
@@ -294,7 +295,7 @@ function watermill(M, wheelX, wheelZ, wheelY) {
   const hall = house(M, { w: 5.2, d: 4.2, h: 3.0, wall: 'adobe', rise: 1.5, roofMat: 'slate', chimney: true, front: [{ k: 'door', x: 1.0 }, { k: 'windowLit', x: -1.3, y: 1.0 }, { k: 'signBoard', x: 1.0, y: 2.45, s: 0.6 }] });
   hall.object.position.set(-1.8, 0, 0.4);
   g.add(hall.object);
-  for (const [k, x] of [['persimmonString', -4.0], ['chiliString', -3.4], ['persimmonString', 0.3]]) facade(g, M, k, x, 1.6, 2.55);
+  for (const [k, x] of [['persimmonString', -4.0], ['chiliString', -3.4], ['persimmonString', 0.3]]) if (k === 'chiliString' || is('autumn', 'winter')) facade(g, M, k, x, 1.6, 2.55); // 柿子串：秋天挂上，晾到冬天
 
   // 磨棚：四根柱子 + 往南斜的石板单坡顶（坡上晾柿饼、山楂片）
   const shed = new THREE.Group();
@@ -305,7 +306,7 @@ function watermill(M, wheelX, wheelZ, wheelY) {
   roof.rotation.x = slope;
   roof.position.set(wheelX, 3.2, (sz0 + sz1) / 2);
   shed.add(roof);
-  for (const [k, x0, x1] of [['persimmonMat', sx0 + 0.1, wheelX - 0.1], ['hawthornMat', wheelX + 0.1, sx1 - 0.1]]) {
+  for (const [k, x0, x1] of is('autumn') ? [['persimmonMat', sx0 + 0.1, wheelX - 0.1], ['hawthornMat', wheelX + 0.1, sx1 - 0.1]] : []) { // 晒柿饼、山楂片：秋天
     const mat = box(x1 - x0, 0.05, L - 0.9, M[k], { outline: false });
     mat.rotation.x = slope;
     mat.position.set((x0 + x1) / 2, 3.31, (sz0 + sz1) / 2);
@@ -559,11 +560,10 @@ export function buildWest(M) {
   put(P.haystack(M, 0, 0, 1.2, 2.4), flatSpot(30, 13, 2.6, 2.6));
   put(P.haystack(M, 0, 0, 1.0, 2.0), flatSpot(-4, 15, 2.2, 2.2));
   put(P.haystack(M, 0, 0, 1.1, 2.2), flatSpot(-20, 4, 2.4, 2.4));
-  put(P.fieldHut(M, 0, 0, 0), flatSpot(4, 18, 3, 2.4));
-  put(P.fieldHut(M, 0, 0, 0), flatSpot(-36, 14, 3, 2.4));
+  if (is('summer', 'autumn')) { put(P.fieldHut(M, 0, 0, 0), flatSpot(4, 18, 3, 2.4)); put(P.fieldHut(M, 0, 0, 0), flatSpot(-36, 14, 3, 2.4)); } // 看青棚、稻草人：庄稼快熟的时候
   const crops = fieldCrops(M, terrain.fieldCells, rand); // 和村子同一套庄稼（麦苗地只是地皮）
   const scare = terrain.fieldCells.filter((c, i) => i % 41 === 0 && (c.crop === 1 || c.crop === 2));
-  for (let i = 0; i < 4 && scare.length; i++) { const c = scare.splice(Math.floor(rand() * scare.length), 1)[0]; root.add(P.scarecrow(M, c.x, c.z, rand() * 6).translateY(c.h)); }
+  for (let i = 0; i < 4 && scare.length; i++) { const c = scare.splice(Math.floor(rand() * scare.length), 1)[0], rot = rand() * 6; if (is('summer', 'autumn')) root.add(P.scarecrow(M, c.x, c.z, rot).translateY(c.h)); } // 稻草人：夏秋（随机数四季照样用掉）
 
   // 5. 树：庙顶上一棵歪脖子松、古道上方崖边一棵松（参与合批）；成片的山林、果园、大石头用实例化（不合批）
   const plant = (kind, x, z, seed, scale) => {
@@ -803,14 +803,15 @@ export function buildWest(M) {
       last = t;
       const n = light.night;
       const step = Math.floor(t * 10); // 跌水往下滚，一次一个像素
-      if (step !== fallStep) { fallStep = step; M.tex.fall.offset.y = (step % 36) / 36; }
-      const turn = Math.round((t * 0.6) / (Math.PI / 16)) * (Math.PI / 16); // 水轮按一格一格转
+      const frozen = is('winter'); // 冬天瀑布冻成冰挂、水轮冻住不转，也没有水雾
+      if (step !== fallStep && !frozen) { fallStep = step; M.tex.fall.offset.y = (step % 36) / 36; }
+      const turn = frozen ? 0 : Math.round((t * 0.6) / (Math.PI / 16)) * (Math.PI / 16); // 水轮按一格一格转
       mill.wheel.userData.spin.rotation.x = -turn;
       mill.millstone.rotation.y = turn * (GEAR.r / GEAR.pin); // 灯笼齿轮小，竖轴和磨盘转得快一倍多
-      for (const m of mist) m.update(dt, true);
+      for (const m of mist) m.update(dt, !frozen);
       incense.update(dt, hour >= litAt && hour < litAt + 1.2);
       fireflies.update(t);
-      for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain';
+      for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain' && is('summer'); // 萤火虫：夏夜
       rain.update(dt, weather === 'rain');
       const k = Math.min(1, n * 1.1);
       millWindow.color.setRGB(0.42 + 0.58 * k, 0.36 + 0.64 * k, 0.34 + 0.66 * k);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { R, GLOW, INK } from './palette.js';
 import { makeRng, paint, toTexture, toon, flat, glow, pixelize } from './pixel.js';
+import { season } from './season.js';
 
 // 画法约定（TPU = 18，一米 18 像素）：
 // - 用成团的色块表现质感，不撒随机噪点；
@@ -8,7 +9,7 @@ import { makeRng, paint, toTexture, toon, flat, glow, pixelize } from './pixel.j
 // - 受光面在左（夕阳从西边来）。
 // 平铺贴图的画布尺寸 = 它代表的米数 × 18。
 
-const tiles = {
+const TILES = {
   brick: (r) => paint(36, 36, (g) => { // 青砖清水墙：2 像素砖 + 1 像素灰缝，错缝
     g.rect(0, 0, 36, 36, R.mortar[0]);
     for (let row = 0; row < 12; row++) {
@@ -446,9 +447,120 @@ const MOVIE = [
   for (const x of [7, 31, 44]) for (let y = 0; y < 22; y += 3) g.px(x, y, '#e8e4dc'); // 胶片划痕
 });
 
+// ---------------------------------------------------------------- 季节版的地皮、屋顶、水面（见 season.js）
+
+/** 一片雪：底色 + 亮的雪团 + 发蓝的低洼处；dots：雪里露出来的东西 [[颜色, 个数, 宽, 高]]。 */
+function snowField(g, r, w, h, dots = []) {
+  g.rect(0, 0, w, h, R.snow[3]);
+  for (let i = 0; i < (w * h) / 90; i++) g.rectw(r() * w, r() * h, 4, 2, R.snow[4]);
+  for (let i = 0; i < (w * h) / 160; i++) g.rectw(r() * w, r() * h, 3, 1, R.snow[2]);
+  for (const [c, n, dw, dh] of dots) for (let i = 0; i < n; i++) g.rectw(r() * w, r() * h, dw, dh, c);
+}
+
+const SEASON_TILES = {
+  winter: {
+    grass: (r) => paint(36, 36, (g) => snowField(g, r, 36, 36, [[R.grass[3], 5, 1, 2], [R.grass[2], 4, 2, 1]])), // 雪地，零星露出几根枯草
+    roof: () => paint(16, 16, (g) => { // 瓦垄上压着雪：瓦沟发蓝，零星露出瓦头
+      for (let x = 0; x < 16; x++) g.rect(x, 0, 1, 16, x % 4 === 0 ? R.snow[2] : x % 4 === 2 ? R.snow[4] : R.snow[3]);
+      for (let k = 0; k < 4; k++) g.rect(k * 4, 13 + (k % 2), 1, 2, R.roof[2]);
+    }),
+    ridge: () => paint(16, 16, (g) => { g.rect(0, 0, 16, 16, R.snow[3]); g.rect(0, 0, 16, 3, R.snow[4]); g.rect(0, 12, 16, 4, R.roof[1]); g.rect(0, 11, 16, 1, R.snow[2]); }),
+    flatRoof: (r) => paint(36, 36, (g) => snowField(g, r, 36, 36, [[R.loess[2], 3, 2, 1]])),
+    slate: (r) => paint(16, 16, (g) => snowField(g, r, 16, 16, [[R.stone[2], 3, 2, 1]])),
+    water: () => paint(36, 36, (g) => { // 结了冰的溪：发蓝的冰面、几道裂纹、几块积雪
+      g.rect(0, 0, 36, 36, R.ice[2]);
+      for (const [x, y, w] of [[2, 4, 9], [20, 9, 7], [6, 20, 11], [24, 27, 8]]) g.rectw(x, y, w, 1, R.ice[3]);
+      for (const [x, y] of [[14, 2], [3, 13], [28, 16], [16, 31]]) { for (let k = 0; k < 5; k++) g.pxw(x + k, y + (k % 2), R.ice[1]); }
+      for (const [x, y] of [[26, 3], [9, 27], [31, 22]]) { g.rectw(x, y, 4, 2, R.snow[3]); g.rectw(x + 1, y, 2, 1, R.snow[4]); }
+    }),
+    street: (r) => paint(36, 36, (g) => { // 踩实了的雪路：中间两道车辙、脚印露出黄土，路边是雪
+      g.rect(0, 0, 36, 36, R.snow[2]);
+      for (let i = 0; i < 14; i++) g.rectw(r() * 36, r() * 36, 3, 2, R.snow[3]);
+      for (const x of [9, 26]) for (let y = 0; y < 36; y++) if ((y * 7 + x) % 9 < 6) g.px(x + ((y >> 3) % 2), y, R.dirt[3]);
+      for (let i = 0; i < 10; i++) g.rectw(r() * 36, r() * 36, 2, 1, R.dirt[2]);
+    }),
+    threshing: (r) => paint(36, 36, (g) => snowField(g, r, 36, 36, [[R.wheat[3], 4, 2, 1]])),
+    veg: (r) => paint(36, 36, (g) => { snowField(g, r, 36, 36); for (let y = 4; y < 36; y += 6) g.rect(0, y, 36, 1, R.snow[2]); }), // 菜收完了，雪下一垄垄的印子
+    strawTop: (r) => paint(16, 16, (g) => snowField(g, r, 16, 16, [[R.wheat[2], 3, 1, 2]])), // 草顶、草垛顶上的雪（别的季节 strawTop 就是 straw）
+  },
+  spring: {
+    grass: (r) => paint(36, 36, (g) => { // 返青的草：野花星星点点
+      g.rect(0, 0, 36, 36, R.grass[3]);
+      for (let i = 0; i < 12; i++) g.rectw(r() * 36, r() * 36, 3, 1, R.grass[2]);
+      for (let i = 0; i < 10; i++) { const x = r() * 36, y = r() * 36; g.pxw(x, y, R.grass[4]); g.pxw(x - 1, y + 1, R.grass[4]); g.pxw(x + 1, y + 1, R.grass[2]); }
+      for (let i = 0; i < 7; i++) g.pxw(r() * 36, r() * 36, [R.gold[4], R.blossom[3], R.white[3]][i % 3]);
+    }),
+    threshing: (r) => paint(36, 36, (g) => { g.rect(0, 0, 36, 36, R.loess[4]); for (let i = 0; i < 8; i++) g.rectw(r() * 36, r() * 36, 3, 1, R.loess[3]); for (let i = 0; i < 5; i++) g.rectw(r() * 36, r() * 36, 2, 1, R.grass[3]); }),
+    veg: () => paint(36, 36, (g) => { // 菜地：刚移栽的小苗
+      g.rect(0, 0, 36, 36, R.dirt[2]);
+      for (let y = 0; y < 36; y += 6) { g.rect(0, y + 4, 36, 2, R.dirt[1]); for (let x = (y / 6) % 2 ? 3 : 0; x < 36; x += 6) { g.rect(x + 2, y + 1, 2, 2, R.cabbage[3]); g.px(x + 2, y + 1, R.cabbage[4]); } }
+    }),
+  },
+  summer: {},
+};
+
+const SEASON_FIELD_TILES = {
+  winter: {
+    furrow: (r) => paint(18, 18, (g) => { snowField(g, r, 18, 18); for (const y0 of [4, 13]) for (let x = 0; x < 18; x += 3) g.px(x, y0, R.snow[2]); }), // 雪盖着的地，垄的印子
+    stubbleW: (r) => paint(18, 18, (g) => { snowField(g, r, 18, 18); for (const y0 of [2, 11]) for (let x = (y0 % 2); x < 18; x += 3) { g.px(x, y0, R.wheat[3]); g.px(x, y0 + 1, R.wheat[2]); } }), // 雪里露出一行行谷茬
+    sprout: (r) => paint(18, 18, (g) => { snowField(g, r, 18, 18); for (const y0 of [3, 12]) for (let x = 1; x < 18; x += 4) g.px(x, y0, R.cabbage[2]); }), // 盖着雪的麦苗（"冬天麦盖三层被"）
+  },
+  spring: {
+    furrow: () => paint(18, 18, (g) => { // 刚耕过、种下的地：湿润的黑土垄，垄背上一溜细苗
+      for (let y = 0; y < 18; y++) g.rect(0, y, 18, 1, y % 9 === 0 ? R.dirt[3] : y % 9 < 5 ? R.dirt[2] : y % 9 < 8 ? R.dirt[1] : R.dirt[0]);
+      for (const y0 of [2, 11]) for (let x = 0; x < 18; x += 3) g.px(x, y0, R.cabbage[3]);
+    }),
+    stubbleW: () => paint(18, 18, (g) => { // 返青的冬小麦：一行行绿油油的麦苗
+      g.rect(0, 0, 18, 18, R.dirt[2]);
+      for (const y0 of [0, 9]) { g.rect(0, y0, 18, 5, R.cabbage[2]); for (let x = 0; x < 18; x += 2) { g.px(x, y0, R.cabbage[4]); g.px(x + 1, y0 + 2, R.cabbage[3]); } }
+    }),
+    sprout: () => paint(18, 18, (g) => {
+      g.rect(0, 0, 18, 18, R.dirt[2]);
+      for (const y0 of [0, 9]) { g.rect(0, y0, 18, 5, R.cabbage[2]); for (let x = 0; x < 18; x += 2) { g.px(x, y0, R.cabbage[4]); g.px(x + 1, y0 + 2, R.cabbage[3]); } }
+    }),
+  },
+  summer: {
+    furrow: (r) => paint(18, 18, (g) => { // 青纱帐底下：松土垄，垄沟里冒着青草
+      for (let y = 0; y < 18; y++) g.rect(0, y, 18, 1, y % 9 < 5 ? R.dirt[3] : y % 9 < 8 ? R.dirt[2] : R.dirt[1]);
+      for (let i = 0; i < 8; i++) g.rectw(r() * 18, Math.floor(r() * 2) * 9 + 6, 2, 1, R.grass[3]);
+    }),
+    stubbleW: () => paint(18, 18, (g) => { // 熟透的麦地：金黄的麦穗一行行
+      g.rect(0, 0, 18, 18, R.wheat[2]);
+      for (let y = 0; y < 18; y += 3) for (let x = (y / 3) % 2 ? 1 : 0; x < 18; x += 3) { g.px(x, y, R.wheat[4]); g.px(x + 1, y + 1, R.wheat[3]); }
+    }),
+    sprout: () => paint(18, 18, (g) => {
+      g.rect(0, 0, 18, 18, R.wheat[2]);
+      for (let y = 0; y < 18; y += 3) for (let x = (y / 3) % 2 ? 1 : 0; x < 18; x += 3) { g.px(x, y, R.wheat[4]); g.px(x + 1, y + 1, R.wheat[3]); }
+    }),
+  },
+};
+
+const SEASON_WEST_TILES = {
+  winter: {
+    rockTop: (r) => paint(36, 36, (g) => snowField(g, r, 36, 36, [[R.rock[3], 6, 5, 3], [R.rock[2], 4, 3, 1]])),
+    litter: (r) => paint(36, 36, (g) => snowField(g, r, 36, 36, [[R.wood[2], 6, 3, 1], [R.dirt[2], 4, 2, 1]])), // 林下的雪，落着枯枝
+    fall: (r) => paint(18, 36, (g) => { // 冻住的瀑布：一道道冰挂
+      g.rect(0, 0, 18, 36, R.ice[3]);
+      for (let x = 0; x < 18; x += 2) { const len = 10 + Math.floor(r() * 24); for (let k = 0; k < len; k++) g.px(x + (x % 4 ? 1 : 0), k, k < len - 3 ? R.ice[4] : R.ice[2]); }
+      for (let i = 0; i < 4; i++) g.rectw(r() * 18, r() * 36, 1, 5, R.ice[1]);
+    }),
+  },
+  spring: {
+    litter: (r) => paint(36, 36, (g) => { // 林下：青苔、新草、野花
+      g.rect(0, 0, 36, 36, R.dirt[2]);
+      for (let i = 0; i < 16; i++) g.rectw(r() * 36, r() * 36, 4, 2, R.grass[2 + (i % 2)]);
+      for (let i = 0; i < 8; i++) g.pxw(r() * 36, r() * 36, [R.blossom[3], R.gold[4], R.white[3]][i % 3]);
+    }),
+  },
+  summer: {
+    litter: (r) => paint(36, 36, (g) => { g.rect(0, 0, 36, 36, R.dirt[2]); for (let i = 0; i < 20; i++) g.rectw(r() * 36, r() * 36, 4, 2, R.grass[1 + (i % 3)]); }),
+  },
+};
+
 export function buildMaterials(seed = 7) {
   const r = makeRng(seed);
   const tex = {};
+  const tiles = { ...TILES, ...SEASON_TILES[season()] };
   for (const [k, fn] of Object.entries(tiles)) tex[k] = toTexture(fn(r), { tile: true });
   for (const [k, fn] of Object.entries(decals)) tex[k] = toTexture(fn(r));
   for (const [k, fn] of Object.entries(lit)) tex[k] = toTexture(fn(r));
@@ -473,6 +585,7 @@ export function buildMaterials(seed = 7) {
   M.windowHalo = additive(tex.halo, 0.5);
   M.glow = glow;
   M.movie = MOVIE.map((f) => flat(toTexture(paint(48, 22, f)))); // 露天电影的几帧
+  M.strawTop ??= M.straw;
   addFieldMaterials(M);
   return M;
 }
@@ -546,6 +659,7 @@ const fieldTiles = {
     g.rect(0, 0, 18, 18, R.dirt[2]);
     for (let y = 0; y < 18; y += 3) { g.rect(0, y + 2, 18, 1, R.dirt[1]); for (let x = (y / 3) % 2; x < 18; x += 2) { g.px(x, y, R.cabbage[3]); g.px(x, y + 1, R.cabbage[2]); } }
   }),
+  snowPlain: () => paint(8, 8, (g) => { g.rect(0, 0, 8, 8, R.snow[3]); g.rect(0, 0, 8, 2, R.snow[4]); g.rect(1, 5, 3, 1, R.snow[2]); }), // 雪人
 };
 
 const westDecals = {
@@ -558,13 +672,13 @@ const westDecals = {
 /** 庄稼地的地皮：自己一个随机数种子，buildMaterials 最后加进来（不挪动前面贴图的随机花纹）。 */
 function addFieldMaterials(M, seed = 47) {
   const r = makeRng(seed);
-  for (const [k, fn] of Object.entries(fieldTiles)) { M.tex[k] = toTexture(fn(r), { tile: true }); M[k] = toon(M.tex[k]); }
+  for (const [k, fn] of Object.entries({ ...fieldTiles, ...SEASON_FIELD_TILES[season()] })) { M.tex[k] = toTexture(fn(r), { tile: true }); M[k] = toon(M.tex[k]); }
 }
 
 /** 西沟用的材质，加进村子的 M（和村子共用一套，夜里窗户、灯笼跟着一起变）。 */
 export function addWestMaterials(M, seed = 31) {
   const r = makeRng(seed);
-  for (const [k, fn] of Object.entries(westTiles)) { M.tex[k] = toTexture(fn(r), { tile: true }); M[k] = toon(M.tex[k]); }
+  for (const [k, fn] of Object.entries({ ...westTiles, ...SEASON_WEST_TILES[season()] })) { M.tex[k] = toTexture(fn(r), { tile: true }); M[k] = toon(M.tex[k]); }
   for (const [k, fn] of Object.entries(westDecals)) { M.tex[k] = toTexture(fn(r)); M[k] = toon(M.tex[k], { alphaTest: 0.5, side: THREE.DoubleSide }); }
   return M;
 }

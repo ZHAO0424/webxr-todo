@@ -14,8 +14,10 @@ import { createMusic } from './music.js';
 import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 import { createSceneSwitch } from './scenes.js';
+import { setSeason, season, SEASONS, ORDER as SEASON_ORDER } from './season.js';
 
 const params = new URLSearchParams(location.search);
+setSeason(params.get('season') ?? 'autumn'); // ?season=spring|summer|autumn|winter：建场景之前定（见 season.js）
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -352,6 +354,17 @@ function syncSoundBtn() {
   if (musicBtn) { musicBtn.textContent = music.on ? '音乐：开' : '音乐：关'; musicBtn.classList.toggle('on', music.on); }
 }
 musicBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.toggle(); syncSoundBtn(); });
+// 季节按钮：春 → 夏 → 秋 → 冬，换季节要重建整个场景，带着新参数重新加载页面（其余参数保留）
+const seasonBtn = document.getElementById('season');
+if (seasonBtn) {
+  seasonBtn.textContent = `季节：${SEASONS[season()].name}`;
+  seasonBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const q = new URLSearchParams(location.search);
+    q.set('season', SEASON_ORDER[(SEASON_ORDER.indexOf(season()) + 1) % SEASON_ORDER.length]);
+    location.search = q.toString();
+  });
+}
 if (params.has('music')) { music.toggle(); setInterval(() => { document.documentElement.dataset.music = `${music.title}|${music.on}`; }, 500); } // ?music=1：直接放（无头检查用）
 soundBtn?.addEventListener('click', (e) => { e.stopPropagation(); sound.toggle(); syncSoundBtn(); });
 const viewer = new THREE.Vector3();
@@ -407,6 +420,7 @@ if (params.has('sim')) {
   const esc = {};
   const why = {};
   const lastPos = new Map();
+  const simT0 = performance.now();
   for (let i = 1; i <= total * 10; i++) {
     village.update(i / 10, camera.position);
     sound.update(i / 10, 0.1);
@@ -452,11 +466,17 @@ if (params.has('sim')) {
   for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) { const d = Math.hypot(out[i].pos.x - out[j].pos.x, out[i].pos.z - out[j].pos.z); if (d < 0.7) close.push(`${out[i].p.id}(${out[i].state},${out[i].tasks[0]?.type ?? '-'})~${out[j].p.id}(${out[j].state},${out[j].tasks[0]?.type ?? '-'})=${d.toFixed(2)}`); }
   eve.push(...close.map((c) => 'CLOSE ' + c));
   document.documentElement.dataset.eve = JSON.stringify(eve);
-  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, hour: village.life.clock.label, westWho, whyA, caravan: [V.byId.niu_wanshan, V.byId.shi_wa, ...village.life.beasts.filter((b) => b.s.caravan)].map((a) => `${(a.p ? a.inside : a.home) ? '不在村里' : a.p ? a.doing : '骡子'}@${Math.round(a.pos.x)},${Math.round(a.pos.z)}`), samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, seen: [...seen].sort(), litLog, leaveLog, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
+  document.documentElement.dataset.sim = JSON.stringify({ seconds: total, ms: Math.round(performance.now() - simT0), hour: village.life.clock.label, westWho, whyA, caravan: [V.byId.niu_wanshan, V.byId.shi_wa, ...village.life.beasts.filter((b) => b.s.caravan)].map((a) => `${(a.p ? a.inside : a.home) ? '不在村里' : a.p ? a.doing : '骡子'}@${Math.round(a.pos.x)},${Math.round(a.pos.z)}`), samples, clipPeople: clipP, clipAnimals: clipA, beastStuck, queue: `${waiting}/${goSamples}`, seen: [...seen].sort(), litLog, leaveLog, waitWhy: Object.entries(waitWhy).sort((a, b) => b[1] - a[1]).slice(0, 6), escaped, esc, ...village.life.people[0].V.stats, kidsAt, gateOpenSamples, ajarSamples, strolls, event: village.life.today(), haircuts: village.life.barber.served, barberPlan: village.life.barber.plan.map((c) => `${c.id}@${c.at.toFixed(1)}${c.done ? '✓' : ''}`), attended: Object.keys(attended).length, roles: Object.values(attended).filter((d) => d.includes(':')), fireLit: village.object.userData.fireSeen, stuckWalkers: stuck, why: Object.entries(why).sort((a, b) => b[1] - a[1]).slice(0, 12) });
 }
 
 let drawables = 0;
-scene.traverseVisible((o) => { if (o.isMesh || o.isSprite) drawables++; }); // 只算当前这块沙盘（另一块藏着不画）
+let tris = 0;
+scene.traverseVisible((o) => { // 只算当前这块沙盘（另一块藏着不画）
+  if (!o.isMesh && !o.isSprite) return;
+  drawables++;
+  if (o.isMesh) tris += ((o.geometry.index?.count ?? o.geometry.attributes.position?.count ?? 0) / 3) * (o.isInstancedMesh ? o.count : 1);
+});
+document.documentElement.dataset.tris = String(Math.round(tris)); // 三角面数（不含阴影那一遍）
 document.documentElement.dataset.calls = String(drawables); // 每只眼大约这么多 draw call（不含阴影）
 document.documentElement.dataset.west = JSON.stringify({ audit: west.object.userData.audit, pasture: V.pasture.length, work: { fieldWest: V.fields.fieldWest.length, woods: V.woods.filter((w) => w.at[0] < -45).length, mill: V.mill.at.map((v) => +v.toFixed(1)) }, bake: west.object.userData.bake, flora: west.object.userData.flora, floating: west.object.userData.floating, coplanar: { found: west.object.userData.coplanar.found, left: west.object.userData.coplanar.left, leftSamples: west.object.userData.coplanar.leftSamples }, bridges: west.terrain.bridges.length, things: west.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
 document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);

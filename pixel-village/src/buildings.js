@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { block, box, decal, pixelize } from './pixel.js';
+import { is } from './season.js';
 
 /*
  * 北方民居建筑套件。单位：米。每栋房子原点在地面中心，正面朝 +z（坐北朝南）。
@@ -99,7 +100,7 @@ export function house(M, { w, d, h, wall = 'brick', roof = 'gable', rise = 1.5, 
     g.add(block(-w / 2 - 0.2, h, -d / 2 - 0.2, w / 2 + 0.2, h + 0.25, d / 2 + 0.2, M.flatRoof));
     g.add(block(-w / 2 - 0.2, h + 0.25, -d / 2 - 0.2, w / 2 + 0.2, h + 0.55, -d / 2 + 0.05, W)); // 女儿墙
     for (const sx of [-1, 1]) g.add(block(sx > 0 ? w / 2 - 0.05 : -w / 2 - 0.2, h + 0.25, -d / 2 + 0.05, sx > 0 ? w / 2 + 0.2 : -w / 2 + 0.05, h + 0.45, d / 2 + 0.2, W));
-    if (cornOnRoof) { // 房顶晒玉米
+    if (cornOnRoof && is('autumn')) { // 房顶晒玉米（秋天）
       g.add(block(-w / 2 + 0.6, h + 0.25, -d / 2 + 0.6, w / 2 - 1.2, h + 0.5, d / 2 - 0.4, M.corn));
       g.add(block(-w / 4, h + 0.5, -d / 4, w / 4, h + 0.7, d / 6, M.corn));
     }
@@ -252,13 +253,19 @@ export function gate(M, type, width = 3.4) {
     facade(g, M, 'couplet', -1.5, 0.9, 0.32);
     facade(g, M, 'couplet', 1.5, 0.9, 0.32);
     facade(g, M, 'fu', 0, 2.25, 0.02, { scale: 0.7 });
+    if (is('winter')) for (const sx of [-1, 1]) { const l = lantern(M, 0.7); l.userData.dynamic = false; l.position.set(sx * 1.5, 2.95, 0.55); g.add(l); } // 腊月：门口挂上一对红灯笼（不晃，跟房子合批省 draw call）
   } else if (type === 'plank') {
     for (const sx of [-1, 1]) g.add(block(sx * (width / 2 + 0.15) - 0.15, 0, -0.15, sx * (width / 2 + 0.15) + 0.15, 2.9, 0.15, M.wood));
     g.add(block(-width / 2 - 0.4, 2.6, -0.12, width / 2 + 0.4, 2.85, 0.12, M.wood));
     doors = doorLeaves(M, 'plankGate', width, 2.2, 0.02);
+    if (is('winter')) { // 腊月：铺子门口也贴对联、挂灯笼
+      for (const sx of [-1, 1]) facade(g, M, 'couplet', sx * (width / 2 + 0.15), 0.8, 0.17);
+      for (const sx of [-1, 1]) { const l = lantern(M, 0.7); l.userData.dynamic = false; l.position.set(sx * (width / 2 - 0.3), 2.6, 0.35); g.add(l); }
+    }
   } else {
     for (const sx of [-1, 1]) g.add(block(sx * 1.35 - 0.12, 0, -0.12, sx * 1.35 + 0.12, 2.0, 0.12, M.wood));
     doors = doorLeaves(M, 'brushGate', 2.46, 1.67, 0, { single: true });
+    if (is('winter')) for (const sx of [-1, 1]) facade(g, M, 'fu', sx * 1.35, 1.5, 0.13, { scale: 0.45 }); // 柴门的木桩上也贴个福字
   }
   g.add(doors.group);
   const widthOf = { grand: 2.4, wall: 2.4, brush: 2.46, plank: width };

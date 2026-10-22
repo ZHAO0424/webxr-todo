@@ -377,6 +377,22 @@ const ITEMS = {
     g.line(hand.x + 1, hand.y, hand.x + (up ? 3 : 6), hand.y - (up ? 8 : 2), R.wood[3]);
     if (up) g.rect(hand.x + 2, hand.y - 11, 4, 3, R.grey[3]); else g.rect(hand.x + 6, hand.y - 4, 3, 4, R.grey[3]);
   },
+  sickle(g, hand, work) { // 镰刀：短木把 + 弯弯的月牙刃（割麦、割谷子）
+    const dy = work === 1 ? 2 : 0;
+    g.line(hand.x + 1, hand.y, hand.x + 4, hand.y - 1 + dy, R.wood[3]);
+    for (const [x, y, c] of [[5, -2, 3], [6, -3, 4], [7, -3, 3], [8, -2, 3], [9, -1, 3], [9, 0, 2]]) g.px(hand.x + x, hand.y + y + dy, R.grey[c]);
+  },
+  shovel(g, hand, work) { // 木锨：长把 + 宽木板头（铲雪、扬场）
+    const up = work === 1 ? -4 : 0;
+    g.line(hand.x + 1, hand.y, hand.x + 8, hand.y + 4 + up, R.wood[3]);
+    g.rect(hand.x + 8, hand.y + 3 + up, 3, 5, R.wood[2]); g.vline(hand.x + 10, hand.y + 3 + up, hand.y + 7 + up, R.wood[1]);
+  },
+  fork(g, hand, work) { // 粪杈：长把，头上三根铁齿（拾粪、翻场）
+    const up = work === 1 ? -3 : 0;
+    g.line(hand.x + 1, hand.y, hand.x + 8, hand.y + 4 + up, R.wood[3]);
+    g.vline(hand.x + 8, hand.y + 3 + up, hand.y + 6 + up, R.slate[3]);
+    for (const dx of [9, 10]) g.line(hand.x + dx, hand.y + 3 + up, hand.x + dx + 1, hand.y + 6 + up, R.slate[3]);
+  },
   firewood(g, hand) { // 一捆柴，扛在肩上
     const y = hand.y - 12;
     for (let i = 0; i < 3; i++) g.hline(2, FRAME_W - 3, y + i, i === 1 ? R.wood[1] : R.wood[2]);

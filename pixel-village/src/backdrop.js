@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { SKY, HILLS, GLOW } from './palette.js';
+import { is } from './season.js';
 import { TPU, UNIT, makeRng, paint, toTexture, flat, pixelize } from './pixel.js';
 
 // 4x4 Bayer 矩阵：有序抖动，用来做像素风的渐隐 / 雾
@@ -10,7 +11,7 @@ const dither = (x, y, t) => t > BAYER[(y % 4) * 4 + (x % 4)];
  * 一层山：起伏山脊 + 朝西（左，夕阳方向）的坡面亮一档 + 山脊亮边 + 底部抖动渐隐。
  * ramp = [暗, 中, 亮]。
  */
-function hillLayer({ w, h, seed, ramp, peak, rough, pagoda = false, trees = false }) {
+function hillLayer({ w, h, seed, ramp, peak, rough, pagoda = false, trees = false, snow = null }) {
   const r = makeRng(seed);
   const waves = Array.from({ length: 4 }, (_, i) => ({ f: ((i + 1) * (0.5 + r()) * Math.PI * 2) / w, a: rough / (i + 1) ** 0.8, p: r() * 10 }));
   const ridge = (x) => {
@@ -24,7 +25,7 @@ function hillLayer({ w, h, seed, ramp, peak, rough, pagoda = false, trees = fals
       const litSlope = ridge(x - 1) > top; // 往左下降 = 朝西的坡
       for (let y = top; y < h; y++) {
         const depth = y - top;
-        g.px(x, y, depth === 0 || (litSlope && depth < 6) ? ramp[2] : depth < 3 ? ramp[1] : ramp[0]);
+        g.px(x, y, snow && depth < (litSlope ? 5 : 3) + (x % 3 === 0 ? 1 : 0) ? snow : depth === 0 || (litSlope && depth < 6) ? ramp[2] : depth < 3 ? ramp[1] : ramp[0]); // 冬天：山脊上一层雪
       }
       if (trees && r() > 0.65) { g.rect(x, top - 2, 1, 2, ramp[0]); if (r() > 0.5) g.px(x, top - 3, ramp[0]); }
     }
@@ -113,10 +114,10 @@ export function buildBackdrop({ dist = 1.05, height = 0.38, back = 0.33 } = {}) 
   sun.position.set(-0.7, 0.0, -2.4);
   g.add(sun);
 
-  place(-1.9, (w, h, peak) => hillLayer({ w, h, peak, seed: 23, ramp: HILLS.far, rough: 0.16 }), { rise: 0.17 });
+  place(-1.9, (w, h, peak) => hillLayer({ w, h, peak, seed: 23, ramp: HILLS.far, rough: 0.16, snow: is('winter') ? '#d8c8d8' : null }), { rise: 0.17 });
   place(-1.35, (w, h) => mistBand(w, h), { rise: 0.03, below: 0.03, peak: 0.6, widthAngle: 1.4 });
-  place(-1.0, (w, h, peak) => hillLayer({ w, h, peak, seed: 11, ramp: HILLS.mid, rough: 0.14, pagoda: true }), { rise: 0.1 });
-  place(-0.45, (w, h, peak) => hillLayer({ w, h, peak, seed: 3, ramp: HILLS.near, rough: 0.1, trees: true }), { rise: 0.04 });
+  place(-1.0, (w, h, peak) => hillLayer({ w, h, peak, seed: 11, ramp: HILLS.mid, rough: 0.14, pagoda: true, snow: is('winter') ? '#b4a6c4' : null }), { rise: 0.1 });
+  place(-0.45, (w, h, peak) => hillLayer({ w, h, peak, seed: 3, ramp: HILLS.near, rough: 0.1, trees: true, snow: is('winter') ? '#86829e' : null }), { rise: 0.04 });
 
   return { object: g, update() {} };
 }

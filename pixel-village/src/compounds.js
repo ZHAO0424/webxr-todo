@@ -3,6 +3,7 @@ import { block, box } from './pixel.js';
 import { house, enclose, wallSeg, gate, screenWall, lantern, facade } from './buildings.js';
 import * as PROPS from './props.js';
 import { tagged } from './things.js';
+import { is } from './season.js';
 
 const P = tagged(PROPS); // 建出来的物件都带上 userData.thing，点它能看卡片
 
@@ -170,7 +171,7 @@ function farmA(M) { // 陈家：老两口，猪圈 + 院里的小菜园
   const gt = withGate(g, M, 'wall', 0, d);
   const main = house(M, { w: 9.5, d: 4.4, h: 3.0, wall: 'rubble', rise: 1.4, chimney: true, roofMat: 'slate' });
   put(g, main.object, 0, -d / 2 + 3.1);
-  for (const [k, x] of [['cornString', -2.1], ['chiliString', -1.5], ['cornString', 2.3]]) facade(g, M, k, x, 1.5, main.object.position.z + 2.25);
+  for (const [k, x] of [['cornString', -2.1], ['chiliString', -1.5], ['cornString', 2.3]]) if (k === 'chiliString' || is('autumn', 'winter')) facade(g, M, k, x, 1.5, main.object.position.z + 2.25);
   const kitchen = house(M, { w: 3.4, d: 2.8, h: 2.5, wall: 'rubble', roof: 'shed', rise: 0.7, chimney: true, roofMat: 'slate', front: [{ k: 'door', x: 0.4 }] });
   put(g, kitchen.object, -w / 2 + 2.0, 1.4, Math.PI / 2);
   g.add(P.pigsty(M, 3.0, -0.2, 6.6, 3.4));
@@ -203,7 +204,7 @@ function farmB(M) { // 杨家：牛棚、大车、鸡
   const gt = withGate(g, M, 'wall', 0, d);
   const main = house(M, { w: 10, d: 4.6, h: 3.1, wall: 'adobe', rise: 1.5, chimney: true });
   put(g, main.object, 0, -d / 2 + 3.1);
-  for (const [k, x] of [['cornString', -2.1], ['chiliString', -1.5], ['cornString', 2.3]]) facade(g, M, k, x, 1.5, main.object.position.z + 2.35);
+  for (const [k, x] of [['cornString', -2.1], ['chiliString', -1.5], ['cornString', 2.3]]) if (k === 'chiliString' || is('autumn', 'winter')) facade(g, M, k, x, 1.5, main.object.position.z + 2.35);
   const kitchen = house(M, { w: 3.4, d: 2.8, h: 2.5, wall: 'adobe', roof: 'shed', rise: 0.7, chimney: true, front: [{ k: 'door', x: 0.4 }] });
   put(g, kitchen.object, -w / 2 + 2.0, 1.4, Math.PI / 2);
   put(g, P.shed(M, 0, 0, 3.2, 2.6), 5.2, 1.6); // 牛棚
@@ -235,14 +236,14 @@ function farmC(M) { // 吴家：猪圈、兔笼、鸭棚
   const gt = withGate(g, M, 'brush', gx, d);
   const main = house(M, { w: 9.5, d: 4.4, h: 3.0, wall: 'rubble', rise: 1.4, chimney: true, roofMat: 'slate' });
   put(g, main.object, 0, -d / 2 + 3.1);
-  for (const [k, x] of [['cornString', -2.1], ['chiliString', -1.5], ['cornString', 2.3]]) facade(g, M, k, x, 1.5, main.object.position.z + 2.25);
+  for (const [k, x] of [['cornString', -2.1], ['chiliString', -1.5], ['cornString', 2.3]]) if (k === 'chiliString' || is('autumn', 'winter')) facade(g, M, k, x, 1.5, main.object.position.z + 2.25);
   const kitchen = house(M, { w: 3.4, d: 2.8, h: 2.5, wall: 'rubble', roof: 'shed', rise: 0.7, chimney: true, roofMat: 'slate', front: [{ k: 'door', x: 0.4 }] });
   put(g, kitchen.object, w / 2 - 2.0, 1.2, -Math.PI / 2);
   g.add(P.pigsty(M, -6.6, 0.2, -3.0, 3.4));
   put(g, P.hutch(M, 0, 0), 2.8, 4.4);
   put(g, P.duckHouse(M, 0, 0), 5.4, 4.3);
   put(g, P.coop(M, 0, 0), -0.6, 4.6);
-  put(g, P.cornRack(M, 0, 0, 2.0), 1.6, 1.6);
+  if (is('autumn', 'winter')) put(g, P.cornRack(M, 0, 0, 2.0), 1.6, 1.6); // 玉米架：秋收后挂上，吃一冬
   const doors = { house: xz(at(main, main.door)), kitchen: xz(at(kitchen, kitchen.door)) };
   walkways(g, M, gt.inside, Object.values(doors));
   return result(w, d, g, {
@@ -270,7 +271,7 @@ function carpenter(M) {
   put(g, home.object, -1.5, -d / 2 + 3.1);
   const [sx0, sx1, sz0, sz1] = [2.6, 6.8, -1.2, 4.2];
   for (const x of [sx0, sx1]) for (const z of [sz0, sz1]) g.add(block(x - 0.12, 0, z - 0.12, x + 0.12, 2.7, z + 0.12, M.wood));
-  g.add(block(sx0 - 0.3, 2.7, sz0 - 0.3, sx1 + 0.3, 2.9, sz1 + 0.3, M.straw));
+  g.add(block(sx0 - 0.3, 2.7, sz0 - 0.3, sx1 + 0.3, 2.9, sz1 + 0.3, M.strawTop));
   put(g, P.workbench(M, 0, 0), 4.7, 1.0);
   put(g, P.lumber(M, 0, 0), -4.3, 2.4);
   put(g, P.wheel(M, 0, 0), -6.9, -1.5, Math.PI / 2);
@@ -337,7 +338,7 @@ function doctor(M) {
   facade(g, M, 'gourd', -0.1, 1.9, d / 2 + 0.05);
   const back = house(M, { w: 12, d: 4, h: 3.1, wall: 'rubble', chimney: true, roofMat: 'slate', front: [{ k: 'door', x: 3.2 }, { k: 'windowLit', x: -3.4, y: 1.1 }, { k: 'windowLit', x: 0.9, y: 1.1 }] });
   put(g, back.object, 0, -d / 2 + 2.8);
-  put(g, P.herbRacks(M, 0, 0, 2), 2.8, 1.3);
+  if (!is('winter')) put(g, P.herbRacks(M, 0, 0, 2), 2.8, 1.3); // 冬天不晒药
   put(g, P.vat(M, 0, 0), 5.8, 3.8);
   for (const z of [-0.4, 0.5, 1.4]) put(g, P.beehive(M, 0, 0), 5.9, z, -Math.PI / 2); // 蜂箱
   const doors = { house: xz(at(back, back.door)) };
