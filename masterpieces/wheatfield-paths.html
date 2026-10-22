@@ -32,6 +32,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -44,17 +45,17 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After Vincent van Gogh · Wheatfield with Crows · 1890</div>
-    <h1>通向不知何处的路</h1>
-    <h2>Paths to Nowhere</h2>
-    <p class="lead">1890 年 7 月，奥维尔。翻滚的天空，低飞的乌鸦，麦田里三条小路——一条往左、一条往右、一条通向麦田深处，没有一条通到哪里。</p>
-    <p>这里，麦田环绕着你。一百万个黏菌一样的"行者"沿着彼此的痕迹和凡·高的笔触爬行，织出一张发光的路网。但它<b>只在你目光所及的一圈里显形</b>，像提灯照进夜里的麦田。你看向哪里，路就长向哪里；停得越久，灯圈越大。你一离开，它们在暗处慢慢回到画里那三条哪儿也不通的路上。</p>
-    <blockquote>那是动荡天空下无边无际的麦田，我特意尝试去表达悲伤、极度的孤独。<small>— 凡·高致提奥与乔，奥维尔，1890 年 7 月</small></blockquote>
+    <h1 data-i18n="title">通向不知何处的路</h1>
+    <h2 data-i18n="sub">Paths to Nowhere</h2>
+    <p class="lead" data-i18n="lead">1890 年 7 月，奥维尔。翻滚的天空，低飞的乌鸦，麦田里三条小路——一条往左、一条往右、一条通向麦田深处，没有一条通到哪里。</p>
+    <p data-i18n-html="body">这里，麦田环绕着你。一百万个黏菌一样的"行者"沿着彼此的痕迹和凡·高的笔触爬行，织出一张发光的路网。但它<b>只在你目光所及的一圈里显形</b>，像提灯照进夜里的麦田。你看向哪里，路就长向哪里；停得越久，灯圈越大。你一离开，它们在暗处慢慢回到画里那三条哪儿也不通的路上。</p>
+    <blockquote data-i18n-html="quote">那是动荡天空下无边无际的麦田，我特意尝试去表达悲伤、极度的孤独。<small>— 凡·高致提奥与乔，奥维尔，1890 年 7 月</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how" data-xr="看向哪里，路就长向哪里"><em>视线</em><span>转头看、在原地走动，路网追随你</span><em>鼠标</em><span>鼠标就是目光；移出画面 = 离开</span><em>声音</em><span>建议戴耳机</span></div>
+    <div class="how" data-xr="看向哪里，路就长向哪里" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>视线</em><span>转头看、在原地走动，路网追随你</span><em>鼠标</em><span>鼠标就是目光；移出画面 = 离开</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><span id="state">路网正在生长</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>路只在目光所及处显形，并向那里生长</div>
-<div id="quote">“……我几乎相信，这些画会替我说出我无法用言语说出的东西。”<small>— 凡·高致提奥与乔，1890 年 7 月（Letter 898）</small></div>
+<div id="hud"><span id="state">路网正在生长</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div><span data-i18n="hint">路只在目光所及处显形，并向那里生长</span></div>
+<div id="quote" data-i18n-html="finale">“……我几乎相信，这些画会替我说出我无法用言语说出的东西。”<small>— 凡·高致提奥与乔，1890 年 7 月（Letter 898）</small></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -67,6 +68,51 @@ THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
 const DEG = Math.PI / 180;
 const clamp01 = x => Math.max(0, Math.min(1, x));
+
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '通向不知何处的路', sub: 'Paths to Nowhere',
+    lead: '1890 年 7 月，奥维尔。翻滚的天空，低飞的乌鸦，麦田里三条小路——一条往左、一条往右、一条通向麦田深处，没有一条通到哪里。',
+    body: '这里，麦田环绕着你。一百万个黏菌一样的"行者"沿着彼此的痕迹和凡·高的笔触爬行，织出一张发光的路网。但它<b>只在你目光所及的一圈里显形</b>，像提灯照进夜里的麦田。你看向哪里，路就长向哪里；停得越久，灯圈越大。你一离开，它们在暗处慢慢回到画里那三条哪儿也不通的路上。',
+    quote: '那是动荡天空下无边无际的麦田，我特意尝试去表达悲伤、极度的孤独。<small>— 凡·高致提奥与乔，奥维尔，1890 年 7 月</small>',
+    loading: '载入中…', enter: '进入', failed: msg => '载入失败：' + msg, noFile: url => '读不到 ' + url,
+    xr: '看向哪里，路就长向哪里',
+    how: '<em>视线</em><span>转头看、在原地走动，路网追随你</span><em>鼠标</em><span>鼠标就是目光；移出画面 = 离开</span><em>声音</em><span>建议戴耳机</span>',
+    mute: '静音', unmute: '开声音',
+    hint: '路只在目光所及处显形，并向那里生长',
+    finale: '“……我几乎相信，这些画会替我说出我无法用言语说出的东西。”<small>— 凡·高致提奥与乔，1890 年 7 月（Letter 898）</small>',
+    sStart: '路网正在生长', sArrived: '路已经到了你这里', sGrowing: '路正在向你生长', sLeaving: '你离开了，路在暗处慢慢回去', sGone: '路回到了麦田里，看不见了',
+    plaqueTitle: '通往何处的路  Paths to Nowhere',
+    plaqueLines: ['几十万个行者沿着彼此的痕迹和凡·高的笔触爬行，', '路网只在你目光所及的一圈里显形，并向那里生长；', '你离开，灯灭了，它们回到那三条哪儿也不通的小路。'],
+    plaqueQuote: '“我特意尝试去表达悲伤、极度的孤独。”— 致提奥，1890（Letter 898）',
+  },
+  en: {
+    title: 'Paths to Nowhere', sub: '通向不知何处的路',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'Auvers, July 1890. A churning sky, crows flying low, and three paths through the wheat: one bends left, one right, one runs deep into the field. None of them leads anywhere.',
+    body: 'Here the wheatfield wraps around you. A million slime-mold “walkers” crawl along one another’s trails and along van Gogh’s brushstrokes, weaving a glowing web of paths. But the web <b>shows itself only within the circle of your gaze</b>, like a lantern carried into a wheatfield at night. Wherever you look, the paths grow toward it; the longer you linger, the wider the pool of light. Look away, and in the dark they slowly drift back to the painting’s three paths that lead nowhere.',
+    quote: 'They’re immense stretches of wheatfields under turbulent skies, and I made a point of trying to express sadness, extreme loneliness.<small>— Van Gogh to Theo and Jo, Auvers, July 1890</small>',
+    loading: 'Loading…', enter: 'Enter', failed: msg => 'Failed to load: ' + msg, noFile: url => 'Could not load ' + url,
+    xr: 'Wherever you look, the paths grow toward it',
+    how: '<em>Gaze</em><span>Turn your head or move around where you stand; the paths follow you</span><em>Mouse</em><span>The mouse is your gaze; move it off the painting to look away</span><em>Sound</em><span>Best with headphones</span>',
+    mute: 'Mute', unmute: 'Sound on',
+    hint: 'The paths appear only where you look, and grow toward your gaze',
+    finale: '“…I’d almost believe that these canvases will tell you what I can’t say in words.”<small>— Van Gogh to Theo and Jo, July 1890 (Letter 898)</small>',
+    sStart: 'The paths are growing', sArrived: 'The paths have reached you', sGrowing: 'The paths are growing toward you', sLeaving: 'You looked away; the paths drift back in the dark', sGone: 'The paths have sunk back into the wheat',
+    plaqueTitle: 'Paths to Nowhere',
+    plaqueLines: ['Countless walkers crawl along each other’s trails and', 'van Gogh’s strokes; the web shows only where you look.', 'Look away and they return to the three paths to nowhere.'],
+    plaqueQuote: '“…trying to express sadness, extreme loneliness.” — Letter 898, 1890',
+  },
+};
+const t = (key, ...a) => { const v = I18N.t(T, key); return typeof v === 'function' ? v(...a) : v; };
+I18N.apply(T, document.body);
+$('mute').textContent = t('mute');
+let stateKey = 'sStart';                  // #state 当前那句的键：换语言时不等下一帧，直接重写
+$('state').textContent = t(stateKey);
+let enterState = ['loading'];             // 「进入」按钮现在显示哪句：载入中 / 进入 / 载入失败（带原因），换语言时照着重写
+const setEnter = (...k) => { enterState = k; $('enter').textContent = t(...k); };
+setEnter('loading');
 
 // ---------- 场景尺度：画铺在环绕你的弧形大幕上 ----------
 const EYE = new THREE.Vector3(0, 1.5, 0);
@@ -112,7 +158,7 @@ dome.position.copy(EYE);
 scene.add(dome);
 
 // ---------- 读图 ----------
-function loadImg(url) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('读不到 ' + url)); im.src = url; }); }
+function loadImg(url) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error(t('noFile', url))); im.src = url; }); }
 function pixels(im, w, h) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(im, 0, 0, w, h);
@@ -479,7 +525,7 @@ function arrive() {
     o.connect(g); g.connect(audio.master); g.connect(audio.delay); o.start(t + i * 0.15); o.stop(t + i * 0.15 + 3.1);
   });
 }
-$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.4, audio.ctx.currentTime, 0.3); };
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute'); if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.4, audio.ctx.currentTime, 0.3); };
 
 // ---------- 你：视线落在大幕的哪里 ----------
 const raycaster = new THREE.Raycaster();
@@ -536,7 +582,8 @@ function updateGaze(dt) {
   else lampOn = Math.max(0, lampOn - dt * 0.8);
   U.uLamp.value.set(lampPos.x, lampPos.y, lampOn, 0.16 + 0.22 * dwell);   // 灯圈：起步约 15°，停久了约 35°
   $('lvl').style.width = `${dwell * 100}%`;
-  $('state').textContent = onPic ? (dwell > 0.85 ? '路已经到了你这里' : '路正在向你生长') : (dwell > 0.05 ? '你离开了，路在暗处慢慢回去' : '路回到了麦田里，看不见了');
+  stateKey = onPic ? (dwell > 0.85 ? 'sArrived' : 'sGrowing') : (dwell > 0.05 ? 'sLeaving' : 'sGone');
+  $('state').textContent = t(stateKey);   // 每帧按当前语言写
   if (dwell > 0.85 && !arrived) { arrived = true; arrive(); }
   if (dwell < 0.4) arrived = false;
 }
@@ -546,17 +593,18 @@ const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
 plaque.position.set(-0.32, EYE.y - 0.32, -0.8); plaque.lookAt(EYE); plaque.visible = false;
 scene.add(plaque);
-(function () {
+function drawPlaque() {
   const g = plaqueC.getContext('2d');
   g.fillStyle = '#121830'; g.fillRect(0, 0, 1024, 520);
   g.fillStyle = '#e2b33a'; g.fillRect(0, 0, 1024, 8);
   g.fillStyle = '#9eaad0'; g.font = '22px system-ui'; g.fillText('AFTER VAN GOGH · WHEATFIELD WITH CROWS · 1890', 44, 66);
-  g.fillStyle = '#f6d77a'; g.font = '56px serif'; g.fillText('通往何处的路  Paths to Nowhere', 44, 142);
+  g.fillStyle = '#f6d77a'; g.font = '56px serif'; g.fillText(t('plaqueTitle'), 44, 142);
   g.font = '30px serif'; g.fillStyle = '#e8e2cf';
-  ['几十万个行者沿着彼此的痕迹和凡·高的笔触爬行，', '路网只在你目光所及的一圈里显形，并向那里生长；', '你离开，灯灭了，它们回到那三条哪儿也不通的小路。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
-  g.fillStyle = '#f6e2a6'; g.font = 'italic 26px serif'; g.fillText('“我特意尝试去表达悲伤、极度的孤独。”— 致提奥，1890（Letter 898）', 44, 470);
+  t('plaqueLines').forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  g.fillStyle = '#f6e2a6'; g.font = 'italic 26px serif'; g.fillText(t('plaqueQuote'), 44, 470);
   plaque.material.map.needsUpdate = true;
-})();
+}
+drawPlaque();
 
 // ---------- 进入 ----------
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -583,8 +631,17 @@ window.__mouse = (x, y, inside = true) => { mouse.set(x, y); mouseIn = inside; }
 window.__debug = v => { stageMat.uniforms.uDebug.value = v; };
 window.__warp = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; U.uTime.value = time; updateGaze(dt); stepSlime(1); } renderer.render(scene, camera); };   // 测试：快进模拟并画一帧
 
-build().then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
-  .catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+build().then(() => { $('enter').disabled = false; setEnter('enter'); })
+  .catch(e => { console.error(e); setEnter('failed', e.message); });
+
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  setEnter(...enterState);                 // 载入失败的原因是出错那一刻的语言写的，不跟着换
+  $('state').textContent = t(stateKey);
+  drawPlaque();                             // 展签画在画布上：按新语言重画（#state 每帧都按当前语言写）
+});
 
 const clock = new THREE.Clock();
 let time = 0, nextCaw = 6;

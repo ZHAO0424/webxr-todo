@@ -30,6 +30,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -42,17 +43,17 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After Vincent van Gogh · The Starry Night · 1889</div>
-    <h1>去往星星</h1>
-    <h2>To Reach a Star</h2>
-    <p class="lead">1889 年 6 月，圣雷米疗养院的窗前。天空在翻卷，村庄睡着，一株柏树像一团黑色的火焰，从大地伸向星辰。</p>
-    <p>这里，那片天空由一万多道流动的笔触织成，悬在你的头顶。<b>挥手</b>，就搅动画家心里的风暴；<b>指向一颗星</b>，一束金色的笔触沿着柏树升起，去往那里，村里随之多亮起一盏灯。等每一颗星都被抵达，天空才慢慢平静下来。</p>
-    <blockquote>就像我们乘火车去塔拉斯孔或鲁昂，我们乘死亡去往一颗星星。<small>— 梵高致提奥，阿尔勒，1888 年 7 月</small></blockquote>
-    <button id="enter">进入</button>
-    <div class="how" data-xr="挥手搅动天空 · 指向一颗星并捏合"><em>手</em><span>挥动搅动天空；射线指向星星，捏合或扣扳机</span><em>鼠标</em><span>移动搅动天空，点击星星</span><em>声音</em><span>建议戴耳机</span></div>
+    <h1 data-i18n="title">去往星星</h1>
+    <h2 data-i18n="sub">To Reach a Star</h2>
+    <p class="lead" data-i18n="lead">1889 年 6 月，圣雷米疗养院的窗前。天空在翻卷，村庄睡着，一株柏树像一团黑色的火焰，从大地伸向星辰。</p>
+    <p data-i18n-html="body">这里，那片天空由一万多道流动的笔触织成，悬在你的头顶。<b>挥手</b>，就搅动画家心里的风暴；<b>指向一颗星</b>，一束金色的笔触沿着柏树升起，去往那里，村里随之多亮起一盏灯。等每一颗星都被抵达，天空才慢慢平静下来。</p>
+    <blockquote data-i18n-html="quote">就像我们乘火车去塔拉斯孔或鲁昂，我们乘死亡去往一颗星星。<small>— 梵高致提奥，阿尔勒，1888 年 7 月</small></blockquote>
+    <button id="enter" data-i18n="enter">进入</button>
+    <div class="how" data-xr="挥手搅动天空 · 指向一颗星并捏合" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>手</em><span>挥动搅动天空；射线指向星星，捏合或扣扳机</span><em>鼠标</em><span>移动搅动天空，点击星星</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><b id="count">0 / 11</b> 颗星已抵达<button id="mute">静音</button><br>移动 / 挥手搅动天空，指向星星并点击 / 捏合</div>
-<div id="finale">“我们乘死亡去往一颗星星。”<small>所有星星都已抵达。天空正在平静下来。</small></div>
+<div id="hud"><b id="count">0 / 11</b> <span data-i18n="reached">颗星已抵达</span><button id="mute">静音</button><br><span data-i18n="hint">移动 / 挥手搅动天空，指向星星并点击 / 捏合</span></div>
+<div id="finale" data-i18n-html="finale">“我们乘死亡去往一颗星星。”<small>所有星星都已抵达。天空正在平静下来。</small></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -60,6 +61,48 @@ import { xrCaption } from './xr-caption.js';
 import { hop } from './xr-hop.js';   // 头显里换画不退出会话
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '去往星星', sub: 'To Reach a Star',
+    lead: '1889 年 6 月，圣雷米疗养院的窗前。天空在翻卷，村庄睡着，一株柏树像一团黑色的火焰，从大地伸向星辰。',
+    body: '这里，那片天空由一万多道流动的笔触织成，悬在你的头顶。<b>挥手</b>，就搅动画家心里的风暴；<b>指向一颗星</b>，一束金色的笔触沿着柏树升起，去往那里，村里随之多亮起一盏灯。等每一颗星都被抵达，天空才慢慢平静下来。',
+    quote: '就像我们乘火车去塔拉斯孔或鲁昂，我们乘死亡去往一颗星星。<small>— 梵高致提奥，阿尔勒，1888 年 7 月</small>',
+    enter: '进入',
+    xr: '挥手搅动天空 · 指向一颗星并捏合',
+    how: '<em>手</em><span>挥动搅动天空；射线指向星星，捏合或扣扳机</span><em>鼠标</em><span>移动搅动天空，点击星星</span><em>声音</em><span>建议戴耳机</span>',
+    reached: '颗星已抵达', mute: '静音', unmute: '开声音',
+    hint: '移动 / 挥手搅动天空，指向星星并点击 / 捏合',
+    finale: '“我们乘死亡去往一颗星星。”<small>所有星星都已抵达。天空正在平静下来。</small>',
+    plaqueTitle: '去往星星  To Reach a Star',
+    plaqueBody: '天空是画家内心的风暴，村庄是安静的人间，柏树是通往星辰的火焰。挥手搅动天空；用射线指向一颗星，扣扳机或捏合，送一束金色笔触去往那里。',
+    plaqueQuote: '“我们乘死亡去往一颗星星。”—— 致提奥，1888（Letter 638）',
+    plaqueDone: '所有星星都已抵达 · 天空正在平静',
+    plaqueCount: (n, N) => `已抵达 ${n} / ${N}`,
+  },
+  en: {
+    title: 'To Reach a Star', sub: '去往星星',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'June 1889, at the window of the asylum in Saint-Rémy. The sky churns, the village sleeps, and a cypress rises from the earth toward the stars like a dark flame.',
+    body: 'Here that sky is woven from more than ten thousand flowing brushstrokes, hanging above your head. <b>Wave your hand</b> to stir the storm in the painter’s mind. <b>Point at a star</b> and a stream of golden strokes climbs the cypress to reach it, and one more window lights up in the village. Only when every star has been reached does the sky slowly grow calm.',
+    quote: 'Just as we take the train to get to Tarascon or Rouen, we take death to reach a star.<small>— Van Gogh to Theo, Arles, July 1888</small>',
+    enter: 'Enter',
+    xr: 'Wave to stir the sky · Point at a star and pinch',
+    how: '<em>Hands</em><span>Wave to stir the sky; aim the ray at a star and pinch or pull the trigger</span><em>Mouse</em><span>Move to stir the sky; click a star</span><em>Sound</em><span>Best with headphones</span>',
+    reached: 'stars reached', mute: 'Mute', unmute: 'Sound on',
+    hint: 'Move or wave to stir the sky; point at a star and click or pinch',
+    finale: '“We take death to reach a star.”<small>Every star has been reached. The sky is growing calm.</small>',
+    plaqueTitle: 'To Reach a Star',
+    plaqueBody: 'The sky is the storm inside the painter, the village the quiet world of people, the cypress a flame reaching for the stars. Wave to stir the sky; aim the ray at a star and pull the trigger or pinch to send a stream of golden strokes its way.',
+    plaqueQuote: '“We take death to reach a star.” — to Theo, 1888 (Letter 638)',
+    plaqueDone: 'Every star reached · the sky is growing calm',
+    plaqueCount: (n, N) => `Reached ${n} / ${N}`,
+  },
+};
+const t = (key, ...a) => { const v = I18N.t(T, key); return typeof v === 'function' ? v(...a) : v; };
+I18N.apply(T, document.body);
+document.getElementById('mute').textContent = t('mute');
 
 // 所有颜色按"画布上的颜料值"原样输出，不做线性/sRGB 换算
 THREE.ColorManagement.enabled = false;
@@ -80,7 +123,7 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.02, 100);
-xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方
+xrCaption({ renderer, scene, camera });   // 头显里的作品名和提示：跟着视线，停在视野下方（进 VR 时现取入场页的字，总是当前语言）
 camera.position.copy(EYE);
 
 // 整个作品挂在眼睛高度的原点上；天空里的东西用 (θ 方位, φ 仰角, r 距离) 摆放
@@ -506,7 +549,7 @@ function chime(n, gain = 0.22) {
   o2.connect(g2).connect(g); o2.start(t); o2.stop(t + 0.9);
 }
 $('mute').onclick = () => {
-  muted = !muted; $('mute').textContent = muted ? '开声音' : '静音';
+  muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute');
   if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.16, audio.ctx.currentTime, 0.3);
 };
 function $(id) { return document.getElementById(id); }
@@ -521,8 +564,10 @@ plaque.visible = false;   // 桌面有 HTML 导览卡，展签只在 XR 里出�
 world.add(plaque);
 function wrap(g, text, x, y, maxW, lh) {
   let line = '';
-  for (const ch of text) {
-    if (g.measureText(line + ch).width > maxW) { g.fillText(line, x, y); line = ch; y += lh; } else line += ch;
+  // 中文按字折行；英文按词折（词连同后面的空格一起算）
+  const toks = I18N.lang === 'en' ? text.match(/\S+\s*/g) || [] : text;
+  for (const ch of toks) {
+    if (line && g.measureText(line + ch).width > maxW) { g.fillText(line, x, y); line = ch.trimStart(); y += lh; } else line += ch;
   }
   g.fillText(line, x, y); return y + lh;
 }
@@ -533,13 +578,13 @@ function drawPlaque() {
   g.fillStyle = 'rgba(12,16,34,0.88)'; g.fillRect(0, 0, 1024, 600);
   g.strokeStyle = 'rgba(242,201,76,0.6)'; g.lineWidth = 3; g.strokeRect(10, 10, 1004, 580);
   g.fillStyle = '#9fb0d8'; g.font = '22px system-ui'; g.fillText('AFTER VAN GOGH · THE STARRY NIGHT · 1889', 44, 62);
-  g.fillStyle = '#efe6cf'; g.font = '56px serif'; g.fillText('去往星星  To Reach a Star', 44, 136);
+  g.fillStyle = '#efe6cf'; g.font = '56px serif'; g.fillText(t('plaqueTitle'), 44, 136);
   g.fillStyle = '#d5cdb8'; g.font = '28px serif';
-  let y = wrap(g, '天空是画家内心的风暴，村庄是安静的人间，柏树是通往星辰的火焰。挥手搅动天空；用射线指向一颗星，扣扳机或捏合，送一束金色笔触去往那里。', 44, 196, 936, 42);
+  let y = wrap(g, t('plaqueBody'), 44, 196, 936, 42);
   g.fillStyle = '#f4e6b8'; g.font = 'italic 30px serif';
-  y = wrap(g, '“我们乘死亡去往一颗星星。”—— 致提奥，1888（Letter 638）', 44, y + 18, 936, 42);
+  y = wrap(g, t('plaqueQuote'), 44, y + 18, 936, 42);
   g.fillStyle = '#f2c94c'; g.font = '30px system-ui';
-  g.fillText(reachedCount === STARS.length ? '所有星星都已抵达 · 天空正在平静' : `已抵达 ${reachedCount} / ${STARS.length}`, 44, 560);
+  g.fillText(reachedCount === STARS.length ? t('plaqueDone') : t('plaqueCount', reachedCount, STARS.length), 44, 560);
   plaqueTex.needsUpdate = true;
 }
 drawPlaque();
@@ -672,6 +717,13 @@ addEventListener('resize', () => {
 window.__starScreen = () => STARS.map(st => {
   const v = world.localToWorld(st.pos.clone()).project(camera);
   return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)];
+});
+
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  drawPlaque();                             // 展签画在画布上：按新语言重画
 });
 
 // ---------- 主循环 ----------

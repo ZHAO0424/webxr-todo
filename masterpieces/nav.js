@@ -4,8 +4,18 @@
 // 从一幅换到另一幅时跳过入场页：黑幕上只写下一幅的名字，载完直接进场景。从画廊进来仍然先看入场页。
 // 空格留给《穿过自然的尖叫》（代替声音）；《睡莲》的转头改成了 A / D。
 // 画廊主页也加载这个文件，但只用到 VR 按钮坞和头显里的数字键；主页自己的方向键 / 回车照旧。头显里换回主页时，这里把切换栏收起来。
+// 中 / 英：胶囊最右一格是语言切换（显示另一种语言），点了走 MP_I18N.toggle()，这里的字当场重刷。没加载 i18n.js 时一律中文、不出这一格
 (function () {
   const W = window.WORKS || [];
+  const I18N = window.MP_I18N;
+  const DICT = {
+    zh: { navLabel: '作品切换', prev: '上一幅', next: '下一幅', home: '回到博物馆的画廊', gallery: '画廊', lang: 'EN', langTitle: 'Switch to English',
+          xrExit: '退出 XR', xrNo: '此设备不支持 XR', xrEnter: '进入 XR', music: m => `配乐：${m.title} — ${m.by}（${m.lic}）` },
+    en: { navLabel: 'Switch works', prev: 'Previous', next: 'Next', home: 'Back to the gallery', gallery: 'Gallery', lang: '中文', langTitle: '切换到中文',
+          xrExit: 'Exit XR', xrNo: 'XR not supported', xrEnter: 'Enter XR', music: m => `Music: ${m.title} — ${m.by} (${m.lic})` },
+  };
+  const L = k => I18N ? I18N.t(DICT, k) : DICT.zh[k];
+  const T = w => window.workText ? workText(w) : { title: w.zh, sub: w.en, blurb: w.blurb, tags: w.tags };
   let slug, i, prev, next;
   const locate = () => {
     slug = location.pathname.split('/').pop().replace(/\.html$/, '');
@@ -38,23 +48,28 @@
     #mp-nav .peek img { width: 100%; height: 96px; object-fit: cover; display: block; border-radius: 3px; }
     #mp-nav .peek b { display: block; font: 14px/1.4 "Songti SC", "STSong", serif; letter-spacing: .04em; margin-top: 6px; }
     #mp-nav .peek i { font-size: 11px; opacity: .6; font-style: normal; }
+    :root[lang="en"] #mp-veil .t b { font-family: Georgia, "Songti SC", "STSong", serif; letter-spacing: .04em; }
+    :root[lang="en"] #mp-veil .t em, :root[lang="en"] #mp-nav .peek b { font-family: Georgia, "Songti SC", "STSong", serif; }
     @media (max-width: 520px) { #mp-nav .lbl { display: none; } #mp-nav .peek { display: none; } }
   `;
   document.head.appendChild(css);
 
   const veil = document.createElement('div'); veil.id = 'mp-veil';
-  const showTitle = (w, k) => { veil.innerHTML = `<div class="t"><i>${k + 1} / ${W.length} · After ${w.after} · ${w.year}</i><b>${w.zh}</b><s></s><em>${w.en}</em></div>`; };
+  let veilFor = null;                       // 黑幕上正写着哪一幅：换语言时照着重写
+  const showTitle = (w, k) => { veilFor = [w, k]; const t = T(w); veil.innerHTML = `<div class="t"><i>${k + 1} / ${W.length} · After ${w.after} · ${w.year}</i><b>${t.title}</b><s></s><em>${t.sub}</em></div>`; };
   const skipIntro = new URLSearchParams(location.search).has('enter');
   if (skipIntro && i >= 0) showTitle(W[i], i);
-  const peek = w => `<span class="peek"><img src="data/thumbs/${w.slug}.jpg" alt=""><b>${w.zh}</b><i>After ${w.after} · ${w.year}</i></span>`;
-  const nav = document.createElement('nav'); nav.id = 'mp-nav'; nav.setAttribute('aria-label', '作品切换');
+  const peek = w => `<span class="peek"><img src="data/thumbs/${w.slug}.jpg" alt=""><b>${T(w).title}</b><i>After ${w.after} · ${w.year}</i></span>`;
+  const nav = document.createElement('nav'); nav.id = 'mp-nav';
   const fill = () => {
+    nav.setAttribute('aria-label', L('navLabel'));
     nav.style.display = i < 0 ? 'none' : '';
     if (i < 0) { nav.innerHTML = ''; return; }
     nav.innerHTML =
-    `<a class="p" href="${prev.slug}.html" title="上一幅 [">‹ <span class="lbl">${prev.zh}</span>${peek(prev)}</a>` +
-    `<a class="g" href="index.html?from=${slug}" title="回到博物馆的画廊 G">⌂ <span class="lbl">画廊</span><span class="count">${i + 1} / ${W.length}</span></a>` +
-    `<a class="n" href="${next.slug}.html" title="下一幅 ]"><span class="lbl">${next.zh}</span> ›${peek(next)}</a>`;
+    `<a class="p" href="${prev.slug}.html" title="${L('prev')} [">‹ <span class="lbl">${T(prev).title}</span>${peek(prev)}</a>` +
+    `<a class="g" href="index.html?from=${slug}" title="${L('home')} G">⌂ <span class="lbl">${L('gallery')}</span><span class="count">${i + 1} / ${W.length}</span></a>` +
+    `<a class="n" href="${next.slug}.html" title="${L('next')} ]"><span class="lbl">${T(next).title}</span> ›${peek(next)}</a>` +
+    (I18N ? `<a class="l" href="#lang" role="button" title="${L('langTitle')}" lang="${I18N.lang === 'en' ? 'zh' : 'en'}">${L('lang')}</a>` : '');
   };
 
   fill();
@@ -65,7 +80,11 @@
     if (to >= 0) { showTitle(W[to], to); href += '?enter=1'; }
     veil.classList.remove('off'); setTimeout(() => { location.href = href; }, 850);
   };
-  nav.addEventListener('click', e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); go(a.getAttribute('href')); });
+  nav.addEventListener('click', e => {
+    const a = e.target.closest('a'); if (!a) return; e.preventDefault();
+    if (a.classList.contains('l')) { I18N.toggle(); return; }   // 语言：当场换字，不换页
+    go(a.getAttribute('href'));
+  });
   addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea')) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -98,7 +117,8 @@
     if (use && use.tagName === 'BUTTON') {
       const s = use.textContent;
       // 头显里换过画：新页面的按钮是新建的，不知道会话还在，会写「ENTER」——以会话实际状态为准
-      const t = presenting() ? '退出 XR' : /EXIT|STOP|退出/i.test(s) ? '进入 XR' : /NOT/i.test(s) ? '此设备不支持 XR' : /ENTER|START/i.test(s) ? '进入 XR' : null;
+      // 认 three 的原文，也认这里自己改过的中 / 英文（换语言时要从一种改成另一种）
+      const t = presenting() ? L('xrExit') : /EXIT|STOP|退出/i.test(s) ? L('xrEnter') : /NOT|不支持/i.test(s) ? L('xrNo') : /ENTER|START|进入/i.test(s) ? L('xrEnter') : null;
       if (t && s !== t) use.textContent = t;
     }
   };
@@ -132,12 +152,14 @@
     }
     // 配乐署名（Monument Studios 的曲子是 CC BY 4.0，要求署名）
     const m = i >= 0 && W[i].music, card = intro && intro.querySelector('.card');
-    if (m && card && !card.querySelector('.st-credit')) {
-      const c = document.createElement('div'); c.className = 'st-credit';
+    let c = card && card.querySelector('.st-credit');
+    if (m && card && !c) {
+      c = document.createElement('div'); c.className = 'st-credit';
       c.style.cssText = 'font:11px/1.6 system-ui,sans-serif;opacity:.55;margin-top:10px;letter-spacing:.04em';
-      c.textContent = `配乐：${m.title} — ${m.by}（${m.lic}）`;
       card.appendChild(c);
     }
+    if (m && c) c.textContent = L('music')(m);
+    else if (c) c.remove();
   };
   // 头显里换了画之后（xr-hop.js），按新的地址把上一幅 / 下一幅和入场页的画重新挂好
   window.mpNav = { rebuild() { locate(); fill(); plate(); } };
@@ -166,5 +188,7 @@
     };
     tick();
   }
+  // 换语言：胶囊、黑幕上的名字、进入 XR 按钮、配乐署名当场重写
+  if (I18N) I18N.onChange(() => { fill(); relabel(); plate(); if (veilFor) showTitle(veilFor[0], veilFor[1]); });
   if (document.body) mount(); else addEventListener('DOMContentLoaded', mount);
 })();

@@ -32,6 +32,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -44,17 +45,17 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After J. M. W. Turner · Snow Storm – Steam-Boat off a Harbour's Mouth · 1842</div>
-    <h1>被绑在桅杆上</h1>
-    <h2>Lashed to the Mast</h2>
-    <p class="lead">传说透纳让水手把自己绑在桅杆上四个小时，只为画这场暴风雪。故事多半是传说，画却是真的：船、海、雪、烟被卷进同一个漩涡，只有光从风暴的中心透出来。</p>
-    <p>这里，整幅画是一片真正在流动的流体，在你四周缓缓旋转，像风暴的眼。<b>伸手搅动它</b>，颜料被拉成丝、卷成涡，船消失在风里，远处传来汽笛；你一停手，风暴慢慢记起自己，画又从漩涡里浮现。</p>
-    <blockquote>我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。<small>— 透纳谈《暴风雪》，据罗斯金记述</small></blockquote>
+    <h1 data-i18n="title">被绑在桅杆上</h1>
+    <h2 data-i18n="sub">Lashed to the Mast</h2>
+    <p class="lead" data-i18n="lead">传说透纳让水手把自己绑在桅杆上四个小时，只为画这场暴风雪。故事多半是传说，画却是真的：船、海、雪、烟被卷进同一个漩涡，只有光从风暴的中心透出来。</p>
+    <p data-i18n-html="body">这里，整幅画是一片真正在流动的流体，在你四周缓缓旋转，像风暴的眼。<b>伸手搅动它</b>，颜料被拉成丝、卷成涡，船消失在风里，远处传来汽笛；你一停手，风暴慢慢记起自己，画又从漩涡里浮现。</p>
+    <blockquote data-i18n-html="quote">我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。<small>— 透纳谈《暴风雪》，据罗斯金记述</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how" data-xr="挥手搅动风暴 · 停下，画会浮现"><em>手</em><span>在面前挥手、划圈，手掠过的地方就是风</span><em>鼠标</em><span>按住拖动搅动</span><em>声音</em><span>建议戴耳机</span></div>
+    <div class="how" data-xr="挥手搅动风暴 · 停下，画会浮现" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>手</em><span>在面前挥手、划圈，手掠过的地方就是风</span><em>鼠标</em><span>按住拖动搅动</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud">风暴强度<button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>挥手搅动风暴；停下来，画会慢慢浮现</div>
-<div id="quote">"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"<small>— 透纳，据罗斯金记述</small></div>
+<div id="hud">风暴强度<button id="mute">静音</button><div id="meter"><i id="lvl"></i></div><span data-i18n="hint">挥手搅动风暴；停下来，画会慢慢浮现</span></div>
+<div id="quote" data-i18n-html="quoteBanner">"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"<small>— 透纳，据罗斯金记述</small></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -65,6 +66,50 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 
 THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
+
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '被绑在桅杆上', sub: 'Lashed to the Mast',
+    lead: '传说透纳让水手把自己绑在桅杆上四个小时，只为画这场暴风雪。故事多半是传说，画却是真的：船、海、雪、烟被卷进同一个漩涡，只有光从风暴的中心透出来。',
+    body: '这里，整幅画是一片真正在流动的流体，在你四周缓缓旋转，像风暴的眼。<b>伸手搅动它</b>，颜料被拉成丝、卷成涡，船消失在风里，远处传来汽笛；你一停手，风暴慢慢记起自己，画又从漩涡里浮现。',
+    quote: '我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。<small>— 透纳谈《暴风雪》，据罗斯金记述</small>',
+    loading: '载入中…', enter: '进入', failed: msg => '载入失败：' + msg,
+    xr: '挥手搅动风暴 · 停下，画会浮现',
+    how: '<em>手</em><span>在面前挥手、划圈，手掠过的地方就是风</span><em>鼠标</em><span>按住拖动搅动</span><em>声音</em><span>建议戴耳机</span>',
+    storm: '风暴强度', mute: '静音', unmute: '开声音',
+    hint: '挥手搅动风暴；停下来，画会慢慢浮现',
+    quoteBanner: '"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"<small>— 透纳，据罗斯金记述</small>',
+    plaqueTitle: '被绑在桅杆上  Lashed to the Mast',
+    plaqueLines: ['整幅画是一片流体，在你四周缓慢旋转。', '伸出手搅动它，画被风暴卷走；', '停下来，风暴慢慢记起原来的样子。'],
+    plaqueQuote: '"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"',
+  },
+  en: {
+    title: 'Lashed to the Mast', sub: '被绑在桅杆上',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'Turner, the story goes, had sailors lash him to a mast for four hours so that he could paint this snowstorm. The story is most likely a legend; the painting is not. Ship, sea, snow and smoke are swept into a single vortex, and only light breaks through at the storm’s heart.',
+    body: 'Here the whole painting is a fluid that truly flows, turning slowly around you like the eye of the storm. <b>Reach out and stir it</b>: the paint pulls into threads and curls into eddies, the ship vanishes into the wind, and a steam whistle sounds in the distance. Stop, and the storm slowly remembers itself as the painting rises back out of the whirl.',
+    quote: 'I did not paint it to be understood, but I wished to show what such a scene was like.<small>— Turner on Snow Storm, as recorded by Ruskin</small>',
+    loading: 'Loading…', enter: 'Enter', failed: msg => 'Failed to load: ' + msg,
+    xr: 'Wave to stir the storm · Stop, and the painting returns',
+    how: '<em>Hands</em><span>Wave and circle your hands in front of you; wherever they pass becomes wind</span><em>Mouse</em><span>Press and drag to stir</span><em>Sound</em><span>Best with headphones</span>',
+    storm: 'Storm strength', mute: 'Mute', unmute: 'Sound on',
+    hint: 'Wave to stir the storm; stop, and the painting slowly returns',
+    quoteBanner: '“I did not paint it to be understood, but I wished to show what such a scene was like.”<small>— Turner, as recorded by Ruskin</small>',
+    plaqueTitle: 'Lashed to the Mast',
+    plaqueLines: ['The whole painting is a fluid, turning slowly around you.', 'Reach out and stir it, and the storm sweeps it away;', 'stop, and the storm slowly remembers how it was.'],
+    plaqueQuote: '“I did not paint it to be understood, but I wished to show what such a scene was like.”',
+  },
+};
+const t = (key, ...a) => { const v = I18N.t(T, key); return typeof v === 'function' ? v(...a) : v; };
+let loadState = 'loading', loadErr = '';   // 「进入」按钮上的字跟着载入状态走，换语言时按状态重写
+const enterText = () => loadState === 'failed' ? t('failed', loadErr) : t(loadState);
+// #hud 开头的"风暴强度"是裸文本节点：包成 span 会变成 #hud > span:first-child（改样式）和 xr-caption 盯的状态行，所以直接改文本节点
+const hudLabel = $('hud').firstChild;
+I18N.apply(T, document.body);
+$('enter').textContent = enterText();
+hudLabel.nodeValue = t('storm');
+$('mute').textContent = t('mute');
 const DEG = Math.PI / 180;
 const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 const clamp01 = x => Math.max(0, Math.min(1, x));
@@ -381,24 +426,28 @@ function thunder(strength) {
   s.connect(lp).connect(g).connect(audio.master); s.start(t, Math.random() * 2); s.stop(t + 6.2);
 }
 let lastThunder = 0;
-$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.6, audio.ctx.currentTime, 0.3); };
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute'); if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.6, audio.ctx.currentTime, 0.3); };
 
 // ---------- XR 展签 ----------
 const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.height = 520;
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
 plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
 scene.add(plaque);
-(function () {
+function drawPlaque() {
   const g = plaqueC.getContext('2d');
   g.fillStyle = '#2a2620'; g.fillRect(0, 0, 1024, 520);
   g.fillStyle = '#d8d0bc'; g.fillRect(0, 0, 10, 520);
   g.fillStyle = '#a9a290'; g.font = '22px system-ui'; g.fillText("AFTER TURNER · SNOW STORM – STEAM-BOAT OFF A HARBOUR'S MOUTH · 1842", 44, 66);
-  g.fillStyle = '#f0ebdf'; g.font = '54px serif'; g.fillText('被绑在桅杆上  Lashed to the Mast', 44, 140);
+  g.fillStyle = '#f0ebdf'; g.font = '54px serif'; g.fillText(t('plaqueTitle'), 44, 140);
   g.font = '30px serif'; g.fillStyle = '#e6e0d2';
-  ['整幅画是一片流体，在你四周缓慢旋转。', '伸出手搅动它，画被风暴卷走；', '停下来，风暴慢慢记起原来的样子。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
-  g.fillStyle = '#d8b48a'; g.font = 'italic 25px serif'; g.fillText('"我画它不是为了让人看懂，而是想让人知道那样的场面是什么样子。"', 44, 470);
+  t('plaqueLines').forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  // 引文一行写下：英文比中文长，放不下就缩小字号
+  let fs = 25; g.font = `italic ${fs}px serif`;
+  while (fs > 16 && g.measureText(t('plaqueQuote')).width > 936) g.font = `italic ${--fs}px serif`;
+  g.fillStyle = '#d8b48a'; g.fillText(t('plaqueQuote'), 44, 470);
   plaque.material.map.needsUpdate = true;
-})();
+}
+drawPlaque();
 
 // ---------- 进入 ----------
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -423,8 +472,8 @@ new THREE.TextureLoader().loadAsync('data/snow-storm/color.jpg').then(t => {
   const rt = renderer.getRenderTarget();
   M.copy.uniforms.src.value = t; run(M.copy, dye.read); run(M.copy, dye.write);
   renderer.setRenderTarget(rt);
-  $('enter').disabled = false; $('enter').textContent = '进入';
-}).catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+  $('enter').disabled = false; loadState = 'enter'; $('enter').textContent = enterText();
+}).catch(e => { console.error(e); loadState = 'failed'; loadErr = e.message; $('enter').textContent = enterText(); });
 
 window.__state = () => ({ storm, stirEnergy });
 window.__stir = (u, v, du, dv) => splats.push({ p: new THREE.Vector2(u, v), v: new THREE.Vector2(du, dv), r: 0.003 });
@@ -435,6 +484,15 @@ function xrPixelHeight() {
   if (!h) { const cam = renderer.xr.getCamera(); h = cam.cameras && cam.cameras[0] && cam.cameras[0].viewport && cam.cameras[0].viewport.w; }
   return h || renderer.domElement.height;
 }
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  $('enter').textContent = enterText();
+  hudLabel.nodeValue = t('storm');
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  drawPlaque();                             // 展签画在画布上：按新语言重画
+});
+
 const clock = new THREE.Clock();
 let time = 0;
 const look = new THREE.Vector2();

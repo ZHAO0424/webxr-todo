@@ -33,6 +33,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -45,18 +46,18 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After Edvard Munch · The Scream and four others · 1892–96</div>
-    <h1>穿过自然的尖叫</h1>
-    <h2>A Scream Through Nature</h2>
-    <p class="lead">《呐喊》里尖叫的并不是那个人。蒙克写道，他听见一声尖叫穿过了整个自然——那个人只是捂住了耳朵。</p>
-    <p>这里，《绝望》《呐喊》《焦虑》《卡尔约翰街的夜晚》《忧郁》五幅画共用同一群几十万条笔触，像鱼群顺着蒙克的线条绕着你游。安静时只有游动的颜色；<b>只有你发出声音</b>，它们才游回来，聚成环绕你的画。声音越大，看得越清；你一停，它们又散开。安静得足够久，自然会把那声尖叫还给你。</p>
-    <blockquote>我站在那里，因焦虑而颤抖——我感到一声巨大的、无尽的尖叫穿过了自然。<small>— 蒙克的笔记，1892 年</small></blockquote>
+    <h1 data-i18n="title">穿过自然的尖叫</h1>
+    <h2 data-i18n="sub">A Scream Through Nature</h2>
+    <p class="lead" data-i18n="lead">《呐喊》里尖叫的并不是那个人。蒙克写道，他听见一声尖叫穿过了整个自然——那个人只是捂住了耳朵。</p>
+    <p data-i18n-html="body">这里，《绝望》《呐喊》《焦虑》《卡尔约翰街的夜晚》《忧郁》五幅画共用同一群几十万条笔触，像鱼群顺着蒙克的线条绕着你游。安静时只有游动的颜色；<b>只有你发出声音</b>，它们才游回来，聚成环绕你的画。声音越大，看得越清；你一停，它们又散开。安静得足够久，自然会把那声尖叫还给你。</p>
+    <blockquote data-i18n-html="quote">我站在那里，因焦虑而颤抖——我感到一声巨大的、无尽的尖叫穿过了自然。<small>— 蒙克的笔记，1892 年</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how" data-xr="发出声音或捏住手指，画才游回来"><em>声音</em><span>哼、说话、喊都可以；麦克风只在本地测音量，不录音、不上传</span><em>没有麦克风</em><span>按住空格或鼠标</span><em>耳机</em><span>建议戴上，免得扬声器的声音被麦克风收回去</span></div>
+    <div class="how" data-xr="发出声音或捏住手指，画才游回来" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>声音</em><span>哼、说话、喊都可以；麦克风只在本地测音量，不录音、不上传</span><em>没有麦克风</em><span>按住空格或鼠标</span><em>耳机</em><span>建议戴上，免得扬声器的声音被麦克风收回去</span></div>
   </div>
 </div>
-<div id="hud"><span id="micState">麦克风：未开启</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div>发出声音才看得见画；安静时它散成一群游动的颜色，过一会儿自然会回应</div>
+<div id="hud"><span id="micState">麦克风：未开启</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div><span data-i18n="hint">发出声音才看得见画；安静时它散成一群游动的颜色，过一会儿自然会回应</span></div>
 <div id="pname"></div>
-<div id="quote">“我感到一声巨大的、无尽的尖叫穿过了自然。”<small>— 蒙克的笔记，1892 年</small></div>
+<div id="quote" data-i18n-html="quoteBanner">“我感到一声巨大的、无尽的尖叫穿过了自然。”<small>— 蒙克的笔记，1892 年</small></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -68,6 +69,56 @@ import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer
 
 THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
+
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '穿过自然的尖叫', sub: 'A Scream Through Nature',
+    lead: '《呐喊》里尖叫的并不是那个人。蒙克写道，他听见一声尖叫穿过了整个自然——那个人只是捂住了耳朵。',
+    body: '这里，《绝望》《呐喊》《焦虑》《卡尔约翰街的夜晚》《忧郁》五幅画共用同一群几十万条笔触，像鱼群顺着蒙克的线条绕着你游。安静时只有游动的颜色；<b>只有你发出声音</b>，它们才游回来，聚成环绕你的画。声音越大，看得越清；你一停，它们又散开。安静得足够久，自然会把那声尖叫还给你。',
+    quote: '我站在那里，因焦虑而颤抖——我感到一声巨大的、无尽的尖叫穿过了自然。<small>— 蒙克的笔记，1892 年</small>',
+    loading: '载入中…', reading: p => `读取${p.name.split(' ')[0]}…`, spread: '铺开 360° 的画…', wake: '唤醒鱼群…',
+    enter: '进入', failed: msg => '载入失败：' + msg, gpuFail: 'GPU 模拟初始化失败：',
+    xr: '发出声音或捏住手指，画才游回来',
+    how: '<em>声音</em><span>哼、说话、喊都可以；麦克风只在本地测音量，不录音、不上传</span><em>没有麦克风</em><span>按住空格或鼠标</span><em>耳机</em><span>建议戴上，免得扬声器的声音被麦克风收回去</span>',
+    micOff: '麦克风：未开启', micOn: '麦克风：已开启', micDenied: '麦克风：未授权（按住空格或鼠标代替声音）',
+    mute: '静音', unmute: '开声音',
+    hint: '发出声音才看得见画；安静时它散成一群游动的颜色，过一会儿自然会回应',
+    quoteBanner: '“我感到一声巨大的、无尽的尖叫穿过了自然。”<small>— 蒙克的笔记，1892 年</small>',
+    pname: p => p.name,
+    plaqueTitle: '穿过自然的尖叫',
+    plaqueLines: ['安静时，只有一群游动的颜色；', '发出声音，它们在你眼前聚成五幅画中的一幅；', '散开之后，下一次出声会聚成另一幅。'],
+    plaqueQuote: '“一声巨大的、无尽的尖叫穿过了自然。”— 蒙克，1892',
+  },
+  en: {
+    title: 'A Scream Through Nature', sub: '穿过自然的尖叫',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'In The Scream, it is not the figure who is screaming. Munch wrote that he heard a scream passing through all of nature; the figure is only covering its ears.',
+    body: 'Here five paintings, Despair, The Scream, Anxiety, Evening on Karl Johan Street and Melancholy, share a single shoal of several hundred thousand brushstrokes that swim around you along Munch’s lines. In silence there is only drifting color. <b>Only when you make a sound</b> do they swim back and gather into the painting that surrounds you. The louder you are, the clearer it becomes; fall quiet and they scatter again. Stay silent long enough, and nature will give the scream back to you.',
+    quote: 'I stood there trembling with anxiety, and I sensed an infinite scream passing through nature.<small>— Munch’s notes, 1892</small>',
+    loading: 'Loading…', reading: p => `Loading ${p.en.split(' · ')[0]}…`, spread: 'Unrolling the 360° painting…', wake: 'Waking the shoal…',
+    enter: 'Enter', failed: msg => 'Failed to load: ' + msg, gpuFail: 'GPU simulation failed to start: ',
+    xr: 'Make a sound or pinch to call the painting back',
+    how: '<em>Voice</em><span>Hum, talk or shout. The microphone only measures loudness on your device; nothing is recorded or uploaded</span><em>No mic</em><span>Hold Space or the mouse button</span><em>Headphones</em><span>Recommended, so the mic doesn’t pick up the speakers</span>',
+    micOff: 'Mic: off', micOn: 'Mic: on', micDenied: 'Mic blocked · hold Space or the mouse',
+    mute: 'Mute', unmute: 'Sound on',
+    hint: 'The painting appears only when you make a sound. In silence it scatters into a shoal of drifting color, and after a while nature answers',
+    quoteBanner: '“I sensed an infinite scream passing through nature.”<small>— Munch’s notes, 1892</small>',
+    pname: p => p.en,
+    plaqueTitle: 'A Scream Through Nature',
+    plaqueLines: ['In silence, there is only a shoal of drifting color;', 'make a sound, and it forms one of five paintings before you;', 'once it scatters, your next sound brings another.'],
+    plaqueQuote: '“I sensed an infinite scream passing through nature.” — Munch, 1892',
+  },
+};
+const t = (key, ...a) => { const v = I18N.t(T, key); return typeof v === 'function' ? v(...a) : v; };
+// 「进入」按钮上的字跟着载入进度走（读第几幅画、铺开、唤醒鱼群…）：记下当前的键和参数，换语言时按状态重写
+let loadKey = 'loading', loadArg = null;
+const setLoad = (k, a = null) => { loadKey = k; loadArg = a; $('enter').textContent = t(loadKey, loadArg); };
+let micKey = 'micOff';                    // #micState：未开启 / 已开启 / 未授权
+I18N.apply(T, document.body);
+setLoad('loading');
+$('micState').textContent = t(micKey);
+$('mute').textContent = t('mute');
 const DEG = Math.PI / 180;
 const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 const pick = a => a[(Math.random() * a.length) | 0];
@@ -111,11 +162,11 @@ world.add(dome);
 const D = 3.4, SPAN = 48 * DEG;
 const DRAW = 56 * DEG, PWD = 2 * D * Math.tan(DRAW / 2);   // 画面约 56° 宽，两侧边缘交错溶解进天空与水面
 const PANELS = [
-  { slug: 'scream', name: '《呐喊》 The Scream · 1893', crop: [0, 0.955, 0, 1] },   // 右边缘是画框，裁掉
-  { slug: 'anxiety', name: '《焦虑》 Anxiety · 1894', crop: [0, 1, 0, 1] },
-  { slug: 'despair', name: '《绝望》 Despair · 1892', crop: [0, 1, 0, 1] },
-  { slug: 'karl-johan', name: '《卡尔约翰街的夜晚》 Evening on Karl Johan · 1892', crop: [0, 1, 0, 1] },
-  { slug: 'melancholy', name: '《忧郁》 Melancholy · 1894–96', crop: [0, 1, 0, 1] },
+  { slug: 'scream', name: '《呐喊》 The Scream · 1893', en: 'The Scream · 1893', crop: [0, 0.955, 0, 1] },   // 右边缘是画框，裁掉
+  { slug: 'anxiety', name: '《焦虑》 Anxiety · 1894', en: 'Anxiety · 1894', crop: [0, 1, 0, 1] },
+  { slug: 'despair', name: '《绝望》 Despair · 1892', en: 'Despair · 1892', crop: [0, 1, 0, 1] },
+  { slug: 'karl-johan', name: '《卡尔约翰街的夜晚》 Evening on Karl Johan · 1892', en: 'Evening on Karl Johan Street · 1892', crop: [0, 1, 0, 1] },
+  { slug: 'melancholy', name: '《忧郁》 Melancholy · 1894–96', en: 'Melancholy · 1894–96', crop: [0, 1, 0, 1] },
 ];
 const NS = PANELS.length;           // 状态数：每个状态正前方是其中一幅，右后、左后是它在画单里的后一幅、前一幅
 const slotsOf = k => [[k, 0], [(k + 1) % NS, 120 * DEG], [(k + NS - 1) % NS, -120 * DEG]];
@@ -330,13 +381,13 @@ async function buildScene(onProgress) {
   // 每个"状态"里，正前方是其中一幅（另外两幅在你的左后、右后）。同一条鱼在三个状态里占同一个方向，只是颜色、深度、走向不同。
   const imgs = [];
   for (const pnl of PANELS) {
-    onProgress(`读取${pnl.name.split(' ')[0]}…`);
+    onProgress('reading', pnl);
     const [C, Dp, O] = await Promise.all(['color.jpg', 'depth.png', 'orient.png'].map(f => loadPixels(`data/${pnl.slug}/${f}`)));
     const [u0, u1, v0, v1] = pnl.crop;
     const aspect = (C.w * (u1 - u0)) / (C.h * (v1 - v0));
     imgs.push({ C, Dp, O, crop: pnl.crop, W: aspect * V_SPAN });   // 按原比例占多宽（角度）
   }
-  onProgress('铺开 360° 的画…');
+  onProgress('spread');
   const tri = (x) => { const m = ((x % 2) + 2) % 2; return m < 1 ? m : 2 - m; };      // 镜像往返
   // 三幅画的色调统一：每幅画的颜色均值/方差，往三幅的平均值上拉（越靠近交界拉得越多）
   for (const img of imgs) {
@@ -437,7 +488,7 @@ async function buildScene(onProgress) {
   }
 
   // ---- 打包成 GPU 纹理 ----
-  onProgress('唤醒鱼群…');
+  onProgress('wake');
   N = NP;
   const TEX = Math.ceil(Math.sqrt(N));
   const pad = a => { const b = new Float32Array(TEX * TEX * 4); b.set(a); return b; };
@@ -467,7 +518,7 @@ async function buildScene(onProgress) {
     return s / n;
   };
   const err = gpu.init();
-  if (err) throw new Error('GPU 模拟初始化失败：' + err);
+  if (err) throw new Error(t('gpuFail') + err);
 
   // ---- 渲染属性 ----
   const ref = new Float32Array(N * 2), L1 = new Float32Array(N), A1 = new Float32Array(N), W1 = new Float32Array(N);
@@ -523,16 +574,17 @@ function stepRotation(dt, clarity) {
   // 散开的时候，下一幅画的朝向一直跟着你的视线；一开始聚拢就定住——新的画总是出现在你眼前
   if (clarity < 0.04) U.uYaw.value = headYaw();
   // 画面聚起来的时候，浮出画名
-  if (clarity > 0.55 && !nameShown) { nameShown = true; showName(PANELS[curPainting].name); }
+  if (clarity > 0.55 && !nameShown) { nameShown = true; showName(PANELS[curPainting]); }
 }
 const _f = new THREE.Vector3();
 function headYaw() {
   (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldDirection(_f);
   return Math.atan2(-_f.x, -_f.z);
 }
-let nameTimer = 0;
-function showName(t) {
-  const el = $('pname'); el.textContent = t; el.classList.add('on');
+let nameTimer = 0, namePanel = null;   // 记下浮出的是哪一幅：换语言时按新语言重写画名
+function showName(p) {
+  namePanel = p;
+  const el = $('pname'); el.textContent = t('pname', p); el.classList.add('on');
   clearTimeout(nameTimer); nameTimer = setTimeout(() => el.classList.remove('on'), 3500);
 }
 
@@ -573,8 +625,8 @@ function startAudio() {
     analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
     src.connect(analyser);                       // 只接分析器，不接扬声器
     micBuf = new Float32Array(analyser.fftSize);
-    micOn = true; micEl.textContent = '麦克风：已开启';
-  }).catch(() => { micEl.textContent = '麦克风：未授权（按住空格或鼠标代替声音）'; });   // 用开始时拿到的元素：头显里已换到别的画时也不报错
+    micOn = true; micKey = 'micOn'; micEl.textContent = t(micKey);
+  }).catch(() => { micKey = 'micDenied'; micEl.textContent = t(micKey); });   // 用开始时拿到的元素：头显里已换到别的画时也不报错
 }
 // 自然的回应：一团不协和的锯齿和弦，带通扫上去
 function natureScream(strength) {
@@ -592,7 +644,7 @@ function natureScream(strength) {
   const ng = ctx.createGain(); ng.gain.setValueAtTime(0, t); ng.gain.linearRampToValueAtTime(0.08 * strength, t + 1); ng.gain.exponentialRampToValueAtTime(0.001, t + 3.5);
   n.connect(ng).connect(audio.master); n.start(t); n.stop(t + 3.6);
 }
-$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.5, audio.ctx.currentTime, 0.3); };
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute'); if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.5, audio.ctx.currentTime, 0.3); };
 
 function voiceLevel() {
   let lvl = 0;
@@ -656,17 +708,20 @@ const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
 plaque.position.set(0.3, -0.3, -0.85); plaque.lookAt(0, 0, 0); plaque.visible = false;
 world.add(plaque);
-(function () {
+function drawPlaque() {
   const g = plaqueC.getContext('2d');
+  // 一行写下：英文比中文长，放不下就缩小字号
+  const fit = (txt, x, y, font, size) => { g.font = font.replace('$', size); while (size > 16 && g.measureText(txt).width > 936) g.font = font.replace('$', --size); g.fillText(txt, x, y); };
   g.fillStyle = '#1a1010'; g.fillRect(0, 0, 1024, 520);
   g.fillStyle = '#c8402a'; g.fillRect(0, 0, 10, 520);
   g.fillStyle = '#c99a80'; g.font = '22px system-ui'; g.fillText('AFTER MUNCH · THE SCREAM 1893 · ANXIETY 1894 · DESPAIR 1892', 44, 66);
-  g.fillStyle = '#efe2cf'; g.font = '54px serif'; g.fillText('穿过自然的尖叫', 44, 140);
-  g.font = '30px serif'; g.fillStyle = '#ead8c4';
-  ['安静时，只有一群游动的颜色；', '发出声音，它们在你眼前聚成五幅画中的一幅；', '散开之后，下一次出声会聚成另一幅。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
-  g.fillStyle = '#e2a03a'; g.font = 'italic 26px serif'; g.fillText('“一声巨大的、无尽的尖叫穿过了自然。”— 蒙克，1892', 44, 470);
+  g.fillStyle = '#efe2cf'; g.font = '54px serif'; g.fillText(t('plaqueTitle'), 44, 140);
+  g.fillStyle = '#ead8c4';
+  t('plaqueLines').forEach((s, k) => fit(s, 44, 215 + k * 48, '$px serif', 30));
+  g.fillStyle = '#e2a03a'; fit(t('plaqueQuote'), 44, 470, 'italic $px serif', 26);
   plaque.material.map.needsUpdate = true;
-})();
+}
+drawPlaque();
 
 // ---------- 进入 ----------
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -686,9 +741,19 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 window.__forceNext = () => { curPainting = (curPainting + 1) % PANELS.length; cyclePeak = 0; nameShown = false; };
 window.__state = () => ({ anxiety, energy, returns, n: N, clarity, painting: curPainting });
 window.__cam = (fov, pitch) => { window.__camOverride = { fov, pitch }; };
-buildScene(t => { $('enter').textContent = t; })
-  .then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
-  .catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+buildScene(setLoad)
+  .then(() => { $('enter').disabled = false; setLoad('enter'); })
+  .catch(e => { console.error(e); setLoad('failed', e.message); });
+
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  $('enter').textContent = t(loadKey, loadArg);
+  $('micState').textContent = t(micKey);
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  if (namePanel) $('pname').textContent = t('pname', namePanel);
+  drawPlaque();                             // 展签画在画布上：按新语言重画
+});
 
 const clock = new THREE.Clock();
 let time = 0;

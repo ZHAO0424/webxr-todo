@@ -40,6 +40,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -52,18 +53,18 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After Georges Seurat · A Sunday on La Grande Jatte · 1884–86</div>
-    <h1>看见需要时间</h1>
-    <h2>Seeing Takes Time</h2>
-    <p class="lead">修拉用了两年，一点一点点出《大碗岛的星期天下午》。颜色从不在画布上调和——是看的人的眼睛，把并排的纯色点混成了草地、阳光和人。</p>
-    <p>这里，十五万颗色点漂成一团色雾。<b>你的目光停在哪里</b>，哪里才聚成画；看过的会留下，一点点拼成整幅。等你看见了它的全部，它又慢慢退回成颜色，等你再看一遍。在一个什么都在加速的时代，这是一个只奖励慢下来的星期天下午。</p>
-    <blockquote>点彩的颜色在观者的视网膜上混合，而不是在调色板上。<small>— 新印象派"视觉混合"的主张</small></blockquote>
+    <h1 data-i18n="title">看见需要时间</h1>
+    <h2 data-i18n="sub">Seeing Takes Time</h2>
+    <p class="lead" data-i18n="lead">修拉用了两年，一点一点点出《大碗岛的星期天下午》。颜色从不在画布上调和——是看的人的眼睛，把并排的纯色点混成了草地、阳光和人。</p>
+    <p data-i18n-html="body">这里，十五万颗色点漂成一团色雾。<b>你的目光停在哪里</b>，哪里才聚成画；看过的会留下，一点点拼成整幅。等你看见了它的全部，它又慢慢退回成颜色，等你再看一遍。在一个什么都在加速的时代，这是一个只奖励慢下来的星期天下午。</p>
+    <blockquote data-i18n-html="quote">点彩的颜色在观者的视网膜上混合，而不是在调色板上。<small>— 新印象派"视觉混合"的主张</small></blockquote>
     <button id="enter" disabled>载入中…</button>
     <div id="status"></div>
-    <div class="how" data-xr="慢慢地看，目光停留之处聚成画"><em>视线</em><span>慢慢地看，视线停在哪里哪里聚拢；尽量站稳</span><em>鼠标</em><span>在画面上停留；甩得太快不会聚拢；左下进度条可直接看到最终效果</span><em>声音</em><span>建议戴耳机</span></div>
+    <div class="how" data-xr="慢慢地看，目光停留之处聚成画" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>视线</em><span>慢慢地看，视线停在哪里哪里聚拢；尽量站稳</span><em>鼠标</em><span>在画面上停留；甩得太快不会聚拢；左下进度条可直接看到最终效果</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><span id="pct">已看见 0%</span><button id="mute">静音</button><input type="range" id="prog" min="0" max="100" step="1" value="0" title="拖动直接设定整幅画的聚拢程度">目光停留之处聚拢，看过的会留下；看到 80% 后才慢慢散去；看过 60% 后视线离开画面会飞速散去。拖动进度条可直接看到最终效果</div>
-<div id="finale">你用目光完成了这幅画。<small>它会在你移开视线后，慢慢退回成颜色。</small></div>
+<div id="hud"><span id="pct">已看见 0%</span><button id="mute">静音</button><input type="range" id="prog" min="0" max="100" step="1" value="0" title="拖动直接设定整幅画的聚拢程度" data-i18n-attr="title:progTitle"><span data-i18n="hint">目光停留之处聚拢，看过的会留下；看到 80% 后才慢慢散去；看过 60% 后视线离开画面会飞速散去。拖动进度条可直接看到最终效果</span></div>
+<div id="finale" data-i18n-html="finale">你用目光完成了这幅画。<small>它会在你移开视线后，慢慢退回成颜色。</small></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -74,6 +75,52 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 
 THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
+
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '看见需要时间', sub: 'Seeing Takes Time',
+    lead: '修拉用了两年，一点一点点出《大碗岛的星期天下午》。颜色从不在画布上调和——是看的人的眼睛，把并排的纯色点混成了草地、阳光和人。',
+    body: '这里，十五万颗色点漂成一团色雾。<b>你的目光停在哪里</b>，哪里才聚成画；看过的会留下，一点点拼成整幅。等你看见了它的全部，它又慢慢退回成颜色，等你再看一遍。在一个什么都在加速的时代，这是一个只奖励慢下来的星期天下午。',
+    quote: '点彩的颜色在观者的视网膜上混合，而不是在调色板上。<small>— 新印象派"视觉混合"的主张</small>',
+    loading: '载入中…', enter: '进入',
+    stRead: '读取画面与深度…', stSplit: '把每个颜色拆成并置的纯色点…',
+    stFail: msg => '载入失败（需要用本地服务器打开，并且 data/grande-jatte 已烘焙）：' + msg,
+    xr: '慢慢地看，目光停留之处聚成画',
+    how: '<em>视线</em><span>慢慢地看，视线停在哪里哪里聚拢；尽量站稳</span><em>鼠标</em><span>在画面上停留；甩得太快不会聚拢；左下进度条可直接看到最终效果</span><em>声音</em><span>建议戴耳机</span>',
+    seen: n => `已看见 ${n}%`, mute: '静音', unmute: '开声音',
+    progTitle: '拖动直接设定整幅画的聚拢程度',
+    hint: '目光停留之处聚拢，看过的会留下；看到 80% 后才慢慢散去；看过 60% 后视线离开画面会飞速散去。拖动进度条可直接看到最终效果',
+    finale: '你用目光完成了这幅画。<small>它会在你移开视线后，慢慢退回成颜色。</small>',
+    plaqueTitle: '看见需要时间  Seeing Takes Time',
+    plaqueLines: ['视线停在哪里，哪里的色点就慢慢聚成画面；', '看过的会留下来；整幅看见之后，', '它才慢慢退回成颜色，等你再看一遍。'],
+  },
+  en: {
+    title: 'Seeing Takes Time', sub: '看见需要时间',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'Seurat spent two years building A Sunday on La Grande Jatte one dot at a time. The colours are never mixed on the canvas: it is the viewer’s eye that blends the pure dots, side by side, into grass, sunlight and people.',
+    body: 'Here, a hundred and fifty thousand dots of colour drift as a coloured haze. <b>Wherever your gaze comes to rest</b>, the painting gathers; what you have seen stays, piece by piece, until the whole picture is there. Once you have seen all of it, it slowly dissolves back into colour and waits for you to look again. In an age when everything speeds up, this is a Sunday afternoon that rewards only slowing down.',
+    quote: 'Pointillist colours mix on the viewer’s retina, not on the palette.<small>— The Neo-Impressionist idea of “optical mixing”</small>',
+    loading: 'Loading…', enter: 'Enter',
+    stRead: 'Reading the image and its depth…', stSplit: 'Breaking every colour into dots of pure colour…',
+    stFail: msg => 'Failed to load (open it from a local server, with data/grande-jatte already baked): ' + msg,
+    xr: 'Look slowly — the painting gathers where your gaze rests',
+    how: '<em>Gaze</em><span>Look slowly: the dots gather wherever your gaze rests. Try to stand still</span><em>Mouse</em><span>Let the pointer rest on the painting; sweeping too fast gathers nothing. The slider at bottom left jumps to the finished picture</span><em>Sound</em><span>Best with headphones</span>',
+    seen: n => `${n}% seen`, mute: 'Mute', unmute: 'Sound on',
+    progTitle: 'Drag to set how far the whole painting has gathered',
+    hint: 'The painting gathers where your gaze rests, and what you’ve seen stays. Past 80% it slowly drifts apart; after 60%, looking away from the painting scatters it fast. Drag the slider to see the finished picture.',
+    finale: 'You have finished this painting with your eyes.<small>Once you look away, it will slowly dissolve back into colour.</small>',
+    plaqueTitle: 'Seeing Takes Time',
+    plaqueLines: ['Wherever your gaze rests, the dots slowly gather', 'into the picture. What you have seen stays; once you have', 'seen it all, it drifts back into colour for you to see again.'],
+  },
+};
+const t = (key, ...a) => { const v = I18N.t(T, key); return typeof v === 'function' ? v(...a) : v; };
+let loaded = false, statusKey = '', statusArg = '';   // 「进入」按钮和载入状态：换语言时按当前状态重写
+const setStatus = (key, arg = '') => { statusKey = key; statusArg = arg; $('status').textContent = key ? t(key, arg) : ''; };
+I18N.apply(T, document.body);
+$('enter').textContent = t('loading');
+$('mute').textContent = t('mute');
+$('pct').textContent = t('seen', 0);
 const DEG = Math.PI / 180;
 const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 const clamp01 = x => Math.max(0, Math.min(1, x));
@@ -184,7 +231,7 @@ function placeAlongRay(u, v, dist, out) {
 }
 
 async function build() {
-  $('status').textContent = '读取画面与深度…';
+  setStatus('stRead');
   const [col, dep] = await Promise.all([loadPixels('data/grande-jatte/color.jpg'), loadPixels('data/grande-jatte/depth.png')]);
   const aspect = col.w / col.h;
   PIC_H = PIC_W / aspect;
@@ -195,7 +242,7 @@ async function build() {
   cohTex.magFilter = cohTex.minFilter = THREE.LinearFilter; cohTex.needsUpdate = true;
   cellHue = new Float32Array(CW * CH); cellWasOn = new Uint8Array(CW * CH);
 
-  $('status').textContent = '把每个颜色拆成并置的纯色点…';
+  setStatus('stSplit');
   await new Promise(r => setTimeout(r, 30));
   const GW = 340, GH = Math.round(GW / aspect), PER = 2;
   const N = GW * GH * PER;
@@ -377,7 +424,7 @@ function pluck(hue) {
   const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.03, t); g2.gain.exponentialRampToValueAtTime(0.0004, t + 0.12);
   o2.connect(g2).connect(audio.master); o2.start(t); o2.stop(t + 0.15);
 }
-$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.35, audio.ctx.currentTime, 0.3); };
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute'); if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.35, audio.ctx.currentTime, 0.3); };
 
 // ---------- 目光与"躁动" ----------
 const raycaster = new THREE.Raycaster();
@@ -455,7 +502,7 @@ function updateCoherence(dt) {
   }
   cohTex.needsUpdate = true;
   const pct = sum / (CW * CH);
-  $('pct').textContent = `已看见 ${Math.round(pct * 100)}%`;
+  $('pct').textContent = t('seen', Math.round(pct * 100));
   if (!dragging) { $('prog').value = pct * 100; $('prog').style.setProperty('--p', `${pct * 100}%`); }
   if (pct > 0.8 && !finaleShown) {
     finaleShown = true;
@@ -473,17 +520,18 @@ const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
 plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
 scene.add(plaque);
-(function drawPlaque() {
+function drawPlaque() {
   const g = plaqueC.getContext('2d');
   g.fillStyle = '#f4f0e6'; g.fillRect(0, 0, 1024, 520);
   const dots = ['#3c6eb4', '#e2b23a', '#5a9650', '#d9643a', '#6b4fa0'];
   for (let i = 0; i < 260; i++) { g.fillStyle = dots[i % 5]; g.beginPath(); g.arc(Math.random() * 1024, Math.random() < 0.5 ? Math.random() * 14 : 506 + Math.random() * 14, 4, 0, 7); g.fill(); }
   g.fillStyle = '#7a7f93'; g.font = '22px system-ui'; g.fillText('AFTER SEURAT · A SUNDAY ON LA GRANDE JATTE · 1884–86', 44, 70);
-  g.fillStyle = '#2d3142'; g.font = '56px serif'; g.fillText('看见需要时间  Seeing Takes Time', 44, 148);
+  g.fillStyle = '#2d3142'; g.font = '56px serif'; g.fillText(t('plaqueTitle'), 44, 148);
   g.font = '30px serif';
-  ['视线停在哪里，哪里的色点就慢慢聚成画面；', '看过的会留下来；整幅看见之后，', '它才慢慢退回成颜色，等你再看一遍。'].forEach((s, k) => g.fillText(s, 44, 220 + k * 48));
+  t('plaqueLines').forEach((s, k) => g.fillText(s, 44, 220 + k * 48));
   plaque.material.map.needsUpdate = true;
-})();
+}
+drawPlaque();
 
 // ---------- 进入 ----------
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -508,9 +556,19 @@ window.__pct = () => coh.reduce((a, b) => a + b, 0) / coh.length;
 window.__dbg = () => ({ gaze: gazeUV.toArray(), restless, max: Math.max(...coh), argmax: coh.indexOf(Math.max(...coh)) });
 
 build().then(() => {
-  $('status').textContent = '';
-  $('enter').disabled = false; $('enter').textContent = '进入';
-}).catch(e => { console.error(e); $('status').textContent = '载入失败（需要用本地服务器打开，并且 data/grande-jatte 已烘焙）：' + e.message; });
+  setStatus('');
+  loaded = true; $('enter').disabled = false; $('enter').textContent = t('enter');
+}).catch(e => { console.error(e); setStatus('stFail', e.message); });
+
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  $('enter').textContent = loaded ? t('enter') : t('loading');
+  if (statusKey) setStatus(statusKey, statusArg);
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  $('pct').textContent = t('seen', coh ? Math.round(coh.reduce((a, b) => a + b, 0) / coh.length * 100) : 0);
+  drawPlaque();                             // 展签画在画布上：按新语言重画（边上的彩点会重新撒一遍）
+});
 
 const clock = new THREE.Clock();
 let time = 0;

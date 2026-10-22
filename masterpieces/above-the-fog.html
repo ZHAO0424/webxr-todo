@@ -28,6 +28,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -40,16 +41,16 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After Caspar David Friedrich · Wanderer above the Sea of Fog · c. 1818</div>
-    <h1>雾海之上</h1>
-    <h2>Above the Sea of Fog</h2>
-    <p class="lead">一个背对我们的人站在岩顶，脚下是翻涌的雾海。我们永远看不到他的脸，只能站在他身后，和他看向同一片雾。</p>
-    <p>这里是黎明之前，雾漫过你的头顶。<b>看住一处</b>，那里的雾就一层层退下去：退到胸口，退回画里的雾海面，再露出一堆堆从雾里升起的砂岩；退下去的雾，很久才会回涨。<b>站得越静，天亮得越快</b>：太阳从山脊后升起，雾被晨光从背后照透，朝阳那一侧的雾被晒薄。</p>
-    <blockquote>闭上你肉体的眼睛，先用精神的眼睛看你的画。然后把你在黑暗中看到的带到光里来。<small>— 弗里德里希，约 1830</small></blockquote>
+    <h1 data-i18n="title">雾海之上</h1>
+    <h2 data-i18n="sub">Above the Sea of Fog</h2>
+    <p class="lead" data-i18n="lead">一个背对我们的人站在岩顶，脚下是翻涌的雾海。我们永远看不到他的脸，只能站在他身后，和他看向同一片雾。</p>
+    <p data-i18n-html="body">这里是黎明之前，雾漫过你的头顶。<b>看住一处</b>，那里的雾就一层层退下去：退到胸口，退回画里的雾海面，再露出一堆堆从雾里升起的砂岩；退下去的雾，很久才会回涨。<b>站得越静，天亮得越快</b>：太阳从山脊后升起，雾被晨光从背后照透，朝阳那一侧的雾被晒薄。</p>
+    <blockquote data-i18n-html="quote">闭上你肉体的眼睛，先用精神的眼睛看你的画。然后把你在黑暗中看到的带到光里来。<small>— 弗里德里希，约 1830</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how" data-xr="看住一处，雾会退下 · 站得越静，天亮得越快"><em>视线</em><span>盯住一处，雾一层层退下；站着不动，天亮；伸手去拨，退得更快</span><em>鼠标</em><span>停住即是凝视；右键拖动转头；左键按住拨雾</span><em>声音</em><span>建议戴耳机</span></div>
+    <div class="how" data-xr="看住一处，雾会退下 · 站得越静，天亮得越快" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>视线</em><span>盯住一处，雾一层层退下；站着不动，天亮；伸手去拨，退得更快</span><em>鼠标</em><span>停住即是凝视；右键拖动转头；左键按住拨雾</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><span id="state">你站在雾里。看住一处，或伸手拨开</span><button id="mute">静音</button><div id="dawn"><i id="dawnBar"></i></div>看住一处，雾一层层退下；站得越静，天亮得越快</div>
+<div id="hud"><span id="state">你站在雾里。看住一处，或伸手拨开</span><button id="mute">静音</button><div id="dawn"><i id="dawnBar"></i></div><span data-i18n="hint">看住一处，雾一层层退下；站得越静，天亮得越快</span></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -60,6 +61,48 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 
 THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '雾海之上', sub: 'Above the Sea of Fog',
+    lead: '一个背对我们的人站在岩顶，脚下是翻涌的雾海。我们永远看不到他的脸，只能站在他身后，和他看向同一片雾。',
+    body: '这里是黎明之前，雾漫过你的头顶。<b>看住一处</b>，那里的雾就一层层退下去：退到胸口，退回画里的雾海面，再露出一堆堆从雾里升起的砂岩；退下去的雾，很久才会回涨。<b>站得越静，天亮得越快</b>：太阳从山脊后升起，雾被晨光从背后照透，朝阳那一侧的雾被晒薄。',
+    quote: '闭上你肉体的眼睛，先用精神的眼睛看你的画。然后把你在黑暗中看到的带到光里来。<small>— 弗里德里希，约 1830</small>',
+    loading: '载入中…', enter: '进入', loadFail: m => '载入失败：' + m,
+    xr: '看住一处，雾会退下 · 站得越静，天亮得越快',
+    how: '<em>视线</em><span>盯住一处，雾一层层退下；站着不动，天亮；伸手去拨，退得更快</span><em>鼠标</em><span>停住即是凝视；右键拖动转头；左键按住拨雾</span><em>声音</em><span>建议戴耳机</span>',
+    mute: '静音', unmute: '开声音',
+    hint: '看住一处，雾一层层退下；站得越静，天亮得越快',
+    sClearing: '雾一层一层退下去', sFog: '你站在雾里。看住一处，或伸手拨开', sDawn: '天在亮，站着别动',
+    sRising: '太阳从山脊后升起来了', sSunrise: '日出。雾海被晨光照透', sThin: '朝着太阳那边，雾被晒薄了',
+    plaqueTitle: '雾海之上',
+    plaqueLines: ['你站在旅人身后，黎明之前，雾漫过头顶。', '看住一处，那里的雾一层一层退下去，直到见底；', '站得越静，天亮得越快。伸手去拨，退得更快。'],
+  },
+  en: {
+    title: 'Above the Sea of Fog', sub: '雾海之上',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'A lone figure stands on a rocky summit with his back to us, a churning sea of fog at his feet. We never see his face; we can only stand behind him and look out into the same fog.',
+    body: 'It is just before dawn, and the fog has risen over your head. <b>Hold your gaze on one spot</b> and the fog there falls away, layer by layer: to your chest, then down to the sea of fog in the painting, until crags of sandstone rise out of the mist. Once it has fallen, the fog is slow to return. <b>The stiller you stand, the sooner day breaks</b>: the sun climbs from behind the ridge, morning light glows through the fog, and on the side facing the sun it burns thin.',
+    quote: 'Close your bodily eye, so that you may see your picture first with the spiritual eye. Then bring to light what you saw in the darkness.<small>— Caspar David Friedrich, c. 1830</small>',
+    loading: 'Loading…', enter: 'Enter', loadFail: m => 'Failed to load: ' + m,
+    xr: 'Hold your gaze and the fog recedes · The stiller you stand, the sooner the dawn',
+    how: '<em>Gaze</em><span>Hold your gaze on one spot and the fog falls away, layer by layer; stand still and day breaks; reach out to sweep it aside faster</span><em>Mouse</em><span>Rest the pointer to gaze; right-drag to look around; hold the left button to sweep the fog</span><em>Sound</em><span>Best with headphones</span>',
+    mute: 'Mute', unmute: 'Sound on',
+    hint: 'Hold your gaze and the fog falls away, layer by layer; the stiller you stand, the sooner the dawn',
+    sClearing: 'The fog is falling away, layer by layer', sFog: 'You are standing in the fog. Hold your gaze, or reach out and sweep it aside', sDawn: 'Day is breaking. Stay still',
+    sRising: 'The sun is rising behind the ridge', sSunrise: 'Sunrise. Morning light glows through the sea of fog', sThin: 'Toward the sun, the fog is burning thin',
+    plaqueTitle: 'Above the Sea of Fog',
+    plaqueLines: ['You stand behind the wanderer before dawn, fog over your head.', 'Hold your gaze and the fog there recedes, layer by layer;', 'the stiller you stand, the sooner the dawn. Reach out to clear it faster.'],
+  },
+};
+const t = (key, ...a) => { const v = I18N.t(T, key); return typeof v === 'function' ? v(...a) : v; };
+I18N.apply(T, document.body);
+$('mute').textContent = t('mute');
+let stateKey = 'sFog';                     // #state 当前那句的键：换语言时不等下一帧，直接重写
+$('state').textContent = t(stateKey);         // 场景跑起来之前的那一句（之后每帧按当前语言写）
+let loadState = 'loading', loadErr = '';   // 「进入」按钮上的字随载入状态变：换语言时按状态重写
+const enterText = () => { $('enter').textContent = loadState === 'ready' ? t('enter') : loadState === 'error' ? t('loadFail', loadErr) : t('loading'); };
+enterText();
 const DEG = Math.PI / 180;
 const clamp01 = x => Math.max(0, Math.min(1, x));
 
@@ -629,7 +672,8 @@ function updateGaze(dt) {
   W.uSunXZ.value.set(W.uSun.value.x, W.uSun.value.z).normalize();
   if (dawn > 0.62 && !sunrisePlayed) { sunrisePlayed = true; sunriseTone(); }
   $('dawnBar').style.width = `${dawn * 100}%`;
-  $('state').textContent = (gw > 0.3 || stirS > 0.3) ? '雾一层一层退下去' : dawn < 0.2 ? '你站在雾里。看住一处，或伸手拨开' : dawn < 0.62 ? '天在亮，站着别动' : dawn < 0.95 ? '太阳从山脊后升起来了' : sunUp < 0.4 ? '日出。雾海被晨光照透' : '朝着太阳那边，雾被晒薄了';
+  stateKey = (gw > 0.3 || stirS > 0.3) ? 'sClearing' : dawn < 0.2 ? 'sFog' : dawn < 0.62 ? 'sDawn' : dawn < 0.95 ? 'sRising' : sunUp < 0.4 ? 'sSunrise' : 'sThin';
+  $('state').textContent = t(stateKey);   // 每帧按当前语言写
 }
 // 拨雾：手（XR，每只手一支笔刷）或按住拖动的鼠标（桌面）；比目光快，但同样是一层层剥
 const stirP = new THREE.Vector3(0, -9, 0); let stirS = 0;
@@ -680,23 +724,25 @@ function sunriseTone() {
     o.connect(g); g.connect(audio.master); g.connect(audio.delay); o.start(t + i * 1.2); o.stop(t + i * 1.2 + 14.5);
   });
 }
-$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.4, audio.ctx.currentTime, 0.3); };
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute'); if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.4, audio.ctx.currentTime, 0.3); };
 
 // ---------- XR 展签 ----------
 const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.height = 520;
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC), transparent: true }));
 plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
 scene.add(plaque);
-(function () {
+function drawPlaque() {   // 换语言时重画
   const g = plaqueC.getContext('2d');
+  g.clearRect(0, 0, 1024, 520);
   g.fillStyle = 'rgba(244,246,249,0.9)'; g.fillRect(0, 0, 1024, 520);
   g.fillStyle = '#39404f'; g.fillRect(0, 0, 10, 520);
   g.fillStyle = '#6d7586'; g.font = '22px system-ui'; g.fillText('AFTER FRIEDRICH · WANDERER ABOVE THE SEA OF FOG · c. 1818', 44, 66);
-  g.fillStyle = '#1b1f28'; g.font = '56px serif'; g.fillText('雾海之上', 44, 142);
+  g.fillStyle = '#1b1f28'; g.font = '56px serif'; g.fillText(t('plaqueTitle'), 44, 142);
   g.font = '30px serif'; g.fillStyle = '#39404f';
-  ['你站在旅人身后，黎明之前，雾漫过头顶。', '看住一处，那里的雾一层一层退下去，直到见底；', '站得越静，天亮得越快。伸手去拨，退得更快。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  t('plaqueLines').forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
   plaque.material.map.needsUpdate = true;
-})();
+}
+drawPlaque();
 
 // ---------- 进入 ----------
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -720,8 +766,8 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
     figT.anisotropy = aniso;
     W.tPaint.value = paint; W.tRock.value = rockT;
     makeFigure(figT);
-    $('enter').disabled = false; $('enter').textContent = '进入';
-  }).catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+    $('enter').disabled = false; loadState = 'ready'; enterText();
+  }).catch(e => { console.error(e); loadState = 'error'; loadErr = e.message; enterText(); });
 }
 
 // 测试钩子
@@ -734,6 +780,15 @@ window.__stamp = (x, z, r, layers) => { const b = brushes.map(v => v.clone()); b
 window.__gazeOpen = v => { camera.rotation.set(pitch, yaw, 0, 'YXZ'); camera.updateMatrixWorld(); camera.getWorldDirection(tmp); landOn(camera.position, tmp, landXZ); const n = 8; for (let i = 0; i <= n; i++) window.__stamp(landXZ.x * i / n, landXZ.y * i / n, 2.6 * (0.6 + 1.2 * i / n), v * 4 / 3); };
 window.__state = () => { const b = new Uint16Array(4); renderer.readRenderTargetPixels(fieldA, +(new URLSearchParams(location.search).get("px") || 128), +(new URLSearchParams(location.search).get("py") || 100), 1, 1, b); return { dawn, gazeHold, still, baseC: W.uBaseC.value, top: W.uTopMax.value, px: [...b].map(THREE.DataUtils.fromHalfFloat) }; };
 window.__warp = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; W.uTime.value = time; camera.rotation.set(pitch, yaw, 0, 'YXZ'); camera.updateMatrixWorld(); updateGaze(dt); updateStir(dt); stepField(dt); } renderer.render(scene, camera); };
+
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  enterText();
+  $('state').textContent = t(stateKey);   // 进场景后 #state 每帧按当前语言写；这里先写一次，不等下一帧
+  drawPlaque();                             // 展签画在画布上：按新语言重画
+});
 
 const clock = new THREE.Clock();
 let time = 0;

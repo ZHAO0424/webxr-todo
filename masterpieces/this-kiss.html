@@ -35,6 +35,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -47,17 +48,17 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After Gustav Klimt · The Kiss · 1907–08</div>
-    <h1>这一吻</h1>
-    <h2>This Kiss</h2>
-    <p class="lead">《吻》里的恋人跪在一片开满花的草地上，而草地在他们脚边戛然而止——那是一道崖边，她的脚趾和金色的藤蔓垂在崖外。</p>
-    <p>这里，那道崖边被补成一座浮在金色虚空里的花甸岛。风掠过草地压出波浪，从崖下卷起花瓣。两人由两万多个小立方体组成，分开时是两尊方块人像，隔着几米的空气相望。<b>你的两只手就是他们</b>：双手慢慢合拢，他们走近；合上的那一刻，方块滑成画中相拥的姿势，金色漫过整座岛。</p>
-    <blockquote>这一吻，献给全世界！<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small></blockquote>
+    <h1 data-i18n="title">这一吻</h1>
+    <h2 data-i18n="sub">This Kiss</h2>
+    <p class="lead" data-i18n="lead">《吻》里的恋人跪在一片开满花的草地上，而草地在他们脚边戛然而止——那是一道崖边，她的脚趾和金色的藤蔓垂在崖外。</p>
+    <p data-i18n-html="body">这里，那道崖边被补成一座浮在金色虚空里的花甸岛。风掠过草地压出波浪，从崖下卷起花瓣。两人由两万多个小立方体组成，分开时是两尊方块人像，隔着几米的空气相望。<b>你的两只手就是他们</b>：双手慢慢合拢，他们走近；合上的那一刻，方块滑成画中相拥的姿势，金色漫过整座岛。</p>
+    <blockquote data-i18n-html="quote">这一吻，献给全世界！<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how" data-xr="伸出双手 · 慢慢合拢，让他们靠近"><em>手</em><span>小岛就在你面前，低头俯瞰；两手之间的距离，就是两人之间的距离</span><em>鼠标</em><span>拖动旋转、滚轮远近；鼠标越靠近画面中线，两人越近</span><em>声音</em><span>建议戴耳机</span></div>
+    <div class="how" data-xr="伸出双手 · 慢慢合拢，让他们靠近" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>手</em><span>小岛就在你面前，低头俯瞰；两手之间的距离，就是两人之间的距离</span><em>鼠标</em><span>拖动旋转、滚轮远近；鼠标越靠近画面中线，两人越近</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><span id="state">双手合拢，让他们靠近</span><button id="mute">静音</button><div id="meter"><i id="ml"></i><i id="mr"></i></div>两手之间的距离 = 两人之间的距离</div>
-<div id="quote">“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章，1902</small></div>
+<div id="hud"><span id="state">双手合拢，让他们靠近</span><button id="mute">静音</button><div id="meter"><i id="ml"></i><i id="mr"></i></div><span data-i18n="hint">两手之间的距离 = 两人之间的距离</span></div>
+<div id="quote" data-i18n-html="quoteScene">“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章，1902</small></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -68,6 +69,51 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 
 THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
+
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '这一吻', sub: 'This Kiss',
+    lead: '《吻》里的恋人跪在一片开满花的草地上，而草地在他们脚边戛然而止——那是一道崖边，她的脚趾和金色的藤蔓垂在崖外。',
+    body: '这里，那道崖边被补成一座浮在金色虚空里的花甸岛。风掠过草地压出波浪，从崖下卷起花瓣。两人由两万多个小立方体组成，分开时是两尊方块人像，隔着几米的空气相望。<b>你的两只手就是他们</b>：双手慢慢合拢，他们走近；合上的那一刻，方块滑成画中相拥的姿势，金色漫过整座岛。',
+    quote: '这一吻，献给全世界！<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章的标题，1902</small>',
+    loading: '载入中…', enter: '进入', loadFail: msg => '载入失败：' + msg,
+    xr: '伸出双手 · 慢慢合拢，让他们靠近',
+    how: '<em>手</em><span>小岛就在你面前，低头俯瞰；两手之间的距离，就是两人之间的距离</span><em>鼠标</em><span>拖动旋转、滚轮远近；鼠标越靠近画面中线，两人越近</span><em>声音</em><span>建议戴耳机</span>',
+    stApart: '双手合拢，让他们靠近', stUnion: '相拥——金色漫过花甸',
+    mute: '静音', unmute: '开声音',
+    hint: '两手之间的距离 = 两人之间的距离',
+    quoteScene: '“这一吻，献给全世界！”<small>— 席勒《欢乐颂》；克里姆特《贝多芬横饰带》终章，1902</small>',
+    plaqueTitle: '这一吻  This Kiss',
+    plaqueLines: ['画里的花地在他们脚边戛然而止——那是一道崖边。', '这里把崖边补成一座花甸岬角，俯瞰它。', '伸出双手：分开，他们分开；合上，他们相拥。'],
+    plaqueQuote: '“这一吻，献给全世界！”— 席勒 / 克里姆特《贝多芬横饰带》',
+  },
+  en: {
+    title: 'This Kiss', sub: '这一吻',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'In The Kiss, the lovers kneel on a meadow full of flowers, and the meadow stops abruptly at their feet: it is the edge of a cliff, with her toes and the golden tendrils hanging over the drop.',
+    body: 'Here that edge has been completed as a flowering island adrift in a golden void. Wind sweeps the grass into waves and lifts petals up from below the cliff. The pair are built from more than twenty thousand small cubes; apart, they are two blocky figures gazing at each other across a few metres of air. <b>Your two hands are the lovers</b>: bring them slowly together and the figures draw closer; the moment your hands meet, the cubes slide into the embrace of the painting and gold floods the whole island.',
+    quote: 'This kiss to the whole world!<small>— Schiller, Ode to Joy; the title of the final panel of Klimt’s Beethoven Frieze, 1902</small>',
+    loading: 'Loading…', enter: 'Enter', loadFail: msg => 'Failed to load: ' + msg,
+    xr: 'Hold out both hands · Bring them slowly together',
+    how: '<em>Hands</em><span>The island lies just in front of you; look down on it. The distance between your hands is the distance between the two lovers</span><em>Mouse</em><span>Drag to orbit, scroll to zoom; the closer the pointer is to the centre line, the closer the lovers</span><em>Sound</em><span>Best with headphones</span>',
+    stApart: 'Bring your hands together to draw them close', stUnion: 'An embrace — gold floods the meadow',
+    mute: 'Mute', unmute: 'Sound on',
+    hint: 'Distance between your hands = distance between the lovers',
+    quoteScene: '“This kiss to the whole world!”<small>— Schiller, Ode to Joy; final panel of Klimt’s Beethoven Frieze, 1902</small>',
+    plaqueTitle: 'This Kiss',
+    plaqueLines: ['In the painting, the meadow stops short at a cliff edge.', 'Here that edge becomes a flowering headland. Look down on it.', 'Hold out both hands: apart, they part; together, they embrace.'],
+    plaqueQuote: '“This kiss to the whole world!” — Schiller / Klimt, Beethoven Frieze',
+  },
+};
+const t = (key, ...a) => { const v = I18N.t(T, key); return typeof v === 'function' ? v(...a) : v; };
+// 被脚本改写的字记下当前是哪一句，换语言时按状态重写
+let enterKey = 'loading', enterArg = '', stateKey = 'stApart';
+const setEnter = (key, arg = '') => { enterKey = key; enterArg = arg; $('enter').textContent = t(key, arg); };
+const setState = key => { stateKey = key; $('state').textContent = t(key); };
+I18N.apply(T, document.body);
+setEnter('loading'); setState('stApart');
+$('mute').textContent = t('mute');
 const DEG = Math.PI / 180;
 const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 const clamp01 = x => Math.max(0, Math.min(1, x));
@@ -692,7 +738,7 @@ function bell(freqs, gain = 0.12) {
     o.connect(g); g.connect(audio.master); g.connect(audio.delay); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 4.1);
   });
 }
-$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.35, audio.ctx.currentTime, 0.3); };
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute'); if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.35, audio.ctx.currentTime, 0.3); };
 
 // ---------- 输入：两只手的距离（XR）/ 鼠标离中线的距离（桌面）；桌面上拖动转视角、滚轮远近 ----------
 const hands = [0, 1].map(i => { const h = renderer.xr.getHand(i); scene.add(h); return h; });
@@ -748,12 +794,12 @@ function step(dt, t) {
     if (unionHold > 0.35 && union < 0.5) {
       union = 1; unions++; waveT = 0;
       bell([BASE * 2, BASE * 3, BASE * 4, BASE * 5]);
-      $('state').textContent = '相拥——金色漫过花甸';
+      setState('stUnion');
       if (!quoteShown) { quoteShown = true; $('quote').classList.add('on'); setTimeout(() => $('quote').classList.remove('on'), 11000); }
     }
   } else {
     unionHold = 0;
-    if (apart > 0.3 && union > 0.5) { union = 0; $('state').textContent = '双手合拢，让他们靠近'; }
+    if (apart > 0.3 && union > 0.5) { union = 0; setState('stApart'); }
   }
   U.uUnion.value += (union - U.uUnion.value) * Math.min(1, dt * 1.2);
   if (waveT >= 0) { waveT += dt * 0.22; if (waveT > 1.3) waveT = -1; }
@@ -789,17 +835,18 @@ const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
 plaque.position.set(-0.42, EYE_XR.y - 0.35, -0.75); plaque.lookAt(EYE_XR); plaque.visible = false;
 scene.add(plaque);
-(function () {
+function drawPlaque() {
   const g = plaqueC.getContext('2d');
   g.fillStyle = '#18120a'; g.fillRect(0, 0, 1024, 520);
   g.fillStyle = '#d4a838'; g.fillRect(0, 0, 1024, 8);
   g.fillStyle = '#b49a6a'; g.font = '22px system-ui'; g.fillText('AFTER KLIMT · THE KISS · 1907–08', 44, 66);
-  g.fillStyle = '#f0d27a'; g.font = '56px serif'; g.fillText('这一吻  This Kiss', 44, 142);
+  g.fillStyle = '#f0d27a'; g.font = '56px serif'; g.fillText(t('plaqueTitle'), 44, 142);
   g.font = '30px serif'; g.fillStyle = '#e9dfc6';
-  ['画里的花地在他们脚边戛然而止——那是一道崖边。', '这里把崖边补成一座花甸岬角，俯瞰它。', '伸出双手：分开，他们分开；合上，他们相拥。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
-  g.fillStyle = '#f3dc98'; g.font = 'italic 26px serif'; g.fillText('“这一吻，献给全世界！”— 席勒 / 克里姆特《贝多芬横饰带》', 44, 470);
+  t('plaqueLines').forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  g.fillStyle = '#f3dc98'; g.font = 'italic 26px serif'; g.fillText(t('plaqueQuote'), 44, 470);
   plaque.material.map.needsUpdate = true;
-})();
+}
+drawPlaque();
 
 // ---------- 进入 ----------
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -830,8 +877,16 @@ window.__apart = v => { forcedApart = v === null ? null : v; };
 window.__view = (azDeg, elDeg, r) => { orbit.az = azDeg * DEG; orbit.el = elDeg * DEG; if (r) orbit.r = r; orbit.azV = 0; };
 window.__warp = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; U.uTime.value = time; step(dt, time); updateCamera(dt); } renderer.render(scene, camera); };
 
-buildVoxels().then(() => { $('enter').disabled = false; $('enter').textContent = '进入'; })
-  .catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+buildVoxels().then(() => { $('enter').disabled = false; setEnter('enter'); })
+  .catch(e => { console.error(e); setEnter('loadFail', e.message); });
+
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  setEnter(enterKey, enterArg); setState(stateKey);
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  drawPlaque();                             // 展签画在画布上：按新语言重画
+});
 
 // 进 XR 后每只眼睛画面的像素高度
 function xrPixelHeight() {

@@ -47,6 +47,13 @@ for (const k of ['AudioContext', 'webkitAudioContext']) {
 }
 // 跳过入场页时「进入」是脚本替观众按的，浏览器可能不让声音马上响：观众第一次点、按键、触碰时补一下
 untracked(() => { for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, () => gen.audio.forEach(a => { if (a.state === 'suspended') a.resume(); }), true); });
+// 换语言的回调（MP_I18N.onChange）也按作品记：卸下的作品不再收到，免得去改已经不在页面上的字
+// 本模块自己的（untracked 里挂的）和 nav.js 的（比本模块先加载）一直有效
+const I18N = window.MP_I18N;
+if (I18N) {
+  const on = I18N.onChange.bind(I18N);
+  I18N.onChange = fn => { if (bypass) return on(fn); const g = gen; on(l => { if (g === gen) fn(l); }); };
+}
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
   navigator.mediaDevices.getUserMedia = c => gum(c).then(s => { gen.streams.push(s); return s; });
@@ -54,7 +61,20 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
 
 // ---------- 头显里的叠层：黑幕、换画时的标题、底部的切换条 ----------
 const ov = {};
-const SERIF = '"Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", Georgia, serif', SANS = 'system-ui, "PingFang SC", "Microsoft YaHei", sans-serif';
+const CJK_SERIF = '"Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", Georgia, serif', SANS = 'system-ui, "PingFang SC", "Microsoft YaHei", sans-serif';
+let SERIF = CJK_SERIF;                    // 英文时西文字体排在前面（宋体里的西文字形不好看），每次画卡片前按语言定
+// 叠层上的字：中 / 英。没加载 i18n.js 时一律中文
+const DICT = {
+  zh: { loading: '正在载入…', loadingScene: s => `正在载入场景 · ${s} 秒`, loaded: '载入完成', homeKicker: n => `INTO THE PAINTING · ${n} ROOMS`,
+        homeTitle: '入画', homeSub: '回到画廊', stripHome: '⌂ 回画廊', stripPrev: '‹ 上一幅', stripNext: '下一幅 ›',
+        eye: '观看点', eyeKeys: 'W/S 前后 · A/D 左右 · Q/E 低高 · 0 复位' },
+  en: { loading: 'Loading…', loadingScene: s => `Loading scene · ${s}s`, loaded: 'Ready', homeKicker: n => `${n} ROOMS`,
+        homeTitle: 'Into the Painting', homeSub: 'Back to the gallery', stripHome: '⌂ Gallery', stripPrev: '‹ Previous', stripNext: 'Next ›',
+        eye: 'Viewpoint', eyeKeys: 'W/S forward/back · A/D left/right · Q/E down/up · 0 reset' },
+};
+const L = k => I18N ? I18N.t(DICT, k) : DICT.zh[k];
+const T = w => window.workText ? workText(w) : { title: w.zh, sub: w.en, blurb: w.blurb, tags: w.tags };
+const setFonts = () => { SERIF = I18N && I18N.lang === 'en' ? `Georgia, ${CJK_SERIF}` : CJK_SERIF; };
 function canvasPlane(w, h, cw, ch, order) {
   const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
   const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
@@ -79,13 +99,13 @@ function buildOverlay() {
 }
 let homeKey = '';
 function drawHome2(hot) {
-  const key = String(hot); if (key === homeKey) return; homeKey = key;
+  const key = `${hot}|${I18N ? I18N.lang : 'zh'}`; if (key === homeKey) return; homeKey = key;   // 换了语言也要重画
   const { g, cv, tex } = ov.home, w = cv.width, h = cv.height;
   g.clearRect(0, 0, w, h);
   g.fillStyle = hot ? 'rgba(201,164,92,.35)' : 'rgba(11,10,13,.72)'; g.beginPath(); g.roundRect(8, 8, w - 16, h - 16, (h - 16) / 2); g.fill();
   g.lineWidth = hot ? 8 : 5; g.strokeStyle = hot ? 'rgba(232,200,128,1)' : 'rgba(201,164,92,.75)'; g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#f6f0e4';
-  fitText(g, '⌂ 回画廊', w / 2, h / 2 + 4, w - 90, 86, `500 $px ${SANS}`, 6);
+  fitText(g, L('stripHome'), w / 2, h / 2 + 4, w - 90, 86, `500 $px ${SANS}`, 6);
   tex.needsUpdate = true;
 }
 
@@ -96,10 +116,10 @@ function fitText(g, txt, x, y, maxW, size, font, spacing = 0) {
   for (let k = 0; k < 8; k++) { g.font = `${font.replace('$', size)}`; if (g.measureText(txt).width <= maxW) break; size *= 0.9; spacing *= 0.9; g.letterSpacing = `${spacing}px`; }
   g.fillText(txt, x, y);
 }
-// 中文按字折行（英文单词也不会太长，按字折也看得过去），最多 maxLines 行，超出用省略号
+// 折行：中文按字，西文按词（连着的字母、数字、标点算一块），最多 maxLines 行，超出用省略号
 function wrapText(g, txt, maxW, maxLines) {
   const lines = []; let cur = '';
-  for (const ch of txt) {
+  for (const ch of txt.match(/[\wÀ-ɏ'’“”",.;:!?()\-–—]+|\s+|[^]/gu) || []) {
     if (g.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ch.trim() ? ch : ''; if (lines.length === maxLines) break; }
     else cur += ch;
   }
@@ -109,8 +129,11 @@ function wrapText(g, txt, maxW, maxLines) {
 }
 const thumbs = new Map();                 // 缩略图：载入后若卡片还是这一幅，就重画一次
 let cardNow = null;
-function drawTitle(w, idx, status = '正在载入…') {
+// status：右上角的进度字，传函数时换语言能按新语言重画
+function drawTitle(w, idx, status = () => L('loading')) {
   cardNow = { w, idx, status };
+  homeNow = false; setFonts();
+  const txt = T(w), st = typeof status === 'function' ? status() : status;
   const { g, cv, tex } = ov.title, W = cv.width, H = cv.height;
   g.clearRect(0, 0, W, H); g.shadowBlur = 0;
   g.fillStyle = 'rgba(14,13,18,.92)'; g.beginPath(); g.roundRect(8, 8, W - 16, H - 16, 36); g.fill();
@@ -129,31 +152,36 @@ function drawTitle(w, idx, status = '正在载入…') {
   const x = 1000, cw = W - x - 80;
   g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   g.fillStyle = 'rgba(201,164,92,.95)'; fitText(g, `${idx + 1} / ${works().length}  ·  AFTER ${w.after.toUpperCase()} · ${w.year}`, x, 150, cw, 38, `500 $px ${SANS}`, 8);
-  g.fillStyle = '#f3ede2'; fitText(g, w.zh, x, 300, cw, 120, `400 $px ${SERIF}`, 16);
-  g.fillStyle = 'rgba(232,224,210,.75)'; fitText(g, w.en, x, 385, cw, 50, `italic $px ${SERIF}`, 2);
+  g.fillStyle = '#f3ede2'; fitText(g, txt.title, x, 300, cw, 120, `400 $px ${SERIF}`, 16);
+  g.fillStyle = 'rgba(232,224,210,.75)'; fitText(g, txt.sub, x, 385, cw, 50, `italic $px ${SERIF}`, 2);
   g.fillStyle = 'rgba(201,164,92,.85)'; g.fillRect(x, 430, 90, 4);
-  g.fillStyle = 'rgba(236,231,220,.92)'; g.font = `400 46px ${SERIF}`; g.letterSpacing = '2px';
-  wrapText(g, w.blurb || '', cw, 6).forEach((ln, k) => g.fillText(ln, x, 515 + k * 76));
+  // 介绍：六行放不下（英文比中文长）就把字号缩一点，行距跟着缩
+  g.fillStyle = 'rgba(236,231,220,.92)'; g.letterSpacing = '2px';
+  let fs = 46, lines;
+  for (;;) { g.font = `400 ${fs}px ${SERIF}`; lines = wrapText(g, txt.blurb || '', cw, 99); if (lines.length <= 6 || fs <= 36) break; fs -= 2; }
+  if (lines.length > 6) lines = wrapText(g, txt.blurb || '', cw, 6);
+  lines.forEach((ln, k) => g.fillText(ln, x, 515 + k * fs * 1.65));
   let tx = x; g.font = `500 32px ${SANS}`; g.letterSpacing = '2px';
-  for (const t of w.tags || []) {
+  for (const t of txt.tags || []) {
     const tw = g.measureText(t).width + 44; if (tx + tw > W - 80) break;
     g.lineWidth = 2; g.strokeStyle = 'rgba(236,231,220,.35)'; g.beginPath(); g.roundRect(tx, 990, tw, 58, 29); g.stroke();
     g.fillStyle = 'rgba(236,231,220,.75)'; g.fillText(t, tx + 22, 1030); tx += tw + 14;
   }
   g.fillStyle = 'rgba(201,164,92,.9)'; g.font = `500 34px ${SANS}`; g.letterSpacing = '4px'; g.textAlign = 'right';
-  g.fillText(status, W - 80, 150 - 70);
+  g.fillText(st, W - 80, 150 - 70);
   tex.needsUpdate = true;
 }
 
+let homeNow = false;                      // 卡片上现在是不是"回到画廊"：换语言时照着重画
 function drawHome() {
-  cardNow = null;
+  cardNow = null; homeNow = true; setFonts();
   const { g, cv, tex } = ov.title, W = cv.width;
   g.clearRect(0, 0, W, cv.height); g.textAlign = 'center'; g.textBaseline = 'middle';
   g.save(); g.translate(0, 265);                                // 卡片画布比原来高，内容挪到正中
   g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 12;
-  g.fillStyle = 'rgba(201,164,92,.95)'; fitText(g, `INTO THE PAINTING · ${works().length} ROOMS`, W / 2, 96, W - 120, 40, `500 $px ${SANS}`, 10);
-  g.fillStyle = '#f3ede2'; fitText(g, '入画', W / 2, 290, W - 160, 200, `400 $px ${SERIF}`, 60);
-  g.fillStyle = 'rgba(232,224,210,.78)'; fitText(g, '回到画廊', W / 2, 452, W - 200, 64, `italic $px ${SERIF}`, 12);
+  g.fillStyle = 'rgba(201,164,92,.95)'; fitText(g, L('homeKicker')(works().length), W / 2, 96, W - 120, 40, `500 $px ${SANS}`, 10);
+  g.fillStyle = '#f3ede2'; fitText(g, L('homeTitle'), W / 2, 290, W - 160, 200, `400 $px ${SERIF}`, I18N && I18N.lang === 'en' ? 8 : 60);
+  g.fillStyle = 'rgba(232,224,210,.78)'; fitText(g, L('homeSub'), W / 2, 452, W - 200, 64, `italic $px ${SERIF}`, 12);
   g.shadowBlur = 0; g.fillStyle = 'rgba(201,164,92,.85)'; g.fillRect(W / 2 - 60, 548, 120, 4);
   g.restore();
   tex.needsUpdate = true;
@@ -168,7 +196,8 @@ const XR_SWITCH = false;                                // 场景里的切换栏
 let stripKey = '';
 function drawStrip(hot, prog) {
   const W = works(), i = W.findIndex(w => w.slug === slugNow()); if (i < 0) return;
-  const key = `${i}|${hot}|${Math.round(prog * 40)}`; if (key === stripKey) return; stripKey = key;
+  const key = `${i}|${hot}|${Math.round(prog * 40)}|${I18N ? I18N.lang : ''}`; if (key === stripKey) return; stripKey = key;
+  setFonts();
   const prev = W[(i - 1 + W.length) % W.length], next = W[(i + 1) % W.length];
   const { g, cv, tex } = ov.strip, w = cv.width, h = cv.height;
   g.clearRect(0, 0, w, h); g.textBaseline = 'middle'; g.textAlign = 'center';
@@ -180,8 +209,8 @@ function drawStrip(hot, prog) {
     g.lineWidth = 4; g.strokeStyle = 'rgba(222,186,110,.9)'; g.stroke();
   }
   shadow(18); g.fillStyle = 'rgba(201,164,92,.95)'; fitText(g, `${i + 1} / ${W.length}`, w / 2, 100, cw, 50, `500 $px ${SANS}`, 8);
-  g.fillStyle = 'rgba(243,237,226,.9)'; fitText(g, W[i].zh, w / 2, 200, cw, 80, `400 $px ${SERIF}`, 8);
-  g.fillStyle = hot === 2 ? '#f6f0e4' : 'rgba(232,224,210,.7)'; fitText(g, '⌂ 回画廊', w / 2, 300, cw, 50, `500 $px ${SANS}`, 6);
+  g.fillStyle = 'rgba(243,237,226,.9)'; fitText(g, T(W[i]).title, w / 2, 200, cw, 80, `400 $px ${SERIF}`, 8);
+  g.fillStyle = hot === 2 ? '#f6f0e4' : 'rgba(232,224,210,.7)'; fitText(g, L('stripHome'), w / 2, 300, cw, 50, `500 $px ${SANS}`, 6);
   if (hot === 2 && prog > 0) { shadow(0); g.fillStyle = 'rgba(222,186,110,1)'; g.fillRect(w / 2 - cw / 2 + 50, h - 62, (cw - 100) * prog, 8); }
   const chip = (z, label, name) => {
     const x0 = ZONES[z][0] * w + 10, x1 = ZONES[z][1] * w - 10, on = hot === z, cx = (x0 + x1) / 2;
@@ -192,7 +221,7 @@ function drawStrip(hot, prog) {
     g.fillStyle = 'rgba(232,224,210,.85)'; fitText(g, name, cx, 280, x1 - x0 - 70, 62, `400 $px ${SERIF}`, 4);
     if (on && prog > 0) { shadow(0); g.fillStyle = 'rgba(222,186,110,1)'; g.fillRect(x0 + 60, h - 62, (x1 - x0 - 120) * prog, 8); }
   };
-  chip(0, '‹ 上一幅', prev.zh); chip(1, '下一幅 ›', next.zh);
+  chip(0, L('stripPrev'), T(prev).title); chip(1, L('stripNext'), T(next).title);
   tex.needsUpdate = true;
 }
 
@@ -222,7 +251,7 @@ const eyeDefault = () => { if (pageEye) return pageEye; const w = works().find(w
 function showEye(e) {
   let el = document.getElementById('mp-eye');
   if (!el) { el = document.createElement('div'); el.id = 'mp-eye'; el.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:70;font:12px/1.5 system-ui,sans-serif;color:#ece7dc;background:rgba(14,13,18,.75);padding:6px 10px;border-radius:6px;pointer-events:none'; document.body.appendChild(el); }
-  el.textContent = `观看点 (${e.map(v => v.toFixed(2)).join(', ')})　W/S 前后 · A/D 左右 · Q/E 低高 · 0 复位`;
+  el.textContent = `${L('eye')} (${e.map(v => v.toFixed(2)).join(', ')})　${L('eyeKeys')}`;
   clearTimeout(showEye.t); el.style.display = ''; showEye.t = _st(() => { el.style.display = 'none'; }, 6000);
 }
 untracked(() => addEventListener('keydown', e => {
@@ -381,10 +410,10 @@ export async function go(dir, force = false, to = null) {
     // 作品：等它载完画（「进入」按钮亮起），再替观众按下它。画廊主页的「进入」是走进画，不能按
     const enter = !home && document.getElementById('enter');
     for (let k = 0; enter && enter.disabled && k < 600; k++) {
-      if (k % 10 === 0) untracked(() => drawTitle(target, j, `正在载入场景 · ${Math.round((performance.now() - t0) / 1000)} 秒`));
+      if (k % 10 === 0) { const sec = Math.round((performance.now() - t0) / 1000); untracked(() => drawTitle(target, j, () => L('loadingScene')(sec))); }
       await sleep(100);
     }
-    if (!home) untracked(() => drawTitle(target, j, '载入完成'));
+    if (!home) untracked(() => drawTitle(target, j, () => L('loaded')));
     if (enter && enter.disabled) throw new Error('载入超时');
     setMuted(false);                     // 新作品的「静音」按钮是开着声音的
     if (enter) enter.click();            // 点「进入」会顺带放这件作品的配乐
@@ -577,7 +606,7 @@ function sfx(kind = 'note', o = {}) {
 // 「静音」按钮：作品自己切换文字，这里随后读一下，配乐和音效跟着开关；「进入」/ 进 XR：开始放这件作品的配乐
 untracked(() => document.addEventListener('click', e => {
   const el = e.target && e.target.closest ? e.target : null; if (!el) return;
-  if (el.closest('#mute')) { _st(() => { const b = document.getElementById('mute'); setMuted(!!b && /开声音/.test(b.textContent)); }, 0); return; }
+  if (el.closest('#mute')) { _st(() => { const b = document.getElementById('mute'); setMuted(!!b && /开声音|Sound on/i.test(b.textContent)); }, 0); return; }
   if (el.closest('#enter, #VRButton, #ARButton') && onWork()) playMusic(slugNow());
 }, true));
 untracked(() => { for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, () => {
@@ -608,6 +637,8 @@ export const hop = {
       R.xr[k] = i => { const o = f(i); xrObjs.add(o); return o; };
     }
     untracked(() => {
+      // 换语言：叠层上的卡片当场重画（切换条按语言记了 key，下次画时自己会重画）
+      if (I18N) I18N.onChange(() => { if (cardNow) drawTitle(cardNow.w, cardNow.idx, cardNow.status); else if (homeNow) drawHome(); });
       R.xr.addEventListener('sessionstart', () => {
         teaserUntil = performance.now() + 7000; anchorYaw = null;
         if (onWork() && !busy) autoEnterPage();

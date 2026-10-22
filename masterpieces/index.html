@@ -33,6 +33,7 @@
   .arrows { display: flex; gap: 8px; justify-content: flex-end; margin: 12px 0 10px; }
   .arrows button, #listBtn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: rgba(14,13,18,.5); color: var(--ink); font-size: 16px; cursor: pointer; }
   .arrows button:hover, #listBtn:hover { border-color: var(--gold); }
+  .arrows #lang { font: 12px/1 system-ui, sans-serif; letter-spacing: .04em; }
   #listBtn { width: auto; padding: 0 16px; border-radius: 999px; height: 32px; font-size: 12px; letter-spacing: .1em; position: fixed; top: 24px; right: 24px; z-index: 12; }
   #list { position: fixed; inset: 0; z-index: 11; background: rgba(11,10,13,.94); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity .35s; overflow-y: auto; padding: 84px 24px 40px; }
   #list.on { opacity: 1; pointer-events: auto; }
@@ -44,6 +45,12 @@
   #list i { font: 11px/1.4 system-ui, sans-serif; letter-spacing: .14em; color: var(--mute); font-style: normal; }
   #list .foot { max-width: 820px; margin: 40px auto 0; font: 12px/1.8 system-ui, sans-serif; color: var(--mute); }
   #list .foot a { display: inline; text-decoration: underline; }
+  /* 英文：西文字体排前面（宋体里的西文字形不好看），大标题的字距收一点 */
+  :root[lang="en"] body { font-family: Georgia, "Songti SC", "STSong", "SimSun", serif; }
+  :root[lang="en"] h1 { letter-spacing: .06em; }
+  :root[lang="en"] header .sub { letter-spacing: .08em; }
+  :root[lang="en"] #info h2 { letter-spacing: .01em; }
+  :root[lang="en"] #enter { letter-spacing: .3em; }
   @media (max-width: 640px) {
     #info h2 { font-size: 26px; } #info p { display: none; } #info { bottom: 92px; }
     #side { left: 24px; right: 24px; bottom: 20px; display: flex; align-items: center; justify-content: space-between; text-align: left; }
@@ -57,32 +64,33 @@
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
+<script src="i18n.js"></script>
 <script src="works.js"></script>
 <link rel="stylesheet" href="stage.css">
 </head>
 <body>
 <div id="veil"></div>
 <header>
-  <div class="kicker">INTO THE PAINTING · NINE ROOMS</div>
-  <h1>入画</h1>
-  <div class="sub">九幅名画，九种走进去的方式</div>
+  <div class="kicker" data-i18n="kicker">INTO THE PAINTING · NINE ROOMS</div>
+  <h1 data-i18n="title">入画</h1>
+  <div class="sub" data-i18n="sub">九幅名画，九种走进去的方式</div>
 </header>
-<button id="listBtn" aria-expanded="false">目录</button>
+<button id="listBtn" aria-expanded="false" data-i18n="list">目录</button>
 <section id="info" aria-live="polite">
   <div class="after" id="iAfter"></div>
   <h2 id="iZh"></h2>
   <div class="en" id="iEn"></div>
   <p id="iBlurb"></p>
   <div class="tags" id="iTags"></div>
-  <button id="enter">进入</button>
+  <button id="enter" data-i18n="enter">进入</button>
 </section>
 <div id="side">
   <div id="count"></div>
-  <div class="arrows"><button id="prev" aria-label="上一幅">‹</button><button id="next" aria-label="下一幅">›</button></div>
-  <div class="hint">拖动 · 滚轮 · 方向键浏览<br>点击正中的画，走进去<br>戴上头显：点右上角 VR，进一次，全程不出来</div>
+  <div class="arrows"><button id="lang" data-i18n="langBtn" data-i18n-attr="title:langTitle">EN</button><button id="prev" aria-label="上一幅" data-i18n-attr="aria-label:prev">‹</button><button id="next" aria-label="下一幅" data-i18n-attr="aria-label:next">›</button></div>
+  <div class="hint" data-i18n-html="hint">拖动 · 滚轮 · 方向键浏览<br>点击正中的画，走进去<br>戴上头显：点右上角 VR，进一次，全程不出来</div>
 </div>
-<div id="list" role="dialog" aria-label="全部作品"><ol id="listOl"></ol>
-  <div class="foot">每一件都不复制原画，而是挑一种和那幅画精神相合的算法，把画放进你周围的空间里，再给它一个只属于它的交互。电脑上用鼠标，头显里用手、视线或声音。所有画作均为公有领域，图片来自 Wikimedia Commons。WebXR 需要 HTTPS 或 localhost；离线烘焙脚本在 <code>bake/</code>。← <a href="../">悬浮体</a></div>
+<div id="list" role="dialog" aria-label="全部作品" data-i18n-attr="aria-label:listLabel"><ol id="listOl"></ol>
+  <div class="foot" data-i18n-html="foot">每一件都不复制原画，而是挑一种和那幅画精神相合的算法，把画放进你周围的空间里，再给它一个只属于它的交互。电脑上用鼠标，头显里用手、视线或声音。所有画作均为公有领域，图片来自 Wikimedia Commons。WebXR 需要 HTTPS 或 localhost；离线烘焙脚本在 <code>bake/</code>。← <a href="../">全部作品</a></div>
 </div>
 
 <script type="module">
@@ -95,6 +103,30 @@ THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
 const W = window.WORKS, N = W.length, STEP = Math.PI * 2 / N;
 const RING = 6.6, FLOOR = -1.55;
+
+// ---------- 中 / 英 ----------
+// 静态文字用 data-i18n 挂键；作品的名字、介绍、标签从 works.js 的 workText(w) 取。语言按钮在右下角两个箭头左边
+const I18N = window.MP_I18N;
+const TEXT = {
+  zh: {
+    pageTitle: '入画 · Into the Painting', kicker: 'INTO THE PAINTING · NINE ROOMS', title: '入画', sub: '九幅名画，九种走进去的方式',
+    list: '目录', close: '关闭', listLabel: '全部作品', enter: '进入', prev: '上一幅', next: '下一幅', langBtn: 'EN', langTitle: 'Switch to English',
+    hint: '拖动 · 滚轮 · 方向键浏览<br>点击正中的画，走进去<br>戴上头显：点右上角 VR，进一次，全程不出来',
+    foot: '每一件都不复制原画，而是挑一种和那幅画精神相合的算法，把画放进你周围的空间里，再给它一个只属于它的交互。电脑上用鼠标，头显里用手、视线或声音。所有画作均为公有领域，图片来自 Wikimedia Commons。WebXR 需要 HTTPS 或 localhost；离线烘焙脚本在 <code>bake/</code>。← <a href="../">全部作品</a>',
+    plateHint: '对准它捏合，走进去 · 捏住左右拖，换一幅',
+    xrIntro: ['入画', 'Into the Painting', '捏住左右拖，换一幅 · 对准正中的画捏合，走进去'],
+  },
+  en: {
+    pageTitle: 'Into the Painting', kicker: 'NINE PAINTINGS · NINE ROOMS', title: 'Into the Painting', sub: 'Nine masterpieces, nine ways to step inside',
+    list: 'Works', close: 'Close', listLabel: 'All works', enter: 'Enter', prev: 'Previous', next: 'Next', langBtn: '中文', langTitle: '切换到中文',
+    hint: 'Drag, scroll or use the arrow keys to browse<br>Click the painting in the center to step in<br>In a headset: tap Enter XR at top right, and stay in throughout',
+    foot: 'None of these copies the original. Each piece pairs a painting with an algorithm in tune with its spirit, sets it in the space around you, and gives it an interaction of its own: a mouse on a computer; hands, gaze or voice in a headset. All paintings are in the public domain; images from Wikimedia Commons. WebXR needs HTTPS or localhost; the offline bake scripts are in <code>bake/</code>. ← <a href="../">All works</a>',
+    plateHint: 'Pinch it to step in · pinch and drag to browse',
+    xrIntro: ['Into the Painting', '入画', 'Pinch and drag to browse · pinch the center painting to step in'],
+  },
+};
+const L = k => I18N ? I18N.t(TEXT, k) : TEXT.zh[k];
+const T = w => window.workText ? workText(w) : { title: w.zh, sub: w.en, blurb: w.blurb, tags: w.tags };
 
 // ---------- 画廊：你站在一间暗室正中，九幅画挂成一圈，正对你的那幅被一束光照着；鼠标是一盏提灯 ----------
 const renderer = hop.renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true });   // alpha：之后走进的作品要用 AR 透视
@@ -264,25 +296,27 @@ function enter(kXR) {
 }
 
 // 目录
-const toggleList = on => { $('list').classList.toggle('on', on); $('listBtn').setAttribute('aria-expanded', on); $('listBtn').textContent = on ? '关闭' : '目录'; };
+const toggleList = on => { $('list').classList.toggle('on', on); $('listBtn').setAttribute('aria-expanded', on); $('listBtn').textContent = L(on ? 'close' : 'list'); };
 $('listBtn').onclick = () => toggleList(!$('list').classList.contains('on'));
-$('listOl').innerHTML = W.map(w => `<li><a href="${w.slug}.html"><img src="data/thumbs/${w.slug}.jpg" alt="" loading="lazy"><b>${w.zh}</b><i>AFTER ${w.after.toUpperCase()} · ${w.year}</i></a></li>`).join('');
+const fillList = () => { $('listOl').innerHTML = W.map(w => `<li><a href="${w.slug}.html"><img src="data/thumbs/${w.slug}.jpg" alt="" loading="lazy"><b>${T(w).title}</b><i>AFTER ${w.after.toUpperCase()} · ${w.year}</i></a></li>`).join(''); };
+fillList();
 
 let swapT = 0;
 function showInfo(k) {
   if (k === shown) return;
   const first = shown < 0; shown = k;
   const w = W[k], el = $('info');
-  const fill = () => {
-    $('iAfter').textContent = `After ${w.after} · ${w.year}`;
-    $('iZh').textContent = w.zh; $('iEn').textContent = w.en; $('iBlurb').textContent = w.blurb;
-    $('iTags').innerHTML = w.tags.map(t => `<span>${t}</span>`).join('');
-    $('count').innerHTML = `${String(k + 1).padStart(2, '0')} <small>/ ${String(N).padStart(2, '0')}</small>`;
-    el.classList.remove('swap');
-  };
+  const fill = () => { fillInfo(k); el.classList.remove('swap'); };
   clearTimeout(swapT);
   if (first) fill(); else { el.classList.add('swap'); swapT = setTimeout(fill, 280); }
   history.replaceState(null, '', `?from=${w.slug}`);
+}
+function fillInfo(k) {
+  const w = W[k], t = T(w);
+  $('iAfter').textContent = `After ${w.after} · ${w.year}`;
+  $('iZh').textContent = t.title; $('iEn').textContent = t.sub; $('iBlurb').textContent = t.blurb;
+  $('iTags').innerHTML = t.tags.map(s => `<span>${s}</span>`).join('');
+  $('count').innerHTML = `${String(k + 1).padStart(2, '0')} <small>/ ${String(N).padStart(2, '0')}</small>`;
 }
 
 // ---------- 头显里的画廊：一副在眼前的轮牌 ----------
@@ -303,13 +337,19 @@ const label = (() => {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2 * 420 / 1536), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, toneMapped: false }));
   m.visible = false; m.renderOrder = 5;
   const g = c.getContext('2d');
+  // 一行放不下就缩小字号（英文名比中文长）；英文时西文字体排前面
+  const fit = (txt, y, font, size, spacing) => {
+    for (let n = 0; n < 8; n++) { g.font = font.replace('$', size); g.letterSpacing = `${spacing}px`; if (g.measureText(txt).width <= c.width - 60) break; size *= 0.9; spacing *= 0.9; }
+    g.fillText(txt, c.width / 2, y);
+  };
   const draw = k => {
-    const w = W[k]; g.clearRect(0, 0, c.width, c.height); g.textAlign = 'center'; g.textBaseline = 'middle';
+    const w = W[k], t = T(w), en = I18N && I18N.lang === 'en'; g.clearRect(0, 0, c.width, c.height); g.textAlign = 'center'; g.textBaseline = 'middle';
+    const serif = en ? 'Georgia, "Songti SC", "STSong", "SimSun", serif' : '"Songti SC", "STSong", "SimSun", serif';
     g.fillStyle = 'rgba(201,164,92,.95)'; g.font = '500 44px system-ui, sans-serif'; g.letterSpacing = '10px';
     g.fillText(`${k + 1} / ${N} · AFTER ${w.after.toUpperCase()} · ${w.year}`, c.width / 2, 60);
-    g.fillStyle = '#f3ede2'; g.font = '400 130px "Songti SC", "STSong", "SimSun", serif'; g.letterSpacing = '20px'; g.fillText(w.zh, c.width / 2, 185);
-    g.fillStyle = 'rgba(232,224,210,.78)'; g.font = 'italic 52px "Songti SC", Georgia, serif'; g.letterSpacing = '2px'; g.fillText(w.en, c.width / 2, 290);
-    g.fillStyle = 'rgba(232,224,210,.6)'; g.font = '500 40px system-ui, sans-serif'; g.letterSpacing = '6px'; g.fillText('对准它捏合，走进去 · 捏住左右拖，换一幅', c.width / 2, 375);
+    g.fillStyle = '#f3ede2'; fit(t.title, 185, `400 $px ${serif}`, en ? 116 : 130, en ? 4 : 20);
+    g.fillStyle = 'rgba(232,224,210,.78)'; fit(t.sub, 290, `italic $px ${en ? serif : '"Songti SC", Georgia, serif'}`, 52, 2);
+    g.fillStyle = 'rgba(232,224,210,.6)'; fit(L('plateHint'), 375, '500 $px system-ui, sans-serif', 40, 6);
     m.material.map.needsUpdate = true;
   };
   return { m, draw, k: -1 };
@@ -337,7 +377,7 @@ renderer.xr.addEventListener('sessionstart', () => {
   xr.anchored = false; xr.drag = null;
   paintings.forEach(p => { p.refl.visible = false; });     // 倒影是按一圈大画算的位置，轮牌里不要
   label.m.scale.setScalar(1.5);
-  cap.show(['入画', 'Into the Painting', '捏住左右拖，换一幅 · 对准正中的画捏合，走进去'], 9);
+  cap.show(() => L('xrIntro'), 9);                          // 传函数：显示中换了语言会按新语言重画
 });
 renderer.xr.addEventListener('sessionend', () => {
   rig.position.y = 0; wall.visible = floor.visible = true; renderer.setClearColor(0x0b0a0d, 1);
@@ -464,6 +504,18 @@ fitFov();
 addEventListener('resize', () => { fitFov(); renderer.setSize(innerWidth, innerHeight); });
 addEventListener('pageshow', e => { if (e.persisted) { entering = null; camera.fov = baseFov; camera.updateProjectionMatrix(); } requestAnimationFrame(() => $('veil').classList.add('off')); });
 window.__goto = k => { target = cur = k; };   // 测试钩子
+// 换语言：静态文字按 data-i18n 重刷，作品介绍、目录、名牌当场重写（不走淡出）
+function applyLang() {
+  document.title = L('pageTitle');
+  if (I18N) I18N.apply(TEXT, document);
+  $('listBtn').textContent = L($('list').classList.contains('on') ? 'close' : 'list');
+  fillList();
+  if (shown >= 0) fillInfo(shown);
+  if (label.k >= 0) label.draw(label.k);
+}
+applyLang();
+$('lang').onclick = () => { if (I18N) I18N.toggle(); };
+if (I18N) I18N.onChange(applyLang); else $('lang').style.display = 'none';
 setTimeout(() => $('veil').classList.add('off'), 60);
 if (location.search.includes('shot')) $('veil').style.display = 'none';
 </script>

@@ -30,6 +30,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -42,16 +43,16 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After Arnold Böcklin · Isle of the Dead · 1880</div>
-    <h1>目光停留之处</h1>
-    <h2>Where the Gaze Rests</h2>
-    <p class="lead">暮色里一座岩岛，高耸的柏树，凿进岩壁的墓室，一只小船载着白衣人和棺木缓缓驶近。拉赫玛尼诺夫看过它的黑白复制品，写下同名交响诗，用 5/8 拍模仿划桨。</p>
-    <p>这里，画铺成环绕你一整圈的弧幕，天和海用画自己的笔触一直接到你身后。画有两层：前面是《死之岛》，后面垫着它在一百年潮湿里腐蚀之后的样子。<b>你的目光停在哪里，哪里就被点燃</b>：火线向四周蔓延，烧出炭黑与余烬；冷却之后，腐蚀的画从灰烬里透出来。很久以后，原画才慢慢长回来。</p>
-    <blockquote>一幅可以对着做梦的画。<small>— 委托第二版的玛丽·贝尔纳对这幅画的期望（ein Bild zum Träumen）</small></blockquote>
+    <h1 data-i18n="title">目光停留之处</h1>
+    <h2 data-i18n="sub">Where the Gaze Rests</h2>
+    <p class="lead" data-i18n="lead">暮色里一座岩岛，高耸的柏树，凿进岩壁的墓室，一只小船载着白衣人和棺木缓缓驶近。拉赫玛尼诺夫看过它的黑白复制品，写下同名交响诗，用 5/8 拍模仿划桨。</p>
+    <p data-i18n-html="body">这里，画铺成环绕你一整圈的弧幕，天和海用画自己的笔触一直接到你身后。画有两层：前面是《死之岛》，后面垫着它在一百年潮湿里腐蚀之后的样子。<b>你的目光停在哪里，哪里就被点燃</b>：火线向四周蔓延，烧出炭黑与余烬；冷却之后，腐蚀的画从灰烬里透出来。很久以后，原画才慢慢长回来。</p>
+    <blockquote data-i18n-html="quote">一幅可以对着做梦的画。<small>— 委托第二版的玛丽·贝尔纳对这幅画的期望（ein Bild zum Träumen）</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how" data-xr="看向哪里，哪里燃起"><em>视线</em><span>看向哪里，哪里燃起；手柄或手指着的地方也会燃起</span><em>鼠标</em><span>鼠标就是目光；按住拖动环顾</span><em>声音</em><span>建议戴耳机</span></div>
+    <div class="how" data-xr="看向哪里，哪里燃起" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>视线</em><span>看向哪里，哪里燃起；手柄或手指着的地方也会燃起</span><em>鼠标</em><span>鼠标就是目光；按住拖动环顾</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><span id="hudText">凝视之处正在燃烧</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div>目光点火，火自己蔓延；烧过的地方不会复原</div>
+<div id="hud"><span id="hudText" data-i18n="hudText">凝视之处正在燃烧</span><button id="mute">静音</button><div id="age"><i id="ageBar"></i></div><span data-i18n="hint">目光点火，火自己蔓延；烧过的地方不会复原</span></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -62,6 +63,42 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 
 THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '目光停留之处', sub: 'Where the Gaze Rests',
+    lead: '暮色里一座岩岛，高耸的柏树，凿进岩壁的墓室，一只小船载着白衣人和棺木缓缓驶近。拉赫玛尼诺夫看过它的黑白复制品，写下同名交响诗，用 5/8 拍模仿划桨。',
+    body: '这里，画铺成环绕你一整圈的弧幕，天和海用画自己的笔触一直接到你身后。画有两层：前面是《死之岛》，后面垫着它在一百年潮湿里腐蚀之后的样子。<b>你的目光停在哪里，哪里就被点燃</b>：火线向四周蔓延，烧出炭黑与余烬；冷却之后，腐蚀的画从灰烬里透出来。很久以后，原画才慢慢长回来。',
+    quote: '一幅可以对着做梦的画。<small>— 委托第二版的玛丽·贝尔纳对这幅画的期望（ein Bild zum Träumen）</small>',
+    loading: '载入中…', enter: '进入', loadFail: m => '载入失败：' + m,
+    xr: '看向哪里，哪里燃起',
+    how: '<em>视线</em><span>看向哪里，哪里燃起；手柄或手指着的地方也会燃起</span><em>鼠标</em><span>鼠标就是目光；按住拖动环顾</span><em>声音</em><span>建议戴耳机</span>',
+    hudText: '凝视之处正在燃烧', mute: '静音', unmute: '开声音',
+    hint: '目光点火，火自己蔓延；烧过的地方不会复原',
+    plaqueTitle: '目光停留之处',
+    plaqueLines: ['画有两层：前面是原画，后面是它腐蚀后的样子。', '看向哪里，哪里就烧起来，火线蔓延，烧出后面那层。', '移开目光，火灭了，灰烬退去，原画重新盖回来。'],
+  },
+  en: {
+    title: 'Where the Gaze Rests', sub: '目光停留之处',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'A rocky island at dusk: towering cypresses, tombs cut into the cliff, and a small boat gliding in with a white-robed figure and a coffin. Rachmaninoff saw it in a black-and-white reproduction and wrote a symphonic poem of the same name, its 5/8 meter echoing the stroke of the oars.',
+    body: 'Here the painting curves into a panorama all the way around you, its sky and sea carried on in its own brushwork until they meet behind your back. It has two layers: in front, <i>Isle of the Dead</i>; beneath, the same picture as a century of damp has corroded it. <b>Wherever your gaze rests catches fire</b>: the flame line spreads outward, leaving char and embers, and as it cools the corroded painting shows through the ash. Only much later does the original slowly grow back.',
+    quote: 'A picture for dreaming.<small>— Marie Berna’s wish for the second version, which she commissioned (ein Bild zum Träumen)</small>',
+    loading: 'Loading…', enter: 'Enter', loadFail: m => 'Failed to load: ' + m,
+    xr: 'Wherever you look catches fire',
+    how: '<em>Gaze</em><span>Wherever you look catches fire, and so does wherever a controller or hand points</span><em>Mouse</em><span>The pointer is your gaze; drag to look around</span><em>Sound</em><span>Best with headphones</span>',
+    hudText: 'Where you gaze, it burns', mute: 'Mute', unmute: 'Sound on',
+    hint: 'Your gaze lights the fire and it spreads on its own; what has burned stays burned',
+    plaqueTitle: 'Where the Gaze Rests',
+    plaqueLines: ['Two layers: the original in front, its corroded self behind.', 'Your gaze sets it alight; the fire spreads and burns through.', 'Look away and the fire dies; the original slowly returns.'],
+  },
+};
+const t = (key, ...a) => { const v = I18N.t(T, key); return typeof v === 'function' ? v(...a) : v; };
+I18N.apply(T, document.body);
+$('mute').textContent = t('mute');
+let loadState = 'loading', loadErr = '';   // 「进入」按钮上的字随载入状态变：换语言时按状态重写
+const enterText = () => { $('enter').textContent = loadState === 'ready' ? t('enter') : loadState === 'error' ? t('loadFail', loadErr) : t('loading'); };
+enterText();
 const DEG = Math.PI / 180;
 const clamp01 = x => Math.max(0, Math.min(1, x));
 const params = new URLSearchParams(location.search);
@@ -581,23 +618,24 @@ function ignite() {
   src.connect(bp).connect(g).connect(audio.master); src.start(t, Math.random() * 1.2); src.stop(t + 1.6);
   audio.fire = Math.max(audio.fire, 0.5);
 }
-$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.5, audio.ctx.currentTime, 0.3); };
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute'); if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.5, audio.ctx.currentTime, 0.3); };
 
 // ---------- XR 展签 ----------
 const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.height = 520;
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
 plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
 scene.add(plaque);
-(function () {
+function drawPlaque() {   // 换语言时重画（底色不透明，直接盖掉旧字）
   const g = plaqueC.getContext('2d');
   g.fillStyle = '#0e1014'; g.fillRect(0, 0, 1024, 520);
   g.fillStyle = '#c49a4a'; g.fillRect(0, 0, 10, 520);
   g.fillStyle = '#9a9384'; g.font = '22px system-ui'; g.fillText('AFTER BÖCKLIN · ISLE OF THE DEAD · 1880', 44, 66);
-  g.fillStyle = '#e6dcc6'; g.font = '56px serif'; g.fillText('目光停留之处', 44, 142);
+  g.fillStyle = '#e6dcc6'; g.font = '56px serif'; g.fillText(t('plaqueTitle'), 44, 142);
   g.font = '30px serif'; g.fillStyle = '#d8cfbc';
-  ['画有两层：前面是原画，后面是它腐蚀后的样子。', '看向哪里，哪里就烧起来，火线蔓延，烧出后面那层。', '移开目光，火灭了，灰烬退去，原画重新盖回来。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  t('plaqueLines').forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
   plaque.material.map.needsUpdate = true;
-})();
+}
+drawPlaque();
 
 // ---------- 进入 ----------
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -623,8 +661,8 @@ Promise.all([load('data/isle-of-the-dead/color.jpg'), load('data/isle-of-the-dea
   emberMat.uniforms.tDepth.value = d;
   simU.tRegion.value = r;
   initSim();
-  $('enter').disabled = false; $('enter').textContent = '进入';
-}).catch(e => { console.error(e); $('enter').textContent = '载入失败：' + e.message; });
+  $('enter').disabled = false; loadState = 'ready'; enterText();
+}).catch(e => { console.error(e); loadState = 'error'; loadErr = e.message; enterText(); });
 
 // 测试钩子：强制注视某处（null = 取消）
 window.__gaze = (u, v) => { forced = u === null ? null : [u, v]; };
@@ -647,6 +685,14 @@ window.__maxV = (u, v, r) => {   // 调试：注视点周围一块里的最大 E
 };
 window.__view = (fov, yawDeg, pitchDeg) => { camera.fov = fov; camera.updateProjectionMatrix(); yaw = yawDeg * DEG; pitch = pitchDeg * DEG; };
 window.__gl = () => ({ cbf: !!renderer.getContext().getExtension('EXT_color_buffer_float'), cbhf: !!renderer.getContext().getExtension('EXT_color_buffer_half_float') });
+
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  enterText();
+  drawPlaque();                             // 展签画在画布上：按新语言重画
+});
 
 const clock = new THREE.Clock();
 let time = 0, dwell = 0;

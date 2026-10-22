@@ -30,6 +30,7 @@
   #VRButton { left: calc(50% - 170px) !important; width: 150px !important; }
   #ARButton { left: calc(50% + 20px) !important; width: 150px !important; }
 </style>
+<script src="i18n.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -42,17 +43,17 @@
 <div id="intro">
   <div class="card">
     <div class="kicker">After Claude Monet · Water Lilies · after 1916</div>
-    <h1>睡莲</h1>
-    <h2>Water Lilies</h2>
-    <p class="lead">莫奈生命的最后三十年，几乎只画一个池塘。画里没有岸，也没有地平线：水面同时是天空的倒影、水下的深处，和浮在上面的睡莲。</p>
-    <p>这里，你站在池塘正中，整幅《睡莲》铺满脚下一圈水面，一直延伸进雾里。<b>点一下水</b>，涟漪一圈圈荡开，把水下的颜色和水面的天光搅在一起；阵风一块一块掠过，风到之处倒影碎开、闪光变密。等水静下来，画又重新清晰。</p>
-    <blockquote>这些水与倒影的风景，已经成了我的执念。<small>— 莫奈致古斯塔夫·热弗鲁瓦，1908 年 8 月</small></blockquote>
+    <h1 data-i18n="title">睡莲</h1>
+    <h2 data-i18n="sub">Water Lilies</h2>
+    <p class="lead" data-i18n="lead">莫奈生命的最后三十年，几乎只画一个池塘。画里没有岸，也没有地平线：水面同时是天空的倒影、水下的深处，和浮在上面的睡莲。</p>
+    <p data-i18n-html="body">这里，你站在池塘正中，整幅《睡莲》铺满脚下一圈水面，一直延伸进雾里。<b>点一下水</b>，涟漪一圈圈荡开，把水下的颜色和水面的天光搅在一起；阵风一块一块掠过，风到之处倒影碎开、闪光变密。等水静下来，画又重新清晰。</p>
+    <blockquote data-i18n-html="quote">这些水与倒影的风景，已经成了我的执念。<small>— 莫奈致古斯塔夫·热弗鲁瓦，1908 年 8 月</small></blockquote>
     <button id="enter" disabled>载入中…</button>
-    <div class="how" data-xr="低头看水 · 指向水面捏合，落下一滴"><em>手</em><span>指向水面捏合 = 一滴；按住划过 = 一串涟漪；手碰到水面也可以</span><em>鼠标</em><span>点水面 = 一滴；按住拖动 = 划过水面；拖到画面边缘可以转头</span><em>声音</em><span>建议戴耳机</span></div>
+    <div class="how" data-xr="低头看水 · 指向水面捏合，落下一滴" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>手</em><span>指向水面捏合 = 一滴；按住划过 = 一串涟漪；手碰到水面也可以</span><em>鼠标</em><span>点水面 = 一滴；按住拖动 = 划过水面；拖到画面边缘可以转头</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><span id="state">水面平静</span><button id="mute">静音</button><br>点水，涟漪会扩散；静下来，画会重新清晰</div>
-<div id="quote">“这些水与倒影的风景，已经成了我的执念。”<small>— 莫奈致古斯塔夫·热弗鲁瓦的信，1908 年 8 月</small></div>
+<div id="hud"><span id="state">水面平静</span><button id="mute">静音</button><br><span data-i18n="hint">点水，涟漪会扩散；静下来，画会重新清晰</span></div>
+<div id="quote" data-i18n-html="finale">“这些水与倒影的风景，已经成了我的执念。”<small>— 莫奈致古斯塔夫·热弗鲁瓦的信，1908 年 8 月</small></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -63,6 +64,48 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 
 THREE.ColorManagement.enabled = false;
 const $ = id => document.getElementById(id);
+
+// ---------- 中 / 英文字（i18n.js）：静态的挂 data-i18n，脚本里生成的走 t()；切换时的重刷在文件末尾 ----------
+const I18N = window.MP_I18N;
+const T = {
+  zh: {
+    title: '睡莲', sub: 'Water Lilies',
+    lead: '莫奈生命的最后三十年，几乎只画一个池塘。画里没有岸，也没有地平线：水面同时是天空的倒影、水下的深处，和浮在上面的睡莲。',
+    body: '这里，你站在池塘正中，整幅《睡莲》铺满脚下一圈水面，一直延伸进雾里。<b>点一下水</b>，涟漪一圈圈荡开，把水下的颜色和水面的天光搅在一起；阵风一块一块掠过，风到之处倒影碎开、闪光变密。等水静下来，画又重新清晰。',
+    quote: '这些水与倒影的风景，已经成了我的执念。<small>— 莫奈致古斯塔夫·热弗鲁瓦，1908 年 8 月</small>',
+    loading: '载入中…', enter: '进入',
+    xr: '低头看水 · 指向水面捏合，落下一滴',
+    how: '<em>手</em><span>指向水面捏合 = 一滴；按住划过 = 一串涟漪；手碰到水面也可以</span><em>鼠标</em><span>点水面 = 一滴；按住拖动 = 划过水面；拖到画面边缘可以转头</span><em>声音</em><span>建议戴耳机</span>',
+    mute: '静音', unmute: '开声音',
+    hint: '点水，涟漪会扩散；静下来，画会重新清晰',
+    finale: '“这些水与倒影的风景，已经成了我的执念。”<small>— 莫奈致古斯塔夫·热弗鲁瓦的信，1908 年 8 月</small>',
+    sRipple: '涟漪正在扩散', sSettle: '水面慢慢静下来', sGust: '一阵风掠过水面', sBreeze: '微风，水面起细纹', sCalm: '水面平静',
+    plaqueTitle: '水与倒影的风景',
+    plaqueLines: ['低头看水。指向水面，捏合 / 扣扳机落下一滴；', '按住划过，是一串涟漪；手指碰到水面也会点。', '等水静下来，画会重新清晰。'],
+    plaqueQuote: '“这些水与倒影的风景，已经成了我的执念。”— 莫奈，1908',
+  },
+  en: {
+    title: 'Water Lilies', sub: '睡莲',   // 副标题：中文时是英文名，英文时是中文原名（和 works.js 的 workText 一致）
+    lead: 'For the last thirty years of his life, Monet painted little but a single pond. There is no bank in these pictures and no horizon: the surface is at once the reflected sky, the depths below, and the lilies floating on top.',
+    body: 'Here you stand in the middle of the pond, the whole of <i>Water Lilies</i> spread across the water around your feet and running off into the mist. <b>Touch the water</b> and ripples ring outward, stirring the colours of the depths into the light of the sky; gusts sweep across patch by patch, breaking up the reflections and scattering glints wherever they pass. Once the water settles, the painting comes back into focus.',
+    quote: 'These landscapes of water and reflection have become an obsession.<small>— Monet to Gustave Geffroy, August 1908</small>',
+    loading: 'Loading…', enter: 'Enter',
+    xr: 'Look down at the water · Point and pinch to let a drop fall',
+    how: '<em>Hands</em><span>Point at the water and pinch for a single drop; hold and sweep for a trail of ripples; or simply touch the surface</span><em>Mouse</em><span>Click the water for a drop; hold and drag to skim it; drag from the left or right edge to look around</span><em>Sound</em><span>Best with headphones</span>',
+    mute: 'Mute', unmute: 'Sound on',
+    hint: 'Touch the water and the ripples spread; let it settle and the painting clears',
+    finale: '“These landscapes of water and reflection have become an obsession.”<small>— Monet, letter to Gustave Geffroy, August 1908</small>',
+    sRipple: 'Ripples spreading', sSettle: 'The water is settling', sGust: 'A gust sweeps the pond', sBreeze: 'A breeze ruffles the surface', sCalm: 'The water is still',
+    plaqueTitle: 'Landscapes of Water',
+    plaqueLines: ['Look down at the water. Point at it and pinch, or pull', 'the trigger, to let a drop fall; hold and sweep for a trail', 'of ripples. Once the water settles, the painting clears.'],
+    plaqueQuote: '“These landscapes of water have become an obsession.” — Monet, 1908',
+  },
+};
+const t = key => I18N.t(T, key);
+I18N.apply(T, document.body);
+$('mute').textContent = t('mute');
+$('enter').textContent = t('loading');
+
 const DEG = Math.PI / 180;
 const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 const clamp01 = x => Math.max(0, Math.min(1, x));
@@ -95,7 +138,7 @@ const paintTex = new THREE.TextureLoader().load('data/water-lilies/color.jpg', t
 paintTex.wrapS = THREE.MirroredRepeatWrapping; paintTex.wrapT = THREE.ClampToEdgeWrapping;
 paintTex.minFilter = THREE.LinearMipmapLinearFilter;
 const ready = { paint: false };
-function checkReady() { if (ready.paint) { $('enter').disabled = false; $('enter').textContent = '进入'; } }
+function checkReady() { if (ready.paint) { $('enter').disabled = false; $('enter').textContent = t('enter'); } }
 
 // 水面上的点 → 画上的坐标：方位角绕一圈（画在前后各铺一次、在身后镜像接上），半径按对数映射到画的上下
 const PAINT_MAP = /* glsl */`
@@ -351,7 +394,7 @@ function plink(dist, strength) {
   const ng = ctx.createGain(); ng.gain.setValueAtTime(0.05 * strength, t); ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.12);
   n.connect(hp).connect(ng).connect(audio.master); n.start(t, Math.random() * 2); n.stop(t + 0.15);
 }
-$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '开声音' : '静音'; if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.5, audio.ctx.currentTime, 0.3); };
+$('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? t('unmute') : t('mute'); if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : 0.5, audio.ctx.currentTime, 0.3); };
 
 // ---------- 落水 ----------
 let lastPlink = 0, activity = 0, drops_n = 0, quoteShown = false;
@@ -447,17 +490,18 @@ const plaqueC = document.createElement('canvas'); plaqueC.width = 1024; plaqueC.
 const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.183), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(plaqueC) }));
 plaque.position.set(-0.32, EYE.y - 0.3, -0.85); plaque.lookAt(EYE); plaque.visible = false;
 scene.add(plaque);
-(function () {
+function drawPlaque() {
   const g = plaqueC.getContext('2d');
   g.fillStyle = '#f4efe4'; g.fillRect(0, 0, 1024, 520);
   g.fillStyle = '#6f86b8'; g.fillRect(0, 0, 10, 520);
   g.fillStyle = '#7a7f9a'; g.font = '22px system-ui'; g.fillText('AFTER MONET · WATER-LILIES · AFTER 1916', 44, 66);
-  g.fillStyle = '#2e3550'; g.font = '54px serif'; g.fillText('水与倒影的风景', 44, 140);
+  g.fillStyle = '#2e3550'; g.font = '54px serif'; g.fillText(t('plaqueTitle'), 44, 140);
   g.font = '30px serif';
-  ['低头看水。指向水面，捏合 / 扣扳机落下一滴；', '按住划过，是一串涟漪；手指碰到水面也会点。', '等水静下来，画会重新清晰。'].forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
-  g.fillStyle = '#4a4f6c'; g.font = 'italic 26px serif'; g.fillText('“这些水与倒影的风景，已经成了我的执念。”— 莫奈，1908', 44, 470);
+  t('plaqueLines').forEach((s, k) => g.fillText(s, 44, 215 + k * 48));
+  g.fillStyle = '#4a4f6c'; g.font = 'italic 26px serif'; g.fillText(t('plaqueQuote'), 44, 470);
   plaque.material.map.needsUpdate = true;
-})();
+}
+drawPlaque();
 
 // ---------- 进入 ----------
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -478,9 +522,18 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 window.__drop = (x, z, s = 1.2) => drop(x, z, s, 0.06);
 window.__look = (yawDeg, pitchDeg) => { look.yaw = yawDeg * DEG; look.pitch = pitchDeg * DEG; };
 
+// ---------- 换语言：只换字，不刷新页面，场景照跑 ----------
+I18N.onChange(() => {
+  I18N.apply(T, document.body);            // 头显里换过画后，这一页的回调由 xr-hop.js 摘掉
+  $('mute').textContent = muted ? t('unmute') : t('mute');
+  $('enter').textContent = t(ready.paint ? 'enter' : 'loading');
+  drawPlaque();                             // 展签画在画布上：按新语言重画
+  if (stateKey) $('state').textContent = t(stateKey);   // #state 每帧都按当前语言写；这里先写一次，不等下一帧（后台 / 慢帧时）
+});
+
 // ---------- 主循环 ----------
 const clock = new THREE.Clock();
-let time = 0, rainT = 3;
+let time = 0, rainT = 3, stateKey = '';
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   time += dt;
@@ -498,7 +551,8 @@ renderer.setAnimationLoop(() => {
   }
   activity *= Math.exp(-dt * 0.6);
   updateWind(time);
-  $('state').textContent = activity > 0.25 ? '涟漪正在扩散' : activity > 0.05 ? '水面慢慢静下来' : wind.amp > 0.75 ? '一阵风掠过水面' : wind.amp > 0.45 ? '微风，水面起细纹' : '水面平静';
+  stateKey = activity > 0.25 ? 'sRipple' : activity > 0.05 ? 'sSettle' : wind.amp > 0.75 ? 'sGust' : wind.amp > 0.45 ? 'sBreeze' : 'sCalm';
+  $('state').textContent = t(stateKey);   // 每帧按当前语言写
   stepSim();
   waterMat.uniforms.uT.value = time;
   sky.material.uniforms.uT.value = time;

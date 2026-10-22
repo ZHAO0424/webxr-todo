@@ -49,6 +49,13 @@
 #intro .how em { font-style: normal; color: var(--st-gold); letter-spacing: .14em; white-space: nowrap; }
 #intro .how span { color: var(--st-mute); }
 #intro #status { font: 12px/1.6 system-ui, sans-serif; color: var(--st-mute) !important; margin-top: 10px; }
+/* 英文：西文字体排前面（宋体里的西文字形和弯引号不好看），收紧为汉字准备的大字距（和主页英文的做法一样） */
+:root[lang="en"] #intro .card { font-family: Georgia, "Songti SC", "STSong", "SimSun", serif !important; }
+:root[lang="en"] #intro h1 { letter-spacing: .02em !important; font-size: clamp(34px, 4.4vw, 56px) !important; text-wrap: balance; }
+:root[lang="en"] #intro #enter { letter-spacing: .3em !important; text-indent: .3em; }
+:root[lang="en"] #intro #enter:not(:disabled):hover, :root[lang="en"] #intro #enter:focus-visible { letter-spacing: .4em !important; }
+:root[lang="en"] #intro #enter:disabled { letter-spacing: .12em !important; }
+:root[lang="en"] #intro .how em { letter-spacing: .06em; }
 @media (max-width: 820px) {
   #intro { grid-template-columns: 1fr !important; align-items: start; }
   #intro .st-plate { justify-self: center; align-items: center; } #intro .st-plate img { max-height: 34vh; }
@@ -63,6 +70,7 @@
 }
 #hud::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px; background: var(--st-gold); opacity: .8; }
 #hud > span:first-child, #hud > b:first-child { font: 16px/1.6 "Songti SC", "STSong", serif; letter-spacing: .08em; display: inline-block; margin-bottom: 2px; }
+:root[lang="en"] #hud > span:first-child, :root[lang="en"] #hud > b:first-child { font-family: Georgia, "Songti SC", "STSong", serif; letter-spacing: .02em; }
 #hud button { background: rgba(11,10,13,.25) !important; border: 1px solid rgba(239,233,221,.4) !important; color: var(--st-ink) !important; border-radius: 999px !important; padding: 1px 10px !important; font-size: 11px !important; margin-left: 10px !important; text-shadow: none; cursor: pointer; }
 #hud #meter, #hud #dawn, #hud #age { background: rgba(239,233,221,.18) !important; height: 2px !important; margin: 6px 0 6px !important; box-shadow: none !important; border: 0 !important; }
 #hud #meter i, #hud #dawn i, #hud #age i { box-shadow: none !important; }
