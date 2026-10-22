@@ -170,6 +170,11 @@ const TILES = {
     }
   }),
 
+  chiliBed: () => paint(16, 16, (g) => { // 摊开晒的红辣椒（俯视）
+    g.rect(0, 0, 16, 16, R.red[1]);
+    for (let y = 0; y < 16; y += 3) for (let x = (y / 3) % 2 ? 1 : 3; x < 16; x += 4) { g.rect(x, y, 3, 1, R.red[2]); g.px(x + 1, y, R.red[3]); g.px(x + 2, y + 1, R.green[2]); }
+  }),
+
   trayWood: () => paint(16, 16, (g) => {
     g.rect(0, 0, 16, 16, R.wood[1]);
     g.rect(0, 6, 16, 1, R.wood[0]);

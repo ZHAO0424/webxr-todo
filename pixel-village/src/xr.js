@@ -19,6 +19,12 @@ export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
 
   xr.addEventListener('sessionstart', () => {
     pending = true;
+    // 刷新率：不申请的话不少眼镜默认只跑 60 / 72Hz。设备支持的话要最高的那档（90 / 120）
+    const session = xr.getSession(), rates = session?.supportedFrameRates;
+    if (rates?.length && session.updateTargetFrameRate) {
+      const best = Math.max(...rates);
+      if (best > (session.frameRate ?? 0)) session.updateTargetFrameRate(best).catch(() => {});
+    }
     xr.getReferenceSpace()?.addEventListener('reset', () => { pending = true; });
     onSession?.(true);
   });

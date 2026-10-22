@@ -541,7 +541,7 @@ const LIGHT = new THREE.Vector3(-0.65, 0.65, 0.4).normalize();
  */
 const TREE_SPECS = {
   // 村口的古槐：树干一抱多粗、根往外扎开，几根粗枝撑开一个又宽又高的大树冠；树干上系着祈福的红布条
-  oldLocust: (r) => ({ trunk: [4, 34], flare: 3, branches: 7, thick: true, ribbon: [10, 12], ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 48 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, 13 + r() * 6, 8 + r() * 3, 13 + r() * 6]; }) }),
+  oldLocust: (r) => ({ trunk: [4, 34], gnarl: { r: 3.6, flare: 4.8, roots: 5 }, branches: 7, thick: true, ribbon: [10, 12], ramp: R.leaf, blobs: Array.from({ length: 11 }, (_, i) => { const a = (i / 11) * Math.PI * 2 + r() * 0.4, d = i ? 14 + r() * 12 : 0; return [Math.cos(a) * d, 48 + r() * 12 + (i ? 0 : 6), Math.sin(a) * d * 0.85, 13 + r() * 6, 8 + r() * 3, 13 + r() * 6]; }) }),
   locust: (r) => ({ trunk: [2, 30], branches: 4, ramp: R.leaf, blobs: Array.from({ length: 7 }, () => [(r() - 0.5) * 40, 34 + r() * 14, (r() - 0.5) * 34, 14 + r() * 7, 9 + r() * 4, 14 + r() * 7]) }),
   poplar: () => ({ trunk: [1, 16], branches: 0, ramp: R.leaf, blobs: [[0, 30, 0, 6, 26, 6], [0, 20, 0, 5, 10, 5]] }),
   cypress: () => ({ trunk: [1, 6], branches: 0, ramp: R.green, blobs: [[0, 16, 0, 5, 14, 5], [0, 26, 0, 3, 8, 3]] }),
@@ -603,9 +603,31 @@ export function voxelTree(kind, seed = 1, scale = 1) {
     if (best && s.bare && !(hash(x, y, z) < 0.07 && best.d > 0.4)) return null; // 落了叶：树冠里只剩零星的细枝
     return best;
   };
+  // gnarl：老树干——圆的，一道道竖棱，往上微微歪；接地处喇叭口似的扎开，再伸出几条贴地的板根
+  const G = s.gnarl && (() => {
+    const roots = Array.from({ length: s.gnarl.roots }, (_, i) => ({ a: (i / s.gnarl.roots) * Math.PI * 2 + r() * 0.7, len: s.gnarl.r + 5 + r() * 4, w: 1.6 + r() * 0.8 }));
+    const lean = r() * Math.PI * 2;
+    const axis = (y) => { const k = Math.max(0, y - 6) * 0.05; return [Math.cos(lean) * k, Math.sin(lean) * k]; };
+    const radius = (y, a) => s.gnarl.r + s.gnarl.flare * Math.exp(-y / 3.2) - (y > th * 0.7 ? 0.7 : 0)
+      + 0.45 * Math.cos(a * 7 + y * 0.12) + 0.6 * Math.exp(-(((y - 17) / 3) ** 2)) * Math.max(0, Math.cos(a - lean - 2)); // 竖棱 + 半腰一个树瘤
+    const solid = (x, y, z) => {
+      if (y >= th) return false;
+      const [ax, az] = axis(y), dx = x - ax, dz = z - az;
+      if (Math.hypot(dx, dz) <= radius(y, Math.atan2(dz, dx))) return true;
+      if (y > 3) return false;
+      for (const rt of roots) { // 板根：沿着根的方向越往外越细越矮
+        const along = x * Math.cos(rt.a) + z * Math.sin(rt.a), across = Math.abs(-x * Math.sin(rt.a) + z * Math.cos(rt.a));
+        if (along < s.gnarl.r - 1 || along > rt.len) continue;
+        const k = 1 - (along - s.gnarl.r + 1) / (rt.len - s.gnarl.r + 1);
+        if (across <= rt.w * (0.4 + 0.6 * k) && y <= Math.round(3.2 * k * k)) return true;
+      }
+      return false;
+    };
+    return { solid };
+  })();
   const trunk = (x, y, z) => {
     const rw = tw - 1 + (s.flare ? Math.max(0, s.flare - y) : 0) + (s.flare && y > th * 0.6 ? -1 : 0); // flare：根部往外扎开；粗树干往上收一点
-    if (y < th && Math.abs(x) <= rw && Math.abs(z) <= rw && !(s.flare && Math.abs(x) === rw && Math.abs(z) === rw)) return true;
+    if (G ? G.solid(x, y, z) : y < th && Math.abs(x) <= rw && Math.abs(z) <= rw && !(s.flare && Math.abs(x) === rw && Math.abs(z) === rw)) return true;
     for (const br of branches) {
       if (y < br.y0 || y > br.y0 + br.len) continue;
       const t = y - br.y0, bx = Math.round(Math.cos(br.a) * t * 0.8), bz = Math.round(Math.sin(br.a) * t * 0.8);
@@ -618,7 +640,7 @@ export function voxelTree(kind, seed = 1, scale = 1) {
   const color = (x, y, z, f) => {
     const top = f === 2 && !solid(x, y + 1, z); // 朝上的面：冬天积雪
     if (trunk(x, y, z) && !crown(x, y, z)) {
-      if (s.ribbon && y >= s.ribbon[0] && y <= s.ribbon[1] && Math.max(Math.abs(x), Math.abs(z)) >= tw - 1) return y === s.ribbon[0] ? R.red[2] : R.red[3]; // 红布条
+      if (s.ribbon && y >= s.ribbon[0] && y <= s.ribbon[1] && (G ? !G.solid(x + 1, y, z) || !G.solid(x - 1, y, z) || !G.solid(x, y, z + 1) || !G.solid(x, y, z - 1) : Math.max(Math.abs(x), Math.abs(z)) >= tw - 1)) return y === s.ribbon[0] ? R.red[2] : R.red[3]; // 红布条
       return s.bare && top && hash(x, y, z) > 0.3 ? R.snow[4] : (x + y) % 5 === 0 ? R.wood[2] : (x * 3 + y * 7 + z) % 11 === 0 ? R.wood[0] : R.wood[1]; // 老树皮：深一道浅一道
     }
     const c = crown(x, y, z);

@@ -362,7 +362,23 @@ const showSettings = (on) => { if (!settingsEl) return; settingsEl.hidden = !on;
 const debugEl = document.getElementById('debug'), debugBtn = document.getElementById('debugBtn');
 function showDebug(on) { if (!debugEl) return; debugEl.hidden = !on; debugBtn.classList.toggle('on', on); if (on && !settingsEl.hidden) { settingsEl.hidden = true; settingsBtn.classList.remove('on'); } }
 debugBtn?.addEventListener('click', (e) => { e.stopPropagation(); showDebug(debugEl.hidden); });
-const dbg = { frames: 0, ms: 0, t: performance.now(), last: performance.now(), worst: 0 };
+const dbg = { frames: 0, ms: 0, t: performance.now(), last: performance.now(), worst: 0, cpu: 0, gpu: [], gpuMs: null };
+// GPU 耗时：浏览器支持计时扩展才有（EXT_disjoint_timer_query_webgl2）。查询结果要过几帧才拿得到
+const gl = renderer.getContext(), timer = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+let gpuQuery = null;
+const gpuBegin = () => { if (!timer || debugEl.hidden || gpuQuery) return; gpuQuery = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, gpuQuery); };
+const gpuEnd = () => {
+  if (!gpuQuery || gpuQuery.ended) return;
+  gl.endQuery(timer.TIME_ELAPSED_EXT); gpuQuery.ended = true; dbg.gpu.push(gpuQuery);
+};
+const gpuPoll = () => {
+  gpuQuery = null;
+  while (dbg.gpu.length && gl.getQueryParameter(dbg.gpu[0], gl.QUERY_RESULT_AVAILABLE)) {
+    const q = dbg.gpu.shift();
+    if (!gl.getParameter(timer.GPU_DISJOINT_EXT)) dbg.gpuMs = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6;
+    gl.deleteQuery(q);
+  }
+};
 function debugTick() { // 每帧记一下，半秒刷新一次面板
   const now = performance.now(), d = now - dbg.last;
   dbg.last = now; dbg.frames++; dbg.ms += d; dbg.worst = Math.max(dbg.worst, d);
@@ -371,18 +387,20 @@ function debugTick() { // 每帧记一下，半秒刷新一次面板
   const row = (k, v) => `${k}  <b>${v}</b>`;
   debugEl.innerHTML = [
     row('帧率', `${Math.round((dbg.frames * 1000) / (now - dbg.t))} fps`),
-    row('每帧', `${(dbg.ms / dbg.frames).toFixed(1)} ms（最慢 ${dbg.worst.toFixed(0)}）`),
+    row('帧间隔', `${(dbg.ms / dbg.frames).toFixed(1)} ms（最慢 ${dbg.worst.toFixed(0)}）`),
+    row('CPU', `${(dbg.cpu / dbg.frames).toFixed(1)} ms / 帧`), // 更新 + 提交渲染真正花的时间；90 帧要压在 11 ms 以内（CPU、GPU 各自）
+    row('GPU', timer ? (dbg.gpuMs === null ? '…' : `${dbg.gpuMs.toFixed(1)} ms / 帧`) : '浏览器不支持计时'),
     row('Draw call', info.render.calls),
     row('三角面', `${(info.render.triangles / 10000).toFixed(1)} 万`),
     row('着色器', info.programs.length),
     row('贴图 / 几何体', `${info.memory.textures} / ${info.memory.geometries}`),
     row('像素比', renderer.getPixelRatio().toFixed(2)),
-    row('XR', renderer.xr.isPresenting ? '是' : '否'),
+    row('XR', renderer.xr.isPresenting ? `是 · ${renderer.xr.getSession()?.frameRate ?? '?'} Hz（可选 ${renderer.xr.getSession()?.supportedFrameRates?.join(' / ') ?? '未知'}）` : '否'),
     row('在外面', `${out} 人 · ${life.beasts.filter((b) => !b.home).length} 只`),
     row('时钟', `${life.clock.label}（1 秒 = ${(life.clock.rate).toFixed(2)} 分钟）`),
     row('场景', scenes.current.name),
   ].join('\n');
-  dbg.frames = 0; dbg.ms = 0; dbg.worst = 0; dbg.t = now;
+  dbg.frames = 0; dbg.ms = 0; dbg.worst = 0; dbg.cpu = 0; dbg.t = now;
 }
 settingsBtn?.addEventListener('click', (e) => { e.stopPropagation(); showSettings(settingsEl.hidden); });
 renderer.domElement.addEventListener('pointerdown', () => showSettings(false));
@@ -407,6 +425,7 @@ let shadowFrame = 1;
 const first = village.update(0, camera.position);
 applyLight(first.light);
 renderer.setAnimationLoop((_, frame) => {
+  const work0 = performance.now();
   const t = clock.getElapsedTime();
   const dt = Math.min(0.1, t - lastT);
   lastT = t;
@@ -442,7 +461,10 @@ renderer.setAnimationLoop((_, frame) => {
     refreshCard();
   }
   if ((shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
+  if (timer) { gpuPoll(); gpuBegin(); }
   renderer.render(scene, camera);
+  if (timer) gpuEnd();
+  dbg.cpu += performance.now() - work0;
   debugTick();
   if (params.has('perf') && ++perfFrames === 2) perfReport();
 });

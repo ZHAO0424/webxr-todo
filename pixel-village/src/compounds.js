@@ -494,9 +494,10 @@ function square(M) {
   }
   if (is('winter')) { put(g, P.firewood(M, 0, 0, 3.0), -6.2, 8.0); put(g, P.firewood(M, 0, 0, 2.4), -4.2, 10.4, 0.2); } // 冬天：晒场上码着柴火
   else {
-    const fill = { spring: [null, null], summer: [M.wheat, M.wheat], autumn: [M.corn, M.millet] }[is('spring') ? 'spring' : is('summer') ? 'summer' : 'autumn'];
-    put(g, P.dryingMat(M, fill[0]), -6.3, 7.6); // 夏天晒麦粒，秋天晒玉米、谷子，春天席子空着
-    put(g, P.dryingMat(M, fill[1]), -3.8, 10.2, 0.15);
+    const fill = { spring: [null, null, null, null], summer: [M.wheat, M.wheat, M.wheat, M.wheat], autumn: [M.corn, M.millet, M.chiliBed, M.corn] }[is('spring') ? 'spring' : is('summer') ? 'summer' : 'autumn'];
+    // 晒场：2 × 2 四张席子，中间留一条走道。夏天晒麦粒，秋天晒玉米、谷子、红辣椒，春天席子空着
+    [[-6.3, 7.6, 0], [-3.8, 7.5, -0.05], [-6.5, 10.4, 0.08], [-3.8, 10.2, 0.15]].forEach(([x, z, r], i) => put(g, P.dryingMat(M, fill[i]), x, z, r));
+    if (!is('spring')) put(g, P.winnower(M), -5.1, 9.0, 0.4);
   }
   const nearProps = (x, z) => BENCHES.some(([bx, bz]) => Math.abs(x - bx) < 1.15 && Math.abs(z - bz) < 0.6) || (x < -2.4 && z > 6.2) || (x > 6.2 && z > 5.4);
   // 傍晚的活动（戏、篝火、村会）用到的位置。台上的点 lift = 台面高
@@ -550,11 +551,23 @@ function threshing(M) {
   const roller = P.roller(M, 0, 0);
   g.add(roller);
   for (const [x, z, r, h] of [[6.8, -3.0, 1.3, 2.8], [7.6, 1.4, 1.2, 2.5], [3.6, -3.4, 0.9, 1.9]]) g.add(P.haystack(M, x, z, r, h)); // 麦秸垛都在东半边，西边的门口和路让开
+  // 西半边和南沿：按季节摊着晒的粮食、粮堆插着木锨、一排粮袋、簸箕（门口进来那条道和碾子那一圈让开）
+  const props = []; // [x, z, 半径]：打场站人的点躲开
+  const lay = (obj, x, z, rot, r) => { put(g, obj, x, z, rot); props.push([x, z, r]); };
+  const grain = is('summer') ? [M.wheat, M.wheat, M.wheat] : is('autumn') ? [M.corn, M.millet, M.corn] : null;
+  if (grain) {
+    lay(P.dryingMat(M, grain[0]), -6.4, -2.9, 0.05, 1.5);
+    lay(P.dryingMat(M, grain[1]), -6.4, 3.2, -0.04, 1.5);
+    lay(P.dryingMat(M, grain[2]), 1.9, 3.9, 0, 1.5);
+    lay(P.grainHeap(M, is('summer') ? M.wheat : M.corn), -3.4, -3.6, 0, 1.0);
+    lay(P.winnower(M), -4.6, 3.5, -0.5, 0.5);
+  }
+  if (!is('winter')) lay(P.sacks(M, is('autumn') ? 4 : 3), 5.2, 3.9, 0.1, 1.1); // 春天是留的种子，夏秋是新打的粮食
   // 打场那天大伙儿围着碾子站的一圈（在牛走的圈外、躲开麦秸垛、不出场院）
   const stacks = [[6.8, -3.0, 1.3], [7.6, 1.4, 1.2], [3.6, -3.4, 0.9]];
   const harvest = {};
   for (let x = -w / 2 + 0.6; x <= w / 2 - 0.6; x += 1.1) for (let z = -d / 2 + 0.5; z <= d / 2 - 0.5; z += 1.1) { // 1.1 米一格撒点（人是大头娃娃，挨太近看着挤）
-    if (Math.hypot(x, z) > 3.8 && stacks.every(([sx, sz, r]) => Math.hypot(x - sx, z - sz) > r + 0.5)) harvest[`h${Object.keys(harvest).length}`] = [x, z, 0, 0];
+    if (Math.hypot(x, z) > 3.8 && [...stacks, ...props].every(([sx, sz, r]) => Math.hypot(x - sx, z - sz) > r + 0.5)) harvest[`h${Object.keys(harvest).length}`] = [x, z, 0, 0];
   }
   return result(w, d, g, {
     gate: [-w / 2 - 1.2, 0.5],

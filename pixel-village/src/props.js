@@ -588,6 +588,37 @@ export function dryingMat(M, fill, w = 2.4, d = 1.6) {
   return g;
 }
 
+/** 粮堆：场院上摊开扬过的粮食堆成一个矮堆，插着一把木锨（fill：粮食的材质）。 */
+export function grainHeap(M, fill, r = 0.75, h = 0.42) {
+  const g = new THREE.Group();
+  const heap = prism(0.15, r, h, fill, 8);
+  heap.position.y = h / 2;
+  g.add(heap);
+  const shovel = new THREE.Group(); // 木锨斜插在堆上：长把 + 宽板头
+  shovel.add(block(-0.025, 0, -0.025, 0.025, 1.3, 0.025, M.wood, { outline: false }), block(-0.16, -0.05, -0.02, 0.16, 0.28, 0.02, M.wood));
+  shovel.position.set(0.25, h * 0.55, 0.1);
+  shovel.rotation.set(0.15, 0.6, -0.55);
+  g.add(shovel);
+  return g;
+}
+
+/** 粮袋：几口扎了口的布袋子靠在一起立着（n 个）。 */
+export function sacks(M, n = 3) {
+  const g = new THREE.Group();
+  for (let i = 0; i < n; i++) {
+    const x = (i - (n - 1) / 2) * 0.42, z = (i % 2) * 0.08, h = 0.5 + (i % 3) * 0.04;
+    g.add(block(x - 0.18, 0, z - 0.14, x + 0.18, h, z + 0.14, M.plaster), block(x - 0.07, h, z - 0.06, x + 0.07, h + 0.1, z + 0.06, M.straw)); // 袋身 + 扎口
+  }
+  return g;
+}
+
+/** 簸箕：柳条编的，后高前低的浅斗。 */
+export function winnower(M) {
+  const g = new THREE.Group();
+  g.add(block(-0.32, 0, -0.26, 0.32, 0.04, 0.26, M.straw, { outline: false }), block(-0.32, 0.04, -0.26, 0.32, 0.16, -0.2, M.straw), ...[-1, 1].map((sx) => block(sx * 0.32 - 0.03, 0.04, -0.26, sx * 0.32 + 0.03, 0.1, 0.18, M.straw)));
+  return g;
+}
+
 /** 祖坟：坡上一排三个坟头，前面各立一块小石碑；清明时坟头压着白纸条、插着柳枝。原点在中间坟头前。 */
 export function graves(M, spring = false) {
   const g = new THREE.Group();

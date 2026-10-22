@@ -136,7 +136,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     m.position.set(x, y ?? terrain.heightAt(x, z), z);
     m.userData.tree = true;
     root.add(m);
-    trunks.push([x, z, kind === 'oldLocust' ? 0.9 : kind === 'locust' ? 0.6 : 0.35]);
+    trunks.push([x, z, kind === 'oldLocust' ? 1.3 : kind === 'locust' ? 0.6 : 0.35]);
   };
   for (const c of Object.values(C)) for (const [kind, lx, lz, opts = {}] of c.trees) {
     const [x, z] = c.at(lx, lz);
