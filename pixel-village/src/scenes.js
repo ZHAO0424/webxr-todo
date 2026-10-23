@@ -119,7 +119,7 @@ export function createSceneSwitch({ world, stage, scenes, M, start = 0, onChange
     },
     /** XR 里扳机 / 捏合：指着路牌就换场景，返回 true（不再重新摆沙盘）。 */
     onSelect(controller) {
-      controller.updateMatrixWorld(true);
+      controller.updateWorldMatrix(true, false);
       rot.identity().extractRotation(controller.matrixWorld);
       ray.ray.origin.setFromMatrixPosition(controller.matrixWorld);
       ray.ray.direction.set(0, 0, -1).applyMatrix4(rot);

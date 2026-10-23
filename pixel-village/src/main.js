@@ -184,7 +184,7 @@ const anchor = createAnchor(renderer, stage, {
   onSelect: (controller) => scenes.onSelect(controller), // 指着路牌：换场景，不重新摆沙盘
   onTap(controller) { // 单手捏一下：和鼠标点场景一样，指着谁就弹谁的卡片，指着空处收起
     if (scenes.busy) return;
-    controller.updateMatrixWorld(true);
+    controller.updateWorldMatrix(true, false); // controller：手上那条朝下 20° 的射线（xr.js）
     ray.ray.origin.setFromMatrixPosition(controller.matrixWorld);
     ray.ray.direction.set(0, 0, -1).transformDirection(controller.matrixWorld);
     ray.camera = renderer.xr.getCamera();

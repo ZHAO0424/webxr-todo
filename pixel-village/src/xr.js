@@ -8,12 +8,14 @@ const DROP = 0.38;
 const NEAR = 0.35, FAR = 3;       // 拉近拉远：沙盘中心离眼睛最近 / 最远（米）
 const MIN_SPAN = 0.05;            // 两手间距小于 5 厘米不认（比值会爆）
 const SETTLE = 150;                // 两手刚捏上的 150 毫秒不算动作（捏合那一下手指收拢，捏合点会跳）
-const LOCK = 0.015;               // 从握住算起，某个分量攒够 1.5 厘米才分类：静握、手抖不触发
-const DECIDE = 0.04;              // 攒到 4 厘米还分不清：取最大的那个
-const ROT_OVER_PAN = 2;           // 转要比平移大 2 倍才算转（两手一起拖时总有点不同步，最容易被误认成转）
-const DOMINANCE = 1.5;            // 推拉要比另外两个大这么多倍；平移只要不输给另外两个
+const LOCK = 0.015;               // 推拉：从握住算起间距变了 1.5 厘米才分类：静握、手抖不触发
+const PAN_LOCK = 0.03;            // 平移：中点挪够 3 厘米、连线还没怎么转才定（绕胸前转时中点也在横移，要多等一点看连线转没转）
+const DECIDE = 0.05;              // 平移攒到 5 厘米、两手连线又没转够：就算平移
+const ROT_ANGLE = 8 * Math.PI / 180;  // 两手连线转过 8° 算转（一起拖时一只手慢半拍，连线也就歪两三度）
+const PAN_ANGLE = 4 * Math.PI / 180;  // 连线转得不到 4° 才能早早定成平移
+const DOMINANCE = 1.5;            // 推拉要比平移大这么多倍
 const WHEEL = 120 * Math.PI / 180; // 上下反向错动：每米转多少弧度
-const TURN = 0.9;                 // 两手连线水平转角 → 沙盘转角
+const TURN = 1;                   // 两手连线水平转角 → 沙盘转角（1：跟手）
 
 /**
  * 进入 XR 后把场景摆到"当前头的正前方"。
@@ -21,22 +23,26 @@ const TURN = 0.9;                 // 两手连线水平转角 → 沙盘转角
  * 用 'local' 参考空间而不是 'local-floor'：VITURE runtime 的 LOCAL_FLOOR 高度取决于
  * SLAM 启动时眼镜在哪，可能在天上也可能在桌面（见 webxr-场景高度-排查）。
  * 以头为准就不依赖地板。进 XR 时马上摆好；之后快速捏两下（0.4 秒内两次扳机 / 捏合）或系统重新定位（reference space reset），
- * 沙盘用半秒滑到眼前（不瞬移）。onSelect(手柄) 返回 true 时（指着沙盘边上的路牌）拿去换场景；否则单手捏一下 = onTap(手柄)，
+ * 沙盘用半秒滑到眼前（不瞬移）。onSelect(射线) 返回 true 时（指着沙盘边上的路牌）拿去换场景；否则单手捏一下 = onTap(射线)，
  * 和鼠标点场景一样（指着谁弹谁的卡片），不动沙盘。双手握住开始拖 / 转 / 推拉、沙盘开始滑回眼前时调 onMove()（收起卡片）。
  *
  * 双手同时捏合 = 握住沙盘（手感照 HexCity 的 CityGrip / Skyvine 的 SceneRotator）：
- * 从握住那一刻算起累计两手的运动，分成三个分量（米），某一个攒够 1.5 厘米且明显占上风就锁定，一直到松手——一次拖拽不会中途变成旋转：
- *   平移 = 两手中点挪了多远                            两手一起动          → 平移（上下左右前后都跟手）
- *   推拉 = 两手间距变了多少                            拉开 / 收拢         → 拉近 / 推远（沿"眼睛 → 沙盘"那条线，不改缩放）
- *   转   = 两手连线水平转角 × 半个间距、两手高度差的变化 / 2   反向错动        → 绕竖轴转（两手连线转多少沙盘转多少，再加上下错动的方向盘）
- * 用累计量而不是每帧的增量：一帧只动一两毫米，两手稍不同步、手部追踪抖一下，单帧里"转"就可能占上风；累计下来一起拖的那部分越攒越大，抖动攒不起来。
- * 平移最常用，判定上让着它：转要比平移大 2 倍才算转；刚捏上的 150 毫秒不算（手指收拢时捏合点会跳）。
+ * 从握住那一刻算起累计两手的运动，分清以后锁定到松手——一次拖拽不会中途变成旋转：
+ *   平移 = 两手中点挪了多远                    两手一起动          → 平移（上下左右前后都跟手）
+ *   推拉 = 两手间距变了多少                    拉开 / 收拢         → 拉近 / 推远（沿"眼睛 → 沙盘"那条线，不改缩放）
+ *   转   = 两手连线转过的角度：水平面里的转角，或者竖直方向的倾角（方向盘）——哪个方向转都行
+ *          → 绕竖轴转（水平转多少沙盘转多少，方向盘上下错动也转）
+ * 转看的是连线的角度而不是手走了多远：绕着胸前转（转轴在身体这边）时两手中点也在大幅横移，按距离比会被当成平移；
+ * 而两手一起拖时连线方向几乎不变（一只手慢半拍也只歪两三度）。连线转过 8° 算转；转得不到 4° 且中点挪够 3 厘米算平移；
+ * 间距变化比中点挪动大 1.5 倍算推拉。分清之前已经做出的那段平移 / 转动在锁定时一次补上，不丢手。
+ * 用累计量而不是每帧的增量：一帧只动一两毫米，两手稍不同步、手部追踪抖一下，单帧就会误判；刚捏上的 150 毫秒不算（手指收拢时捏合点会跳）。
  * 握过的这一下，松手时不算捏合（不会算进双击）。
  *
- * 指向：每只手一条细射线 + 落点一个像素小光点（捏住时变大），看得出自己指着谁。aim(起点, 方向) 返回打到东西的距离（没打到 null），
+ * 指向（射线比手柄 / 手的指向朝下 20°，点选、路牌、落点都按这条线）：每只手一条细射线 + 落点一个像素小光点（捏住时变大），看得出自己指着谁。aim(起点, 方向) 返回打到东西的距离（没打到 null），
  * 每只手每 4 帧测一次、两只手错开（射线检测不便宜）；没指着东西时射线画 1.5 米、没有光点；双手握住时都藏起来。
  */
 const RAY_LEN = 1.5;
+const RAY_TILT = -20 * Math.PI / 180; // 射线比手的指向朝下 20°：手不用抬高，自然垂着腕子就能指到桌上的沙盘
 
 /** 落点光点：5×5 像素菱形，深色描边、金色、白芯。 */
 function dotTexture() {
@@ -85,13 +91,16 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
     h.ctrl.addEventListener('selectstart', () => { h.pinch = true; });
     h.ctrl.addEventListener('selectend', () => { h.pinch = false; });
     h.ctrl.addEventListener('select', (e) => { // 单手捏一下 = 点一下（不动沙盘）；快速捏两下才重新摆到眼前，而且是滑过去
-      if (gripUsed || onSelect?.(e.target)) return; // 双手握过 / 指着路牌换场景
+      if (gripUsed || onSelect?.(h.aim)) return; // 双手握过 / 指着路牌换场景
       const now = performance.now();
-      if (now - lastTap < 400) { pending = 'glide'; lastTap = -Infinity; } else { lastTap = now; onTap?.(e.target); }
+      if (now - lastTap < 400) { pending = 'glide'; lastTap = -Infinity; } else { lastTap = now; onTap?.(h.aim); }
     });
+    h.aim = new THREE.Object3D(); // 真正用来指的那条线：手的指向往下压 20°
+    h.aim.rotation.x = RAY_TILT;
+    h.ctrl.add(h.aim);
     h.line = new THREE.Line(lineGeo, lineMat);
     h.line.renderOrder = 99; h.line.frustumCulled = false;
-    h.ctrl.add(h.line);
+    h.aim.add(h.line);
     h.dot = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotMap, depthTest: false, depthWrite: false, toneMapped: false }));
     h.dot.renderOrder = 101; h.dot.visible = false;
     h.dist = null;
@@ -107,7 +116,8 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
 
   // 握持状态
   let gripping = false, gripUsed = false, mode = null, baseSpan = 0, gripT0 = 0, baseYaw = 0, baseDy = 0;
-  const startL = new THREE.Vector3(), startR = new THREE.Vector3(), mid = new THREE.Vector3();
+  const startL = new THREE.Vector3(), startR = new THREE.Vector3(), mid = new THREE.Vector3(), catchPos = new THREE.Vector3();
+  let catchYaw = 0;
   const lastL = new THREE.Vector3(), lastR = new THREE.Vector3(), dL = new THREE.Vector3(), dR = new THREE.Vector3();
   const together = new THREE.Vector3();
   const baseEye = new THREE.Vector3(), baseRoot = new THREE.Vector3(), dolly = new THREE.Vector3(), eye = new THREE.Vector3();
@@ -130,7 +140,7 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
       baseEye.copy(viewer); baseRoot.copy(root.position);
     };
     if (!gripping) { // 握住的第一帧：只建参照，不动（不跳）
-      gripping = true; mode = null; dollying = false; gripT0 = performance.now();
+      gripping = true; mode = null; dollying = false; gripT0 = performance.now(); catchPos.set(0, 0, 0); catchYaw = 0;
       rebase();
       return;
     }
@@ -140,17 +150,16 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
       const span = pl.distanceTo(pr);
       const pan = mid.addVectors(pl, pr).sub(startL).sub(startR).multiplyScalar(0.5).length();
       const zoom = Math.abs(span - baseSpan);
-      const dyaw = yawOf(pl, pr) - baseYaw;
-      const rot = Math.max(Math.abs(Math.atan2(Math.sin(dyaw), Math.cos(dyaw))) * span / 2, Math.abs(pr.y - pl.y - baseDy) / 2);
-      const top = Math.max(pan, zoom, rot);
-      if (top > LOCK) {
-        if (rot > ROT_OVER_PAN * pan && rot > DOMINANCE * zoom) mode = 'rotate';
-        else if (zoom > DOMINANCE * pan && zoom > DOMINANCE * rot) mode = 'zoom';
-        else if (pan >= zoom && pan * ROT_OVER_PAN >= rot) mode = 'pan';
-        else if (top > DECIDE) mode = pan === top ? 'pan' : zoom === top ? 'zoom' : 'rotate';
-      }
+      let dyaw = yawOf(pl, pr) - baseYaw;
+      dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+      const lift = (pl.y - startL.y) - (pr.y - startR.y); // 方向盘：左手比右手多抬了多少
+      const ang = Math.max(Math.abs(dyaw), Math.abs(lift) / Math.max(span, MIN_SPAN)); // 连线转过的角度（水平 / 竖直取大的）
+      if (zoom > LOCK && zoom > DOMINANCE * pan && ang < ROT_ANGLE) mode = 'zoom';
+      else if (ang > ROT_ANGLE) mode = 'rotate';
+      else if ((pan > PAN_LOCK && ang < PAN_ANGLE && pan >= zoom) || pan > DECIDE) mode = 'pan';
       if (mode) onMove?.(); // 分出是拖、推拉还是转了：收起卡片（静握不算）
-      if (mode === 'pan') root.position.add(mid); // 分清之前攒下的那段平移补上，不丢手
+      if (mode === 'pan') catchPos.copy(mid); // 分清之前攒下的那段平移、转动接下来几帧补上（不丢手，也不一下跳过去）
+      if (mode === 'rotate') catchYaw = -dyaw * TURN - lift * WHEEL;
     } else if (mode === 'pan') root.position.add(together.addVectors(dL, dR).multiplyScalar(0.5));
     if (mode === 'zoom') { // 拉开 = 拉近：沿握住那一刻"眼睛 → 沙盘"的固定轴，按起始间距 / 当前间距的比值定远近（不累积漂移）
       const span = pl.distanceTo(pr);
@@ -165,6 +174,11 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
       const a0 = yawOf(lastL, lastR), a1 = yawOf(pl, pr);
       a += -Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)) * TURN; // 转盘：两手连线水平转了多少
       root.rotation.y += a;
+    }
+    if (catchYaw || catchPos.lengthSq()) { // 补上分清之前的那段，每帧补剩下的 30%
+      root.position.addScaledVector(catchPos, 0.3); catchPos.multiplyScalar(0.7);
+      root.rotation.y += catchYaw * 0.3; catchYaw *= 0.7;
+      if (Math.abs(catchYaw) < 1e-4 && catchPos.lengthSq() < 1e-8) { root.position.add(catchPos); root.rotation.y += catchYaw; catchPos.set(0, 0, 0); catchYaw = 0; }
     }
     lastL.copy(pl); lastR.copy(pr);
   }
@@ -211,9 +225,9 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
         const on = h.ctrl.visible && !gripping;
         h.line.visible = on;
         if (!on) { h.dot.visible = false; h.dist = null; return; }
-        h.ctrl.updateMatrixWorld(true);
-        ro.setFromMatrixPosition(h.ctrl.matrixWorld);
-        rd.set(0, 0, -1).transformDirection(h.ctrl.matrixWorld);
+        h.aim.updateWorldMatrix(true, false);
+        ro.setFromMatrixPosition(h.aim.matrixWorld);
+        rd.set(0, 0, -1).transformDirection(h.aim.matrixWorld);
         if (tick === i * 2) h.dist = aim?.(ro, rd) ?? null;
         h.line.scale.z = h.dist ?? RAY_LEN;
         h.dot.visible = h.dist != null;
