@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>像素村落</title>
+  <link rel="preload" href="fonts/pixel-zh.woff" as="font" type="font/woff" crossorigin>
+  <link rel="preload" href="fonts/pixel-zh-12.woff" as="font" type="font/woff" crossorigin>
   <link rel="stylesheet" href="src/ui/ui.css">
   <style>
     html, body { margin: 0; height: 100%; background: #1b1d24; overflow: hidden; }
@@ -158,28 +160,31 @@
     #roster .info .kv { display: grid; grid-template-columns: auto 1fr; gap: var(--p) calc(3 * var(--p)); margin-bottom: calc(3 * var(--p)); }
     #roster .info .kv b { color: var(--gold); font-weight: normal; text-shadow: none; }
     #clock:empty { display: none; } /* 场景建好前时钟还没内容：先不显示（不然右上角一条空框像个不动的进度条） */
-    /* 载入：屏幕正中一根像素进度条，上面一个小人推着独轮车跟着进度往前走。
-       主线程建村子那几秒什么都动不了，所以动的部分只用 transform / opacity 动画（浏览器在合成线程里跑，不受主线程卡住影响）：
-       进度条、小车往前挪是 transition，腿两帧交替、轮子转是 animation。 */
-    #loader { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #1c1611; transition: opacity .4s; }
+    /* 载入：屏幕正中一块和游戏里一样的木框面板——点阵字的村名、真的体素货郎（main.js 用游戏里的模型拍的 8 帧走路）挑着担子顺着进度往前走、像素进度条、哪一步了。
+       主线程建村子那几秒什么都动不了，所以会动的只用 transform / opacity 动画（合成线程里跑）：货郎往前挪、进度条变长是 transition，走路 8 帧轮流显示是 animation。
+       点阵字按整数倍显示（标题 16px 字 ×2、正文 12px 字 ×2），字体到了才显示字，不会先闪一下系统字。 */
+    #loader { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #1c1611; transition: opacity .45s; }
     #loader.out { opacity: 0; pointer-events: none; }
-    #loader .ld { width: 384px; max-width: 86vw; }
-    #loader .ld-title { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; font-size: 32px; line-height: 40px; color: #f0c060; text-align: center; margin-bottom: 20px;
-                        -webkit-font-smoothing: none; text-shadow: 2px 2px 0 #120e0a; }
-    #loader .ld-road { position: relative; height: 84px; }
-    #loader .ld-cart { position: absolute; left: 0; bottom: 0; width: 176px; height: 80px; transform: translateX(0); will-change: transform; }
-    #loader canvas { position: absolute; image-rendering: pixelated; will-change: transform, opacity; }
-    #loader .ld-body, #loader .ld-legA, #loader .ld-legB { left: 0; top: 0; width: 176px; height: 80px; }
-    #loader .ld-legA { animation: ld-step .44s steps(1) infinite; }
-    #loader .ld-legB { animation: ld-step .44s steps(1) infinite reverse; }
-    #loader .ld-wheel { left: 132px; top: 40px; width: 36px; height: 36px; animation: ld-roll .88s steps(4) infinite; }
-    @keyframes ld-step { 0% { opacity: 1; } 50% { opacity: 0; } }
-    @keyframes ld-roll { to { transform: rotate(360deg); } }
-    #loader .ld-bar { position: relative; height: 20px; background: #2e251c; box-shadow: 0 0 0 4px #120e0a, inset 0 4px 0 #17120d; overflow: hidden; }
+    #loader .ld { width: 560px; max-width: 92vw; padding: 28px 32px 26px; background: #2b231b;
+                  box-shadow: 0 0 0 4px #120e0a, inset 0 0 0 4px #7a6448, inset -4px -4px 0 4px #3d3125, inset 0 0 0 8px #1c1611, 0 12px 0 4px rgba(0, 0, 0, .35); }
+    #loader:not(.fonts) .ld-title, #loader:not(.fonts) .ld-text { visibility: hidden; }
+    #loader .ld-title { font-family: 'PixelZh', sans-serif; font-size: 32px; line-height: 40px; color: #f0c060; text-align: center; -webkit-font-smoothing: none; text-shadow: 2px 2px 0 #120e0a; }
+    #loader .ld-sub { font-family: 'PixelZh12', sans-serif; font-size: 24px; line-height: 28px; color: #b5a58c; text-align: center; margin-top: 4px; -webkit-font-smoothing: none; }
+    /* 路：和沙盘边上一样，上面一层草皮（带一溜草尖）、一条土路，下面一层层土 */
+    #loader .ld-road { position: relative; height: 176px; margin: 8px 0 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 124 30' preserveAspectRatio='none' shape-rendering='crispEdges'%3E%3Cpath fill='%23463a52' d='M0 30V18h6v-3h5v-4h4v-3h3V6h4v3h3v3h5v3h6v-4h4V8h3V5h4V3h4v3h3v4h4v3h5v3h6v-3h5V9h4V6h4V4h4v3h3v4h4v3h6v3h5v-2h5v-3h4V8h3V6h4v4h3v4h4v4h3v12z'/%3E%3Cpath fill='%23574531' d='M0 30v-6h8v-2h7v-3h6v2h8v3h9v-3h7v-2h6v-2h6v2h7v3h8v-2h7v-3h6v2h7v3h8v-2h7v-2h6v3h4v7z'/%3E%3C/svg%3E") center bottom 40px / 100% 120px no-repeat; image-rendering: pixelated; } /* 路后面两层像素远山（场景背景里的山的颜色压暗） */
+    #loader .ld-road::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
+      background: linear-gradient(#6f8a3c 0 6px, #5b7432 6px 8px, #b0905e 8px 20px, #9a7a4c 20px 22px, #8a6446 22px 28px, #a87a50 28px 34px, #7a5236 34px 40px);
+      box-shadow: 0 0 0 4px #120e0a; }
+    #loader .ld-road::after { content: ''; position: absolute; left: 0; right: 0; bottom: 40px; height: 4px; background: repeating-linear-gradient(90deg, #7f9c44 0 4px, transparent 4px 10px, #5b7432 10px 12px, transparent 12px 20px); }
+    #loader .ld-walker { position: absolute; left: 0; bottom: 24px; width: 180px; height: 150px; z-index: 1; transform: translateX(0); will-change: transform; opacity: 0; transition: opacity .3s; }
+    #loader .ld-walker.on { opacity: 1; }
+    #loader .ld-walker canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; will-change: opacity; animation: ld-frame .8s linear infinite; }
+    @keyframes ld-frame { 0%, 12.4% { opacity: 1; } 12.5%, 100% { opacity: 0; } }
+    #loader .ld-bar { position: relative; height: 24px; background: #17120d; box-shadow: 0 0 0 4px #120e0a, inset 0 4px 0 #0e0b08; overflow: hidden; }
     #loader .ld-fill { position: absolute; inset: 0; transform-origin: 0 0; transform: scaleX(0); will-change: transform;
                        background: repeating-linear-gradient(90deg, #f0c060 0 12px, #d9a640 12px 16px); box-shadow: inset 0 -4px 0 #b88a30, inset 0 4px 0 #ffe08a; }
-    #loader .ld-text { margin-top: 18px; font-family: 'PixelZh12', 'Microsoft YaHei', sans-serif; font-size: 16px; line-height: 20px; color: #e0d4bf; text-align: center; -webkit-font-smoothing: none; }
-    #loader .ld-text b { color: #f0c060; font-weight: normal; margin-left: 8px; }
+    #loader .ld-text { margin-top: 16px; display: flex; justify-content: space-between; font-family: 'PixelZh12', sans-serif; font-size: 24px; line-height: 28px; color: #e0d4bf; -webkit-font-smoothing: none; }
+    #loader .ld-text b { color: #f0c060; font-weight: normal; }
     /* 换场景：屏幕左右边缘正中的像素按钮（像素三角 + 那边的地名） */
     .scene-nav { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
                  padding: calc(3 * var(--p)) calc(2 * var(--p)); cursor: pointer; color: var(--text); background: none; }
@@ -223,41 +228,36 @@
 <body>
   <div id="loader"><div class="ld">
     <div class="ld-title">石峪村</div>
-    <div class="ld-road"><div class="ld-cart"><canvas class="ld-body" width="44" height="20"></canvas><canvas class="ld-legA" width="44" height="20"></canvas><canvas class="ld-legB" width="44" height="20"></canvas><canvas class="ld-wheel" width="9" height="9"></canvas></div></div>
+    <div class="ld-sub">太行山里的一个石头村</div>
+    <div class="ld-road"><div class="ld-walker"></div></div>
     <div class="ld-bar"><div class="ld-fill"></div></div>
     <div class="ld-text"><span class="ld-msg">正在下载…</span><b class="ld-pct">0%</b></div>
   </div></div>
   <script>
-    // 载入进度：小人推着独轮车（画法、配色和场景里的村民一样：白羊肚手巾、靛蓝褂子、黑裤子，木车厢上两袋粮食）。
-    // loader.set(进度, 文字, 慢慢挪到哪, 用多少毫秒)：先跳到"进度"，再在合成线程里匀速挪向"慢慢挪到哪"（主线程卡住时也在动）；loader.done() 淡出。
+    // 载入进度。loader.set(进度, 文字, 慢慢挪到哪, 用多少毫秒)：先跳到"进度"，再在合成线程里匀速挪向"慢慢挪到哪"（主线程卡住时也在动）；
+    // loader.figure(画布们)：main.js 拍好的货郎走路 8 帧，放上去轮流显示；loader.done()：淡出。
     window.loader = (() => {
       const el = document.getElementById('loader'), q = (c) => el.querySelector(c);
-      const px = (cv, rects) => { const g = cv.getContext('2d'); for (const [x, y, w, h, c] of rects) { g.fillStyle = c; g.fillRect(x, y, w, h); } };
-      const W = '#e8e2d0', S = '#d9a477', E = '#2a1c14', B = '#3b5578', b = '#2c4160', P = '#2b2b30', K = '#4a3426', L = '#c08a52', w = '#a8743f', d = '#6b4a2e', A = '#d8c79d', a = '#b9a47a';
-      px(q('.ld-body'), [
-        [6, 0, 4, 1, W], [5, 1, 6, 1, W], [5, 2, 1, 2, W], [6, 2, 5, 3, S], [9, 3, 1, 1, E], [6, 2, 1, 1, '#1c1611'], // 羊肚手巾、脸、眼睛
-        [5, 5, 6, 6, B], [5, 5, 1, 6, b], [10, 6, 6, 2, b], [16, 6, 1, 2, S], [5, 11, 6, 1, K], [5, 12, 6, 3, P], // 褂子、胳膊伸向车把、手、腰带、裤子
-        [17, 7, 2, 1, d], [18, 8, 2, 1, d], [19, 9, 1, 1, d], // 车把
-        [22, 5, 7, 4, A], [22, 8, 7, 1, a], [24, 4, 3, 1, A], [25, 4, 1, 1, d], [29, 6, 6, 3, A], [29, 8, 6, 1, a], [31, 5, 2, 1, d], // 两袋粮食
-        [20, 9, 18, 1, L], [20, 10, 18, 2, w], [20, 12, 18, 1, d], [21, 13, 1, 3, d], // 车厢、车腿
-        ...[0, 6, 12, 18, 24, 30, 36].map((x) => [x + 1, 19, 3, 1, '#4a3c2c']), // 地上的土路
-      ]);
-      px(q('.ld-legA'), [[5, 15, 2, 3, P], [9, 15, 2, 3, P], [4, 18, 3, 1, K], [9, 18, 3, 1, K]]); // 迈开步
-      px(q('.ld-legB'), [[6, 15, 2, 3, P], [8, 15, 2, 3, P], [6, 18, 2, 1, K], [8, 18, 3, 1, K]]); // 两腿并拢
-      const R = '#5a3d24', r = '#8a6440', h = '#c9a46a';
-      px(q('.ld-wheel'), [[3, 0, 3, 1, R], [1, 1, 2, 1, R], [6, 1, 2, 1, R], [1, 2, 1, 1, R], [7, 2, 1, 1, R], [0, 3, 1, 3, R], [8, 3, 1, 3, R],
-        [1, 6, 1, 1, R], [7, 6, 1, 1, R], [1, 7, 2, 1, R], [6, 7, 2, 1, R], [3, 8, 3, 1, R],
-        [4, 1, 1, 3, h], [4, 5, 1, 3, r], [1, 4, 3, 1, r], [5, 4, 3, 1, r], [4, 4, 1, 1, d]]); // 车轮：一根辐条亮一点，转起来看得出
-      const fill = q('.ld-fill'), cart = q('.ld-cart'), msg = q('.ld-msg'), pct = q('.ld-pct');
-      const road = () => q('.ld-road').clientWidth - cart.offsetWidth;
-      const go = (p, ms) => { const t = ms ? `transform ${ms}ms cubic-bezier(.25, .6, .45, 1)` : 'none'; fill.style.transition = cart.style.transition = t; fill.style.transform = `scaleX(${p})`; cart.style.transform = `translateX(${Math.round(p * road())}px)`; };
+      Promise.all([document.fonts.load('32px PixelZh', '石峪村'), document.fonts.load('24px PixelZh12', '正在下载')]).finally(() => el.classList.add('fonts'));
+      const fill = q('.ld-fill'), walker = q('.ld-walker'), msg = q('.ld-msg'), pct = q('.ld-pct');
+      const road = () => q('.ld-road').clientWidth - walker.offsetWidth;
+      let at = 0;
+      const go = (p, ms) => { const t = ms ? `transform ${ms}ms cubic-bezier(.25, .6, .45, 1)` : ''; fill.style.transition = t || 'none'; walker.style.transition = t ? `${t}, opacity .3s` : 'opacity .3s'; fill.style.transform = `scaleX(${p})`; walker.style.transform = `translateX(${Math.round(p * road())}px)`; };
       return {
         set(p, text, to, ms) {
-          go(p, 0); msg.textContent = text; pct.textContent = `${Math.round(p * 100)}%`;
+          at = p; go(p, 0); msg.textContent = text; pct.textContent = `${Math.round(p * 100)}%`;
           void fill.offsetWidth; // 先落到 p，下一步的过渡才从 p 开始
           if (to != null) requestAnimationFrame(() => go(to, ms));
         },
-        done() { go(1, 200); pct.textContent = '100%'; setTimeout(() => el.classList.add('out'), 220); setTimeout(() => el.remove(), 700); },
+        figure(frames) {
+          if (!frames?.length) return;
+          frames.forEach((cv, i) => {
+            cv.style.animationDelay = `${(-((frames.length - i) % frames.length) * 0.8) / frames.length}s`; // 第 i 帧在一圈的第 i/8 处亮
+            walker.append(cv);
+          });
+          walker.classList.add('on');
+        },
+        done() { go(1, 200); pct.textContent = '100%'; setTimeout(() => el.classList.add('out'), 240); setTimeout(() => el.remove(), 800); },
       };
     })();
     loader.set(0.02, '正在下载…', 0.35, 6000);

@@ -70,8 +70,7 @@ function overcast(L, weather) {
   };
 }
 
-export function buildVillage({ startHour = 15.5, event = null, weather = null } = {}) {
-  const M = buildMaterials();
+export function buildVillage({ startHour = 15.5, event = null, weather = null, M = buildMaterials() } = {}) { // M：材质可以从外面传进来（载入画面先用同一套材质拍了货郎）
   const root = new THREE.Group();
   root.scale.setScalar(UNIT);
 

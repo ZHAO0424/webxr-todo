@@ -11,7 +11,9 @@ import { setupPixelUI } from './ui/frame.js';
 import { residentCard, animalCard, thingCard, hm, label } from './ui/cards.js';
 import { createRoster } from './ui/roster.js';
 import { pickThing, describe, YARDS } from './things.js';
-import { HOUSEHOLDS } from './residents.js';
+import { HOUSEHOLDS, RESIDENTS } from './residents.js';
+import { voxelCharacter } from './voxel.js';
+import { buildMaterials } from './textures.js';
 import { createSound } from './audio.js';
 import { createMusic } from './music.js';
 import { animalDoing } from './animalInfo.js';
@@ -51,13 +53,66 @@ controls.enableDamping = true;
 const stage = new THREE.Group();
 scene.add(stage);
 
+/**
+ * 载入画面上走路的货郎：用游戏里同一套体素小人（钱小二挑着货郎担），拍 8 帧走路（透明底，只带脚下的影子），
+ * 交给 loader 轮流显示（建村子时主线程卡住也照样走），他走在 index.html 画的一整条草皮土路上。走一步的周期 = 2π / 8 秒（voxel.js 的 pose）。
+ */
+function loaderFrames(M) {
+  const p = RESIDENTS.find((r) => r.id === 'qian_xiaoer');
+  if (!p || renderer.xr.isPresenting) return [];
+  const S = new THREE.Scene(), W = 180, H = 150, dpr = Math.min(devicePixelRatio, 2); // 和 index.html 里 .ld-walker 一样大
+  const cam = new THREE.PerspectiveCamera(26, W / H, 0.1, 50);
+  cam.position.set(0.5, 1.35, 5.4);
+  cam.lookAt(0, 0.95, 0);
+  const sun = new THREE.DirectionalLight('#ffd9a8', 3.0);
+  sun.position.set(-3, 6, 4);
+  sun.castShadow = true;
+  Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 3, bottom: -1, near: 0.1, far: 20 });
+  sun.shadow.mapSize.set(1024, 1024);
+  S.add(sun, new THREE.HemisphereLight('#c8d8e8', '#7a5a40', 1.6));
+  // 地面只接影子（透明）：路是 index.html 里画的一整条，不跟着人走
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(8, 4), new THREE.ShadowMaterial({ opacity: 0.35 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  S.add(ground);
+  const c = voxelCharacter(p, M);
+  c.setItem('peddler');
+  c.object.rotation.y = Math.PI / 2 - 0.3; // 朝右走，稍微侧过来一点看得见脸
+  c.object.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  S.add(c.object);
+  const rt = new THREE.WebGLRenderTarget(W * dpr, H * dpr, { samples: 4 });
+  rt.texture.colorSpace = THREE.SRGBColorSpace;
+  const frames = [];
+  for (let i = 0; i < 8; i++) {
+    c.pose('walk', (i / 8) * ((Math.PI * 2) / 8));
+    renderer.setRenderTarget(rt);
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear();
+    renderer.render(S, cam);
+    const px = new Uint8Array(W * dpr * H * dpr * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, W * dpr, H * dpr, px);
+    const cv = document.createElement('canvas');
+    cv.width = W * dpr; cv.height = H * dpr;
+    const g = cv.getContext('2d'), img = g.createImageData(cv.width, cv.height);
+    for (let y = 0; y < cv.height; y++) img.data.set(px.subarray((cv.height - 1 - y) * cv.width * 4, (cv.height - y) * cv.width * 4), y * cv.width * 4); // 读出来是倒的
+    g.putImageData(img, 0, 0);
+    frames.push(cv);
+  }
+  renderer.setRenderTarget(null);
+  renderer.setClearColor(0x000000, 1);
+  rt.dispose();
+  return frames;
+}
+
 // 载入进度（index.html 的 loader）：建村子要好几秒、主线程整个卡住，进度条按上回建了多久匀速往前挪；每一步之间让页面画一帧
 const nextFrame = () => new Promise((r) => { requestAnimationFrame(() => requestAnimationFrame(r)); setTimeout(r, 120); }); // 标签页在后台时 rAF 不走，最多等 0.12 秒
 const lastBuild = (() => { try { return Number(localStorage.getItem('pvBuildMs')) || 5000; } catch { return 5000; } })();
+const M0 = buildMaterials();
+if (window.loader) window.loader.figure(loaderFrames(M0));
 window.loader?.set(0.38, '盖房子、种庄稼…', 0.86, lastBuild);
 await nextFrame();
 const t0 = performance.now();
-const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event'), weather: params.get('weather') }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
+const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event'), weather: params.get('weather'), M: M0 }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
 document.documentElement.dataset.buildMs = String(Math.round(performance.now() - t0));
 try { localStorage.setItem('pvBuildMs', String(Math.round(performance.now() - t0))); } catch { /* 隐私模式存不了，下回按 5 秒估 */ }
 window.loader?.set(0.88, '村民起床…', 0.97, 2500);
@@ -555,7 +610,7 @@ renderer.setAnimationLoop((_, frame) => {
   if ((shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
   if (timer) { gpuPoll(); gpuBegin(); }
   renderer.render(scene, camera);
-  if (window.loader) { window.loader.done(); window.loader = null; } // 第一帧画出来了（着色器也编译完了）：载入画面淡出
+  if (window.loader && !params.has('holdload')) { window.loader.done(); window.loader = null; } // 第一帧画出来了（着色器也编译完了）：载入画面淡出（?holdload=1 停在载入画面，截图检查用）
   if (timer) gpuEnd();
   dbg.cpu += performance.now() - work0;
   debugTick();
