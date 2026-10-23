@@ -160,18 +160,16 @@
     #roster .info .kv { display: grid; grid-template-columns: auto 1fr; gap: var(--p) calc(3 * var(--p)); margin-bottom: calc(3 * var(--p)); }
     #roster .info .kv b { color: var(--gold); font-weight: normal; text-shadow: none; }
     #clock:empty { display: none; } /* 场景建好前时钟还没内容：先不显示（不然右上角一条空框像个不动的进度条） */
-    /* 载入：屏幕正中一块和游戏里一样的木框面板——点阵字的村名、真的体素货郎（main.js 用游戏里的模型拍的 8 帧走路）挑着担子顺着进度往前走、像素进度条、哪一步了。
+    /* 载入：屏幕正中一块和游戏里一样的木框面板——真的体素货郎（main.js 用游戏里的模型拍的 8 帧走路）挑着担子顺着进度往前走、像素进度条、哪一步了。
        主线程建村子那几秒什么都动不了，所以会动的只用 transform / opacity 动画（合成线程里跑）：货郎往前挪、进度条变长是 transition，走路 8 帧轮流显示是 animation。
-       点阵字按整数倍显示（标题 16px 字 ×2、正文 12px 字 ×2），字体到了才显示字，不会先闪一下系统字。 */
+       点阵字按整数倍显示（12px 字 ×2），字体到了才显示字，不会先闪一下系统字。 */
     #loader { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #1c1611; transition: opacity .45s; }
     #loader.out { opacity: 0; pointer-events: none; }
     #loader .ld { width: 560px; max-width: 92vw; padding: 28px 32px 26px; background: #2b231b;
                   box-shadow: 0 0 0 4px #120e0a, inset 0 0 0 4px #7a6448, inset -4px -4px 0 4px #3d3125, inset 0 0 0 8px #1c1611, 0 12px 0 4px rgba(0, 0, 0, .35); }
-    #loader:not(.fonts) .ld-title, #loader:not(.fonts) .ld-text { visibility: hidden; }
-    #loader .ld-title { font-family: 'PixelZh', sans-serif; font-size: 32px; line-height: 40px; color: #f0c060; text-align: center; -webkit-font-smoothing: none; text-shadow: 2px 2px 0 #120e0a; }
-    #loader .ld-sub { font-family: 'PixelZh12', sans-serif; font-size: 24px; line-height: 28px; color: #b5a58c; text-align: center; margin-top: 4px; -webkit-font-smoothing: none; }
+    #loader:not(.fonts) .ld-text { visibility: hidden; }
     /* 路：和沙盘边上一样，上面一层草皮（带一溜草尖）、一条土路，下面一层层土 */
-    #loader .ld-road { position: relative; height: 176px; margin: 8px 0 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 124 30' preserveAspectRatio='none' shape-rendering='crispEdges'%3E%3Cpath fill='%23463a52' d='M0 30V18h6v-3h5v-4h4v-3h3V6h4v3h3v3h5v3h6v-4h4V8h3V5h4V3h4v3h3v4h4v3h5v3h6v-3h5V9h4V6h4V4h4v3h3v4h4v3h6v3h5v-2h5v-3h4V8h3V6h4v4h3v4h4v4h3v12z'/%3E%3Cpath fill='%23574531' d='M0 30v-6h8v-2h7v-3h6v2h8v3h9v-3h7v-2h6v-2h6v2h7v3h8v-2h7v-3h6v2h7v3h8v-2h7v-2h6v3h4v7z'/%3E%3C/svg%3E") center bottom 40px / 100% 120px no-repeat; image-rendering: pixelated; } /* 路后面两层像素远山（场景背景里的山的颜色压暗） */
+    #loader .ld-road { position: relative; height: 176px; margin: 0 0 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 124 30' preserveAspectRatio='none' shape-rendering='crispEdges'%3E%3Cpath fill='%23463a52' d='M0 30V18h6v-3h5v-4h4v-3h3V6h4v3h3v3h5v3h6v-4h4V8h3V5h4V3h4v3h3v4h4v3h5v3h6v-3h5V9h4V6h4V4h4v3h3v4h4v3h6v3h5v-2h5v-3h4V8h3V6h4v4h3v4h4v4h3v12z'/%3E%3Cpath fill='%23574531' d='M0 30v-6h8v-2h7v-3h6v2h8v3h9v-3h7v-2h6v-2h6v2h7v3h8v-2h7v-3h6v2h7v3h8v-2h7v-2h6v3h4v7z'/%3E%3C/svg%3E") center bottom 40px / 100% 120px no-repeat; image-rendering: pixelated; } /* 路后面两层像素远山（场景背景里的山的颜色压暗） */
     #loader .ld-road::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 40px;
       background: linear-gradient(#6f8a3c 0 6px, #5b7432 6px 8px, #b0905e 8px 20px, #9a7a4c 20px 22px, #8a6446 22px 28px, #a87a50 28px 34px, #7a5236 34px 40px);
       box-shadow: 0 0 0 4px #120e0a; }
@@ -227,8 +225,6 @@
 </head>
 <body>
   <div id="loader"><div class="ld">
-    <div class="ld-title">石峪村</div>
-    <div class="ld-sub">太行山里的一个石头村</div>
     <div class="ld-road"><div class="ld-walker"></div></div>
     <div class="ld-bar"><div class="ld-fill"></div></div>
     <div class="ld-text"><span class="ld-msg">正在下载…</span><b class="ld-pct">0%</b></div>
@@ -238,7 +234,7 @@
     // loader.figure(画布们)：main.js 拍好的货郎走路 8 帧，放上去轮流显示；loader.done()：淡出。
     window.loader = (() => {
       const el = document.getElementById('loader'), q = (c) => el.querySelector(c);
-      Promise.all([document.fonts.load('32px PixelZh', '石峪村'), document.fonts.load('24px PixelZh12', '正在下载')]).finally(() => el.classList.add('fonts'));
+      document.fonts.load('24px PixelZh12', '正在下载').finally(() => el.classList.add('fonts'));
       const fill = q('.ld-fill'), walker = q('.ld-walker'), msg = q('.ld-msg'), pct = q('.ld-pct');
       const road = () => q('.ld-road').clientWidth - walker.offsetWidth;
       let at = 0;
