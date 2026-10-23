@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { buildVillage } from './village.js';
 import { BOUNDS } from './layout.js';
 import { daylight } from './daylight.js';
@@ -165,6 +166,13 @@ function applyLight(L) {
 
 // 光学透视眼镜上黑色 = 透明：XR 里去掉天空，让沙盘直接浮在真实桌面上（?sky=1 可保留）
 const anchor = createAnchor(renderer, stage, {
+  scene,
+  aim(origin, dir) { // 射线落点：路牌、当前沙盘上的东西（人、房子、地面），返回距离
+    ray.ray.origin.copy(origin); ray.ray.direction.copy(dir); ray.far = 6; ray.camera = inXR() ? renderer.xr.getCamera() : camera; // 打到精灵（炊烟等）要用相机
+    const hit = ray.intersectObjects([...scenes.signs, scenes.current.object], true).find((h) => h.object.isMesh && !h.object.isInstancedMesh);
+    ray.far = Infinity;
+    return hit?.distance ?? null;
+  },
   onSession(active) {
     scene.background = active && !params.has('sky') ? null : sky;
     // 阴影贴图：XR 里两只眼各画一遍，贴图降到 2048（一格影子差不多就是场景里一个像素那么大）；出来再换回 4096
@@ -177,6 +185,7 @@ const anchor = createAnchor(renderer, stage, {
     controller.updateMatrixWorld(true);
     ray.ray.origin.setFromMatrixPosition(controller.matrixWorld);
     ray.ray.direction.set(0, 0, -1).transformDirection(controller.matrixWorld);
+    ray.camera = renderer.xr.getCamera();
     pickRay();
   },
   onMove: () => closeCard(), // 双手握住拖、转、拉近推远，或沙盘滑回眼前：卡片收起
@@ -644,12 +653,29 @@ renderer.setAnimationLoop((_, frame) => {
   if (moved || (shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
   if (timer) { gpuPoll(); gpuBegin(); }
   renderer.render(scene, camera);
-  if (window.loader && !params.has('holdload')) { window.loader.done(); window.loader = null; } // 第一帧画出来了（着色器也编译完了）：载入画面淡出（?holdload=1 停在载入画面，截图检查用）
+  if (window.loader && !params.has('holdload')) { window.loader.done(); window.loader = null; setTimeout(buildBVH, 500); } // 第一帧画出来了（着色器也编译完了）：载入画面淡出（?holdload=1 停在载入画面，截图检查用）
   if (timer) gpuEnd();
   dbg.cpu += performance.now() - work0;
   debugTick();
   if (params.has('perf') && ++perfFrames === 2) perfReport();
 });
+
+/**
+ * 射线检测加速：合批后的大网格（整个村子几十万个三角面）逐个三角面试一遍要 15 毫秒，XR 里两只手的射线每几帧就要测一次。
+ * 载入完以后空闲时给大网格各建一棵 BVH（three-mesh-bvh），之后一次射线检测不到 0.1 毫秒；没建的网格照旧逐个试。
+ */
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+function buildBVH() {
+  const todo = [];
+  for (const S of SCENES) S.object.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && !o.geometry.boundsTree && (o.geometry.index?.count ?? o.geometry.attributes.position.count) > 600) todo.push(o.geometry); });
+  const idle = window.requestIdleCallback ?? ((f) => setTimeout(f, 50));
+  const next = () => { // 空闲时一次建一棵；indirect：不改动网格本身的索引（不用重新上传显卡）
+    const g = todo.pop();
+    g.boundsTree ??= new MeshBVH(g, { indirect: true });
+    if (todo.length) idle(next);
+  };
+  if (todo.length) idle(next);
+}
 
 // ?perf=1：渲染开销报告（draw call、三角面、材质 / 贴图 / 着色器数，按类别分），写到 data-perf
 let perfFrames = 0;

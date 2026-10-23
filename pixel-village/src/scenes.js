@@ -107,6 +107,7 @@ export function createSceneSwitch({ world, stage, scenes, M, start = 0, onChange
   return {
     get current() { return scenes[cur]; },
     get busy() { return !!slide; },
+    get signs() { return signs.filter((s) => s.group.visible).map((s) => s.hit); }, // XR 里看得见的路牌（射线落点用）
     go,
     update(dt, inXR) {
       if (slide) {

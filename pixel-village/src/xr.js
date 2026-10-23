@@ -27,8 +27,25 @@ const TURN = 0.9;                 // 两手连线水平转角 → 沙盘转角
  *   opposite = dL - dR 沿两手连线的分量    拉开 / 收拢         → 拉近 / 推远（沿"眼睛 → 沙盘"那条线，不改缩放）
  *   opposite 垂直连线的分量                反向错动            → 绕竖轴转（两手连线转多少沙盘转多少，再加上下错动的方向盘）
  * 握过的这一下，松手时不算捏合（不会算进双击）。
+ *
+ * 指向：每只手一条细射线 + 落点一个像素小光点（捏住时变大），看得出自己指着谁。aim(起点, 方向) 返回打到东西的距离（没打到 null），
+ * 每只手每 4 帧测一次、两只手错开（射线检测不便宜）；没指着东西时射线画 1.5 米、没有光点；双手握住时都藏起来。
  */
-export function createAnchor(renderer, root, { onSession, onSelect, onTap, onMove } = {}) {
+const RAY_LEN = 1.5;
+
+/** 落点光点：5×5 像素菱形，深色描边、金色、白芯。 */
+function dotTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 5;
+  const g = c.getContext('2d');
+  const px = (x, y, col) => { g.fillStyle = col; g.fillRect(x, y, 1, 1); };
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) { const d = Math.abs(x - 2) + Math.abs(y - 2); if (d <= 2) px(x, y, d === 2 ? '#120e0a' : d === 1 ? '#ffcc66' : '#fff6e6'); }
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, onTap, onMove } = {}) {
   const xr = renderer.xr;
   xr.setReferenceSpaceType('local');
   let pending = false; // true：马上摆好（刚进 XR）；'glide'：半秒滑过去（双击捏合、系统重新定位）
@@ -49,8 +66,12 @@ export function createAnchor(renderer, root, { onSession, onSelect, onTap, onMov
   xr.addEventListener('sessionend', () => {
     root.position.set(0, 0, 0);
     root.rotation.set(0, 0, 0);
+    for (const h of hands) h.dot.visible = false;
     onSession?.(false);
   });
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
+  const lineMat = new THREE.LineBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.5, depthTest: false, depthWrite: false });
+  const dotMap = dotTexture();
   // 每只手：捏着没有、是左手还是右手；有手部追踪就用拇指尖和食指尖的中点当捏合点，没有就用手柄 / 指向射线的位置
   const hands = [0, 1].map((i) => {
     const h = { ctrl: xr.getController(i), grip: xr.getControllerGrip(i), hand: xr.getHand(i), pinch: false, side: i ? 'right' : 'left', pos: new THREE.Vector3() };
@@ -63,6 +84,13 @@ export function createAnchor(renderer, root, { onSession, onSelect, onTap, onMov
       const now = performance.now();
       if (now - lastTap < 400) { pending = 'glide'; lastTap = -Infinity; } else { lastTap = now; onTap?.(e.target); }
     });
+    h.line = new THREE.Line(lineGeo, lineMat);
+    h.line.renderOrder = 99; h.line.frustumCulled = false;
+    h.ctrl.add(h.line);
+    h.dot = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotMap, depthTest: false, depthWrite: false, toneMapped: false }));
+    h.dot.renderOrder = 101; h.dot.visible = false;
+    h.dist = null;
+    scene?.add(h.ctrl, h.dot);
     return h;
   });
   const pinchPos = (h) => {
@@ -133,6 +161,8 @@ export function createAnchor(renderer, root, { onSession, onSelect, onTap, onMov
   const q = new THREE.Quaternion();
   const viewer = new THREE.Vector3();
   const f = new THREE.Vector3();
+  const ro = new THREE.Vector3(), rd = new THREE.Vector3();
+  let tick = 0;
 
   return {
     recenter() { pending = 'glide'; },
@@ -164,6 +194,24 @@ export function createAnchor(renderer, root, { onSession, onSelect, onTap, onMov
       }
       grip(viewer.set(p.x, p.y, p.z));
       if (dollying) root.position.lerp(dolly, 0.35); // 推拉稍微平滑一下
+      root.updateMatrixWorld(true);
+      tick = (tick + 1) % 4;
+      hands.forEach((h, i) => { // 射线 + 落点
+        const on = h.ctrl.visible && !gripping;
+        h.line.visible = on;
+        if (!on) { h.dot.visible = false; h.dist = null; return; }
+        h.ctrl.updateMatrixWorld(true);
+        ro.setFromMatrixPosition(h.ctrl.matrixWorld);
+        rd.set(0, 0, -1).transformDirection(h.ctrl.matrixWorld);
+        if (tick === i * 2) h.dist = aim?.(ro, rd) ?? null;
+        h.line.scale.z = h.dist ?? RAY_LEN;
+        h.dot.visible = h.dist != null;
+        if (h.dot.visible) {
+          h.dot.position.copy(ro).addScaledVector(rd, h.dist);
+          const s = (0.004 + 0.012 * h.dist) * (h.pinch ? 1.5 : 1);
+          h.dot.scale.set(s, s, 1);
+        }
+      });
       return true;
     },
   };
