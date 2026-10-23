@@ -6,8 +6,8 @@ import { planHTML } from './cards.js';
 
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
- *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），每户一块小牌子（户名 + 这家人的头像和名字）标在自家院子上，
- *         挤在一起的推开、用细线连回院子；右边是点中的人的小卡，下面是各家的名单；
+ *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），左上角是地名；每户一列头像（右边小字名字、职业）竖排在自家院子上，
+ *         挤在一起的推开、用虚线连回院子；右边是点中的人（默认第一个）的小卡和详细资料；
  *   卡片：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；上面一排筛选；
  *   详情：点了人才显示，横着三栏都用框填满——
  *         立绘台（全身像 + 名牌）、身份、此刻 | 来历、性格 / 喜欢 / 手艺 / 家当四格、今日安排 | 家人好友（头像 + 关系 + 此刻在干什么）、这一家（院子、介绍、牲口）。
@@ -93,13 +93,16 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
   const lines = document.createElementNS(svgNS, 'svg');
   lines.classList.add('leaders');
   if (map) {
-    wrap.append(lines);
+    const title = document.createElement('div');
+    title.className = 'maptitle';
+    title.innerHTML = `${esc(VILLAGE.name)}<span>${HOUSEHOLDS.length} 户 · ${RESIDENTS.length} 口人</span>`;
+    wrap.append(lines, title);
     for (const h of HOUSEHOLDS) {
       const at = map.homeAt(h.id);
       if (!at) continue;
       const g = document.createElement('div');
       g.className = 'hh';
-      g.innerHTML = `<div class="hn">${esc(h.name.replace(/（.*）/, ''))}</div><div class="ms"></div>`;
+      g.innerHTML = '<div class="ms"></div>';
       const ms = g.querySelector('.ms');
       for (const p0 of h.people) {
         const p = BYID[p0.id];
@@ -107,7 +110,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
         m.className = 'mk';
         m.dataset.id = p.id;
         m.style.setProperty('--jc', JOB_COLOR(p));
-        m.innerHTML = `<span class="hd"></span><span class="nm">${esc(p.name)}</span>`;
+        m.innerHTML = `<span class="hd"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="jb">${esc(p.job)}</span></span>`;
         m.querySelector('.hd').append(head(p, 2));
         m.addEventListener('click', (e) => { e.stopPropagation(); pick(p.id); });
         ms.append(m);
@@ -118,7 +121,6 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
       wrap.append(pin, g);
       groups.push({ h, el: g, pin, x0: at[0], z0: at[1], x: 0, y: 0 });
     }
-    wrap.addEventListener('click', () => pick(null));
     addEventListener('resize', () => layout());
   }
   let drawn = false;
@@ -167,30 +169,30 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
     for (const [id, m] of Object.entries(markers)) m.classList.toggle('on', id === picked);
   }
 
-  /** 地图右边：点中的人一张小卡（头像、身份、此刻、下一项、来历、看详情 / 去村里找），下面是各家的名单。 */
-  function pick(id) { picked = id; sideHTML(); for (const [k, m] of Object.entries(markers)) m.classList.toggle('on', k === picked); }
+  /** 地图右边：上面是点中的人的小卡（头像、身份、此刻、下一项、去村里找 / 看大图），下面是他的详细资料（来历、性格喜好手艺家当、家人好友、今日安排）。 */
+  function pick(id) { picked = id ?? picked; sideHTML(); for (const [k, m] of Object.entries(markers)) m.classList.toggle('on', k === picked); }
   function sideHTML() {
     if (!map) return;
-    let html = '';
-    const p = picked && BYID[picked];
-    if (p) {
-      const s = status(p.id);
-      html += `<div class="paper box mini"><div class="row1"><span class="hd big"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><br>
-          <span class="jb">${esc(p.job)} · ${p.age}岁 · ${esc(p.relation)}</span><br><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.slice(0, 3).map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</span></div>
+    const p = BYID[picked] ?? RESIDENTS.find(filter) ?? RESIDENTS[0];
+    picked = p.id;
+    const s = status(p.id);
+    const friends = friendsOf(p.id).map((i) => BYID[i]).filter(Boolean);
+    const family = RESIDENTS.filter((o) => o.home === p.home && o.id !== p.id);
+    const chips = (l, color) => l.map((o) => `<span class="chip link" style="--c:${color}" data-id="${o.id}">${esc(o.name)}<span class="cn">${esc(o.nick)}</span></span>`).join('');
+    side.innerHTML = `<div class="paper box mini"><div class="row1"><span class="hd big"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><br>
+        <span class="jb">${esc(p.job)} · ${p.age}岁 · ${p.sex} · ${esc(p.relation)}</span><br><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</span></div>
         <div class="now">${nowHTML(s)}</div><div class="next">${esc(s?.nextText ?? '')}</div>
-        <p class="bio">${esc(p.bio)}</p>
-        <div class="btns"><button class="btn more">看详情</button><button class="btn find">去村里找</button></div></div>`;
-    } else html += `<div class="paper box mini hint">${esc(VILLAGE.intro)}<br><span class="tip">点地图上的头像看这个人的小卡；头像边框的颜色：<span class="sw" style="--c:var(--c-chief)"></span>村长 <span class="sw" style="--c:var(--c-craft)"></span>手艺人 <span class="sw" style="--c:var(--c-farm)"></span>种地的 <span class="sw" style="--c:var(--c-child)"></span>孩子</span></div>`;
-    html += `<div class="paper box groups"><div class="lbl">各家<span class="count">${HOUSEHOLDS.length} 户</span></div>${HOUSEHOLDS.map((h) => {
-      const ps = h.people.map((x) => BYID[x.id]).filter(filter);
-      return ps.length ? `<div class="grp"><div class="gk">${esc(h.name)}<span class="count">${esc(h.kind)}</span></div><div>${ps.map((o) => `<span class="chip link${o.id === picked ? ' on' : ''}" data-id="${o.id}">${esc(o.name)}<span class="cn">${esc(o.nick)}</span></span>`).join('')}</div></div>` : '';
-    }).join('')}</div>`;
-    side.innerHTML = html;
-    if (p) {
-      side.querySelector('.hd.big').append(head(p, 3));
-      side.querySelector('.more').addEventListener('click', () => openPerson(p.id));
-      side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
-    }
+        <div class="btns"><button class="btn find">去村里找</button><button class="btn more">看大图</button></div></div>
+      <div class="paper box info">
+        <div class="sec"><div class="lbl">来历</div><p>${esc(p.bio)}</p></div>
+        <div class="kv"><b>喜欢</b><span>${esc(p.likes)}</span><b>手艺</b><span>${esc(p.skills.join('、'))}</span>${p.owns.length ? `<b>家当</b><span>${esc(p.owns.join('、'))}</span>` : ''}</div>
+        ${family.length ? `<div class="sec"><div class="lbl">家人</div>${chips(family, 'var(--c-craft)')}</div>` : ''}
+        ${friends.length ? `<div class="sec"><div class="lbl">好友</div>${chips(friends, 'var(--c-child)')}</div>` : ''}
+        <div class="sec"><div class="lbl">今日安排<span class="count">${p.day.length} 项</span></div><ul class="plan">${planHTML(p.day, s?.cur ?? -1)}</ul></div>
+      </div>`;
+    side.querySelector('.hd.big').append(head(p, 3));
+    side.querySelector('.more').addEventListener('click', () => openPerson(p.id));
+    side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
     side.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => pick(c.dataset.id)));
   }
 
@@ -261,7 +263,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
   function refresh() {
     if (el.hidden) return;
     if (!cur) {
-      if (view === 'map') { if (picked) sideHTML(); return; } // 小卡上的"此刻"跟着刷
+      if (view === 'map') { sideHTML(); return; } // 小卡上的"此刻"和安排高亮跟着刷
       for (const t of list.children) if (!t.hidden) t.querySelector('.now').innerHTML = nowHTML(status(t.dataset.id));
       return;
     }

@@ -125,24 +125,26 @@
     #roster .leaders { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
     #roster .leaders line { stroke: #fff2cc; stroke-width: 2; stroke-dasharray: 4 3; opacity: .8; }
     #roster .home-pin { position: absolute; width: calc(3 * var(--p)); height: calc(3 * var(--p)); transform: translate(-50%, -50%); background: var(--gold); box-shadow: 0 0 0 var(--f) var(--ink); pointer-events: none; }
-    #roster .hh { position: absolute; transform: translate(-50%, -50%); background: rgba(27, 22, 38, .88); padding: var(--p) calc(2 * var(--p)) calc(2 * var(--p));
-                  box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; z-index: 1; }
+    #roster .hh { position: absolute; transform: translate(-50%, -50%); z-index: 1; }
     #roster .hh:hover { z-index: 2; }
-    #roster .hh .hn { color: var(--gold); text-align: center; white-space: nowrap; line-height: calc(14 * var(--f)); margin-bottom: var(--p); }
-    #roster .hh .ms { display: grid; grid-template-columns: repeat(2, auto); gap: var(--p) calc(2 * var(--p)); justify-content: center; }
-    #roster .mk { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-    #roster .mk .hd { width: calc(28 * var(--f)); height: calc(28 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64);
-                      box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--jc, var(--line)); }
+    #roster .hh .ms { display: flex; flex-direction: column; gap: calc(2 * var(--f)); }
+    #roster .mk { display: flex; align-items: center; gap: calc(2 * var(--p)); cursor: pointer; }
+    #roster .mk .hd { flex: none; width: calc(28 * var(--f)); height: calc(28 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64);
+                      box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--jc, var(--line)), 0 0 0 calc(3 * var(--f)) var(--ink); }
     #roster .mk .hd canvas { display: block; }
-    #roster .mk .nm { margin-top: calc(2 * var(--f)); color: var(--text); white-space: nowrap; line-height: calc(13 * var(--f)); }
+    #roster .mk .t { display: flex; flex-direction: column; white-space: nowrap; line-height: calc(13 * var(--f));
+                     text-shadow: var(--f) 0 0 #1b1626, calc(-1 * var(--f)) 0 0 #1b1626, 0 var(--f) 0 #1b1626, 0 calc(-1 * var(--f)) 0 #1b1626, var(--f) var(--f) 0 #1b1626; }
+    #roster .mk .nm { color: #fff2cc; }
+    #roster .mk .jb { color: #d8cbe8; }
     #roster .mk:hover .nm { color: var(--gold); }
-    #roster .mk.on .nm { background: var(--gold); color: #2a1a10; padding: 0 var(--f); }
-    #roster .mk.on .hd { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(3 * var(--f)) var(--gold); }
+    #roster .mk.on .nm { color: var(--gold); }
+    #roster .mk.on .hd { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(3 * var(--f)) var(--gold), 0 0 0 calc(4 * var(--f)) var(--ink); }
+    #roster .maptitle { position: absolute; left: calc(3 * var(--p)); top: calc(2 * var(--p)); z-index: 3; pointer-events: none; color: var(--gold);
+                        font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f));
+                        text-shadow: var(--f) 0 0 #1b1626, calc(-1 * var(--f)) 0 0 #1b1626, 0 var(--f) 0 #1b1626, 0 calc(-1 * var(--f)) 0 #1b1626, var(--f) var(--f) 0 #1b1626; }
+    #roster .maptitle span { display: block; color: #fff2cc; font-family: 'PixelZh12', sans-serif; font-size: calc(12 * var(--f)); line-height: calc(14 * var(--f)); }
     #roster .mapside { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
     #roster .mini { flex: none; }
-    #roster .mini.hint { color: var(--dim); }
-    #roster .mini.hint .tip { display: block; margin-top: calc(2 * var(--p)); }
-    #roster .mini.hint .sw { display: inline-block; width: calc(2 * var(--p)); height: calc(2 * var(--p)); background: var(--c); margin: 0 var(--f) 0 calc(2 * var(--p)); }
     #roster .grp .chip .cn { color: var(--dim); margin-left: var(--p); }
     #roster .grp .chip.on .cn { color: #5a4020; }
     #roster .mini .row1 { display: flex; gap: calc(3 * var(--p)); align-items: center; margin-bottom: calc(2 * var(--p)); }
@@ -154,12 +156,12 @@
     #roster .mini .bio { margin: calc(2 * var(--p)) 0; }
     #roster .mini .btns { display: flex; gap: calc(2 * var(--p)); }
     #roster .mini .find { line-height: calc(18 * var(--f)); }
-    #roster .groups { flex: 1; overflow: auto; scrollbar-width: none; }
-    #roster .grp { margin-bottom: calc(2 * var(--p)); }
-    #roster .grp .gk { color: #d8c0a0; display: flex; }
-    #roster .grp .gk .count { margin-left: auto; color: var(--dim); }
-    #roster .grp .chip { --c: #3e3456; }
-    #roster .grp .chip.on { --c: var(--gold); color: #2a1a10; }
+    #roster .info { flex: 1; overflow: auto; scrollbar-width: none; }
+    #roster .info .sec { margin-bottom: calc(3 * var(--p)); }
+    #roster .info .kv { display: grid; grid-template-columns: auto 1fr; gap: var(--p) calc(3 * var(--p)); margin-bottom: calc(3 * var(--p)); }
+    #roster .info .kv b { color: var(--gold); font-weight: normal; text-shadow: none; }
+    #roster .info .chip .cn { opacity: .75; margin-left: var(--p); }
+    #roster .info .plan li.item { line-height: calc(17 * var(--f)); }
     /* 换场景：屏幕左右边缘正中的像素按钮（像素三角 + 那边的地名） */
     .scene-nav { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
                  padding: calc(3 * var(--p)) calc(2 * var(--p)); cursor: pointer; color: var(--text); background: none; }
