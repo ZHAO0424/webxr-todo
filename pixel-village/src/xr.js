@@ -17,20 +17,22 @@ const TURN = 0.9;                 // 两手连线水平转角 → 沙盘转角
  *
  * 用 'local' 参考空间而不是 'local-floor'：VITURE runtime 的 LOCAL_FLOOR 高度取决于
  * SLAM 启动时眼镜在哪，可能在天上也可能在桌面（见 webxr-场景高度-排查）。
- * 以头为准就不依赖地板。手柄扳机 / 手势捏合 / 参考空间 reset 都会重新摆一次——
- * 除非 onSelect(手柄) 返回 true（扳机点中了沙盘边上的路牌，拿去换场景，不重新摆）。
+ * 以头为准就不依赖地板。进 XR 时马上摆好；之后快速捏两下（0.4 秒内两次扳机 / 捏合）或系统重新定位（reference space reset），
+ * 沙盘用半秒滑到眼前（不瞬移）。单手捏一下不动沙盘；onSelect(手柄) 返回 true 时（指着沙盘边上的路牌）拿去换场景。
  *
  * 双手同时捏合 = 握住沙盘（手感照 HexCity 的 CityGrip / Skyvine 的 SceneRotator）：
  * 每帧把两手的运动分成三个正交分量，第一次分清后锁定到松手——一次拖拽不会中途变成旋转：
  *   together = (dL + dR) / 2              两手一起动          → 平移（上下左右前后都跟手）
  *   opposite = dL - dR 沿两手连线的分量    拉开 / 收拢         → 拉近 / 推远（沿"眼睛 → 沙盘"那条线，不改缩放）
  *   opposite 垂直连线的分量                反向错动            → 绕竖轴转（两手连线转多少沙盘转多少，再加上下错动的方向盘）
- * 握过的这一下，松手时不算单手捏合（不会重新摆沙盘）。
+ * 握过的这一下，松手时不算捏合（不会算进双击）。
  */
 export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
   const xr = renderer.xr;
   xr.setReferenceSpaceType('local');
-  let pending = false;
+  let pending = false; // true：马上摆好（刚进 XR）；'glide'：半秒滑过去（双击捏合、系统重新定位）
+  let glide = null; // 正在滑过去：{ from, to, yaw0, yaw1, t0 }
+  let lastTap = -Infinity; // 上一次单手捏合松开的时间（两下挨得近 = 双击）
 
   xr.addEventListener('sessionstart', () => {
     pending = true;
@@ -40,7 +42,7 @@ export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
       const best = Math.max(...rates);
       if (best > (session.frameRate ?? 0)) session.updateTargetFrameRate(best).catch(() => {});
     }
-    xr.getReferenceSpace()?.addEventListener('reset', () => { pending = true; });
+    xr.getReferenceSpace()?.addEventListener('reset', () => { pending = 'glide'; });
     onSession?.(true);
   });
   xr.addEventListener('sessionend', () => {
@@ -55,7 +57,11 @@ export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
     h.ctrl.addEventListener('disconnected', () => { h.pinch = false; });
     h.ctrl.addEventListener('selectstart', () => { h.pinch = true; });
     h.ctrl.addEventListener('selectend', () => { h.pinch = false; });
-    h.ctrl.addEventListener('select', (e) => { if (gripUsed) return; if (!onSelect?.(e.target)) pending = true; });
+    h.ctrl.addEventListener('select', (e) => { // 单手捏一下不动沙盘（以前会马上重摆，一捏就闪到别处）；快速捏两下才重新摆到眼前，而且是滑过去
+      if (gripUsed || onSelect?.(e.target)) return; // 双手握过 / 指着路牌换场景
+      const now = performance.now();
+      if (now - lastTap < 400) { pending = 'glide'; lastTap = -Infinity; } else lastTap = now;
+    });
     return h;
   });
   const pinchPos = (h) => {
@@ -127,7 +133,7 @@ export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
   const f = new THREE.Vector3();
 
   return {
-    recenter() { pending = true; },
+    recenter() { pending = 'glide'; },
     get gripping() { return gripping; },
 
     /** 读取头部位姿写入 outViewer；有待摆放时顺带摆好。没有位姿时返回 false。 */
@@ -141,10 +147,17 @@ export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
         f.y = 0;
         if (f.lengthSq() < 1e-6) f.set(0, 0, -1);
         f.normalize();
-        root.position.set(p.x + f.x * DISTANCE, p.y - DROP, p.z + f.z * DISTANCE);
-        root.rotation.set(0, Math.atan2(-f.x, -f.z), 0); // 让沙盘正面（+z）朝向观察者
+        const to = new THREE.Vector3(p.x + f.x * DISTANCE, p.y - DROP, p.z + f.z * DISTANCE), yaw = Math.atan2(-f.x, -f.z); // 让沙盘正面（+z）朝向观察者
+        if (pending === 'glide') glide = { from: root.position.clone(), to, yaw0: root.rotation.y, yaw1: root.rotation.y + Math.atan2(Math.sin(yaw - root.rotation.y), Math.cos(yaw - root.rotation.y)), t0: performance.now() };
+        else { glide = null; root.position.copy(to); root.rotation.set(0, yaw, 0); }
         root.updateMatrixWorld(true);
         pending = false;
+      }
+      if (glide) { // 半秒滑到眼前，先快后慢
+        const k = Math.min(1, (performance.now() - glide.t0) / 500), e = 1 - (1 - k) ** 3;
+        root.position.lerpVectors(glide.from, glide.to, e);
+        root.rotation.set(0, glide.yaw0 + (glide.yaw1 - glide.yaw0) * e, 0);
+        if (k >= 1 || gripping) glide = null; // 滑的时候双手握住：听手的
       }
       grip(viewer.set(p.x, p.y, p.z));
       if (dollying) root.position.lerp(dolly, 0.35); // 推拉稍微平滑一下

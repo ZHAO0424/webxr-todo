@@ -578,6 +578,7 @@ soundBtn?.addEventListener('click', (e) => { e.stopPropagation(); sound.toggle()
 const viewer = new THREE.Vector3();
 let lastLabel = '';
 let shadowFrame = 1;
+const stageM = new THREE.Matrix4(); // 上一帧沙盘的位置姿态（动了就每帧重画阴影）
 const first = village.update(0, camera.position);
 applyLight(first.light);
 renderer.setAnimationLoop((_, frame) => {
@@ -617,7 +618,12 @@ renderer.setAnimationLoop((_, frame) => {
     refreshCard();
     roster.refresh();
   }
-  if ((shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
+  // 阴影平时隔一帧重画一次；沙盘在动的时候（XR 里双手拖、转、重新摆）每帧都重画——three 只在重画阴影那帧更新阴影的位置矩阵，
+  // 隔帧的话没重画的那帧影子还在上一帧的位置，转起来一闪一闪
+  stage.updateMatrixWorld();
+  const moved = !stageM.equals(stage.matrixWorld);
+  if (moved) stageM.copy(stage.matrixWorld);
+  if (moved || (shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
   if (timer) { gpuPoll(); gpuBegin(); }
   renderer.render(scene, camera);
   if (window.loader && !params.has('holdload')) { window.loader.done(); window.loader = null; } // 第一帧画出来了（着色器也编译完了）：载入画面淡出（?holdload=1 停在载入画面，截图检查用）
