@@ -312,6 +312,8 @@ function personStatus(v, hour = village.life.clock.hour) {
 // 村民档案：左下角按钮打开页面里的横板大卡；详情里"去村里找"= 关掉档案、选中这个人并跟着他
 const roster = createRoster(document.getElementById('roster'), {
   status: (id) => (V.byId[id] ? personStatus(V.byId[id]) : null),
+  beasts: (home) => village.life.beasts.filter((b) => !b.s.caravan && (b.c?.id ?? (b.swim ? 'farmC' : b.s.role === 'pigeon' ? 'school' : null)) === home) // 鸭鹅归吴家、鸽子落在学堂（和旧档案页一样）
+    .map((b) => ({ kind: b.s.kind, name: b.info.name, kindName: b.info.kind, about: b.info.about })),
   onFind: (id) => {
     const v = V.byId[id];
     if (!v) return;

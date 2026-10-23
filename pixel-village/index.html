@@ -32,54 +32,90 @@
     #clock, #card { --panel-w: calc(116 * var(--p)); } /* 字回到 12px 点阵（UI 已经跟着窗口缩放，不用再单独放大一号） */
     #clock { padding: calc(3 * var(--p)) calc(4 * var(--p)); }
     #card .card { padding: calc(3 * var(--p)) calc(4 * var(--p)); }
-    /* 村民档案：页面里的横板大卡，四边各留一点，和屏幕一样的比例 */
-    #roster { position: fixed; inset: 7vh 7vw; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 5; }
+    /* 村民档案：页面里的横板大卡，四边各留一点，和屏幕一样的比例（版式参考星露谷的村民关系页、牧场物语的村民资料页） */
+    #roster { position: fixed; inset: 6vh 5vw; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 5; }
     #roster[hidden] { display: none; }
-    body.roster-open #clock, body.roster-open #card, body.roster-open .scene-nav { visibility: hidden; } /* 档案打开时右上角日期栏、卡片、换场景按钮先藏起来，不和它叠在一起 */
+    body.roster-open #clock, body.roster-open #card, body.roster-open .scene-nav, body.roster-open #VRButton { visibility: hidden; } /* 档案打开时右上角日期栏、卡片、换场景按钮先藏起来 */
+    #roster [hidden] { display: none !important; }
     #roster .rhead { display: flex; align-items: center; flex-wrap: wrap; gap: calc(2 * var(--p)); padding-right: calc(10 * var(--p)); }
-    #roster .rhead .title { color: var(--gold); margin-right: calc(3 * var(--p)); }
+    #roster .rhead .title { color: var(--gold); margin-right: calc(3 * var(--p)); font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
     #roster .rhead .chip { margin: 0; }
-    #roster .filters { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); margin-left: auto; }
-    #roster .filters[hidden], #roster .back[hidden] { display: none; }
-    #roster .back { margin-left: auto; }
+    #roster .filters, #roster .nav { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); margin-left: auto; }
     #roster .close { position: absolute; right: calc(2 * var(--p)); top: calc(2 * var(--p)); --c: var(--red); padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
     #roster .rbody { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
-    #roster .rlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(84 * var(--p)), 1fr)); gap: calc(3 * var(--p)); align-items: start; }
-    #roster .rlist[hidden], #roster .rdetail[hidden], #roster .house[hidden], #roster .who[hidden] { display: none; }
-    #roster .house { padding: calc(2 * var(--p)) calc(3 * var(--p)); }
-    #roster .hname { color: var(--gold); margin-bottom: var(--p); }
-    #roster .hname .kind { color: var(--dim); margin-left: calc(2 * var(--p)); }
-    #roster .who { display: flex; align-items: center; gap: calc(2 * var(--p)); padding: var(--f) var(--p); cursor: pointer; }
-    #roster .who:hover { background: #3e3456; }
-    #roster .who .f { flex: none; width: calc(28 * var(--f)); height: calc(28 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink); }
-    #roster .who .f canvas { display: block; }
-    #roster .who .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #roster .who .nm { color: var(--text); }
-    #roster .who .nk, #roster .who .jb { color: var(--dim); }
-    #roster .who .nk { margin-left: calc(2 * var(--p)); }
-    #roster .dot { width: calc(2 * var(--p)); height: calc(2 * var(--p)); background: var(--green); flex: none; }
+    #roster .chip { margin: 0 var(--p) var(--p) 0; padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
+    #roster .dot { display: inline-block; width: calc(2 * var(--p)); height: calc(2 * var(--p)); background: var(--green); flex: none; }
     #roster .dot.rest { background: var(--blue); }
     #roster .dot.sleep { background: var(--purple); }
     #roster .dot.event { background: var(--gold); }
-    #roster .rdetail { display: grid; grid-template-columns: auto 1fr 1fr; gap: calc(6 * var(--p)); height: 100%; }
-    #roster .col { min-height: 0; overflow: auto; scrollbar-width: none; }
-    #roster .c1 { width: calc(110 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); }
-    #roster .face.big { align-self: flex-start; border-style: solid; border-width: calc(3 * var(--p)); border-image: var(--frame-face) 3 fill / calc(3 * var(--p)) round;
-                        background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); display: grid; place-items: end center; }
-    #roster .face.big canvas { display: block; }
-    #roster .name { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; }
-    #roster .name .nick { color: var(--dim); text-shadow: none; margin-left: calc(2 * var(--p)); }
-    #roster .chip { margin: 0 var(--p) var(--p) 0; padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
-    #roster .now { padding: var(--f) calc(2 * var(--p)); border-width: calc(2 * var(--p)); border-image-width: calc(2 * var(--p)); display: flex; gap: calc(2 * var(--p)); align-items: center; }
-    #roster .now .doing { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; column-gap: calc(2 * var(--p)); }
-    #roster .now .loc { margin-left: auto; color: var(--dim); white-space: nowrap; }
     #roster .pin { display: inline-block; width: calc(5 * var(--f)); height: calc(7 * var(--f)); margin-right: calc(2 * var(--f)); vertical-align: calc(-1 * var(--f));
                    background: var(--gold); clip-path: polygon(50% 100%, 0 45%, 0 20%, 20% 0, 80% 0, 100% 20%, 100% 45%); }
-    #roster .next { color: var(--dim); }
-    #roster .find { align-self: flex-start; --c: var(--c-farm); }
-    #roster .c2 p { margin: 0 0 calc(3 * var(--p)); }
-    #roster .row { margin: 0 0 calc(2 * var(--p)); }
-    #roster .row b { color: var(--gold); text-shadow: none; margin-right: calc(2 * var(--p)); }
+    #roster .now { display: flex; align-items: center; gap: calc(2 * var(--p)); min-width: 0; }
+    #roster .now .what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #roster .now .loc { margin-left: auto; color: var(--dim); white-space: nowrap; }
+    #roster .nk { color: var(--dim); margin-left: calc(2 * var(--p)); }
+    /* 立绘台：黄昏天 + 一道地面，人站在地上 */
+    #roster .stage { flex: none; display: grid; place-items: end center; background: linear-gradient(#4a3a6a, #9a5a7a 62%, #d88a64 80%, #6b4a32 80%, #4e3524);
+                     box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; overflow: hidden; }
+    #roster .stage canvas { display: block; margin-bottom: calc(3 * var(--f)); }
+    /* 列表：人物卡铺满整面（宽屏 5 列 × 6 行） */
+    #roster .rlist { height: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(100 * var(--p)), 1fr)); grid-auto-rows: minmax(calc(44 * var(--p)), calc((100% - 5 * 3 * var(--p)) / 6)); gap: calc(3 * var(--p)); }
+    #roster .tile { display: flex; gap: calc(3 * var(--p)); padding: calc(2 * var(--p)); cursor: pointer; min-width: 0; overflow: hidden; }
+    #roster .tile:hover { filter: brightness(1.12); }
+    #roster .tile .stage { width: calc(32 * 2 * var(--f)); }
+    #roster .tile .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
+    #roster .tile .txt > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #roster .tile .nm { color: var(--gold); }
+    #roster .tile .l1 { display: flex; align-items: center; }
+    #roster .tile .l1 .chip { margin: 0 0 0 auto; flex: none; }
+    #roster .tile .l1 .nk { overflow: hidden; text-overflow: ellipsis; margin-right: var(--p); }
+    #roster .tile .jb, #roster .tile .lk { color: var(--dim); }
+    #roster .tile .lk b { color: #d8c0a0; font-weight: normal; text-shadow: none; margin-right: calc(2 * var(--p)); }
+    #roster .tile .now { background: #2a2338; padding: 0 calc(2 * var(--p)); box-shadow: inset 0 var(--f) 0 #16121f; }
+    #roster .tile .tr .chip { margin-bottom: 0; }
+    /* 详情：三栏，每栏的框都撑满 */
+    #roster .rdetail { display: grid; grid-template-columns: minmax(calc(110 * var(--p)), 0.85fr) 1.2fr 1fr; gap: calc(4 * var(--p)); height: 100%; }
+    #roster .col { min-height: 0; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
+    #roster .box { padding: calc(2 * var(--p)) calc(3 * var(--p)); min-height: 0; }
+    #roster .box .lbl { color: var(--gold); margin-bottom: var(--p); display: flex; }
+    #roster .box .lbl .count { margin-left: auto; color: var(--dim); }
+    #roster .box p { margin: 0; }
+    #roster .stage.big { flex: 1; min-height: calc(100 * var(--p)); position: relative; }
+    #roster .stage.big canvas { margin-bottom: calc(26 * var(--f)); }
+    #roster .plate { position: absolute; left: 50%; bottom: calc(3 * var(--p)); transform: translateX(-50%); white-space: nowrap; padding: 0 calc(4 * var(--p));
+                     background: #1b1626; box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
+    #roster .plate span { font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
+    #roster .plate .nm { color: var(--gold); }
+    #roster .chips .chip { margin-bottom: var(--p); }
+    #roster .nowbox .now { padding: var(--f) 0; }
+    #roster .nowbox .next { color: var(--dim); }
+    #roster .find { --c: var(--c-farm); line-height: calc(22 * var(--f)); }
+    #roster .bio { flex: none; }
+    #roster .quad { display: grid; grid-template-columns: 1fr 1fr; gap: calc(3 * var(--p)); flex: none; }
+    #roster .rels { flex: none; max-height: 60%; overflow: auto; scrollbar-width: none; }
+    #roster .relgrid { display: flex; flex-direction: column; gap: calc(2 * var(--p)); }
+    #roster .rel { display: flex; gap: calc(2 * var(--p)); align-items: center; padding: var(--f); cursor: pointer; background: #2a2338; box-shadow: inset 0 var(--f) 0 #16121f; min-width: 0; }
+    #roster .rel:hover { background: #3e3456; }
+    #roster .rel .hd { flex: none; width: calc(42 * var(--f)); height: calc(42 * var(--f)); background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink); overflow: hidden; }
+    #roster .rel .hd canvas { display: block; }
+    #roster .rel .t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    #roster .rel .t > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #roster .rel .l1 .chip { margin-left: calc(2 * var(--p)); }
+    #roster .rel .nm { color: var(--text); }
+    #roster .rel .chip { margin-bottom: 0; }
+    #roster .rel .now { padding-right: var(--p); }
+    #roster .rel .rr { color: var(--dim); }
+    #roster .planbox { flex: 1; overflow: auto; scrollbar-width: none; }
+    #roster .planbox .plan li.item { line-height: calc(18 * var(--f)); }
+    #roster .home { flex: 1; overflow: auto; scrollbar-width: none; }
+    #roster .home p { color: var(--dim); }
+    #roster .pets { display: flex; flex-direction: column; gap: calc(2 * var(--p)); margin-top: calc(3 * var(--p)); }
+    #roster .pet { display: flex; align-items: center; gap: calc(3 * var(--p)); background: #2a2338; box-shadow: inset 0 var(--f) 0 #16121f; padding: var(--p) calc(2 * var(--p)); }
+    #roster .pet .ic { flex: none; width: calc(40 * var(--f)); display: grid; place-items: center; }
+    #roster .pet canvas { image-rendering: pixelated; display: block; }
+    #roster .pet .nm { color: var(--text); }
+    #roster .pet .kd { color: var(--dim); margin-left: calc(2 * var(--p)); }
+    #roster .pet .ab { color: var(--dim); }
     /* 换场景：屏幕左右边缘正中的像素按钮（像素三角 + 那边的地名） */
     .scene-nav { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
                  padding: calc(3 * var(--p)) calc(2 * var(--p)); cursor: pointer; color: var(--text); background: none; }
