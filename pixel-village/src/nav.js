@@ -16,6 +16,7 @@ import { BOUNDS } from './layout.js';
 
 const CELL = 0.25;
 const STEP = 0.36;
+const HOP = 1.5; // 鸭鹅扑腾着能跳上 / 跳下的坎（梯田石堰、溪岸），找路时算能走但很费劲
 const COST = { path: 1, pad: 1, grass: 1.4, field: 3, stream: 1, forest: 1.8, rock: 2 };
 
 export class NavGrid {
@@ -118,7 +119,9 @@ export class NavGrid {
   /** 这儿是不是一扇还没开的门（人走到这儿要等）。 */
   closedDoorAt(x, z) { const k = this.index(x, z); return k >= 0 && this.door[k] > 0 && this.gates[this.door[k] - 1].open < 0.8 ? this.gates[this.door[k] - 1] : null; }
 
-  step(a, b, swim, person) { return this.free(b, swim, person) && Math.abs(this.h[a] - this.h[b]) <= STEP; }
+  step(a, b, swim, person, hop = false) { return this.free(b, swim, person) && Math.abs(this.h[a] - this.h[b]) <= (hop ? HOP : STEP); }
+  /** 这一步要不要跳（高差超过一级台阶）。 */
+  isHop(ax, az, bx, bz) { return Math.abs(this.heightAt(ax, az) - this.heightAt(bx, bz)) > STEP; }
 
   /** 最近的能站的格（找不到就原样返回）。 */
   nearestFree(x, z, swim = false, maxR = 4, person = false) {
@@ -133,23 +136,34 @@ export class NavGrid {
   }
 
   /** 两点间直线能不能走（每 0.1 米采样一次，检查能站 + 高差）。 */
-  line(ax, az, bx, bz, swim = false, person = false) {
+  line(ax, az, bx, bz, swim = false, person = false, hop = false) {
     const d = Math.hypot(bx - ax, bz - az);
     const n = Math.max(1, Math.ceil(d / 0.1));
     let prev = this.index(ax, az);
     for (let s = 1; s <= n; s++) {
       const k = this.index(ax + ((bx - ax) * s) / n, az + ((bz - az) * s) / n);
-      if (k !== prev) { if (!this.step(prev, k, swim, person)) return false; prev = k; }
+      if (k !== prev) { if (!this.step(prev, k, swim, person, hop)) return false; prev = k; }
     }
     return true;
   }
 
+  /** 直线上要跳几次坎。 */
+  hops(ax, az, bx, bz) {
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.1));
+    let prev = this.index(ax, az), c = 0;
+    for (let s = 1; s <= n; s++) {
+      const k = this.index(ax + ((bx - ax) * s) / n, az + ((bz - az) * s) / n);
+      if (k !== prev) { if (Math.abs(this.h[k] - this.h[prev]) > STEP) c++; prev = k; }
+    }
+    return c;
+  }
+
   /** A* 找路，返回拉直后的折线 [[x,z], …]（不含起点）；找不到返回 null。 */
-  find(ax, az, bx, bz, { swim = false, person = false, maxNodes = 60000, avoid = null } = {}) {
+  find(ax, az, bx, bz, { swim = false, person = false, maxNodes = 60000, avoid = null, hop = false } = {}) {
     if (avoid?.length) { // 临时障碍（挡路的人）：标成堵住再找，找完还原
       const was = avoid.map((k) => this.blocked[k]);
       for (const k of avoid) this.blocked[k] = 1;
-      try { return this.find(ax, az, bx, bz, { swim, person, maxNodes }); } finally { avoid.forEach((k, i) => { this.blocked[k] = was[i]; }); }
+      try { return this.find(ax, az, bx, bz, { swim, person, maxNodes, hop }); } finally { avoid.forEach((k, i) => { this.blocked[k] = was[i]; }); }
     }
     [bx, bz] = this.nearestFree(bx, bz, swim, 4, person);
     let start = this.index(ax, az);
@@ -175,9 +189,10 @@ export class NavGrid {
         const ni = i + di, nj = j + dj;
         if (ni < 0 || nj < 0 || ni >= this.nx || nj >= this.nz) continue;
         const n = nj * this.nx + ni;
-        if (closed.has(n) || !this.step(k, n, swim, person)) continue;
-        if (di && dj && (!this.step(k, j * this.nx + ni, swim, person) || !this.step(k, nj * this.nx + i, swim, person))) continue; // 不切墙角
-        const c = g.get(k) + (di && dj ? 1.414 : 1) * this.cost[n] + Math.abs(this.h[n] - this.h[k]) * 2;
+        if (closed.has(n) || !this.step(k, n, swim, person, hop)) continue;
+        if (di && dj && (!this.step(k, j * this.nx + ni, swim, person, hop) || !this.step(k, nj * this.nx + i, swim, person, hop))) continue; // 不切墙角
+        const dh = Math.abs(this.h[n] - this.h[k]);
+        const c = g.get(k) + (di && dj ? 1.414 : 1) * this.cost[n] + dh * 2 + (dh > STEP ? 10 : 0); // 跳坎很费劲：有平路就不跳
         if (c < (g.get(n) ?? Infinity)) { g.set(n, c); came.set(n, k); open.push(n, c + hfun(n)); }
       }
     }
@@ -189,11 +204,12 @@ export class NavGrid {
     const pts = cells.map((k) => [this.cx(k % this.nx), this.cz(Math.floor(k / this.nx))]);
     pts[pts.length - 1] = [bx, bz];
     const out = [];
+    const hopsIn = (a, b) => { let n = 0; for (let t = Math.max(0, a); t <= b; t++) if (Math.abs(this.h[cells[t]] - this.h[t ? cells[t - 1] : start]) > STEP) n++; return n; }; // 拉直不许比原路多跳坎
     let cur = [this.cx(start % this.nx), this.cz(Math.floor(start / this.nx))];
     let idx = 0;
     while (idx < pts.length) {
       let far = idx;
-      for (let t = pts.length - 1; t > idx; t--) if (this.line(cur[0], cur[1], pts[t][0], pts[t][1], swim, person)) { far = t; break; }
+      for (let t = pts.length - 1; t > idx; t--) if (this.line(cur[0], cur[1], pts[t][0], pts[t][1], swim, person) || (hop && this.line(cur[0], cur[1], pts[t][0], pts[t][1], swim, person, true) && this.hops(cur[0], cur[1], pts[t][0], pts[t][1]) <= hopsIn(idx, t))) { far = t; break; }
       out.push(pts[far]);
       cur = pts[far];
       idx = far + 1;
@@ -202,14 +218,32 @@ export class NavGrid {
   }
 
   /** 在矩形区域里随机找一格能站的点（矩形可以带转角，用 toWorld 把本地坐标变到世界）。 */
+  /** 从 (x, z) 出发能到的格子（鸭鹅：能下水、能跳坎）。 */
+  flood(x, z, { swim = false, hop = false } = {}) {
+    const seen = new Uint8Array(this.nx * this.nz), start = this.index(...this.nearestFree(x, z, swim));
+    if (start < 0) return seen;
+    const q = [start];
+    seen[start] = 1;
+    while (q.length) {
+      const k = q.pop(), i = k % this.nx, j = Math.floor(k / this.nx);
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = i + di, nj = j + dj;
+        if (ni < 0 || nj < 0 || ni >= this.nx || nj >= this.nz) continue;
+        const n = nj * this.nx + ni;
+        if (!seen[n] && this.step(k, n, swim, false, hop)) { seen[n] = 1; q.push(n); }
+      }
+    }
+    return seen;
+  }
+
   /** 从村里走得到这儿吗（没算连通区域之前一律算能）。 */
   reachable(x, z) { const k = this.index(x, z); return !this.reach || (k >= 0 && this.reach[k] === 1); }
 
-  randomIn(area, toWorld, rand, swim = false) {
+  randomIn(area, toWorld, rand, swim = false, reach = null) {
     const [x0, z0, x1, z1] = area;
     for (let tries = 0; tries < 30; tries++) {
       const [x, z] = toWorld(x0 + rand() * (x1 - x0), z0 + rand() * (z1 - z0));
-      if (this.freeAt(x, z, swim) && (swim || this.reachable(x, z))) return [x, z];
+      if (this.freeAt(x, z, swim) && (reach ? reach[this.index(x, z)] === 1 : swim || this.reachable(x, z))) return [x, z];
     }
     return null;
   }

@@ -29,7 +29,7 @@ export function populate(V, residents, extraAnimals, startHour, { event: forcedE
   V.cooking = new Set();
   V.steaming = new Set();
   V.spin = new Set();
-  V.stats = { madeWay: 0, detours: 0 };
+  V.stats = { madeWay: 0, detours: 0, duckHops: 0 };
   const claims = new Map(); // 公共位置有人占了就换一个
   V.claim = (v, c, names, { ordered = false, strict = false } = {}) => { // ordered：从前往后占（里圈先坐满）；strict：占满了返回 null，不跟人挤
     const mine = claims.get(v);

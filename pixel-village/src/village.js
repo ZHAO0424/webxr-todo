@@ -332,6 +332,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
   })();
 
   const ducks = [-26, 22, -6, 33 + BAND.d]; // 溪里、溪北岸，往西到铁匠铺门口那片草滩
+  const duckReach = nav.flood(-12, 28.5, { swim: true, hop: true }); // 鸭鹅从溪里能到的地方：游、走，碰上石堰土坎扑腾着跳上跳下（铁匠铺门口那片草滩不用修路）
   const V = {
     M, root, nav, C, nodes, torches, shrine,
     // 祖坟：每个坟头前一个磕头的位置（清明上坟）
@@ -367,8 +368,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     playFields: [...farm.fields.fieldSoy, ...terrain.fieldCells.filter((c, i) => i % 5 === 0 && Math.hypot(c.x - 2, c.z - 10) < 28 && nav.freeAt(c.x, c.z) && nav.reachable(c.x, c.z)).map((c) => [c.x, c.z])],
   };
   const extraAnimals = [
-    ...Array.from({ length: 4 }, () => ({ kind: 'goose', role: 'goose', worldArea: ducks })),
-    ...Array.from({ length: 5 }, () => ({ kind: 'duck', role: 'duck', worldArea: ducks })),
+    ...Array.from({ length: 4 }, () => ({ kind: 'goose', role: 'goose', worldArea: ducks, reach: duckReach })),
+    ...Array.from({ length: 5 }, () => ({ kind: 'duck', role: 'duck', worldArea: ducks, reach: duckReach })),
     ...Array.from({ length: 8 }, (_, i) => ({ kind: 'pigeon', role: 'pigeon', cx: 0, cz: -8, r: 12, y: 22, offset: i * 0.35 })),
     // 骡帮的三头骡子：平常不在村里，逢集跟着牛老大来，到了村口在西边空地上站着
     ...Array.from({ length: 3 }, (_, i) => ({ kind: 'donkey', role: 'mule', caravan: 'niu_wanshan', name: ['大青', '二黑', '花脸'][i], worldArea: [nodes.sqW.x - 6, nodes.sqW.z - 6, nodes.sqW.x - 2.5, nodes.sqW.z - 1] })),

@@ -24,6 +24,7 @@ export class Beast {
     this.object.userData.beast = this;
     this.speed = SPEED[s.kind] ?? 0.5;
     this.swim = s.role === 'duck' || s.role === 'goose';
+    this.hop = this.swim; // 鸭鹅能扑腾着跳上 / 跳下一人来高的坎
     this.push = s.role in PUSHERS && !!c; // 能把关着的门拱开（但不会关）
     this.pos = new THREE.Vector3();
     this.heading = rand() * Math.PI * 2;
@@ -40,6 +41,7 @@ export class Beast {
     this.follow = null; this.circling = null; this.graze = null; this.home = false; this.target = null; this.path = null; this.stroll = null; this.returning = false;
     this.object.visible = true;
     if (s.caravan) { this.home = true; this.object.visible = false; return; } // 骡帮的骡子：平常在山外，逢集才跟着来（activities.js 的 caravan）
+    this.jump = null;
     if (s.perches) { const rest = s.perches.map((p, i) => i).filter((i) => s.perches[i][3] !== 'pass'); this.perch = rest[Math.floor(this.rand() * rest.length)]; this.flight = null; return; }
     if (s.role === 'pigeon') return;
     const p = this.areaPoint() ?? (this.c ? this.c.at(0, 0) : [0, 0]);
@@ -47,7 +49,7 @@ export class Beast {
   }
 
   areaPoint() {
-    if (this.s.worldArea) return this.V.nav.randomIn(this.s.worldArea, (x, z) => [x, z], this.rand, this.swim);
+    if (this.s.worldArea) return this.V.nav.randomIn(this.s.worldArea, (x, z) => [x, z], this.rand, this.swim, this.s.reach);
     if (!this.s.area || !this.c) return null;
     return this.V.nav.randomIn(this.s.area, (x, z) => this.c.at(x, z), this.rand, this.swim);
   }
@@ -65,7 +67,7 @@ export class Beast {
   /** 找一条路（会拱门的把门当路）。离家远时搜全图；困在和村子不连通的小角落里就近跳出来。 */
   plan(tx, tz) {
     const nav = this.V.nav, inDoor = nav.door[nav.index(this.pos.x, this.pos.z)] > 0; // 门关上时正站在门洞里：允许挤回去
-    const opts = { swim: this.swim, person: this.push || inDoor };
+    const opts = { swim: this.swim, person: this.push || inDoor, hop: this.hop };
     const tk = `${Math.round(tx * 2)},${Math.round(tz * 2)}`;
     if (this.lostFor > 0 && this.lostKey === tk) return []; // 刚找过、这个目标走不到：10 秒内别再找（不然每帧都搜一遍全图，很卡）
     let path = nav.find(this.pos.x, this.pos.z, tx, tz, { ...opts, maxNodes: 8000 });
@@ -99,13 +101,13 @@ export class Beast {
     const key = `${Math.round(tx * 2)},${Math.round(tz * 2)}`; // 跟着人走时目标一直在动：半米以内算同一个目标
     if (this.pathFor !== key || !this.path) {
       this.pathFor = key;
-      this.path = nav.line(this.pos.x, this.pos.z, tx, tz, this.swim, this.push || nav.door[nav.index(this.pos.x, this.pos.z)] > 0) ? [[tx, tz]] : this.plan(tx, tz);
+      this.path = nav.line(this.pos.x, this.pos.z, tx, tz, this.swim, this.push || nav.door[nav.index(this.pos.x, this.pos.z)] > 0) ? [[tx, tz]] : this.plan(tx, tz); // 直线只认不跳坎的；要跳就走 A*（跳的次数最少）
       this.stuck = 0;
     } else if (this.path.length === 1) this.path[0] = [tx, tz];
     if (!this.path.length) { this.pathFor = null; return true; }
     if (this.steered) { // 刚才绕人偏出了路线，直着回不去就重新找路
       this.steered = false;
-      if (!nav.line(this.pos.x, this.pos.z, ...this.path[0], this.swim, this.push)) { this.path = this.plan(...this.path[this.path.length - 1]); if (!this.path.length) return true; }
+      if (!nav.line(this.pos.x, this.pos.z, ...this.path[0], this.swim, this.push) && !(this.hop && nav.line(this.pos.x, this.pos.z, ...this.path[0], this.swim, false, true) && nav.hops(this.pos.x, this.pos.z, ...this.path[0]) <= 1)) { this.path = this.plan(...this.path[this.path.length - 1]); if (!this.path.length) return true; }
     }
     let budget = speed * dt, moved = false;
     while (budget > 1e-4 && this.path.length) {
@@ -130,6 +132,7 @@ export class Beast {
       const step = steer ? budget : Math.min(e, budget);
       const px = this.pos.x + ux * step, pz = this.pos.z + uz * step;
       this.heading = Math.atan2(-uz, ux);
+      if (this.hop && !steer && nav.freeAt(px, pz, this.swim) && nav.isHop(this.pos.x, this.pos.z, px, pz)) { this.startJump(ux, uz); moved = true; break; } // 到坎边了：扑腾着跳过去
       if (nav.freeAt(px, pz, this.swim) || !nav.freeAt(this.pos.x, this.pos.z, this.swim)) {
         this.pos.x = px; this.pos.z = pz; budget -= step; moved = true;
         if (steer) break;
@@ -148,9 +151,36 @@ export class Beast {
   }
 
 
+  /** 鸭鹅跳坎：从坎边起跳，落到坎那边 0.45 米处，抛物线（往上跳弧线高一些）。 */
+  startJump(ux, uz) {
+    const nav = this.V.nav, h0 = nav.heightAt(this.pos.x, this.pos.z);
+    let d = 0.1;
+    while (d < 1 && !nav.isHop(this.pos.x, this.pos.z, this.pos.x + ux * d, this.pos.z + uz * d)) d += 0.05; // 坎在前面多远
+    let tx = this.pos.x + ux * (d + 0.45), tz = this.pos.z + uz * (d + 0.45);
+    if (!nav.freeAt(tx, tz, this.swim) || Math.abs(nav.heightAt(tx, tz) - nav.heightAt(this.pos.x + ux * d, this.pos.z + uz * d)) > 0.36) { tx = this.pos.x + ux * d; tz = this.pos.z + uz * d; } // 落脚处不平：就落在坎沿上
+    const y0 = this.y ?? h0, y1 = this.yAt(tx, tz), up = Math.max(0, y1 - y0);
+    this.V.stats.duckHops++;
+    this.jump = { from: [this.pos.x, y0, this.pos.z], to: [tx, y1, tz], k: 0, lift: 0.25 + up * 0.6, dur: 0.45 + Math.abs(y1 - y0) * 0.25 };
+  }
+
+  yAt(x, z) { const nav = this.V.nav; return this.swim && nav.water[nav.index(x, z)] ? WATER_Y - 3 * VOX : nav.heightAt(x, z) + 0.03; }
+
   update(t, dt, hour) {
     const s = this.s, V = this.V;
     this.moving = false;
+    if (this.jump) { // 跳坎中：只管把这一跳跳完
+      const j = this.jump;
+      j.k = Math.min(1, j.k + dt / j.dur);
+      this.pos.x = j.from[0] + (j.to[0] - j.from[0]) * j.k;
+      this.pos.z = j.from[2] + (j.to[2] - j.from[2]) * j.k;
+      const y = j.from[1] + (j.to[1] - j.from[1]) * j.k + Math.sin(j.k * Math.PI) * j.lift;
+      if (j.k >= 1) this.jump = null;
+      this.y = y;
+      present(this, dt, y);
+      this.object.rotation.z = 0;
+      this.frames.forEach((m, i) => { m.visible = i === 1 % this.frames.length; }); // 张着翅膀那一帧
+      return;
+    }
     this.lostFor = (this.lostFor ?? 0) - dt;
     this.squeeze = (this.squeeze ?? 0) - dt;
     let y = null;
@@ -170,6 +200,7 @@ export class Beast {
     else this.behave(t, dt, hour);
 
     if (y === null) y = this.swim && V.nav.water[V.nav.index(this.pos.x, this.pos.z)] ? WATER_Y - 3 * VOX + (Math.floor(t * 1.5 + this.phase) % 2) * VOX : V.nav.heightAt(this.pos.x, this.pos.z) + 0.03;
+    this.y = y;
     present(this, dt, y);
     this.object.rotation.z = this.pecking ? (Math.floor(t * 4 + this.phase) % 2 ? -0.35 : 0) : 0;
     const f = this.moving ? Math.floor(t * 7 + this.phase) % this.frames.length : 0;

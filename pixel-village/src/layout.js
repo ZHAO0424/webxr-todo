@@ -63,7 +63,6 @@ export const NODES = {
   cw: { x: -16, z: 5.8 },
   nw: { x: -14, z: -12.5 },
   east: { x: 21, z: 20 },
-  smithBank: { x: -21, z: 30.6 }, // 铁匠铺门口往南下到溪北岸的小路（鸭鹅、钓鱼的去那片草滩）
   smithS: { x: -12.8, z: 21.0 }, smithN: { x: -14.7, z: 6.3 }, // 铁匠铺东墙根外的小路：从去村口的路上岔出来，贴着墙往北接木匠铺门前
   fieldW: { x: -39, z: 8 },
   fieldE: { x: 40, z: -3 },
@@ -80,7 +79,7 @@ export const EDGES = [
   ['mid', 'well'], ['well', 'gate:headman'], ['well', 'w1'], ['well', 'e1'],
   ['e1', 'e2'], ['e2', 'gate:doctor'], ['e1', 'L1'], ['L1', 'gate:school'], ['L1', 'L2'], ['L2', 'gate:farmC'],
   ['w1', 'cw'], ['cw', 'gate:carpenter'], ['w1', 'nw'], ['nw', 'gate:farmA'], ['nw', 'gate:shepherd'],
-  ['gate:carpenter', 'fieldW'], ['gate:doctor', 'e3'], ['e3', 'fieldE'], ['fieldW', 'westGate'], ['gate:smith', 'smithBank'], ['smithS', 'smithN'], ['smithN', 'cw'], ['gate:shepherd', 'shepS'], ['shepS', 'shepW'], ['shepW', 'westCliff'],
+  ['gate:carpenter', 'fieldW'], ['gate:doctor', 'e3'], ['e3', 'fieldE'], ['fieldW', 'westGate'], ['smithS', 'smithN'], ['smithN', 'cw'], ['gate:shepherd', 'shepS'], ['shepS', 'shepW'], ['shepW', 'westCliff'],
 ];
 
 /** 豆腐坊自家的大豆地：村西坡最高那几级梯田贴着沙盘西边的一溜。 */
