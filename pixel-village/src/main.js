@@ -51,9 +51,17 @@ controls.enableDamping = true;
 const stage = new THREE.Group();
 scene.add(stage);
 
+// 载入进度（index.html 的 loader）：建村子要好几秒、主线程整个卡住，进度条按上回建了多久匀速往前挪；每一步之间让页面画一帧
+const nextFrame = () => new Promise((r) => { requestAnimationFrame(() => requestAnimationFrame(r)); setTimeout(r, 120); }); // 标签页在后台时 rAF 不走，最多等 0.12 秒
+const lastBuild = (() => { try { return Number(localStorage.getItem('pvBuildMs')) || 5000; } catch { return 5000; } })();
+window.loader?.set(0.38, '盖房子、种庄稼…', 0.86, lastBuild);
+await nextFrame();
 const t0 = performance.now();
 const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event'), weather: params.get('weather') }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
 document.documentElement.dataset.buildMs = String(Math.round(performance.now() - t0));
+try { localStorage.setItem('pvBuildMs', String(Math.round(performance.now() - t0))); } catch { /* 隐私模式存不了，下回按 5 秒估 */ }
+window.loader?.set(0.88, '村民起床…', 0.97, 2500);
+await nextFrame();
 const west = village.west; // 西沟：接在村子西边的另一块沙盘（village.js 里一起建，共用导航网格和村民）
 const backdrop = buildBackdrop();
 // 村子和西沟在同一个世界里（西沟的 x 接着村子往西排），换场景 = 把世界平移过来（scenes.js）
@@ -547,6 +555,7 @@ renderer.setAnimationLoop((_, frame) => {
   if ((shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
   if (timer) { gpuPoll(); gpuBegin(); }
   renderer.render(scene, camera);
+  if (window.loader) { window.loader.done(); window.loader = null; } // 第一帧画出来了（着色器也编译完了）：载入画面淡出
   if (timer) gpuEnd();
   dbg.cpu += performance.now() - work0;
   debugTick();

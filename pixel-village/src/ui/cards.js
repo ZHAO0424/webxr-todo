@@ -2,7 +2,7 @@ import { characterAtlas, CELL_W, CELL_H } from '../characters.js';
 import { animalAtlas } from '../animals.js';
 import { LABELS } from '../labels.js';
 import { friendsOf, RESIDENTS } from '../residents.js';
-import { portrait, headCrop } from './frame.js';
+import { portrait, bodyCrop } from './frame.js';
 
 /*
  * 村民卡片 / 动物卡片（村子页面点人、点动物弹出；村民档案页也用同一张卡）。
@@ -20,11 +20,11 @@ const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt
 const JOB_COLOR = (p) => (p.body === 'child' ? 'var(--c-child)' : /匠|郎中|掌柜|剃头|货郎|先生|伙计|徒弟|豆腐/.test(p.job) ? 'var(--c-craft)' : /村长/.test(p.job) ? 'var(--c-chief)' : 'var(--c-farm)');
 const SEGS = [[0, '清早'], [7, '上午'], [11.5, '中午'], [13.5, '下午'], [18, '晚上']];
 
-/** 村民头像：正面待机帧的上半身。 */
+/** 村民头像：正面待机帧的头和上半身。 */
 function residentFace(p) {
-  const c = headCrop(characterAtlas(p), CELL_W, CELL_H, 20, 22);
-  c.style.width = `calc(${20 * 2} * var(--f))`; // 一个像素 = 2 个字点
-  return c;
+  const { canvas, w } = bodyCrop(characterAtlas(p), CELL_W, CELL_H, p.body === 'child' ? 0.66 : 0.5, 20); // 头和肩膀：小孩大头身材，按身高要多截一点才和大人截到同一截
+  canvas.style.width = `calc(${w * 2} * var(--f))`; // 一个像素 = 2 个字点
+  return canvas;
 }
 
 function animalFace(kind) {

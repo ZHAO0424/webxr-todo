@@ -36,6 +36,11 @@ export function setupPixelUI() {
     const k = Math.max(1, Math.round(dpr * Math.max(innerWidth < 700 ? 1 : 0.75, s))); // 一个点取整数个设备像素，点阵字不糊
     root.style.setProperty('--f', `${k / dpr}px`);
     root.style.setProperty('--p', `${(2 * k) / dpr}px`);
+    // 另一套固定的：按整块屏幕算（= 全屏时的大小），窗口怎么拉都不变。左下角的设置 / 调试 / 档案按钮用这套（index.html 的 #hint）
+    const sf = Math.min(screen.width / 1100, screen.height / 680);
+    const kf = Math.max(1, Math.round(dpr * Math.max(screen.width < 700 ? 1 : 0.75, sf)));
+    root.style.setProperty('--f-fixed', `${kf / dpr}px`);
+    root.style.setProperty('--p-fixed', `${(2 * kf) / dpr}px`);
   };
   unit();
   matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener?.('change', unit);
@@ -45,14 +50,21 @@ export function setupPixelUI() {
   root.style.setProperty('--frame-face', `url(${frameImage({ outer: '#120e0a', light: '#9a8262', dark: '#54442f', inner: '#1c1611', fill: '#3d3125' })})`);
 }
 
-/** 头肩像：从图集的第一帧里找到头顶，往下截 h 行、左右截 w 列（档案页的小卡片用）。 */
-export function headCrop(atlas, cellW, cellH, w = 20, h = 18) {
-  const g = atlas.getContext('2d');
-  const data = g.getImageData(0, 0, cellW, cellH).data;
-  let top = 0;
-  const x0 = Math.floor(cellW / 2) - 3, x1 = Math.floor(cellW / 2) + 3; // 只看正中间一竖条：举过头顶的风筝、扛着的东西不算头顶
-  find: for (let y = 0; y < cellH; y++) for (let x = x0; x <= x1; x++) if (data[(y * cellW + x) * 4 + 3] > 0) { top = y; break find; }
-  return portrait(atlas, Math.floor((cellW - w) / 2), Math.max(0, top - 1), w, h, 1);
+/**
+ * 按身高比例截的头像 / 半身像：头顶（正中一竖条里最上面的点）到脚底（整行最下面的点）是这个人的身高，
+ * 从头顶往下截身高的 frac，宽和高一样（至少 minW）。大人小孩个子不一样，按固定像素截的话小孩会截到腿、大人只到胸口；
+ * 按身高比例截（小孩大头身材，比例要大一些，见 roster.js 的 BUST / HEAD），截到的就是同一截身子。
+ * 返回 { canvas, w, h }（像素）。
+ */
+export function bodyCrop(atlas, cellW, cellH, frac, minW = 0) {
+  const data = atlas.getContext('2d').getImageData(0, 0, cellW, cellH).data;
+  const solid = (x, y) => data[(y * cellW + x) * 4 + 3] > 0;
+  const x0 = Math.floor(cellW / 2) - 3, x1 = Math.floor(cellW / 2) + 3;
+  let top = 0, bottom = cellH - 1;
+  find: for (let y = 0; y < cellH; y++) for (let x = x0; x <= x1; x++) if (solid(x, y)) { top = y; break find; }
+  feet: for (let y = cellH - 1; y > top; y--) for (let x = 0; x < cellW; x++) if (solid(x, y)) { bottom = y; break feet; }
+  const h = Math.max(4, Math.round((bottom - top + 1) * frac)) + 1, w = Math.min(cellW, Math.max(minW, h));
+  return { canvas: portrait(atlas, Math.floor((cellW - w) / 2), Math.max(0, top - 1), w, h, 1), w, h };
 }
 
 /** 把像素图（canvas 的一块）按整数倍放大画到新画布上，给头像用。 */

@@ -126,6 +126,8 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
   border-width: calc(2 * var(--p));
   border-image: var(--frame-face) 3 fill / calc(2 * var(--p)) round;
   background: var(--face-bg); /* 淡天色 */
+  width: calc(44 * var(--f)); /* 头像框固定大小：大人小孩的头像一样大 */
+  height: calc(44 * var(--f));
   display: grid;
   place-items: end center;
   overflow: hidden;

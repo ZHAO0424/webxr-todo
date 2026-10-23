@@ -2,7 +2,7 @@ import { VILLAGE, HOUSEHOLDS, RESIDENTS, friendsOf } from '../residents.js';
 import { characterAtlas, CELL_W, CELL_H } from '../characters.js';
 import { animalAtlas } from '../animals.js';
 import { LABELS } from '../labels.js';
-import { portrait, headCrop } from './frame.js';
+import { portrait, bodyCrop } from './frame.js';
 
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
@@ -48,17 +48,19 @@ function body(p, k) {
   c.style.width = `calc(${CELL_W * k} * var(--f))`;
   return c;
 }
-/** 半身像：从头顶往下截 24 × 26 个像素（头、肩膀、上半身），一个像素 = k 个字点。 */
-function bust(p, k) {
-  const c = headCrop(characterAtlas(p), CELL_W, CELL_H, 24, 26);
-  c.style.width = `calc(${24 * k} * var(--f))`;
-  return c;
+// 小孩是大头身材（头和大人差不多大、身子短），按身高截同一截身子要换个比例：半身像大人 56%、小孩 72%，头像大人 48%、小孩 55%（截出来都是十八九行）
+const BUST = (p) => (p.body === 'child' ? 0.72 : 0.56), HEAD = (p) => (p.body === 'child' ? 0.55 : 0.48);
+/** 半身像：头和上半身，一个像素 = 3 个字点（所有人一样大）。 */
+function bust(p) {
+  const { canvas, w } = bodyCrop(characterAtlas(p), CELL_W, CELL_H, BUST(p), 20);
+  canvas.style.width = `calc(${w * 3} * var(--f))`;
+  return canvas;
 }
-/** 头像：从头顶往下截 n × n 个像素（n 大一点能看到肩膀和帽子两边），一个像素 = k 个字点。 */
-function head(p, k, n = 14) {
-  const c = headCrop(characterAtlas(p), CELL_W, CELL_H, n, n);
-  c.style.width = `calc(${n * k} * var(--f))`;
-  return c;
+/** 头像：头和肩膀，一个像素 = k 个字点。 */
+function head(p, k) {
+  const { canvas, w } = bodyCrop(characterAtlas(p), CELL_W, CELL_H, HEAD(p), 18);
+  canvas.style.width = `calc(${w * k} * var(--f))`;
+  return canvas;
 }
 const nowHTML = (s) => `<span class="dot ${s?.kind ?? 'sleep'}"></span><span class="what">${esc(s?.doing ?? '')}</span>${s?.where ? `<span class="loc"><i class="pin"></i>${esc(s.where)}</span>` : ''}`;
 
@@ -146,7 +148,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
         m.dataset.id = p.id;
         m.style.setProperty('--jc', JOB_COLOR(p));
         m.innerHTML = `<span class="hd"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="jb">${esc(p.job)}</span></span>`;
-        m.querySelector('.hd').append(head(p, 1, 20));
+        m.querySelector('.hd').append(head(p, 1));
         m.addEventListener('click', (e) => { e.stopPropagation(); pick(p.id); });
         ms.append(m);
         markers[p.id] = m;
@@ -234,8 +236,8 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
           <div class="sec pets-sec"><div class="lbl">家里的牲口</div><div class="pets"></div></div>
         </div>
       </div>`;
-    side.querySelector('.hd.big').append(bust(p, 3));
-    side.querySelectorAll('.rel').forEach((r) => { r.querySelector('.hd').append(head(BYID[r.dataset.id], 2, 20)); r.addEventListener('click', () => pick(r.dataset.id)); });
+    side.querySelector('.hd.big').append(bust(p));
+    side.querySelectorAll('.rel').forEach((r) => { r.querySelector('.hd').append(head(BYID[r.dataset.id], 2)); r.addEventListener('click', () => pick(r.dataset.id)); });
     const pets = side.querySelector('.pets'), animals = beasts?.(p.home) ?? [];
     for (const b of animals) {
       const a = animalAtlas(b.kind), c = portrait(a.canvas, 0, 0, a.cellW, a.cellH, 1);
