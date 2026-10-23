@@ -73,22 +73,6 @@
     #roster .tile .lk b { color: #d8c0a0; font-weight: normal; text-shadow: none; margin-right: calc(2 * var(--p)); }
     #roster .tile .now { background: #2a2338; padding: 0 calc(2 * var(--p)); box-shadow: inset 0 var(--f) 0 #16121f; }
     #roster .tile .tr .chip { margin-bottom: 0; }
-    /* 详细信息：档案上面弹出的一张卡（档案不关），左边立绘台占主要位置，右边一块块模块，高度跟着内容走 */
-    #roster .popbg { position: absolute; inset: 0; z-index: 10; background: rgba(14, 10, 22, .55); display: grid; place-items: center; }
-    #roster .pop { width: min(76%, calc(470 * var(--p))); max-height: 96%; overflow: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
-    #roster .ptop { display: flex; align-items: center; gap: calc(2 * var(--p)); }
-    #roster .ptop .pt { color: var(--gold); margin-right: auto; }
-    #roster .ptop .close { position: static; }
-    #roster .ptop .find { --c: var(--c-farm); }
-    #roster .pgrid { display: grid; grid-template-columns: minmax(calc(110 * var(--p)), 0.62fr) 1.6fr; gap: calc(4 * var(--p)); }
-    #roster .pstage { position: relative; min-height: calc(190 * var(--p)); }
-    #roster .pstage canvas { margin-bottom: calc(30 * var(--f)); }
-    #roster .plate { position: absolute; left: 50%; bottom: calc(3 * var(--p)); transform: translateX(-50%); white-space: nowrap; padding: 0 calc(4 * var(--p));
-                     background: #1b1626; box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
-    #roster .plate span { font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
-    #roster .plate .nm { color: var(--gold); }
-    #roster .pmain { min-width: 0; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
-    #roster .prow { display: grid; grid-template-columns: 1fr 1fr; gap: calc(3 * var(--p)); }
     #roster .box { padding: calc(2 * var(--p)) calc(3 * var(--p)); min-width: 0; }
     #roster .box .lbl { color: var(--gold); margin-bottom: var(--p); display: flex; }
     #roster .box .lbl .count { margin-left: auto; color: var(--dim); }
@@ -96,14 +80,15 @@
     #roster .kv { display: grid; grid-template-columns: auto 1fr; gap: var(--f) calc(3 * var(--p)); }
     #roster .kv b { color: #d8c0a0; font-weight: normal; text-shadow: none; }
     #roster .kv .chip { margin-bottom: var(--f); }
-    #roster .pid .trs { margin-top: calc(2 * var(--p)); }
-    #roster .pnow .now { padding: var(--f) 0; }
-    #roster .pnow .lbl.sub { margin-top: calc(3 * var(--p)); color: #d8c0a0; }
-    #roster .pnow .ups { margin: 0; padding: 0; list-style: none; }
-    #roster .pnow .ups li { display: flex; gap: calc(3 * var(--p)); }
-    #roster .pnow .ups .t { color: var(--green); }
-    #roster .pnow .ups .done { color: var(--dim); }
-    #roster .pstory p { line-height: calc(18 * var(--f)); }
+    /* 地图右边的小卡：此刻（左）| 接下来三项（右）；资料：背景故事、一天、家人好友 | 喜好家当两栏 */
+    #roster .mini .row1 .find { margin-left: auto; align-self: flex-start; --c: var(--c-farm); }
+    #roster .nowrow { display: grid; grid-template-columns: 1fr 1fr; gap: calc(4 * var(--p)); align-items: start; background: #2a2338; box-shadow: inset 0 var(--f) 0 #16121f; padding: var(--p) calc(2 * var(--p)); }
+    #roster .nowrow .now { flex-wrap: wrap; }
+    #roster .ups { margin: 0; padding: 0; list-style: none; color: var(--dim); }
+    #roster .ups li { display: flex; gap: calc(2 * var(--p)); white-space: nowrap; overflow: hidden; }
+    #roster .ups .t { color: var(--green); }
+    #roster .info .story { line-height: calc(17 * var(--f)); }
+    #roster .info .two { display: grid; grid-template-columns: 1fr 1fr; gap: calc(4 * var(--p)); }
     /* 一天：时间条 + 刻度 + 各类时长柱条 */
     #roster .tl { position: relative; height: calc(8 * var(--p)); background: #16121f; box-shadow: 0 0 0 var(--f) var(--ink); margin-top: var(--p); }
     #roster .tl .sg { position: absolute; top: 0; bottom: 0; box-shadow: inset calc(-1 * var(--f)) 0 0 rgba(0, 0, 0, .35); }
@@ -161,21 +146,17 @@
     #roster .mini { flex: none; }
     #roster .grp .chip .cn { color: var(--dim); margin-left: var(--p); }
     #roster .grp .chip.on .cn { color: #5a4020; }
-    #roster .mini .row1 { display: flex; gap: calc(3 * var(--p)); align-items: center; margin-bottom: calc(2 * var(--p)); }
-    #roster .mini .hd.big { flex: none; width: calc(40 * var(--f)); height: calc(40 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
+    #roster .mini .row1 { display: flex; gap: calc(3 * var(--p)); align-items: stretch; margin-bottom: calc(2 * var(--p)); }
+    #roster .mini .row1 .t { align-self: center; }
+    #roster .mini .hd.big { flex: none; display: grid; place-items: end center; padding: 0 calc(4 * var(--f)) calc(3 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
     #roster .mini .hd.big canvas { display: block; }
     #roster .mini .nm { color: var(--gold); }
     #roster .mini .jb { color: var(--dim); }
-    #roster .mini .next { color: var(--dim); }
-    #roster .mini .bio { margin: calc(2 * var(--p)) 0; }
-    #roster .mini .btns { display: flex; gap: calc(2 * var(--p)); }
     #roster .mini .find { line-height: calc(18 * var(--f)); }
     #roster .info { flex: 1; overflow: auto; scrollbar-width: none; }
     #roster .info .sec { margin-bottom: calc(3 * var(--p)); }
     #roster .info .kv { display: grid; grid-template-columns: auto 1fr; gap: var(--p) calc(3 * var(--p)); margin-bottom: calc(3 * var(--p)); }
     #roster .info .kv b { color: var(--gold); font-weight: normal; text-shadow: none; }
-    #roster .info .chip .cn { opacity: .75; margin-left: var(--p); }
-    #roster .info .plan li.item { line-height: calc(17 * var(--f)); }
     /* 换场景：屏幕左右边缘正中的像素按钮（像素三角 + 那边的地名） */
     .scene-nav { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
                  padding: calc(3 * var(--p)) calc(2 * var(--p)); cursor: pointer; color: var(--text); background: none; }

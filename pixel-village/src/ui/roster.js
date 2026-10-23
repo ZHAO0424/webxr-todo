@@ -3,15 +3,13 @@ import { characterAtlas, CELL_W, CELL_H } from '../characters.js';
 import { animalAtlas } from '../animals.js';
 import { LABELS } from '../labels.js';
 import { portrait, headCrop } from './frame.js';
-import { planHTML } from './cards.js';
 
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
  *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），左上角是地名；每户一列小头像（右边小字名字、职业）竖排在自家院子上、左上角院子名，
- *         挤在一起的推开、用虚线连回院子；右边是点中的人（默认第一个）的小卡和详细资料；
- *   卡片：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；上面一排筛选；
- *   详细信息：档案不关，上面再弹出一张小一些的卡——左边立绘台（大全身像占主要位置），右边一块块模块：
- *         身份 | 此刻、背景故事、一天（24 小时时间条 + 各类时长）、家人好友（头像）| 喜好手艺家当和家里的牲口。上一个 / 下一个（← →）在筛选出来的人里翻。
+ *         挤在一起的推开、用虚线连回院子；右边是点中的人（默认第一个）的全部资料：小卡（身份、此刻、接下来）+ 背景故事、一天（时间条 + 各类时长）、
+ *         家人好友（头像）、喜好手艺家当和牲口。← → 在筛选出来的人里翻；
+ *   卡片：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；点了回到地图看这个人。
  * status(id) 给出这个人此刻的状态（和村子里点人看到的同一份），beasts(home) 给出这家的牲口，hour() 是村里的钟，onFind(id) = 关掉档案、在村里选中并跟着这个人。
  */
 
@@ -87,12 +85,10 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
       <span class="filters">${Object.keys(FILTERS).map((k, i) => `<button class="btn${i ? '' : ' on'}" data-f="${k}">${k}</button>`).join('')}</span>
       <button class="btn close" title="关闭（Esc）">×</button>
     </div>
-    <div class="rbody"><div class="rmap"><div class="mapwrap"></div><div class="mapside"></div></div><div class="rlist" hidden></div></div>
-    <div class="popbg" hidden><div class="pop panel"></div></div>`;
+    <div class="rbody"><div class="rmap"><div class="mapwrap"></div><div class="mapside"></div></div><div class="rlist" hidden></div></div>`;
   const list = el.querySelector('.rlist'), filters = el.querySelector('.filters'), tabs = el.querySelector('.tabs');
   const rmap = el.querySelector('.rmap'), wrap = el.querySelector('.mapwrap'), side = el.querySelector('.mapside');
-  const popbg = el.querySelector('.popbg'), pop = el.querySelector('.pop');
-  let cur = null, order = RESIDENTS.map((p) => p.id), view = 'map', filter = FILTERS.全部, picked = null;
+  let order = RESIDENTS.map((p) => p.id), view = 'map', filter = FILTERS.全部, picked = null;
 
   // 卡片：每人一张横的小卡
   for (const p of RESIDENTS) {
@@ -118,7 +114,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
     order = [];
     for (const t of list.children) { const on = f(BYID[t.dataset.id]); t.hidden = !on; if (on) order.push(t.dataset.id); }
     refresh();
-    if (view === 'map') layout();
+    if (view === 'map') { layout(); sideHTML(); }
   }));
 
   // ---------------------------------------------------------------- 地图：真实场景的俯视截图，每户一列小头像标在自家院子上
@@ -202,77 +198,38 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
     for (const [id, m] of Object.entries(markers)) m.classList.toggle('on', id === picked);
   }
 
-  /** 地图右边：上面是点中的人的小卡（头像、身份、此刻、下一项、去村里找 / 详细信息），下面是他的资料（来历、喜好手艺家当、家人好友、今日安排）。 */
+  /**
+   * 地图右边：点中的人（默认第一个）的全部资料——
+   *   上面小卡：头像、名字、身份、性格、此刻、接下来三项、去村里找；
+   *   下面资料：背景故事、一天（时间条 + 各类时长，代替长长的今日安排）、家人好友（头像，点了换人）、喜好手艺家当和家里的牲口。
+   */
   function pick(id) { picked = id ?? picked; sideHTML(); for (const [k, m] of Object.entries(markers)) m.classList.toggle('on', k === picked); }
   function sideHTML() {
     if (!map) return;
     const p = BYID[picked] ?? RESIDENTS.find(filter) ?? RESIDENTS[0];
     picked = p.id;
-    const s = status(p.id);
-    const friends = friendsOf(p.id).map((i) => BYID[i]).filter(Boolean);
-    const family = RESIDENTS.filter((o) => o.home === p.home && o.id !== p.id);
-    const chips = (l, color) => l.map((o) => `<span class="chip link" style="--c:${color}" data-id="${o.id}">${esc(o.name)}<span class="cn">${esc(o.nick)}</span></span>`).join('');
-    side.innerHTML = `<div class="paper box mini"><div class="row1"><span class="hd big"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><br>
-        <span class="jb">${esc(p.job)} · ${p.age}岁 · ${p.sex} · ${esc(p.relation)}</span><br><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</span></div>
-        <div class="now">${nowHTML(s)}</div><div class="next">${esc(s?.nextText ?? '')}</div>
-        <div class="btns"><button class="btn find">去村里找</button><button class="btn more">详细信息</button></div></div>
-      <div class="paper box info">
-        <div class="sec"><div class="lbl">来历</div><p>${esc(p.bio)}</p></div>
-        <div class="kv"><b>喜欢</b><span>${esc(p.likes)}</span><b>手艺</b><span>${esc(p.skills.join('、'))}</span>${p.owns.length ? `<b>家当</b><span>${esc(p.owns.join('、'))}</span>` : ''}</div>
-        ${family.length ? `<div class="sec"><div class="lbl">家人</div>${chips(family, 'var(--c-craft)')}</div>` : ''}
-        ${friends.length ? `<div class="sec"><div class="lbl">好友</div>${chips(friends, 'var(--c-child)')}</div>` : ''}
-        <div class="sec"><div class="lbl">今日安排<span class="count">${p.day.length} 项</span></div><ul class="plan">${planHTML(p.day, s?.cur ?? -1)}</ul></div>
-      </div>`;
-    side.querySelector('.hd.big').append(head(p, 2, 20));
-    side.querySelector('.more').addEventListener('click', () => openPerson(p.id));
-    side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
-    side.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => pick(c.dataset.id)));
-  }
-
-  function showView(v = view) {
-    view = v;
-    tabs.querySelectorAll('[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
-    list.hidden = v !== 'list'; rmap.hidden = v !== 'map';
-    refresh();
-    if (v === 'map') requestAnimationFrame(() => layout());
-  }
-  tabs.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => showView(b.dataset.v)));
-  if (!map) { tabs.remove(); view = 'list'; rmap.remove(); list.hidden = false; }
-
-  // ---------------------------------------------------------------- 详细信息：档案上面弹出的一张卡
-  function openPerson(id) {
-    const p = BYID[id];
-    if (!p) return;
-    cur = p;
     const friends = friendsOf(p.id).map((i) => BYID[i]).filter(Boolean);
     const family = RESIDENTS.filter((o) => o.home === p.home && o.id !== p.id);
     // 关系从这个人的角度说：对方是"王德山的媳妇"就写"媳妇"、是户主就写"户主"，说不清的写村里怎么叫（杨二嫂）
     const relOf = (o) => (o.relation.startsWith(`${p.name}的`) ? o.relation.slice(p.name.length + 1) : o.relation === '户主' ? '户主' : o.nick);
     const rel = (o, tag, color) => `<div class="rel" data-id="${o.id}" style="--rc:${color}"><span class="hd"></span><span class="rn">${esc(o.name)}</span><span class="rt">${esc(tag === '家人' ? relOf(o) : '好友')}</span></div>`;
-    const animals = beasts?.(p.home) ?? [];
-    pop.innerHTML = `<div class="ptop"><span class="pt">详细信息</span><button class="btn prev" title="←">上一个</button><button class="btn next" title="→">下一个</button><button class="btn find">去村里找</button><button class="btn close" title="关闭（Esc）">×</button></div>
-      <div class="pgrid">
-        <div class="stage pstage"><div class="plate"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span></div></div>
-        <div class="pmain">
-          <div class="prow">
-            <div class="paper box pid"><div class="lbl">身份</div>
-              <div class="kv"><b>职业</b><span>${esc(p.job)}</span><b>年纪</b><span>${p.age} 岁 · ${p.sex}</span><b>家里</b><span>${esc(p.household)} · ${esc(p.relation)}</span></div>
-              <div class="trs">${p.traits.map((t) => `<span class="chip" style="--c:var(--c-plum)">${esc(t)}</span>`).join('')}</div></div>
-            <div class="paper box pnow"><div class="lbl">此刻</div><div class="now"></div><div class="lbl sub">接下来</div><ul class="ups"></ul></div>
-          </div>
-          <div class="paper box pstory"><div class="lbl">背景故事</div><p>${esc(p.story ?? p.bio)}</p></div>
-          <div class="paper box pday"><div class="lbl">一天<span class="count">${p.day.length} 项安排</span></div>${dayHTML(p.day)}</div>
-          <div class="prow">
-            <div class="paper box prel"><div class="lbl">家人 · 好友</div><div class="rels">${family.map((o) => rel(o, '家人', 'var(--c-craft)')).join('')}${friends.map((o) => rel(o, '好友', 'var(--c-child)')).join('')}</div></div>
-            <div class="paper box pown"><div class="lbl">喜好 · 手艺 · 家当</div>
-              <div class="kv"><b>喜欢</b><span>${esc(p.likes)}</span><b>手艺</b><span>${p.skills.map((x) => `<span class="chip soft">${esc(x)}</span>`).join('')}</span>${p.owns.length ? `<b>家当</b><span>${esc(p.owns.join('、'))}</span>` : ''}</div>
-              <div class="pets"></div></div>
-          </div>
+    side.innerHTML = `<div class="paper box mini"><div class="row1"><span class="hd big"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><br>
+        <span class="jb">${esc(p.job)} · ${p.age}岁 · ${p.sex} · ${esc(p.relation)}</span><br><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</span>
+        <button class="btn find">去村里找</button></div>
+        <div class="nowrow"><div class="now"></div><ul class="ups"></ul></div></div>
+      <div class="paper box info">
+        <div class="sec"><div class="lbl">背景故事</div><p class="story">${esc(p.story ?? p.bio)}</p></div>
+        <div class="sec"><div class="lbl">一天<span class="count">${p.day.length} 项安排</span></div>${dayHTML(p.day)}</div>
+        <div class="two">
+          <div class="sec"><div class="lbl">家人 · 好友</div><div class="rels">${family.map((o) => rel(o, '家人', 'var(--c-craft)')).join('')}${friends.map((o) => rel(o, '好友', 'var(--c-child)')).join('')}</div></div>
+          <div class="sec"><div class="lbl">喜好 · 手艺 · 家当</div>
+            <div class="kv"><b>喜欢</b><span>${esc(p.likes)}</span><b>手艺</b><span>${esc(p.skills.join('、'))}</span>${p.owns.length ? `<b>家当</b><span>${esc(p.owns.join('、'))}</span>` : ''}</div>
+            <div class="pets"></div></div>
         </div>
       </div>`;
-    pop.querySelector('.pstage').prepend(body(p, 7));
-    pop.querySelectorAll('.rel').forEach((r) => { r.querySelector('.hd').append(head(BYID[r.dataset.id], 2, 20)); r.addEventListener('click', () => openPerson(r.dataset.id)); });
-    const pets = pop.querySelector('.pets');
+    side.querySelector('.hd.big').append(body(p, 3)); // 小卡左边站一个全身像
+    side.querySelectorAll('.rel').forEach((r) => { r.querySelector('.hd').append(head(BYID[r.dataset.id], 2, 20)); r.addEventListener('click', () => pick(r.dataset.id)); });
+    const pets = side.querySelector('.pets'), animals = beasts?.(p.home) ?? [];
     for (const b of animals) {
       const a = animalAtlas(b.kind), c = portrait(a.canvas, 0, 0, a.cellW, a.cellH, 1);
       c.style.width = `calc(${a.cellW * 2} * var(--f))`;
@@ -283,44 +240,55 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
       pets.append(s);
     }
     if (!animals.length) pets.remove();
-    pop.querySelector('.prev').addEventListener('click', () => step(-1));
-    pop.querySelector('.next').addEventListener('click', () => step(1));
-    pop.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
-    pop.querySelector('.close').addEventListener('click', closePop);
-    popbg.hidden = false;
-    refresh();
+    side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
+    nowHTMLs();
   }
-  function closePop() { cur = null; popbg.hidden = true; }
-  popbg.addEventListener('click', (e) => { if (e.target === popbg) closePop(); });
 
-  const step = (d) => { if (!cur) return; const ids = order.includes(cur.id) ? order : RESIDENTS.map((o) => o.id); openPerson(ids[(ids.indexOf(cur.id) + d + ids.length) % ids.length]); };
-
-  /** 此刻：卡片列表每张一行、地图右边的小卡、弹出卡里的此刻 / 下一项 / 时间条上的竖线。村里每过一分钟刷一次。 */
-  function refresh() {
-    if (el.hidden) return;
-    if (view === 'map') sideHTML();
-    else for (const t of list.children) if (!t.hidden) t.querySelector('.now').innerHTML = nowHTML(status(t.dataset.id));
-    if (!cur) return;
-    const s = status(cur.id);
-    pop.querySelector('.pnow .now').innerHTML = nowHTML(s);
-    const ups = cur.day.slice((s?.cur ?? -1) + 1, (s?.cur ?? -1) + 4); // 接下来的三项
-    pop.querySelector('.pnow .ups').innerHTML = ups.length ? ups.map(([t, a, arg]) => `<li><span class="t">${hm(t)}</span>${esc(actLabel(a, arg))}</li>`).join('') : '<li class="done">今日安排已全部完成</li>';
-    const h = hour?.() ?? 12, line = pop.querySelector('.now-line');
+  /** 小卡上会变的：此刻在干什么、接下来三项，时间条上此刻的竖线。 */
+  function nowHTMLs() {
+    const p = BYID[picked];
+    if (!p || !side.firstChild) return;
+    const s = status(p.id);
+    side.querySelector('.nowrow .now').innerHTML = nowHTML(s);
+    const ups = p.day.slice((s?.cur ?? -1) + 1, (s?.cur ?? -1) + 4);
+    side.querySelector('.ups').innerHTML = ups.length ? ups.map(([t, a, arg]) => `<li><span class="t">${hm(t)}</span>${esc(actLabel(a, arg))}</li>`).join('') : '<li class="done">今日安排已全部完成</li>';
+    const h = hour?.() ?? 12, line = side.querySelector('.now-line');
     line.hidden = h < DAY0 || h > DAY1;
     line.style.left = `${((h - DAY0) / (DAY1 - DAY0)) * 100}%`;
   }
 
-  function close() { closePop(); el.hidden = true; document.body.classList.remove('roster-open'); onClose?.(); }
-  el.querySelector('.rhead .close').addEventListener('click', close);
-  addEventListener('keydown', (e) => { // 档案开着时 ← → 在弹出卡里翻人，不换场景；Esc 先关弹出卡再关档案
+  function showView(v = view) {
+    view = v;
+    tabs.querySelectorAll('[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+    list.hidden = v !== 'list'; rmap.hidden = v !== 'map';
+    if (v === 'map') { sideHTML(); requestAnimationFrame(() => layout()); }
+    refresh();
+  }
+  tabs.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => showView(b.dataset.v)));
+  if (!map) { tabs.remove(); view = 'list'; rmap.remove(); list.hidden = false; }
+
+  /** 卡片页点一个人：回到地图，右边换成这个人。 */
+  function openPerson(id) { if (!map || !BYID[id]) return; picked = id; showView('map'); pick(id); }
+  const step = (d) => { const ids = order.length ? order : RESIDENTS.map((o) => o.id); pick(ids[(ids.indexOf(picked) + d + ids.length) % ids.length]); };
+
+  /** 此刻：卡片列表每张一行、地图右边小卡上的此刻和接下来。村里每过一分钟刷一次。 */
+  function refresh() {
     if (el.hidden) return;
-    if (e.key === 'Escape') { if (cur) closePop(); else close(); }
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.stopImmediatePropagation(); if (cur) step(e.key === 'ArrowLeft' ? -1 : 1); }
+    if (view === 'map') nowHTMLs();
+    else for (const t of list.children) if (!t.hidden) t.querySelector('.now').innerHTML = nowHTML(status(t.dataset.id));
+  }
+
+  function close() { el.hidden = true; document.body.classList.remove('roster-open'); onClose?.(); }
+  el.querySelector('.rhead .close').addEventListener('click', close);
+  addEventListener('keydown', (e) => { // 档案开着时 ← → 在地图上换人（筛选出来的人里翻），不换场景
+    if (el.hidden) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.stopImmediatePropagation(); if (view === 'map') step(e.key === 'ArrowLeft' ? -1 : 1); }
   }, true);
 
   return {
     get open() { return !el.hidden; },
-    show(id) { el.hidden = false; document.body.classList.add('roster-open'); showView(); if (id && BYID[id]) openPerson(id); },
+    show(id) { el.hidden = false; document.body.classList.add('roster-open'); if (id && BYID[id]) picked = id; showView(); },
     close,
     refresh,
     pick: (id) => { if (view === 'map') pick(id); },
