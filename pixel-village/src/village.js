@@ -489,7 +489,6 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null } 
     compoundAt,
     things,
     C,
-    terrain: ground, // 地面类型（村子 + 西沟，档案里的小地图用）
     M, // 西沟和村子共用一套材质
     west,
     update(t, viewerWorld) {

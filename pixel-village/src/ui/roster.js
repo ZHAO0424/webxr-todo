@@ -3,12 +3,11 @@ import { characterAtlas, CELL_W, CELL_H } from '../characters.js';
 import { animalAtlas } from '../animals.js';
 import { portrait, headCrop } from './frame.js';
 import { planHTML } from './cards.js';
-import { drawMap } from './villageMap.js';
 
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
- *   地图（默认）：村子的像素俯视图，每人一个头像 + 名字站在此刻所在的地方（边框颜色 = 干活 / 歇着 / 睡了 / 赶活动，在屋里的半透明，在西沟的排在左边一栏），
- *         挤在一起的自动推开；右边是点中的人的小卡，下面"此刻谁在哪儿"按地方分组；
+ *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），每户一块小牌子（户名 + 这家人的头像和名字）标在自家院子上，
+ *         挤在一起的推开、用细线连回院子；右边是点中的人的小卡，下面是各家的名单；
  *   卡片：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；上面一排筛选；
  *   详情：点了人才显示，横着三栏都用框填满——
  *         立绘台（全身像 + 名牌）、身份、此刻 | 来历、性格 / 喜欢 / 手艺 / 家当四格、今日安排 | 家人好友（头像 + 关系 + 此刻在干什么）、这一家（院子、介绍、牲口）。
@@ -56,9 +55,9 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
       <span class="nav" hidden><button class="btn prev" title="←">上一个</button><button class="btn next" title="→">下一个</button><button class="btn back">返回</button></span>
       <button class="btn close" title="关闭（Esc）">×</button>
     </div>
-    <div class="rbody"><div class="rmap"><div class="mapwrap"><div class="west" hidden><span class="wl">在西沟</span></div></div><div class="mapside"></div></div><div class="rlist" hidden></div><div class="rdetail" hidden></div></div>`;
+    <div class="rbody"><div class="rmap"><div class="mapwrap"></div><div class="mapside"></div></div><div class="rlist" hidden></div><div class="rdetail" hidden></div></div>`;
   const list = el.querySelector('.rlist'), detail = el.querySelector('.rdetail'), nav = el.querySelector('.nav'), filters = el.querySelector('.filters'), tabs = el.querySelector('.tabs');
-  const rmap = el.querySelector('.rmap'), wrap = el.querySelector('.mapwrap'), side = el.querySelector('.mapside'), westBox = el.querySelector('.west');
+  const rmap = el.querySelector('.rmap'), wrap = el.querySelector('.mapwrap'), side = el.querySelector('.mapside');
   let cur = null, lastCur = -2, order = RESIDENTS.map((p) => p.id), view = 'map', filter = FILTERS.全部, picked = null;
 
   // 列表：每人一张横的小卡
@@ -85,65 +84,91 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
     order = [];
     for (const t of list.children) { const on = f(BYID[t.dataset.id]); t.hidden = !on; if (on) order.push(t.dataset.id); }
     refresh();
+    if (view === 'map') { sideHTML(); layout(); }
   }));
 
-  // ---------------------------------------------------------------- 地图：俯视图上每人一个头像 + 名字，站在此刻真正所在的地方
-  const B = map?.bounds, markers = {};
+  // ---------------------------------------------------------------- 地图：真实场景的俯视截图，每户一块小牌子（户名 + 这家人的头像和名字）标在自家院子上
+  const B = map?.bounds, groups = [], markers = {};
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const lines = document.createElementNS(svgNS, 'svg');
+  lines.classList.add('leaders');
   if (map) {
-    for (const pl of map.places) { // 各家院子的名字
-      const l = document.createElement('span');
-      l.className = 'place';
-      l.textContent = pl.name;
-      l.style.left = `${((pl.x - B.x0) / (B.x1 - B.x0)) * 100}%`;
-      l.style.top = `${((pl.z - B.z0) / (B.z1 - B.z0)) * 100}%`;
-      wrap.append(l);
-    }
-    for (const p of RESIDENTS) {
-      const m = document.createElement('div');
-      m.className = 'mk';
-      m.dataset.id = p.id;
-      m.innerHTML = `<span class="hd"></span><span class="nm">${esc(p.name)}</span>`;
-      m.querySelector('.hd').append(head(p, 2));
-      m.addEventListener('click', (e) => { e.stopPropagation(); pick(p.id); });
-      wrap.append(m);
-      markers[p.id] = { el: m, x: 0, y: 0 };
+    wrap.append(lines);
+    for (const h of HOUSEHOLDS) {
+      const at = map.homeAt(h.id);
+      if (!at) continue;
+      const g = document.createElement('div');
+      g.className = 'hh';
+      g.innerHTML = `<div class="hn">${esc(h.name.replace(/（.*）/, ''))}</div><div class="ms"></div>`;
+      const ms = g.querySelector('.ms');
+      for (const p0 of h.people) {
+        const p = BYID[p0.id];
+        const m = document.createElement('div');
+        m.className = 'mk';
+        m.dataset.id = p.id;
+        m.style.setProperty('--jc', JOB_COLOR(p));
+        m.innerHTML = `<span class="hd"></span><span class="nm">${esc(p.name)}</span>`;
+        m.querySelector('.hd').append(head(p, 2));
+        m.addEventListener('click', (e) => { e.stopPropagation(); pick(p.id); });
+        ms.append(m);
+        markers[p.id] = m;
+      }
+      const pin = document.createElement('span');
+      pin.className = 'home-pin';
+      wrap.append(pin, g);
+      groups.push({ h, el: g, pin, x0: at[0], z0: at[1], x: 0, y: 0 });
     }
     wrap.addEventListener('click', () => pick(null));
+    addEventListener('resize', () => layout());
   }
-  let drawn = false, lastTick = 0;
+  let drawn = false;
 
-  /** 每帧调用（档案开着、在看地图时）：一秒更新 5 次头像位置。挤在一起的往两边推开，不叠成一坨。 */
-  function tick(force = false) {
+  /** 摆牌子：先放在自家院子正中，挤在一起的按矩形往两边推开；推远了的用一根细线连回院子。 */
+  function layout() {
     if (!map || el.hidden || view !== 'map' || cur) return;
-    const now = performance.now();
-    if (!force && now - lastTick < 200) return;
-    lastTick = now;
-    if (!drawn) { drawn = true; const cv = drawMap(map.nav, map.terrain, B, { winter: map.winter }); wrap.prepend(cv); wrap.style.aspectRatio = `${cv.width} / ${cv.height}`; }
-    const W = wrap.clientWidth || 1, H = wrap.clientHeight || 1, pts = [], inWest = [];
-    for (const p of RESIDENTS) {
-      const m = markers[p.id], w = map.where(p.id), s = status(p.id);
-      m.el.hidden = !w || !filter(p);
-      if (m.el.hidden) continue;
-      m.el.className = `mk ${s?.kind ?? ''}${w.inside ? ' in' : ''}${picked === p.id ? ' on' : ''}`;
-      m.el.title = `${p.name}：${s?.doing ?? ''}${s?.where ? ' · ' + s.where : ''}`;
-      if (w.west) { inWest.push(m); continue; }
-      m.x = ((w.x - B.x0) / (B.x1 - B.x0)) * W; m.y = ((w.z - B.z0) / (B.z1 - B.z0)) * H;
-      pts.push(m);
+    if (!drawn) {
+      const img = map.image();
+      if (!img) return;
+      drawn = true;
+      wrap.prepend(img);
+      wrap.style.aspectRatio = `${img.width} / ${img.height}`;
     }
-    const f = parseFloat(getComputedStyle(el).getPropertyValue('--f')) || 1, RX = 54 * f, RY = 46 * f, R = 34 * f; // 头像 + 名字大概这么大：两人离得比这近就推开
-    for (let it = 0; it < 10; it++) for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {
-      const P = pts[a], Q = pts[b], dx = (Q.x - P.x) / RX, dy = (Q.y - P.y) / RY, d = Math.hypot(dx, dy);
-      if (d >= 1) continue;
-      const k = (1 - d) / 2 / (d || 1), ux = d ? dx : 1, uy = d ? dy : 0;
-      P.x -= ux * k * RX; Q.x += ux * k * RX; P.y -= uy * k * RY; Q.y += uy * k * RY;
+    const W = wrap.clientWidth || 1, H = wrap.clientHeight || 1, gap = 4;
+    lines.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const live = groups.filter((g) => {
+      let any = false;
+      for (const m of g.el.querySelectorAll('.mk')) { const on = filter(BYID[m.dataset.id]); m.hidden = !on; any ||= on; }
+      g.el.hidden = g.pin.hidden = !any;
+      return any;
+    });
+    for (const g of live) {
+      g.hx = ((g.x0 - B.x0) / (B.x1 - B.x0)) * W; g.hy = ((g.z0 - B.z0) / (B.z1 - B.z0)) * H;
+      g.x = g.hx; g.y = g.hy; g.w = g.el.offsetWidth; g.hgt = g.el.offsetHeight;
     }
-    for (const m of pts) { m.el.style.left = `${Math.max(R, Math.min(W - R, m.x))}px`; m.el.style.top = `${Math.max(R, Math.min(H, m.y))}px`; }
-    westBox.hidden = !inWest.length; // 在西沟的人：地图左边一栏，从上往下排
-    inWest.forEach((m, i) => { m.el.style.left = `${R * 0.8}px`; m.el.style.top = `${R * 2 + i * R * 1.5}px`; });
+    for (let it = 0; it < 40; it++) {
+      let moved = false;
+      for (let a = 0; a < live.length; a++) for (let b = a + 1; b < live.length; b++) {
+        const P = live[a], Q = live[b];
+        const ox = (P.w + Q.w) / 2 + gap - Math.abs(Q.x - P.x), oy = (P.hgt + Q.hgt) / 2 + gap - Math.abs(Q.y - P.y);
+        if (ox <= 0 || oy <= 0) continue;
+        moved = true;
+        if (ox < oy) { const s = (Q.x >= P.x ? 1 : -1) * ox / 2; P.x -= s; Q.x += s; } else { const s = (Q.y >= P.y ? 1 : -1) * oy / 2; P.y -= s; Q.y += s; }
+      }
+      for (const g of live) { g.x = Math.max(g.w / 2, Math.min(W - g.w / 2, g.x)); g.y = Math.max(g.hgt / 2, Math.min(H - g.hgt / 2, g.y)); }
+      if (!moved) break;
+    }
+    let svg = '';
+    for (const g of live) {
+      g.el.style.left = `${g.x}px`; g.el.style.top = `${g.y}px`;
+      g.pin.style.left = `${g.hx}px`; g.pin.style.top = `${g.hy}px`;
+      if (Math.hypot(g.x - g.hx, g.y - g.hy) > Math.min(g.w, g.hgt) / 2) svg += `<line x1="${g.hx}" y1="${g.hy}" x2="${g.x}" y2="${g.y}"/>`;
+    }
+    lines.innerHTML = svg;
+    for (const [id, m] of Object.entries(markers)) m.classList.toggle('on', id === picked);
   }
 
-  /** 地图右边：点中的人一张小卡（头像、身份、此刻、下一项、看详情 / 去村里找），下面是"此刻谁在哪儿"按地方分组。 */
-  function pick(id) { picked = id; sideHTML(); tick(true); }
+  /** 地图右边：点中的人一张小卡（头像、身份、此刻、下一项、来历、看详情 / 去村里找），下面是各家的名单。 */
+  function pick(id) { picked = id; sideHTML(); for (const [k, m] of Object.entries(markers)) m.classList.toggle('on', k === picked); }
   function sideHTML() {
     if (!map) return;
     let html = '';
@@ -151,20 +176,15 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
     if (p) {
       const s = status(p.id);
       html += `<div class="paper box mini"><div class="row1"><span class="hd big"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><br>
-          <span class="jb">${esc(p.job)} · ${p.age}岁</span><br><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span></span></div>
+          <span class="jb">${esc(p.job)} · ${p.age}岁 · ${esc(p.relation)}</span><br><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.slice(0, 3).map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</span></div>
         <div class="now">${nowHTML(s)}</div><div class="next">${esc(s?.nextText ?? '')}</div>
         <p class="bio">${esc(p.bio)}</p>
         <div class="btns"><button class="btn more">看详情</button><button class="btn find">去村里找</button></div></div>`;
-    } else html += `<div class="paper box mini hint">点地图上的头像，看这个人此刻在干什么。<br>头像边框：<span class="dot"></span>干活 <span class="dot rest"></span>歇着 <span class="dot sleep"></span>睡了 <span class="dot event"></span>赶活动；半透明的在屋里。</div>`;
-    const groups = {};
-    for (const o of RESIDENTS) {
-      if (!filter(o)) continue;
-      const s = status(o.id), w = map.where(o.id);
-      const k = !s || !w ? '不在村里' : w.inside ? (s.kind === 'sleep' ? '睡下了' : '在屋里') : (s.where || '路上');
-      (groups[k] ??= []).push(o);
-    }
-    const keys = Object.keys(groups).sort((a, b) => (/屋里|睡下|不在/.test(a) - /屋里|睡下|不在/.test(b)) || groups[b].length - groups[a].length);
-    html += `<div class="paper box groups"><div class="lbl">此刻谁在哪儿</div>${keys.map((k) => `<div class="grp"><div class="gk">${esc(k)}<span class="count">${groups[k].length}</span></div><div>${groups[k].map((o) => `<span class="chip link${o.id === picked ? ' on' : ''}" data-id="${o.id}">${esc(o.name)}</span>`).join('')}</div></div>`).join('')}</div>`;
+    } else html += `<div class="paper box mini hint">${esc(VILLAGE.intro)}<br><span class="tip">点地图上的头像看这个人的小卡；头像边框的颜色：<span class="sw" style="--c:var(--c-chief)"></span>村长 <span class="sw" style="--c:var(--c-craft)"></span>手艺人 <span class="sw" style="--c:var(--c-farm)"></span>种地的 <span class="sw" style="--c:var(--c-child)"></span>孩子</span></div>`;
+    html += `<div class="paper box groups"><div class="lbl">各家<span class="count">${HOUSEHOLDS.length} 户</span></div>${HOUSEHOLDS.map((h) => {
+      const ps = h.people.map((x) => BYID[x.id]).filter(filter);
+      return ps.length ? `<div class="grp"><div class="gk">${esc(h.name)}<span class="count">${esc(h.kind)}</span></div><div>${ps.map((o) => `<span class="chip link${o.id === picked ? ' on' : ''}" data-id="${o.id}">${esc(o.name)}<span class="cn">${esc(o.nick)}</span></span>`).join('')}</div></div>` : '';
+    }).join('')}</div>`;
     side.innerHTML = html;
     if (p) {
       side.querySelector('.hd.big').append(head(p, 3));
@@ -179,7 +199,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
     tabs.querySelectorAll('[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
     detail.hidden = true; list.hidden = v !== 'list'; rmap.hidden = v !== 'map'; nav.hidden = true; filters.hidden = false; tabs.hidden = false;
     refresh();
-    if (v === 'map') requestAnimationFrame(() => tick(true));
+    if (v === 'map') { sideHTML(); requestAnimationFrame(() => layout()); }
   }
   const showList = () => showView();
   tabs.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => showView(b.dataset.v)));
@@ -241,7 +261,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
   function refresh() {
     if (el.hidden) return;
     if (!cur) {
-      if (view === 'map') { sideHTML(); tick(true); return; }
+      if (view === 'map') { if (picked) sideHTML(); return; } // 小卡上的"此刻"跟着刷
       for (const t of list.children) if (!t.hidden) t.querySelector('.now').innerHTML = nowHTML(status(t.dataset.id));
       return;
     }
@@ -272,7 +292,6 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
     show(id) { el.hidden = false; document.body.classList.add('roster-open'); if (id && BYID[id]) openPerson(id); else showList(); },
     close,
     refresh,
-    tick,
     pick: (id) => { if (view === 'map') pick(id); },
   };
 }

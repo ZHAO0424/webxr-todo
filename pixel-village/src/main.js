@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { buildVillage } from './village.js';
 import { BOUNDS } from './layout.js';
+import { daylight } from './daylight.js';
 import { buildBackdrop, skyTexture } from './backdrop.js';
 import { createAnchor } from './xr.js';
 import { LABELS, PLACES } from './labels.js';
@@ -323,19 +324,57 @@ const roster = createRoster(document.getElementById('roster'), {
     host.querySelector('.follow')?.click();
   },
   onClose: () => rosterBtn?.classList.remove('on'),
-  // 档案里的小地图：导航网格画成俯视图；人在屋里就标在自家院子中间，在西沟的另排一栏
+  // 档案里的地图：真实场景从正上方看下去的截图；居民按户标在自家院子上
   map: {
-    nav: village.nav, terrain: village.terrain, bounds: BOUNDS, winter: season() === 'winter',
-    places: HOUSEHOLDS.filter((h) => village.C[h.id]).map((h) => ({ name: h.name.replace(/（.*）/, ''), x: village.C[h.id].object.position.x, z: village.C[h.id].object.position.z })),
-    where(id) {
-      const v = V.byId[id];
-      if (!v) return null;
-      if (v.pos.x < BOUNDS.x0) return { west: true, inside: v.inside };
-      const c = v.inside && village.C[v.p.sleepAt ?? v.p.home];
-      return c ? { x: c.object.position.x, z: c.object.position.z, inside: true } : { x: v.pos.x, z: v.pos.z, inside: v.inside };
-    },
+    bounds: BOUNDS,
+    homeAt: (id) => { const c = village.C[id]; return c ? [c.object.position.x, c.object.position.z] : null; },
+    image: () => (mapImage ??= mapSnapshot()),
   },
 });
+let mapImage = null;
+
+/**
+ * 村子的俯视图：正交相机从正上方往下拍一张（每米 8 个像素），颜色就是场景里的颜色。
+ * 拍的时候光线固定成中午、人和动物先藏起来（地图上另外标头像）、远山和天空不画；拍完下一帧照常。
+ */
+function mapSnapshot() {
+  if (inXR()) return null;
+  const B = BOUNDS, PX = 8, W = Math.round((B.x1 - B.x0) * PX), H = Math.round((B.z1 - B.z0) * PX);
+  village.object.updateMatrixWorld(true);
+  const s = village.object.getWorldScale(new THREE.Vector3()).x;
+  const c = village.object.localToWorld(new THREE.Vector3((B.x0 + B.x1) / 2, 0, (B.z0 + B.z1) / 2));
+  const cam = new THREE.OrthographicCamera((-(B.x1 - B.x0) / 2) * s, ((B.x1 - B.x0) / 2) * s, ((B.z1 - B.z0) / 2) * s, (-(B.z1 - B.z0) / 2) * s, 0.01, 20);
+  cam.up.set(0, 0, -1); // 图的上边是北（-z），和村子坐标一致
+  cam.position.set(c.x, c.y + 5, c.z);
+  cam.lookAt(c);
+  cam.updateMatrixWorld();
+  const hide = [backdrop.object, west.object, marker, ...village.life.people.map((v) => v.object), ...village.life.beasts.map((b) => b.object)].filter((o) => o?.visible);
+  hide.forEach((o) => { o.visible = false; });
+  applyLight(daylight(11)); // 中午的光（会顺手换天空，所以先调光再去掉背景；下一帧 applyLight 照村里的钟换回来）
+  const bg = scene.background;
+  scene.background = null;
+  renderer.shadowMap.needsUpdate = true;
+  const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 });
+  rt.texture.colorSpace = THREE.SRGBColorSpace;
+  renderer.setRenderTarget(rt);
+  renderer.setClearColor(0x1b1626, 1);
+  renderer.clear();
+  renderer.render(scene, cam);
+  const px = new Uint8Array(W * H * 4);
+  renderer.readRenderTargetPixels(rt, 0, 0, W, H, px);
+  renderer.setRenderTarget(null);
+  renderer.setClearColor(0x000000, 1);
+  rt.dispose();
+  scene.background = bg;
+  hide.forEach((o) => { o.visible = true; });
+  renderer.shadowMap.needsUpdate = true;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'), img = g.createImageData(W, H);
+  for (let y = 0; y < H; y++) img.data.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4); // 读出来是倒的
+  g.putImageData(img, 0, 0);
+  return cv;
+}
 const rosterBtn = document.getElementById('rosterBtn');
 rosterBtn?.addEventListener('click', (e) => { e.stopPropagation(); if (roster.open) roster.close(); else { roster.show(); rosterBtn.classList.add('on'); showSettings(false); showDebug(false); } });
 if (params.has('roster')) { roster.show(params.get('roster') || null); rosterBtn?.classList.add('on');  if (params.get('rpick')) roster.pick(params.get('rpick')); } // ?roster=1 打开档案（地图），&rpick=村民id 在地图上点中这个人；?roster=村民id 直接看这个人的详情（截图检查用）
@@ -489,7 +528,6 @@ renderer.setAnimationLoop((_, frame) => {
     if (host !== scenes.current.object) scenes.go(host === west.object ? 1 : -1, true);
   }
   scenes.update(dt, inXR() || params.has('signs')); // ?signs=1：桌面上也显示 XR 里的路牌（截图检查用）
-  roster.tick(); // 档案开着、在看地图：头像跟着人走
   sound.update(t, dt);
   music.update(dt);
   if (params.has('sound')) document.documentElement.dataset.sound = JSON.stringify(sound.stats);
