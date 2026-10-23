@@ -2,7 +2,7 @@
  * 像素 UI 的底子（村子页面和村民档案共用）。
  *
  * 1. 两个像素单位，都取整数个设备像素（像素点正好落在整数个屏幕像素上才清楚）：
- *    --f：字的一个点。字体是 16px 点阵，一个点 = 1 个设备像素（高分屏 2 个），正文就是正常的 16 像素字，不会粗笨。
+ *    --f：字的一个点。按窗口大小缩放（1100×680 的窗口一个点 ≈ 1 个 CSS 像素，大屏 / 全屏跟着放大，小窗口缩小），再取整到整数个设备像素。
  *    --p：边框、间距的一个"像素" = 2 个 --f，框比字粗一档，像游戏里的 UI。
  * 2. 框：在 10×10 的画布上画一个细的像素框（深色外描边 → 一道斜面，左上亮、右下暗 → 内描边 → 底色），
  *    做成 9 宫格边框图（border-image），框多大都清楚。三种：面板、凹进去的内框、头像框。
@@ -30,9 +30,10 @@ function frameImage({ outer, light, dark, inner, fill }) {
 
 export function setupPixelUI() {
   const root = document.documentElement;
-  const unit = () => {
+  const unit = () => { // 跟着窗口大小缩放：以 1100×680 的窗口为一倍，宽高取小的那个比例；手机竖屏不再往小缩（字会看不清）
     const dpr = devicePixelRatio || 1;
-    const k = Math.max(1, Math.round(dpr));
+    const s = Math.min(innerWidth / 1100, innerHeight / 680);
+    const k = Math.max(1, Math.round(dpr * Math.max(innerWidth < 700 ? 1 : 0.75, s))); // 一个点取整数个设备像素，点阵字不糊
     root.style.setProperty('--f', `${k / dpr}px`);
     root.style.setProperty('--p', `${(2 * k) / dpr}px`);
   };
