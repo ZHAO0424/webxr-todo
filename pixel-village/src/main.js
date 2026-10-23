@@ -8,6 +8,7 @@ import { createAnchor } from './xr.js';
 import { LABELS, PLACES } from './labels.js';
 import { setupPixelUI } from './ui/frame.js';
 import { residentCard, animalCard, thingCard, hm, label } from './ui/cards.js';
+import { createRoster } from './ui/roster.js';
 import { pickThing, describe, YARDS } from './things.js';
 import { HOUSEHOLDS } from './residents.js';
 import { createSound } from './audio.js';
@@ -27,7 +28,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.shadowMap.autoUpdate = false; // 阴影隔一帧重画一次（每帧重画要把三百来个投影的东西再画一遍；人走得慢，看不出差别）
 renderer.xr.enabled = true;
-document.body.append(renderer.domElement, VRButton.createButton(renderer));
+document.body.append(renderer.domElement, VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] })); // 手部追踪：双手捏合握住沙盘（xr.js）
 
 const scene = new THREE.Scene();
 let sky = skyTexture();
@@ -288,20 +289,42 @@ function refreshCard() {
     sel.card.update({ doing: animalDoing(b, V), where: b.home ? '' : village.whereAt(b.pos.x, b.pos.z), kind: b.home ? 'sleep' : b.moving ? '' : 'rest' });
     return;
   }
-  const v = sel.v, day = v.p.day;
+  sel.card.update(personStatus(sel.v, hour));
+}
+
+/** 村民此刻的状态：正在干什么、在哪儿、哪一类（干活 / 歇着 / 睡了 / 赶活动）、下一项、今天第几项。卡片和村民档案共用。 */
+function personStatus(v, hour = village.life.clock.hour) {
+  const day = v.p.day;
   let cur = -1;
   day.forEach(([t], i) => { if (hour >= t) cur = i; });
   const nxt = day[cur + 1];
   const night = village.life.clock.night || cur < 0;
   const key = v.doing.split(':')[0];
-  sel.card.update({
+  return {
     doing: v.inside ? (night ? '已入睡' : '屋内') : LABELS[v.doing] ?? v.doing,
     where: v.inside ? (v.pos.x < BOUNDS.x0 ? village.whereAt(v.pos.x, v.pos.z) : PLACES[v.p.sleepAt ?? v.p.home]) : village.whereAt(v.pos.x, v.pos.z), // 在西沟的磨坊、山神庙里过夜的，写那个地方
     kind: v.inside && night ? 'sleep' : EVENTS[key] ? 'event' : REST.has(v.doing) || v.inside ? 'rest' : '',
     nextText: nxt ? `下一项 ${hm(nxt[0])}　${label(nxt[1], nxt[2])}` : '今日安排已全部完成',
     cur,
-  });
+  };
 }
+
+// 村民档案：左下角按钮打开页面里的横板大卡；详情里"去村里找"= 关掉档案、选中这个人并跟着他
+const roster = createRoster(document.getElementById('roster'), {
+  status: (id) => (V.byId[id] ? personStatus(V.byId[id]) : null),
+  onFind: (id) => {
+    const v = V.byId[id];
+    if (!v) return;
+    const host2 = v.object.parent; // 人在另一块沙盘上：先换过去
+    if (host2 !== scenes.current.object && !scenes.busy) scenes.go(host2 === west.object ? 1 : -1, true);
+    selectPerson(v);
+    host.querySelector('.follow')?.click();
+  },
+  onClose: () => rosterBtn?.classList.remove('on'),
+});
+const rosterBtn = document.getElementById('rosterBtn');
+rosterBtn?.addEventListener('click', (e) => { e.stopPropagation(); if (roster.open) roster.close(); else { roster.show(); rosterBtn.classList.add('on'); showSettings(false); showDebug(false); } });
+if (params.has('roster')) { roster.show(params.get('roster') || null); rosterBtn?.classList.add('on'); } // ?roster=1 打开档案，?roster=村民id 直接看这个人（截图检查用）
 
 // ?pick=村民id 或 ?pick=beast:序号：一打开就弹出这张卡（截图检查用）；?unfold=1 把折叠的都展开
 // 收集到的物件按种类计数（无头检查看有没有漏标）；?click=x,y 模拟在屏幕这一点点一下
@@ -465,6 +488,7 @@ renderer.setAnimationLoop((_, frame) => {
     clockEl.innerHTML = `<div class="top"><span class="time">${lastLabel}</span><span class="date">${lunarLabel(s.clock.day)}<br>${s.clock.night ? '夜 · ' : ''}${WEATHER[w]}</span></div>`
       + `<div class="ev"><span class="name">${e.name}</span> <span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} ${e.place}`}</span></div>`;
     refreshCard();
+    roster.refresh();
   }
   if ((shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
   if (timer) { gpuPoll(); gpuBegin(); }

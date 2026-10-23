@@ -50,7 +50,8 @@ export function headCrop(atlas, cellW, cellH, w = 20, h = 18) {
   const g = atlas.getContext('2d');
   const data = g.getImageData(0, 0, cellW, cellH).data;
   let top = 0;
-  find: for (let y = 0; y < cellH; y++) for (let x = 0; x < cellW; x++) if (data[(y * cellW + x) * 4 + 3] > 0) { top = y; break find; }
+  const x0 = Math.floor(cellW / 2) - 3, x1 = Math.floor(cellW / 2) + 3; // 只看正中间一竖条：举过头顶的风筝、扛着的东西不算头顶
+  find: for (let y = 0; y < cellH; y++) for (let x = x0; x <= x1; x++) if (data[(y * cellW + x) * 4 + 3] > 0) { top = y; break find; }
   return portrait(atlas, Math.floor((cellW - w) / 2), Math.max(0, top - 1), w, h, 1);
 }
 

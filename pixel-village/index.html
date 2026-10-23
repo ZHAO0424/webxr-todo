@@ -29,14 +29,57 @@
     /* 卡片：时钟栏下面，靠右 */
     #card { position: fixed; right: calc(4 * var(--p)); top: calc(66 * var(--p)); max-height: calc(100vh - 72 * var(--p)); overflow: auto; scrollbar-width: none; }
     #card::-webkit-scrollbar { display: none; }
-    /* 右上角的日期栏和卡片放大一号：正文换成 16px 点阵（字还是整数倍、不糊），面板加宽 */
-    #clock, #card { --panel-w: calc(146 * var(--p)); }
-    #clock.px, #card .px { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
+    #clock, #card { --panel-w: calc(116 * var(--p)); } /* 字回到 12px 点阵（UI 已经跟着窗口缩放，不用再单独放大一号） */
     #clock { padding: calc(3 * var(--p)) calc(4 * var(--p)); }
-    #clock .time { font-size: calc(32 * var(--f)); line-height: calc(34 * var(--f)); }
-    #clock .date { line-height: calc(17 * var(--f)); }
     #card .card { padding: calc(3 * var(--p)) calc(4 * var(--p)); }
-    #card .card .chip, #card .card .follow, #card .card .close { line-height: calc(20 * var(--f)); }
+    /* 村民档案：页面里的横板大卡，四边各留一点，和屏幕一样的比例 */
+    #roster { position: fixed; inset: 7vh 7vw; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 5; }
+    #roster[hidden] { display: none; }
+    body.roster-open #clock, body.roster-open #card, body.roster-open .scene-nav { visibility: hidden; } /* 档案打开时右上角日期栏、卡片、换场景按钮先藏起来，不和它叠在一起 */
+    #roster .rhead { display: flex; align-items: center; flex-wrap: wrap; gap: calc(2 * var(--p)); padding-right: calc(10 * var(--p)); }
+    #roster .rhead .title { color: var(--gold); margin-right: calc(3 * var(--p)); }
+    #roster .rhead .chip { margin: 0; }
+    #roster .filters { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); margin-left: auto; }
+    #roster .filters[hidden], #roster .back[hidden] { display: none; }
+    #roster .back { margin-left: auto; }
+    #roster .close { position: absolute; right: calc(2 * var(--p)); top: calc(2 * var(--p)); --c: var(--red); padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
+    #roster .rbody { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+    #roster .rlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(84 * var(--p)), 1fr)); gap: calc(3 * var(--p)); align-items: start; }
+    #roster .rlist[hidden], #roster .rdetail[hidden], #roster .house[hidden], #roster .who[hidden] { display: none; }
+    #roster .house { padding: calc(2 * var(--p)) calc(3 * var(--p)); }
+    #roster .hname { color: var(--gold); margin-bottom: var(--p); }
+    #roster .hname .kind { color: var(--dim); margin-left: calc(2 * var(--p)); }
+    #roster .who { display: flex; align-items: center; gap: calc(2 * var(--p)); padding: var(--f) var(--p); cursor: pointer; }
+    #roster .who:hover { background: #3e3456; }
+    #roster .who .f { flex: none; width: calc(28 * var(--f)); height: calc(28 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink); }
+    #roster .who .f canvas { display: block; }
+    #roster .who .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #roster .who .nm { color: var(--text); }
+    #roster .who .nk, #roster .who .jb { color: var(--dim); }
+    #roster .who .nk { margin-left: calc(2 * var(--p)); }
+    #roster .dot { width: calc(2 * var(--p)); height: calc(2 * var(--p)); background: var(--green); flex: none; }
+    #roster .dot.rest { background: var(--blue); }
+    #roster .dot.sleep { background: var(--purple); }
+    #roster .dot.event { background: var(--gold); }
+    #roster .rdetail { display: grid; grid-template-columns: auto 1fr 1fr; gap: calc(6 * var(--p)); height: 100%; }
+    #roster .col { min-height: 0; overflow: auto; scrollbar-width: none; }
+    #roster .c1 { width: calc(110 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); }
+    #roster .face.big { align-self: flex-start; border-style: solid; border-width: calc(3 * var(--p)); border-image: var(--frame-face) 3 fill / calc(3 * var(--p)) round;
+                        background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); display: grid; place-items: end center; }
+    #roster .face.big canvas { display: block; }
+    #roster .name { color: var(--gold); text-shadow: var(--f) 0 0 currentColor; }
+    #roster .name .nick { color: var(--dim); text-shadow: none; margin-left: calc(2 * var(--p)); }
+    #roster .chip { margin: 0 var(--p) var(--p) 0; padding: 0 calc(2 * var(--p)); line-height: calc(14 * var(--f)); }
+    #roster .now { padding: var(--f) calc(2 * var(--p)); border-width: calc(2 * var(--p)); border-image-width: calc(2 * var(--p)); display: flex; gap: calc(2 * var(--p)); align-items: center; }
+    #roster .now .doing { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; column-gap: calc(2 * var(--p)); }
+    #roster .now .loc { margin-left: auto; color: var(--dim); white-space: nowrap; }
+    #roster .pin { display: inline-block; width: calc(5 * var(--f)); height: calc(7 * var(--f)); margin-right: calc(2 * var(--f)); vertical-align: calc(-1 * var(--f));
+                   background: var(--gold); clip-path: polygon(50% 100%, 0 45%, 0 20%, 20% 0, 80% 0, 100% 20%, 100% 45%); }
+    #roster .next { color: var(--dim); }
+    #roster .find { align-self: flex-start; --c: var(--c-farm); }
+    #roster .c2 p { margin: 0 0 calc(3 * var(--p)); }
+    #roster .row { margin: 0 0 calc(2 * var(--p)); }
+    #roster .row b { color: var(--gold); text-shadow: none; margin-right: calc(2 * var(--p)); }
     /* 换场景：屏幕左右边缘正中的像素按钮（像素三角 + 那边的地名） */
     .scene-nav { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
                  padding: calc(3 * var(--p)) calc(2 * var(--p)); cursor: pointer; color: var(--text); background: none; }
@@ -81,12 +124,13 @@
   <div id="hint">
     <div id="settings" class="dark px" hidden><button id="sound" class="btn">声音：关</button><button id="music" class="btn">音乐：关</button><button id="season" class="btn">季节：秋</button></div>
     <div id="debug" class="dark px" hidden></div>
-    <div class="bar px"><button id="settingsBtn" class="btn">设置</button><button id="debugBtn" class="btn">调试</button><a class="btn" href="roster.html">村民档案</a></div>
+    <div class="bar px"><button id="settingsBtn" class="btn">设置</button><button id="debugBtn" class="btn">调试</button><button id="rosterBtn" class="btn">村民档案</button></div>
   </div>
   <div id="clock" class="dark px"></div>
   <button id="goLeft" class="scene-nav dark px" title="往西走（←）" hidden><span class="tri"></span><span class="label"></span></button>
   <button id="goRight" class="scene-nav dark px" title="往东走（→）" hidden><span class="tri"></span><span class="label"></span></button>
   <div id="card" hidden></div>
+  <div id="roster" hidden></div>
   <pre id="err"></pre>
   <script type="module" src="src/main.js"></script>
 </body>
