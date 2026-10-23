@@ -73,49 +73,61 @@
     #roster .tile .lk b { color: #d8c0a0; font-weight: normal; text-shadow: none; margin-right: calc(2 * var(--p)); }
     #roster .tile .now { background: #2a2338; padding: 0 calc(2 * var(--p)); box-shadow: inset 0 var(--f) 0 #16121f; }
     #roster .tile .tr .chip { margin-bottom: 0; }
-    /* 详情：三栏，每栏的框都撑满 */
-    #roster .rdetail { display: grid; grid-template-columns: minmax(calc(110 * var(--p)), 0.85fr) 1.2fr 1fr; gap: calc(4 * var(--p)); height: 100%; }
-    #roster .col { min-height: 0; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
-    #roster .box { padding: calc(2 * var(--p)) calc(3 * var(--p)); min-height: 0; }
-    #roster .box .lbl { color: var(--gold); margin-bottom: var(--p); display: flex; }
-    #roster .box .lbl .count { margin-left: auto; color: var(--dim); }
-    #roster .box p { margin: 0; }
-    #roster .stage.big { flex: 1; min-height: calc(100 * var(--p)); position: relative; }
-    #roster .stage.big canvas { margin-bottom: calc(26 * var(--f)); }
+    /* 详细信息：档案上面弹出的一张卡（档案不关），左边立绘台占主要位置，右边一块块模块，高度跟着内容走 */
+    #roster .popbg { position: absolute; inset: 0; z-index: 10; background: rgba(14, 10, 22, .55); display: grid; place-items: center; }
+    #roster .pop { width: min(76%, calc(470 * var(--p))); max-height: 96%; overflow: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
+    #roster .ptop { display: flex; align-items: center; gap: calc(2 * var(--p)); }
+    #roster .ptop .pt { color: var(--gold); margin-right: auto; }
+    #roster .ptop .close { position: static; }
+    #roster .ptop .find { --c: var(--c-farm); }
+    #roster .pgrid { display: grid; grid-template-columns: minmax(calc(110 * var(--p)), 0.62fr) 1.6fr; gap: calc(4 * var(--p)); }
+    #roster .pstage { position: relative; min-height: calc(190 * var(--p)); }
+    #roster .pstage canvas { margin-bottom: calc(30 * var(--f)); }
     #roster .plate { position: absolute; left: 50%; bottom: calc(3 * var(--p)); transform: translateX(-50%); white-space: nowrap; padding: 0 calc(4 * var(--p));
                      background: #1b1626; box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
     #roster .plate span { font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
     #roster .plate .nm { color: var(--gold); }
-    #roster .chips .chip { margin-bottom: var(--p); }
-    #roster .nowbox .now { padding: var(--f) 0; }
-    #roster .nowbox .next { color: var(--dim); }
-    #roster .find { --c: var(--c-farm); line-height: calc(22 * var(--f)); }
-    #roster .bio { flex: none; }
-    #roster .quad { display: grid; grid-template-columns: 1fr 1fr; gap: calc(3 * var(--p)); flex: none; }
-    #roster .rels { flex: none; max-height: 60%; overflow: auto; scrollbar-width: none; }
-    #roster .relgrid { display: flex; flex-direction: column; gap: calc(2 * var(--p)); }
-    #roster .rel { display: flex; gap: calc(2 * var(--p)); align-items: center; padding: var(--f); cursor: pointer; background: #2a2338; box-shadow: inset 0 var(--f) 0 #16121f; min-width: 0; }
-    #roster .rel:hover { background: #3e3456; }
-    #roster .rel .hd { flex: none; width: calc(42 * var(--f)); height: calc(42 * var(--f)); background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink); overflow: hidden; }
+    #roster .pmain { min-width: 0; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
+    #roster .prow { display: grid; grid-template-columns: 1fr 1fr; gap: calc(3 * var(--p)); }
+    #roster .box { padding: calc(2 * var(--p)) calc(3 * var(--p)); min-width: 0; }
+    #roster .box .lbl { color: var(--gold); margin-bottom: var(--p); display: flex; }
+    #roster .box .lbl .count { margin-left: auto; color: var(--dim); }
+    #roster .box p { margin: 0; }
+    #roster .kv { display: grid; grid-template-columns: auto 1fr; gap: var(--f) calc(3 * var(--p)); }
+    #roster .kv b { color: #d8c0a0; font-weight: normal; text-shadow: none; }
+    #roster .kv .chip { margin-bottom: var(--f); }
+    #roster .pid .trs { margin-top: calc(2 * var(--p)); }
+    #roster .pnow .now { padding: var(--f) 0; }
+    #roster .pnow .lbl.sub { margin-top: calc(3 * var(--p)); color: #d8c0a0; }
+    #roster .pnow .ups { margin: 0; padding: 0; list-style: none; }
+    #roster .pnow .ups li { display: flex; gap: calc(3 * var(--p)); }
+    #roster .pnow .ups .t { color: var(--green); }
+    #roster .pnow .ups .done { color: var(--dim); }
+    #roster .pstory p { line-height: calc(18 * var(--f)); }
+    /* 一天：时间条 + 刻度 + 各类时长柱条 */
+    #roster .tl { position: relative; height: calc(8 * var(--p)); background: #16121f; box-shadow: 0 0 0 var(--f) var(--ink); margin-top: var(--p); }
+    #roster .tl .sg { position: absolute; top: 0; bottom: 0; box-shadow: inset calc(-1 * var(--f)) 0 0 rgba(0, 0, 0, .35); }
+    #roster .tl .now-line { position: absolute; top: calc(-2 * var(--p)); bottom: calc(-2 * var(--p)); width: var(--p); margin-left: calc(-0.5 * var(--p)); background: var(--gold); box-shadow: 0 0 0 var(--f) var(--ink); }
+    #roster .ticks { position: relative; height: calc(14 * var(--f)); color: var(--dim); }
+    #roster .ticks span { position: absolute; transform: translateX(-50%); }
+    #roster .bars { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(80 * var(--p)), 1fr)); gap: var(--f) calc(4 * var(--p)); margin-top: var(--p); }
+    #roster .bar { display: grid; grid-template-columns: calc(26 * var(--p)) 1fr auto; align-items: center; gap: calc(2 * var(--p)); }
+    #roster .bar .bn i { display: inline-block; width: calc(2 * var(--p)); height: calc(2 * var(--p)); margin-right: var(--p); }
+    #roster .bar .bt { height: calc(3 * var(--p)); background: #16121f; }
+    #roster .bar .bt i { display: block; height: 100%; }
+    #roster .bar .bh { color: var(--dim); }
+    /* 家人好友：头像格子 */
+    #roster .rels { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); }
+    #roster .rel { width: calc(30 * var(--p)); display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; }
+    #roster .rel .hd { width: calc(40 * var(--f)); height: calc(40 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64);
+                       box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--rc), 0 0 0 calc(3 * var(--f)) var(--ink); }
     #roster .rel .hd canvas { display: block; }
-    #roster .rel .t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    #roster .rel .t > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #roster .rel .l1 .chip { margin-left: calc(2 * var(--p)); }
-    #roster .rel .nm { color: var(--text); }
-    #roster .rel .chip { margin-bottom: 0; }
-    #roster .rel .now { padding-right: var(--p); }
-    #roster .rel .rr { color: var(--dim); }
-    #roster .planbox { flex: 1; overflow: auto; scrollbar-width: none; }
-    #roster .planbox .plan li.item { line-height: calc(18 * var(--f)); }
-    #roster .home { flex: 1; overflow: auto; scrollbar-width: none; }
-    #roster .home p { color: var(--dim); }
-    #roster .pets { display: flex; flex-direction: column; gap: calc(2 * var(--p)); margin-top: calc(3 * var(--p)); }
-    #roster .pet { display: flex; align-items: center; gap: calc(3 * var(--p)); background: #2a2338; box-shadow: inset 0 var(--f) 0 #16121f; padding: var(--p) calc(2 * var(--p)); }
-    #roster .pet .ic { flex: none; width: calc(40 * var(--f)); display: grid; place-items: center; }
-    #roster .pet canvas { image-rendering: pixelated; display: block; }
-    #roster .pet .nm { color: var(--text); }
-    #roster .pet .kd { color: var(--dim); margin-left: calc(2 * var(--p)); }
-    #roster .pet .ab { color: var(--dim); }
+    #roster .rel .rn { margin-top: calc(2 * var(--f)); color: var(--text); white-space: nowrap; }
+    #roster .rel .rt { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    #roster .rel:hover .rn { color: var(--gold); }
+    #roster .pets { display: flex; flex-wrap: wrap; gap: var(--p) calc(4 * var(--p)); align-items: flex-end; margin-top: calc(2 * var(--p)); }
+    #roster .pet { display: flex; align-items: flex-end; gap: var(--p); }
+    #roster .pet canvas { image-rendering: pixelated; }
     /* 档案的地图：左边像素俯视图（等比放大、像素不糊），右边点中的人和"此刻谁在哪儿" */
     #roster .tabs { display: flex; gap: calc(2 * var(--p)); margin-left: calc(3 * var(--p)); }
     #roster .rmap { height: 100%; display: flex; gap: calc(4 * var(--p)); }

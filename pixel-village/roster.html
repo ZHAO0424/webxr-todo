@@ -94,7 +94,7 @@
       老人: (p) => p.age >= 60,
       孩子: (p) => p.body === 'child',
       手艺人: (p) => /匠|郎中|掌柜|剃头|货郎|伙计|徒弟|豆腐/.test(p.job),
-      种地的: (p) => /种地|庄稼|羊倌|喂|农/.test(p.job + p.skills.join()),
+      种地的: (p) => /种地|种田|庄稼|羊倌|喂|农/.test(p.job + p.skills.join()),
       外来的: (p) => p.relation.includes('外村') || p.relation.includes('寄住') || p.relation.includes('住铺里'),
     };
 

@@ -37,7 +37,7 @@ def build(src, out):
     s.subset(font)
     subset.save_font(font, str(out), opts)
     miss = sorted(c for c in chars if ord(c) not in font.getBestCmap())
-    print(f'{len(chars)} 个字 → {out.name} {out.stat().st_size // 1024} KB；缺 {len(miss)} 个')
+    print(f'{len(chars)} 个字 → {out.name} {out.stat().st_size // 1024} KB；缺 {len(miss)} 个' + (f'：{"".join(miss)}' if miss else ''))
 
 
 build(ROOT / 'fonts/src/VonwaonBitmap-12px.ttf', ROOT / 'fonts/pixel-zh-12.woff')
