@@ -1,5 +1,5 @@
 /*
- * 像素 UI：参考潜水员戴夫——深色面板、亮的细边、奶白正文、金黄名字、压低饱和度的实色标签；配色取场景黄昏的紫。
+ * 像素 UI：参考潜水员戴夫——深色面板、亮的细边、奶白正文、金黄名字、压低饱和度的实色标签；配色取石头村的胡桃木、土黄和灰青（不再用黄昏的紫）。
  * 字体是凤凰点阵体（CC0）：正文 12px、名字和标题 16px，都按 --f 整数倍显示；边框和间距用 --p（= 2 个 --f），见 frame.js。
  */
 @font-face { /* 正文：12px 点阵 */
@@ -16,21 +16,24 @@
 :root {
   --f: 1px;
   --p: 2px;
-  --ink: #0e0b14;
+  --ink: #120e0a;
   --text: #efe4d2;
-  --dim: #a596b6;
+  --dim: #b5a58c;
   --gold: #ffcc66;
-  --line: #4a3e62;
+  --line: #54442f;
   --green: #8fd16a;
   --red: #d0564a;
   --blue: #6aa8e0;
-  --purple: #b08ad8;
+  --purple: #9aa6bc;
   /* 标签色：实色但不刺眼 */
   --c-craft: #b4643c;
   --c-farm: #5b8a45;
   --c-child: #3d7fa6;
   --c-chief: #a8434e;
-  --c-plum: #7a5a96;
+  --c-plum: #4e7a72; /* 性格标签：灰青（原来是紫） */
+  /* 人物背景：淡天色（头像），立绘台再加一道土地 */
+  --face-bg: linear-gradient(#7d9bab, #b9c9c4 62%, #d8c79d);
+  --stage-bg: linear-gradient(#7d9bab, #b9c9c4 72%, #8a7350 72%, #6b5638);
 }
 
 .px, .px * {
@@ -67,14 +70,14 @@
   clip-path: polygon(var(--f) 0, calc(100% - var(--f)) 0, 100% var(--f), 100% calc(100% - var(--f)), calc(100% - var(--f)) 100%, var(--f) 100%, 0 calc(100% - var(--f)), 0 var(--f));
   white-space: nowrap;
 }
-.chip.soft { background: #3e3456; color: #d8cbe8; box-shadow: none; }
+.chip.soft { background: #45382a; color: #e0d4bf; box-shadow: none; }
 .chip.link { cursor: pointer; }
 .chip.link:hover { filter: brightness(1.15); }
 
 /* 小按钮（关闭、筛选） */
 .btn {
   border: 0;
-  background: var(--c, #4a3e62);
+  background: var(--c, #54442f);
   color: var(--text);
   font: inherit;
   padding: 0 calc(4 * var(--p));
@@ -122,7 +125,7 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
   border-style: solid;
   border-width: calc(2 * var(--p));
   border-image: var(--frame-face) 3 fill / calc(2 * var(--p)) round;
-  background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); /* 黄昏天 */
+  background: var(--face-bg); /* 淡天色 */
   display: grid;
   place-items: end center;
   overflow: hidden;

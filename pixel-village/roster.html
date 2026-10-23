@@ -6,7 +6,7 @@
   <title>石峪村村民档案</title>
   <link rel="stylesheet" href="src/ui/ui.css">
   <style>
-    html, body { background: #1a1624; }
+    html, body { background: #1c1611; }
     body { margin: 0; min-height: 100vh; }
     main { max-width: calc(640 * var(--p)); margin: 0 auto; padding: calc(8 * var(--p)) calc(4 * var(--p)) calc(30 * var(--p)); }
     h1 { margin: 0; font-weight: normal; color: var(--gold); }
@@ -23,7 +23,7 @@
     .tile { display: flex; gap: calc(3 * var(--p)); align-items: flex-start; cursor: pointer; }
     .tile:hover { filter: brightness(1.1); }
     .tile .face { flex: none; border-style: solid; border-width: calc(3 * var(--p)); border-image: var(--frame-face) 3 fill / calc(3 * var(--p)) round;
-                  background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); display: grid; place-items: end center; }
+                  background: var(--face-bg); display: grid; place-items: end center; }
     .tile .face canvas { display: block; width: calc(28 * 2 * var(--f)); }
     .tile .txt { min-width: 0; flex: 1; }
     .tile .nm { color: var(--gold); }

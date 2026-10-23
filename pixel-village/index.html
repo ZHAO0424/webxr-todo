@@ -55,8 +55,8 @@
     #roster .now .loc { margin-left: auto; color: var(--dim); white-space: nowrap; }
     #roster .nk { color: var(--dim); margin-left: calc(2 * var(--p)); }
     /* 立绘台：黄昏天 + 一道地面，人站在地上 */
-    #roster .stage { flex: none; display: grid; place-items: end center; background: linear-gradient(#4a3a6a, #9a5a7a 62%, #d88a64 80%, #6b4a32 80%, #4e3524);
-                     box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; overflow: hidden; }
+    #roster .stage { flex: none; display: grid; place-items: end center; background: var(--stage-bg);
+                     box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #7a6448; overflow: hidden; }
     #roster .stage canvas { display: block; margin-bottom: calc(3 * var(--f)); }
     /* 列表：人物卡铺满整面（宽屏 5 列 × 6 行） */
     #roster .rlist { height: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(100 * var(--p)), 1fr)); grid-auto-rows: minmax(calc(44 * var(--p)), calc((100% - 5 * 3 * var(--p)) / 6)); gap: calc(3 * var(--p)); }
@@ -71,7 +71,7 @@
     #roster .tile .l1 .nk { overflow: hidden; text-overflow: ellipsis; margin-right: var(--p); }
     #roster .tile .jb, #roster .tile .lk { color: var(--dim); }
     #roster .tile .lk b { color: #d8c0a0; font-weight: normal; text-shadow: none; margin-right: calc(2 * var(--p)); }
-    #roster .tile .now { background: #2a2338; padding: 0 calc(2 * var(--p)); box-shadow: inset 0 var(--f) 0 #16121f; }
+    #roster .tile .now { background: #2e251c; padding: 0 calc(2 * var(--p)); box-shadow: inset 0 var(--f) 0 #17120d; }
     #roster .tile .tr .chip { margin-bottom: 0; }
     #roster .box { padding: calc(2 * var(--p)) calc(3 * var(--p)); min-width: 0; }
     #roster .box .lbl { color: var(--gold); margin-bottom: var(--p); display: flex; }
@@ -81,16 +81,15 @@
     #roster .kv b { color: #d8c0a0; font-weight: normal; text-shadow: none; }
     #roster .kv .chip { margin-bottom: var(--f); }
     /* 地图右边的小卡：此刻（左）| 接下来三项（右）；资料：背景故事、一天、家人好友 | 喜好家当两栏 */
-    #roster .mini .row1 .find { margin-left: auto; align-self: flex-start; --c: var(--c-farm); }
-    #roster .nowrow { display: grid; grid-template-columns: 1fr 1fr; gap: calc(4 * var(--p)); align-items: start; background: #2a2338; box-shadow: inset 0 var(--f) 0 #16121f; padding: var(--p) calc(2 * var(--p)); }
-    #roster .nowrow .now { flex-wrap: wrap; }
-    #roster .ups { margin: 0; padding: 0; list-style: none; color: var(--dim); }
-    #roster .ups li { display: flex; gap: calc(2 * var(--p)); white-space: nowrap; overflow: hidden; }
-    #roster .ups .t { color: var(--green); }
+    #roster .mini .l1 { display: flex; align-items: center; gap: calc(2 * var(--p)); }
+    #roster .mini .l1 .find { margin-left: auto; --c: var(--c-farm); }
+    #roster .mini .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--p); }
+    #roster .mini .t .chip { margin-bottom: 0; }
+    #roster .mini .now { background: #2e251c; box-shadow: inset 0 var(--f) 0 #17120d; padding: var(--f) calc(2 * var(--p)); }
     #roster .info .story { line-height: calc(17 * var(--f)); }
     #roster .info .two { display: grid; grid-template-columns: 1fr 1fr; gap: calc(4 * var(--p)); }
     /* 一天：时间条 + 刻度 + 各类时长柱条 */
-    #roster .tl { position: relative; height: calc(8 * var(--p)); background: #16121f; box-shadow: 0 0 0 var(--f) var(--ink); margin-top: var(--p); }
+    #roster .tl { position: relative; height: calc(8 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--ink); margin-top: var(--p); }
     #roster .tl .sg { position: absolute; top: 0; bottom: 0; box-shadow: inset calc(-1 * var(--f)) 0 0 rgba(0, 0, 0, .35); }
     #roster .tl .now-line { position: absolute; top: calc(-2 * var(--p)); bottom: calc(-2 * var(--p)); width: var(--p); margin-left: calc(-0.5 * var(--p)); background: var(--gold); box-shadow: 0 0 0 var(--f) var(--ink); }
     #roster .ticks { position: relative; height: calc(14 * var(--f)); color: var(--dim); }
@@ -98,13 +97,13 @@
     #roster .bars { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(80 * var(--p)), 1fr)); gap: var(--f) calc(4 * var(--p)); margin-top: var(--p); }
     #roster .bar { display: grid; grid-template-columns: calc(26 * var(--p)) 1fr auto; align-items: center; gap: calc(2 * var(--p)); }
     #roster .bar .bn i { display: inline-block; width: calc(2 * var(--p)); height: calc(2 * var(--p)); margin-right: var(--p); }
-    #roster .bar .bt { height: calc(3 * var(--p)); background: #16121f; }
+    #roster .bar .bt { height: calc(3 * var(--p)); background: #17120d; }
     #roster .bar .bt i { display: block; height: 100%; }
     #roster .bar .bh { color: var(--dim); }
     /* 家人好友：头像格子 */
     #roster .rels { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); }
     #roster .rel { width: calc(30 * var(--p)); display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; }
-    #roster .rel .hd { width: calc(40 * var(--f)); height: calc(40 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64);
+    #roster .rel .hd { width: calc(40 * var(--f)); height: calc(40 * var(--f)); overflow: hidden; background: var(--face-bg);
                        box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--rc), 0 0 0 calc(3 * var(--f)) var(--ink); }
     #roster .rel .hd canvas { display: block; }
     #roster .rel .rn { margin-top: calc(2 * var(--f)); color: var(--text); white-space: nowrap; }
@@ -116,7 +115,7 @@
     /* 档案的地图：左边像素俯视图（等比放大、像素不糊），右边点中的人和"此刻谁在哪儿" */
     #roster .tabs { display: flex; gap: calc(2 * var(--p)); margin-left: calc(3 * var(--p)); }
     #roster .rmap { height: 100%; display: flex; gap: calc(4 * var(--p)); }
-    #roster .mapwrap { position: relative; height: 100%; max-width: 70%; flex: none; box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) #6c5c88; overflow: hidden; cursor: default; }
+    #roster .mapwrap { position: relative; height: 100%; max-width: 70%; flex: none; box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) #7a6448; overflow: hidden; cursor: default; }
     #roster .mapwrap canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
     /* 每户一块小牌子：户名 + 这家人的头像和名字（两人一行）；院子正中一个小钉，牌子被推开了就用细线连回去 */
     #roster .leaders { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -126,29 +125,28 @@
     #roster .hh:hover { z-index: 2; }
     #roster .hh .ms { display: flex; flex-direction: column; gap: calc(3 * var(--f)); }
     #roster .hh .yn { color: var(--gold); white-space: nowrap; line-height: calc(13 * var(--f)); margin-bottom: calc(2 * var(--f));
-                      text-shadow: var(--f) 0 0 #1b1626, calc(-1 * var(--f)) 0 0 #1b1626, 0 var(--f) 0 #1b1626, 0 calc(-1 * var(--f)) 0 #1b1626, var(--f) var(--f) 0 #1b1626; }
+                      text-shadow: var(--f) 0 0 #1c1611, calc(-1 * var(--f)) 0 0 #1c1611, 0 var(--f) 0 #1c1611, 0 calc(-1 * var(--f)) 0 #1c1611, var(--f) var(--f) 0 #1c1611; }
     #roster .mk { display: flex; align-items: center; gap: calc(3 * var(--f)); cursor: pointer; }
-    #roster .mk .hd { flex: none; width: calc(20 * var(--f)); height: calc(20 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64);
+    #roster .mk .hd { flex: none; width: calc(20 * var(--f)); height: calc(20 * var(--f)); overflow: hidden; background: var(--face-bg);
                       box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--jc, var(--line)), 0 0 0 calc(3 * var(--f)) var(--ink); }
     #roster .mk .hd canvas { display: block; }
     #roster .mk .t { display: flex; flex-direction: column; white-space: nowrap; line-height: calc(13 * var(--f));
-                     text-shadow: var(--f) 0 0 #1b1626, calc(-1 * var(--f)) 0 0 #1b1626, 0 var(--f) 0 #1b1626, 0 calc(-1 * var(--f)) 0 #1b1626, var(--f) var(--f) 0 #1b1626; }
+                     text-shadow: var(--f) 0 0 #1c1611, calc(-1 * var(--f)) 0 0 #1c1611, 0 var(--f) 0 #1c1611, 0 calc(-1 * var(--f)) 0 #1c1611, var(--f) var(--f) 0 #1c1611; }
     #roster .mk .nm { color: #fff2cc; }
-    #roster .mk .jb { color: #d8cbe8; }
+    #roster .mk .jb { color: #e0d4bf; }
     #roster .mk:hover .nm { color: var(--gold); }
     #roster .mk.on .nm { color: var(--gold); }
     #roster .mk.on .hd { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(3 * var(--f)) var(--gold), 0 0 0 calc(4 * var(--f)) var(--ink); }
     #roster .maptitle { position: absolute; left: calc(3 * var(--p)); top: calc(2 * var(--p)); z-index: 3; pointer-events: none; color: var(--gold);
                         font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f));
-                        text-shadow: var(--f) 0 0 #1b1626, calc(-1 * var(--f)) 0 0 #1b1626, 0 var(--f) 0 #1b1626, 0 calc(-1 * var(--f)) 0 #1b1626, var(--f) var(--f) 0 #1b1626; }
+                        text-shadow: var(--f) 0 0 #1c1611, calc(-1 * var(--f)) 0 0 #1c1611, 0 var(--f) 0 #1c1611, 0 calc(-1 * var(--f)) 0 #1c1611, var(--f) var(--f) 0 #1c1611; }
     #roster .maptitle span { display: block; color: #fff2cc; font-family: 'PixelZh12', sans-serif; font-size: calc(12 * var(--f)); line-height: calc(14 * var(--f)); }
     #roster .mapside { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
     #roster .mini { flex: none; }
     #roster .grp .chip .cn { color: var(--dim); margin-left: var(--p); }
     #roster .grp .chip.on .cn { color: #5a4020; }
-    #roster .mini .row1 { display: flex; gap: calc(3 * var(--p)); align-items: stretch; margin-bottom: calc(2 * var(--p)); }
-    #roster .mini .row1 .t { align-self: center; }
-    #roster .mini .hd.big { flex: none; display: grid; place-items: end center; padding: 0 calc(4 * var(--f)) calc(3 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
+    #roster .mini .row1 { display: flex; gap: calc(4 * var(--p)); align-items: flex-start; }
+    #roster .mini .hd.big { flex: none; display: block; overflow: hidden; background: var(--face-bg); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #7a6448; }
     #roster .mini .hd.big canvas { display: block; }
     #roster .mini .nm { color: var(--gold); }
     #roster .mini .jb { color: var(--dim); }

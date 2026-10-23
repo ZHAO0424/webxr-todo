@@ -40,9 +40,9 @@ export function setupPixelUI() {
   unit();
   matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener?.('change', unit);
   addEventListener('resize', unit);
-  root.style.setProperty('--frame-panel', `url(${frameImage({ outer: '#0e0b14', light: '#6c5c88', dark: '#3a3050', inner: '#1b1626', fill: '#28213a' })})`);
-  root.style.setProperty('--frame-inset', `url(${frameImage({ outer: '#0e0b14', light: '#16121f', dark: '#4c4066', inner: '#2a2338', fill: '#342b48' })})`); // 凹进去：左上暗、右下亮
-  root.style.setProperty('--frame-face', `url(${frameImage({ outer: '#0e0b14', light: '#8a78a8', dark: '#4a3e62', inner: '#1b1626', fill: '#3a3050' })})`);
+  root.style.setProperty('--frame-panel', `url(${frameImage({ outer: '#120e0a', light: '#7a6448', dark: '#3d3125', inner: '#1c1611', fill: '#2b231b' })})`);
+  root.style.setProperty('--frame-inset', `url(${frameImage({ outer: '#120e0a', light: '#17120d', dark: '#5a4a38', inner: '#2e251c', fill: '#3a3024' })})`); // 凹进去：左上暗、右下亮
+  root.style.setProperty('--frame-face', `url(${frameImage({ outer: '#120e0a', light: '#9a8262', dark: '#54442f', inner: '#1c1611', fill: '#3d3125' })})`);
 }
 
 /** 头肩像：从图集的第一帧里找到头顶，往下截 h 行、左右截 w 列（档案页的小卡片用）。 */

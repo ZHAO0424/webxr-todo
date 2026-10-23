@@ -7,8 +7,8 @@ import { portrait, headCrop } from './frame.js';
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
  *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），左上角是地名；每户一列小头像（右边小字名字、职业）竖排在自家院子上、左上角院子名，
- *         挤在一起的推开、用虚线连回院子；右边是点中的人（默认第一个）的全部资料：小卡（身份、此刻、接下来）+ 背景故事、一天（时间条 + 各类时长）、
- *         家人好友（头像）、喜好手艺家当和牲口。← → 在筛选出来的人里翻；
+ *         挤在一起的推开、用虚线连回院子；右边是点中的人（默认第一个）的全部资料：小卡（半身像、身份、此刻、喜好手艺家当）+ 背景故事、一天（时间条 + 各类时长）、
+ *         家人好友（头像）和牲口。← → 在筛选出来的人里翻；
  *   卡片：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；点了回到地图看这个人。
  * status(id) 给出这个人此刻的状态（和村子里点人看到的同一份），beasts(home) 给出这家的牲口，hour() 是村里的钟，onFind(id) = 关掉档案、在村里选中并跟着这个人。
  */
@@ -32,8 +32,8 @@ const KINDS = [
   { k: 'work', name: '干活', color: 'var(--c-farm)' },
   { k: 'chore', name: '家务', color: 'var(--c-craft)' },
   { k: 'school', name: '上学', color: 'var(--c-child)' },
-  { k: 'rest', name: '歇着', color: 'var(--c-plum)' },
-  { k: 'home', name: '回屋', color: '#3a3050' },
+  { k: 'rest', name: '歇着', color: 'var(--blue)' },
+  { k: 'home', name: '回屋', color: '#3d3125' },
 ];
 const CHORE = new Set(['cook', 'chore', 'yardWork', 'fetchWater', 'feedChickens', 'feedPigs', 'feedRabbits', 'garden', 'shopping', 'gatherDucks', 'herdHome', 'oxHome']);
 const REST = new Set(['dinner', 'evening', 'play', 'sitGate', 'read', 'chess', 'visit', 'fish', 'worship', 'peddlerChat', 'idle', 'chat']);
@@ -46,6 +46,12 @@ const hm = (h) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round
 function body(p, k) {
   const c = portrait(characterAtlas(p), 0, 0, CELL_W, CELL_H, 1);
   c.style.width = `calc(${CELL_W * k} * var(--f))`;
+  return c;
+}
+/** 半身像：从头顶往下截 24 × 26 个像素（头、肩膀、上半身），一个像素 = k 个字点。 */
+function bust(p, k) {
+  const c = headCrop(characterAtlas(p), CELL_W, CELL_H, 24, 26);
+  c.style.width = `calc(${24 * k} * var(--f))`;
   return c;
 }
 /** 头像：从头顶往下截 n × n 个像素（n 大一点能看到肩膀和帽子两边），一个像素 = k 个字点。 */
@@ -200,8 +206,8 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
 
   /**
    * 地图右边：点中的人（默认第一个）的全部资料——
-   *   上面小卡：头像、名字、身份、性格、此刻、接下来三项、去村里找；
-   *   下面资料：背景故事、一天（时间条 + 各类时长，代替长长的今日安排）、家人好友（头像，点了换人）、喜好手艺家当和家里的牲口。
+   *   上面小卡：半身像 | 名字、身份、哪家和性格、此刻、喜欢 / 手艺 / 家当、去村里找；
+   *   下面资料：背景故事、一天（时间条 + 各类时长，代替长长的今日安排）、家人好友（头像，点了换人）| 家里的牲口。
    */
   function pick(id) { picked = id ?? picked; sideHTML(); for (const [k, m] of Object.entries(markers)) m.classList.toggle('on', k === picked); }
   function sideHTML() {
@@ -213,21 +219,22 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
     // 关系从这个人的角度说：对方是"王德山的媳妇"就写"媳妇"、是户主就写"户主"，说不清的写村里怎么叫（杨二嫂）
     const relOf = (o) => (o.relation.startsWith(`${p.name}的`) ? o.relation.slice(p.name.length + 1) : o.relation === '户主' ? '户主' : o.nick);
     const rel = (o, tag, color) => `<div class="rel" data-id="${o.id}" style="--rc:${color}"><span class="hd"></span><span class="rn">${esc(o.name)}</span><span class="rt">${esc(tag === '家人' ? relOf(o) : '好友')}</span></div>`;
-    side.innerHTML = `<div class="paper box mini"><div class="row1"><span class="hd big"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><br>
-        <span class="jb">${esc(p.job)} · ${p.age}岁 · ${p.sex} · ${esc(p.relation)}</span><br><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</span>
-        <button class="btn find">去村里找</button></div>
-        <div class="nowrow"><div class="now"></div><ul class="ups"></ul></div></div>
+    side.innerHTML = `<div class="paper box mini"><div class="row1"><span class="hd big"></span><div class="t">
+        <div class="l1"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><button class="btn find">去村里找</button></div>
+        <div class="jb">${esc(p.job)} · ${p.age}岁 · ${p.sex} · ${esc(p.relation)}</div>
+        <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</div>
+        <div class="now"></div>
+        <div class="kv"><b>喜欢</b><span>${esc(p.likes)}</span><b>手艺</b><span>${esc(p.skills.join('、'))}</span><b>家当</b><span>${esc(p.owns.length ? p.owns.join('、') : '——')}</span></div>
+      </div></div></div>
       <div class="paper box info">
         <div class="sec"><div class="lbl">背景故事</div><p class="story">${esc(p.story ?? p.bio)}</p></div>
         <div class="sec"><div class="lbl">一天<span class="count">${p.day.length} 项安排</span></div>${dayHTML(p.day)}</div>
         <div class="two">
           <div class="sec"><div class="lbl">家人 · 好友</div><div class="rels">${family.map((o) => rel(o, '家人', 'var(--c-craft)')).join('')}${friends.map((o) => rel(o, '好友', 'var(--c-child)')).join('')}</div></div>
-          <div class="sec"><div class="lbl">喜好 · 手艺 · 家当</div>
-            <div class="kv"><b>喜欢</b><span>${esc(p.likes)}</span><b>手艺</b><span>${esc(p.skills.join('、'))}</span>${p.owns.length ? `<b>家当</b><span>${esc(p.owns.join('、'))}</span>` : ''}</div>
-            <div class="pets"></div></div>
+          <div class="sec pets-sec"><div class="lbl">家里的牲口</div><div class="pets"></div></div>
         </div>
       </div>`;
-    side.querySelector('.hd.big').append(body(p, 3)); // 小卡左边站一个全身像
+    side.querySelector('.hd.big').append(bust(p, 3));
     side.querySelectorAll('.rel').forEach((r) => { r.querySelector('.hd').append(head(BYID[r.dataset.id], 2, 20)); r.addEventListener('click', () => pick(r.dataset.id)); });
     const pets = side.querySelector('.pets'), animals = beasts?.(p.home) ?? [];
     for (const b of animals) {
@@ -239,19 +246,17 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
       s.append(c, b.name);
       pets.append(s);
     }
-    if (!animals.length) pets.remove();
+    if (!animals.length) side.querySelector('.pets-sec').remove();
     side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
     nowHTMLs();
   }
 
-  /** 小卡上会变的：此刻在干什么、接下来三项，时间条上此刻的竖线。 */
+  /** 小卡上会变的：此刻在干什么、在哪儿，时间条上此刻的竖线。 */
   function nowHTMLs() {
     const p = BYID[picked];
     if (!p || !side.firstChild) return;
     const s = status(p.id);
-    side.querySelector('.nowrow .now').innerHTML = nowHTML(s);
-    const ups = p.day.slice((s?.cur ?? -1) + 1, (s?.cur ?? -1) + 4);
-    side.querySelector('.ups').innerHTML = ups.length ? ups.map(([t, a, arg]) => `<li><span class="t">${hm(t)}</span>${esc(actLabel(a, arg))}</li>`).join('') : '<li class="done">今日安排已全部完成</li>';
+    side.querySelector('.mini .now').innerHTML = nowHTML(s);
     const h = hour?.() ?? 12, line = side.querySelector('.now-line');
     line.hidden = h < DAY0 || h > DAY1;
     line.style.left = `${((h - DAY0) / (DAY1 - DAY0)) * 100}%`;
