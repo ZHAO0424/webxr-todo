@@ -116,6 +116,46 @@
     #roster .pet .nm { color: var(--text); }
     #roster .pet .kd { color: var(--dim); margin-left: calc(2 * var(--p)); }
     #roster .pet .ab { color: var(--dim); }
+    /* 档案的地图：左边像素俯视图（等比放大、像素不糊），右边点中的人和"此刻谁在哪儿" */
+    #roster .tabs { display: flex; gap: calc(2 * var(--p)); margin-left: calc(3 * var(--p)); }
+    #roster .rmap { height: 100%; display: flex; gap: calc(4 * var(--p)); }
+    #roster .mapwrap { position: relative; height: 100%; max-width: 70%; flex: none; box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) #6c5c88; overflow: hidden; cursor: default; }
+    #roster .mapwrap canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+    #roster .place { position: absolute; transform: translate(-50%, -50%); color: #fff2cc; white-space: nowrap; pointer-events: none; opacity: .75;
+                     text-shadow: var(--f) 0 0 #1b1626, calc(-1 * var(--f)) 0 0 #1b1626, 0 var(--f) 0 #1b1626, 0 calc(-1 * var(--f)) 0 #1b1626; }
+    #roster .mk { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: left .2s linear, top .2s linear; z-index: 1; }
+    #roster .mk .hd { width: calc(28 * var(--f)); height: calc(28 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64);
+                      box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(3 * var(--f)) var(--green), 0 0 0 calc(4 * var(--f)) var(--ink); }
+    #roster .mk.rest .hd { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(3 * var(--f)) var(--blue), 0 0 0 calc(4 * var(--f)) var(--ink); }
+    #roster .mk.sleep .hd { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(3 * var(--f)) var(--purple), 0 0 0 calc(4 * var(--f)) var(--ink); }
+    #roster .mk.event .hd { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(3 * var(--f)) var(--gold), 0 0 0 calc(4 * var(--f)) var(--ink); }
+    #roster .mk .hd canvas { display: block; }
+    #roster .mk .nm { margin-top: calc(4 * var(--f)); padding: 0 var(--p); background: rgba(20, 14, 30, .85); color: var(--text); white-space: nowrap; line-height: calc(14 * var(--f)); }
+    #roster .mk.in { opacity: .55; }
+    #roster .mk:hover, #roster .mk.on { z-index: 3; opacity: 1; }
+    #roster .mk.on .nm { background: var(--gold); color: #2a1a10; }
+    #roster .mk:hover .nm { color: var(--gold); }
+    #roster .west { position: absolute; left: 0; top: 0; bottom: 0; width: calc(46 * var(--f)); background: rgba(20, 14, 30, .7); box-shadow: inset calc(-1 * var(--f)) 0 0 #6c5c88; }
+    #roster .west .wl { display: block; text-align: center; color: var(--gold); padding-top: var(--p); }
+    #roster .mapside { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
+    #roster .mini { flex: none; }
+    #roster .mini.hint { color: var(--dim); }
+    #roster .mini.hint .dot { margin: 0 var(--f) 0 calc(2 * var(--p)); }
+    #roster .mini .row1 { display: flex; gap: calc(3 * var(--p)); align-items: center; margin-bottom: calc(2 * var(--p)); }
+    #roster .mini .hd.big { flex: none; width: calc(42 * var(--f)); height: calc(42 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
+    #roster .mini .hd.big canvas { display: block; }
+    #roster .mini .nm { color: var(--gold); }
+    #roster .mini .jb { color: var(--dim); }
+    #roster .mini .next { color: var(--dim); }
+    #roster .mini .bio { margin: calc(2 * var(--p)) 0; }
+    #roster .mini .btns { display: flex; gap: calc(2 * var(--p)); }
+    #roster .mini .find { line-height: calc(18 * var(--f)); }
+    #roster .groups { flex: 1; overflow: auto; scrollbar-width: none; }
+    #roster .grp { margin-bottom: calc(2 * var(--p)); }
+    #roster .grp .gk { color: #d8c0a0; display: flex; }
+    #roster .grp .gk .count { margin-left: auto; color: var(--dim); }
+    #roster .grp .chip { --c: #3e3456; }
+    #roster .grp .chip.on { --c: var(--gold); color: #2a1a10; }
     /* 换场景：屏幕左右边缘正中的像素按钮（像素三角 + 那边的地名） */
     .scene-nav { position: fixed; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p));
                  padding: calc(3 * var(--p)) calc(2 * var(--p)); cursor: pointer; color: var(--text); background: none; }

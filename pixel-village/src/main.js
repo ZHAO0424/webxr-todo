@@ -323,10 +323,22 @@ const roster = createRoster(document.getElementById('roster'), {
     host.querySelector('.follow')?.click();
   },
   onClose: () => rosterBtn?.classList.remove('on'),
+  // 档案里的小地图：导航网格画成俯视图；人在屋里就标在自家院子中间，在西沟的另排一栏
+  map: {
+    nav: village.nav, terrain: village.terrain, bounds: BOUNDS, winter: season() === 'winter',
+    places: HOUSEHOLDS.filter((h) => village.C[h.id]).map((h) => ({ name: h.name.replace(/（.*）/, ''), x: village.C[h.id].object.position.x, z: village.C[h.id].object.position.z })),
+    where(id) {
+      const v = V.byId[id];
+      if (!v) return null;
+      if (v.pos.x < BOUNDS.x0) return { west: true, inside: v.inside };
+      const c = v.inside && village.C[v.p.sleepAt ?? v.p.home];
+      return c ? { x: c.object.position.x, z: c.object.position.z, inside: true } : { x: v.pos.x, z: v.pos.z, inside: v.inside };
+    },
+  },
 });
 const rosterBtn = document.getElementById('rosterBtn');
 rosterBtn?.addEventListener('click', (e) => { e.stopPropagation(); if (roster.open) roster.close(); else { roster.show(); rosterBtn.classList.add('on'); showSettings(false); showDebug(false); } });
-if (params.has('roster')) { roster.show(params.get('roster') || null); rosterBtn?.classList.add('on'); } // ?roster=1 打开档案，?roster=村民id 直接看这个人（截图检查用）
+if (params.has('roster')) { roster.show(params.get('roster') || null); rosterBtn?.classList.add('on');  if (params.get('rpick')) roster.pick(params.get('rpick')); } // ?roster=1 打开档案（地图），&rpick=村民id 在地图上点中这个人；?roster=村民id 直接看这个人的详情（截图检查用）
 
 // ?pick=村民id 或 ?pick=beast:序号：一打开就弹出这张卡（截图检查用）；?unfold=1 把折叠的都展开
 // 收集到的物件按种类计数（无头检查看有没有漏标）；?click=x,y 模拟在屏幕这一点点一下
@@ -477,6 +489,7 @@ renderer.setAnimationLoop((_, frame) => {
     if (host !== scenes.current.object) scenes.go(host === west.object ? 1 : -1, true);
   }
   scenes.update(dt, inXR() || params.has('signs')); // ?signs=1：桌面上也显示 XR 里的路牌（截图检查用）
+  roster.tick(); // 档案开着、在看地图：头像跟着人走
   sound.update(t, dt);
   music.update(dt);
   if (params.has('sound')) document.documentElement.dataset.sound = JSON.stringify(sound.stats);

@@ -3,10 +3,13 @@ import { characterAtlas, CELL_W, CELL_H } from '../characters.js';
 import { animalAtlas } from '../animals.js';
 import { portrait, headCrop } from './frame.js';
 import { planHTML } from './cards.js';
+import { drawMap } from './villageMap.js';
 
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
- *   列表：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；上面一排筛选；
+ *   地图（默认）：村子的像素俯视图，每人一个头像 + 名字站在此刻所在的地方（边框颜色 = 干活 / 歇着 / 睡了 / 赶活动，在屋里的半透明，在西沟的排在左边一栏），
+ *         挤在一起的自动推开；右边是点中的人的小卡，下面"此刻谁在哪儿"按地方分组；
+ *   卡片：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；上面一排筛选；
  *   详情：点了人才显示，横着三栏都用框填满——
  *         立绘台（全身像 + 名牌）、身份、此刻 | 来历、性格 / 喜欢 / 手艺 / 家当四格、今日安排 | 家人好友（头像 + 关系 + 此刻在干什么）、这一家（院子、介绍、牲口）。
  *         右上角上一个 / 下一个（← →）在当前筛选出来的人里翻。
@@ -41,20 +44,22 @@ function head(p, k) {
 }
 const nowHTML = (s) => `<span class="dot ${s?.kind ?? 'sleep'}"></span><span class="what">${esc(s?.doing ?? '')}</span>${s?.where ? `<span class="loc"><i class="pin"></i>${esc(s.where)}</span>` : ''}`;
 
-export function createRoster(el, { status, beasts, onFind, onClose }) {
+export function createRoster(el, { status, beasts, onFind, onClose, map }) {
   el.className = 'panel px';
   el.id = 'roster';
   el.hidden = true;
   el.innerHTML = `<div class="rhead">
       <span class="title">${esc(VILLAGE.name)} · 村民档案</span>
       <span class="chip soft">${HOUSEHOLDS.length} 户</span><span class="chip soft">${RESIDENTS.length} 口人</span>
+      <span class="tabs"><button class="btn on" data-v="map">地图</button><button class="btn" data-v="list">卡片</button></span>
       <span class="filters">${Object.keys(FILTERS).map((k, i) => `<button class="btn${i ? '' : ' on'}" data-f="${k}">${k}</button>`).join('')}</span>
-      <span class="nav" hidden><button class="btn prev" title="←">上一个</button><button class="btn next" title="→">下一个</button><button class="btn back">返回列表</button></span>
+      <span class="nav" hidden><button class="btn prev" title="←">上一个</button><button class="btn next" title="→">下一个</button><button class="btn back">返回</button></span>
       <button class="btn close" title="关闭（Esc）">×</button>
     </div>
-    <div class="rbody"><div class="rlist"></div><div class="rdetail" hidden></div></div>`;
-  const list = el.querySelector('.rlist'), detail = el.querySelector('.rdetail'), nav = el.querySelector('.nav'), filters = el.querySelector('.filters');
-  let cur = null, lastCur = -2, order = RESIDENTS.map((p) => p.id);
+    <div class="rbody"><div class="rmap"><div class="mapwrap"><div class="west" hidden><span class="wl">在西沟</span></div></div><div class="mapside"></div></div><div class="rlist" hidden></div><div class="rdetail" hidden></div></div>`;
+  const list = el.querySelector('.rlist'), detail = el.querySelector('.rdetail'), nav = el.querySelector('.nav'), filters = el.querySelector('.filters'), tabs = el.querySelector('.tabs');
+  const rmap = el.querySelector('.rmap'), wrap = el.querySelector('.mapwrap'), side = el.querySelector('.mapside'), westBox = el.querySelector('.west');
+  let cur = null, lastCur = -2, order = RESIDENTS.map((p) => p.id), view = 'map', filter = FILTERS.全部, picked = null;
 
   // 列表：每人一张横的小卡
   for (const p of RESIDENTS) {
@@ -76,16 +81,109 @@ export function createRoster(el, { status, beasts, onFind, onClose }) {
   filters.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', () => {
     filters.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('on', x === b));
     const f = FILTERS[b.dataset.f];
+    filter = f;
     order = [];
     for (const t of list.children) { const on = f(BYID[t.dataset.id]); t.hidden = !on; if (on) order.push(t.dataset.id); }
     refresh();
   }));
 
-  function showList() {
-    cur = null;
-    detail.hidden = true; list.hidden = false; nav.hidden = true; filters.hidden = false;
-    refresh();
+  // ---------------------------------------------------------------- 地图：俯视图上每人一个头像 + 名字，站在此刻真正所在的地方
+  const B = map?.bounds, markers = {};
+  if (map) {
+    for (const pl of map.places) { // 各家院子的名字
+      const l = document.createElement('span');
+      l.className = 'place';
+      l.textContent = pl.name;
+      l.style.left = `${((pl.x - B.x0) / (B.x1 - B.x0)) * 100}%`;
+      l.style.top = `${((pl.z - B.z0) / (B.z1 - B.z0)) * 100}%`;
+      wrap.append(l);
+    }
+    for (const p of RESIDENTS) {
+      const m = document.createElement('div');
+      m.className = 'mk';
+      m.dataset.id = p.id;
+      m.innerHTML = `<span class="hd"></span><span class="nm">${esc(p.name)}</span>`;
+      m.querySelector('.hd').append(head(p, 2));
+      m.addEventListener('click', (e) => { e.stopPropagation(); pick(p.id); });
+      wrap.append(m);
+      markers[p.id] = { el: m, x: 0, y: 0 };
+    }
+    wrap.addEventListener('click', () => pick(null));
   }
+  let drawn = false, lastTick = 0;
+
+  /** 每帧调用（档案开着、在看地图时）：一秒更新 5 次头像位置。挤在一起的往两边推开，不叠成一坨。 */
+  function tick(force = false) {
+    if (!map || el.hidden || view !== 'map' || cur) return;
+    const now = performance.now();
+    if (!force && now - lastTick < 200) return;
+    lastTick = now;
+    if (!drawn) { drawn = true; const cv = drawMap(map.nav, map.terrain, B, { winter: map.winter }); wrap.prepend(cv); wrap.style.aspectRatio = `${cv.width} / ${cv.height}`; }
+    const W = wrap.clientWidth || 1, H = wrap.clientHeight || 1, pts = [], inWest = [];
+    for (const p of RESIDENTS) {
+      const m = markers[p.id], w = map.where(p.id), s = status(p.id);
+      m.el.hidden = !w || !filter(p);
+      if (m.el.hidden) continue;
+      m.el.className = `mk ${s?.kind ?? ''}${w.inside ? ' in' : ''}${picked === p.id ? ' on' : ''}`;
+      m.el.title = `${p.name}：${s?.doing ?? ''}${s?.where ? ' · ' + s.where : ''}`;
+      if (w.west) { inWest.push(m); continue; }
+      m.x = ((w.x - B.x0) / (B.x1 - B.x0)) * W; m.y = ((w.z - B.z0) / (B.z1 - B.z0)) * H;
+      pts.push(m);
+    }
+    const f = parseFloat(getComputedStyle(el).getPropertyValue('--f')) || 1, RX = 54 * f, RY = 46 * f, R = 34 * f; // 头像 + 名字大概这么大：两人离得比这近就推开
+    for (let it = 0; it < 10; it++) for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {
+      const P = pts[a], Q = pts[b], dx = (Q.x - P.x) / RX, dy = (Q.y - P.y) / RY, d = Math.hypot(dx, dy);
+      if (d >= 1) continue;
+      const k = (1 - d) / 2 / (d || 1), ux = d ? dx : 1, uy = d ? dy : 0;
+      P.x -= ux * k * RX; Q.x += ux * k * RX; P.y -= uy * k * RY; Q.y += uy * k * RY;
+    }
+    for (const m of pts) { m.el.style.left = `${Math.max(R, Math.min(W - R, m.x))}px`; m.el.style.top = `${Math.max(R, Math.min(H, m.y))}px`; }
+    westBox.hidden = !inWest.length; // 在西沟的人：地图左边一栏，从上往下排
+    inWest.forEach((m, i) => { m.el.style.left = `${R * 0.8}px`; m.el.style.top = `${R * 2 + i * R * 1.5}px`; });
+  }
+
+  /** 地图右边：点中的人一张小卡（头像、身份、此刻、下一项、看详情 / 去村里找），下面是"此刻谁在哪儿"按地方分组。 */
+  function pick(id) { picked = id; sideHTML(); tick(true); }
+  function sideHTML() {
+    if (!map) return;
+    let html = '';
+    const p = picked && BYID[picked];
+    if (p) {
+      const s = status(p.id);
+      html += `<div class="paper box mini"><div class="row1"><span class="hd big"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><br>
+          <span class="jb">${esc(p.job)} · ${p.age}岁</span><br><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span></span></div>
+        <div class="now">${nowHTML(s)}</div><div class="next">${esc(s?.nextText ?? '')}</div>
+        <p class="bio">${esc(p.bio)}</p>
+        <div class="btns"><button class="btn more">看详情</button><button class="btn find">去村里找</button></div></div>`;
+    } else html += `<div class="paper box mini hint">点地图上的头像，看这个人此刻在干什么。<br>头像边框：<span class="dot"></span>干活 <span class="dot rest"></span>歇着 <span class="dot sleep"></span>睡了 <span class="dot event"></span>赶活动；半透明的在屋里。</div>`;
+    const groups = {};
+    for (const o of RESIDENTS) {
+      if (!filter(o)) continue;
+      const s = status(o.id), w = map.where(o.id);
+      const k = !s || !w ? '不在村里' : w.inside ? (s.kind === 'sleep' ? '睡下了' : '在屋里') : (s.where || '路上');
+      (groups[k] ??= []).push(o);
+    }
+    const keys = Object.keys(groups).sort((a, b) => (/屋里|睡下|不在/.test(a) - /屋里|睡下|不在/.test(b)) || groups[b].length - groups[a].length);
+    html += `<div class="paper box groups"><div class="lbl">此刻谁在哪儿</div>${keys.map((k) => `<div class="grp"><div class="gk">${esc(k)}<span class="count">${groups[k].length}</span></div><div>${groups[k].map((o) => `<span class="chip link${o.id === picked ? ' on' : ''}" data-id="${o.id}">${esc(o.name)}</span>`).join('')}</div></div>`).join('')}</div>`;
+    side.innerHTML = html;
+    if (p) {
+      side.querySelector('.hd.big').append(head(p, 3));
+      side.querySelector('.more').addEventListener('click', () => openPerson(p.id));
+      side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
+    }
+    side.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => pick(c.dataset.id)));
+  }
+
+  function showView(v = view) {
+    view = v; cur = null;
+    tabs.querySelectorAll('[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+    detail.hidden = true; list.hidden = v !== 'list'; rmap.hidden = v !== 'map'; nav.hidden = true; filters.hidden = false; tabs.hidden = false;
+    refresh();
+    if (v === 'map') requestAnimationFrame(() => tick(true));
+  }
+  const showList = () => showView();
+  tabs.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => showView(b.dataset.v)));
+  if (!map) { tabs.remove(); view = 'list'; rmap.remove(); list.hidden = false; }
 
   function openPerson(id) {
     const p = BYID[id];
@@ -131,7 +229,7 @@ export function createRoster(el, { status, beasts, onFind, onClose }) {
     }
     if (!animals.length) pets.remove();
     detail.querySelector('.find').addEventListener('click', () => { const pid = p.id; close(); onFind?.(pid); });
-    list.hidden = true; detail.hidden = false; nav.hidden = false; filters.hidden = true;
+    list.hidden = true; rmap.hidden = true; detail.hidden = false; nav.hidden = false; filters.hidden = true; tabs.hidden = true;
     refresh();
   }
 
@@ -143,6 +241,7 @@ export function createRoster(el, { status, beasts, onFind, onClose }) {
   function refresh() {
     if (el.hidden) return;
     if (!cur) {
+      if (view === 'map') { sideHTML(); tick(true); return; }
       for (const t of list.children) if (!t.hidden) t.querySelector('.now').innerHTML = nowHTML(status(t.dataset.id));
       return;
     }
@@ -173,5 +272,7 @@ export function createRoster(el, { status, beasts, onFind, onClose }) {
     show(id) { el.hidden = false; document.body.classList.add('roster-open'); if (id && BYID[id]) openPerson(id); else showList(); },
     close,
     refresh,
+    tick,
+    pick: (id) => { if (view === 'map') pick(id); },
   };
 }
