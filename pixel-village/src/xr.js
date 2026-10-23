@@ -7,8 +7,11 @@ const DROP = 0.38;
 // 双手握持
 const NEAR = 0.35, FAR = 3;       // 拉近拉远：沙盘中心离眼睛最近 / 最远（米）
 const MIN_SPAN = 0.05;            // 两手间距小于 5 厘米不认（比值会爆）
-const DOMINANCE = 1.5;            // 胜出的分量要比另外两个大这么多倍才算分清
-const EPS = 0.004;                // 一帧动不到 4 毫米不分类：静握不触发
+const SETTLE = 150;                // 两手刚捏上的 150 毫秒不算动作（捏合那一下手指收拢，捏合点会跳）
+const LOCK = 0.015;               // 从握住算起，某个分量攒够 1.5 厘米才分类：静握、手抖不触发
+const DECIDE = 0.04;              // 攒到 4 厘米还分不清：取最大的那个
+const ROT_OVER_PAN = 2;           // 转要比平移大 2 倍才算转（两手一起拖时总有点不同步，最容易被误认成转）
+const DOMINANCE = 1.5;            // 推拉要比另外两个大这么多倍；平移只要不输给另外两个
 const WHEEL = 120 * Math.PI / 180; // 上下反向错动：每米转多少弧度
 const TURN = 0.9;                 // 两手连线水平转角 → 沙盘转角
 
@@ -22,10 +25,12 @@ const TURN = 0.9;                 // 两手连线水平转角 → 沙盘转角
  * 和鼠标点场景一样（指着谁弹谁的卡片），不动沙盘。双手握住开始拖 / 转 / 推拉、沙盘开始滑回眼前时调 onMove()（收起卡片）。
  *
  * 双手同时捏合 = 握住沙盘（手感照 HexCity 的 CityGrip / Skyvine 的 SceneRotator）：
- * 每帧把两手的运动分成三个正交分量，第一次分清后锁定到松手——一次拖拽不会中途变成旋转：
- *   together = (dL + dR) / 2              两手一起动          → 平移（上下左右前后都跟手）
- *   opposite = dL - dR 沿两手连线的分量    拉开 / 收拢         → 拉近 / 推远（沿"眼睛 → 沙盘"那条线，不改缩放）
- *   opposite 垂直连线的分量                反向错动            → 绕竖轴转（两手连线转多少沙盘转多少，再加上下错动的方向盘）
+ * 从握住那一刻算起累计两手的运动，分成三个分量（米），某一个攒够 1.5 厘米且明显占上风就锁定，一直到松手——一次拖拽不会中途变成旋转：
+ *   平移 = 两手中点挪了多远                            两手一起动          → 平移（上下左右前后都跟手）
+ *   推拉 = 两手间距变了多少                            拉开 / 收拢         → 拉近 / 推远（沿"眼睛 → 沙盘"那条线，不改缩放）
+ *   转   = 两手连线水平转角 × 半个间距、两手高度差的变化 / 2   反向错动        → 绕竖轴转（两手连线转多少沙盘转多少，再加上下错动的方向盘）
+ * 用累计量而不是每帧的增量：一帧只动一两毫米，两手稍不同步、手部追踪抖一下，单帧里"转"就可能占上风；累计下来一起拖的那部分越攒越大，抖动攒不起来。
+ * 平移最常用，判定上让着它：转要比平移大 2 倍才算转；刚捏上的 150 毫秒不算（手指收拢时捏合点会跳）。
  * 握过的这一下，松手时不算捏合（不会算进双击）。
  *
  * 指向：每只手一条细射线 + 落点一个像素小光点（捏住时变大），看得出自己指着谁。aim(起点, 方向) 返回打到东西的距离（没打到 null），
@@ -101,9 +106,10 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
   };
 
   // 握持状态
-  let gripping = false, gripUsed = false, mode = null, baseSpan = 0;
+  let gripping = false, gripUsed = false, mode = null, baseSpan = 0, gripT0 = 0, baseYaw = 0, baseDy = 0;
+  const startL = new THREE.Vector3(), startR = new THREE.Vector3(), mid = new THREE.Vector3();
   const lastL = new THREE.Vector3(), lastR = new THREE.Vector3(), dL = new THREE.Vector3(), dR = new THREE.Vector3();
-  const together = new THREE.Vector3(), opposite = new THREE.Vector3(), axis = new THREE.Vector3(), perp = new THREE.Vector3();
+  const together = new THREE.Vector3();
   const baseEye = new THREE.Vector3(), baseRoot = new THREE.Vector3(), dolly = new THREE.Vector3(), eye = new THREE.Vector3();
   let dollying = false;
 
@@ -117,43 +123,48 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
     }
     gripUsed = true;
     const pl = pinchPos(l).clone(), pr = pinchPos(r).clone();
-    if (!gripping) { // 握住的第一帧：只建参照，不动（不跳）
-      gripping = true; mode = null; dollying = false;
-      lastL.copy(pl); lastR.copy(pr);
-      baseSpan = pl.distanceTo(pr);
+    const yawOf = (a, b) => Math.atan2(b.z - a.z, b.x - a.x);
+    const rebase = () => { // 从现在起算累计量
+      lastL.copy(pl); lastR.copy(pr); startL.copy(pl); startR.copy(pr);
+      baseSpan = pl.distanceTo(pr); baseYaw = yawOf(pl, pr); baseDy = pr.y - pl.y;
       baseEye.copy(viewer); baseRoot.copy(root.position);
+    };
+    if (!gripping) { // 握住的第一帧：只建参照，不动（不跳）
+      gripping = true; mode = null; dollying = false; gripT0 = performance.now();
+      rebase();
       return;
     }
+    if (!mode && performance.now() - gripT0 < SETTLE) { rebase(); return; } // 手指还在收拢
     dL.subVectors(pl, lastL); dR.subVectors(pr, lastR);
-    together.addVectors(dL, dR).multiplyScalar(0.5);
-    opposite.subVectors(dL, dR);
-    axis.subVectors(pr, pl);
-    if (axis.lengthSq() > 1e-8) {
-      axis.normalize();
-      const along = opposite.dot(axis);
-      perp.copy(opposite).addScaledVector(axis, -along);
-      const pan = together.length(), zoom = Math.abs(along), rot = perp.length();
-      if (!mode) {
-        if (pan > EPS && pan > zoom * DOMINANCE && pan > rot * DOMINANCE) mode = 'pan';
-        else if (zoom > EPS && zoom > pan * DOMINANCE && zoom > rot * DOMINANCE) mode = 'zoom';
-        else if (rot > EPS && rot > pan * DOMINANCE && rot > zoom * DOMINANCE) mode = 'rotate';
-        if (mode) onMove?.(); // 分出是拖、推拉还是转了：收起卡片（静握不算）
+    if (!mode) { // 还没分清：看从握住起累计了多少
+      const span = pl.distanceTo(pr);
+      const pan = mid.addVectors(pl, pr).sub(startL).sub(startR).multiplyScalar(0.5).length();
+      const zoom = Math.abs(span - baseSpan);
+      const dyaw = yawOf(pl, pr) - baseYaw;
+      const rot = Math.max(Math.abs(Math.atan2(Math.sin(dyaw), Math.cos(dyaw))) * span / 2, Math.abs(pr.y - pl.y - baseDy) / 2);
+      const top = Math.max(pan, zoom, rot);
+      if (top > LOCK) {
+        if (rot > ROT_OVER_PAN * pan && rot > DOMINANCE * zoom) mode = 'rotate';
+        else if (zoom > DOMINANCE * pan && zoom > DOMINANCE * rot) mode = 'zoom';
+        else if (pan >= zoom && pan * ROT_OVER_PAN >= rot) mode = 'pan';
+        else if (top > DECIDE) mode = pan === top ? 'pan' : zoom === top ? 'zoom' : 'rotate';
       }
-      if (mode === 'pan') root.position.add(together);
-      else if (mode === 'zoom') { // 拉开 = 拉近：沿握住那一刻"眼睛 → 沙盘"的固定轴，按起始间距 / 当前间距的比值定远近（不累积漂移）
-        const span = pl.distanceTo(pr);
-        const ax = eye.subVectors(baseRoot, baseEye), d0 = ax.length();
-        if (span > MIN_SPAN && baseSpan > MIN_SPAN && d0 > 1e-4) {
-          const want = THREE.MathUtils.clamp(d0 * (baseSpan / span), NEAR, FAR);
-          dolly.copy(baseRoot).addScaledVector(ax, (want - d0) / d0);
-          dollying = true;
-        }
-      } else if (mode === 'rotate') {
-        let a = -(dL.y - dR.y) * WHEEL; // 方向盘：左手往上、右手往下 → 从上往下看顺时针
-        const a0 = Math.atan2(lastR.z - lastL.z, lastR.x - lastL.x), a1 = Math.atan2(pr.z - pl.z, pr.x - pl.x);
-        a += -Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)) * TURN; // 转盘：两手连线水平转了多少
-        root.rotation.y += a;
+      if (mode) onMove?.(); // 分出是拖、推拉还是转了：收起卡片（静握不算）
+      if (mode === 'pan') root.position.add(mid); // 分清之前攒下的那段平移补上，不丢手
+    } else if (mode === 'pan') root.position.add(together.addVectors(dL, dR).multiplyScalar(0.5));
+    if (mode === 'zoom') { // 拉开 = 拉近：沿握住那一刻"眼睛 → 沙盘"的固定轴，按起始间距 / 当前间距的比值定远近（不累积漂移）
+      const span = pl.distanceTo(pr);
+      const ax = eye.subVectors(baseRoot, baseEye), d0 = ax.length();
+      if (span > MIN_SPAN && baseSpan > MIN_SPAN && d0 > 1e-4) {
+        const want = THREE.MathUtils.clamp(d0 * (baseSpan / span), NEAR, FAR);
+        dolly.copy(baseRoot).addScaledVector(ax, (want - d0) / d0);
+        dollying = true;
       }
+    } else if (mode === 'rotate') {
+      let a = -(dL.y - dR.y) * WHEEL; // 方向盘：左手往上、右手往下 → 从上往下看顺时针
+      const a0 = yawOf(lastL, lastR), a1 = yawOf(pl, pr);
+      a += -Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)) * TURN; // 转盘：两手连线水平转了多少
+      root.rotation.y += a;
     }
     lastL.copy(pl); lastR.copy(pr);
   }
@@ -180,7 +191,7 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
         if (f.lengthSq() < 1e-6) f.set(0, 0, -1);
         f.normalize();
         const to = new THREE.Vector3(p.x + f.x * DISTANCE, p.y - DROP, p.z + f.z * DISTANCE), yaw = Math.atan2(-f.x, -f.z); // 让沙盘正面（+z）朝向观察者
-        if (pending === 'glide') onMove?.();
+        if (pending === 'glide') { onMove?.(); dollying = false; } // 推拉的收尾停掉，不然滑过去又被拉回来
         if (pending === 'glide') glide = { from: root.position.clone(), to, yaw0: root.rotation.y, yaw1: root.rotation.y + Math.atan2(Math.sin(yaw - root.rotation.y), Math.cos(yaw - root.rotation.y)), t0: performance.now() };
         else { glide = null; root.position.copy(to); root.rotation.set(0, yaw, 0); }
         root.updateMatrixWorld(true);
@@ -193,7 +204,7 @@ export function createAnchor(renderer, root, { scene, aim, onSession, onSelect, 
         if (k >= 1 || gripping) glide = null; // 滑的时候双手握住：听手的
       }
       grip(viewer.set(p.x, p.y, p.z));
-      if (dollying) root.position.lerp(dolly, 0.35); // 推拉稍微平滑一下
+      if (dollying) { root.position.lerp(dolly, 0.35); if (root.position.distanceToSquared(dolly) < 1e-8) dollying = false; } // 推拉稍微平滑一下
       root.updateMatrixWorld(true);
       tick = (tick + 1) % 4;
       hands.forEach((h, i) => { // 射线 + 落点

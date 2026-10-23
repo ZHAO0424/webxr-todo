@@ -146,10 +146,12 @@ let skyKey = '';
 const inXR = () => renderer.xr.isPresenting;
 
 /** 按村里的钟调太阳、天光、远山、天空。 */
-function applyLight(L) {
+const sunWant = new THREE.Vector3(); // 太阳该在哪；只在重画阴影的那帧挪过去（见主循环）
+function applyLight(L, now = false) {
   sun.color.set(L.sun);
   sun.intensity = L.sunIntensity;
-  sun.position.set(...L.sunPos);
+  sunWant.set(...L.sunPos);
+  if (now) sun.position.copy(sunWant);
   hemi.color.set(L.sky);
   hemi.groundColor.set(L.ground);
   hemi.intensity = L.hemiIntensity;
@@ -440,7 +442,7 @@ function mapSnapshot() {
   cam.updateMatrixWorld();
   const hide = [backdrop.object, west.object, marker, ...village.life.people.map((v) => v.object), ...village.life.beasts.map((b) => b.object)].filter((o) => o?.visible);
   hide.forEach((o) => { o.visible = false; });
-  applyLight(daylight(11)); // 中午的光（会顺手换天空，所以先调光再去掉背景；下一帧 applyLight 照村里的钟换回来）
+  applyLight(daylight(11), true); // 中午的光（会顺手换天空，所以先调光再去掉背景；下一帧 applyLight 照村里的钟换回来）
   const bg = scene.background;
   scene.background = null;
   renderer.shadowMap.needsUpdate = true;
@@ -604,9 +606,8 @@ soundBtn?.addEventListener('click', (e) => { e.stopPropagation(); sound.toggle()
 const viewer = new THREE.Vector3();
 let lastLabel = '';
 let shadowFrame = 1;
-const stageM = new THREE.Matrix4(); // 上一帧沙盘的位置姿态（动了就每帧重画阴影）
 const first = village.update(0, camera.position);
-applyLight(first.light);
+applyLight(first.light, true);
 renderer.setAnimationLoop((_, frame) => {
   const work0 = performance.now();
   const t = clock.getElapsedTime();
@@ -645,12 +646,12 @@ renderer.setAnimationLoop((_, frame) => {
     refreshCard();
     roster.refresh();
   }
-  // 阴影平时隔一帧重画一次；沙盘在动的时候（XR 里双手拖、转、重新摆）每帧都重画——three 只在重画阴影那帧更新阴影的位置矩阵，
-  // 隔帧的话没重画的那帧影子还在上一帧的位置，转起来一闪一闪
+  // 阴影贴图隔一帧重画一次（人在走）；太阳也只在重画的那帧挪，贴图和太阳始终对得上。
+  // 太阳挂在沙盘下面，跟沙盘一起动：XR 里拖、转、拉近推远时贴图本身不用重画，但 three 只在重画那帧更新阴影的投影矩阵，
+  // 所以每帧照沙盘现在的位置把矩阵补算一遍（很便宜）——否则没重画的那帧影子留在上一帧的位置，一动就一闪一闪
+  if ((shadowFrame = (shadowFrame + 1) % 2) === 0 || renderer.shadowMap.needsUpdate) { renderer.shadowMap.needsUpdate = true; sun.position.copy(sunWant); }
   stage.updateMatrixWorld();
-  const moved = !stageM.equals(stage.matrixWorld);
-  if (moved) stageM.copy(stage.matrixWorld);
-  if (moved || (shadowFrame = (shadowFrame + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true;
+  sun.shadow.updateMatrices(sun);
   if (timer) { gpuPoll(); gpuBegin(); }
   renderer.render(scene, camera);
   if (window.loader && !params.has('holdload')) { window.loader.done(); window.loader = null; setTimeout(buildBVH, 500); } // 第一帧画出来了（着色器也编译完了）：载入画面淡出（?holdload=1 停在载入画面，截图检查用）
