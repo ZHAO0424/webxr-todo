@@ -127,9 +127,11 @@
     #roster .home-pin { position: absolute; width: calc(3 * var(--p)); height: calc(3 * var(--p)); transform: translate(-50%, -50%); background: var(--gold); box-shadow: 0 0 0 var(--f) var(--ink); pointer-events: none; }
     #roster .hh { position: absolute; transform: translate(-50%, -50%); z-index: 1; }
     #roster .hh:hover { z-index: 2; }
-    #roster .hh .ms { display: flex; flex-direction: column; gap: calc(2 * var(--f)); }
-    #roster .mk { display: flex; align-items: center; gap: calc(2 * var(--p)); cursor: pointer; }
-    #roster .mk .hd { flex: none; width: calc(28 * var(--f)); height: calc(28 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64);
+    #roster .hh .ms { display: flex; flex-direction: column; gap: calc(3 * var(--f)); }
+    #roster .hh .yn { color: var(--gold); white-space: nowrap; line-height: calc(13 * var(--f)); margin-bottom: calc(2 * var(--f));
+                      text-shadow: var(--f) 0 0 #1b1626, calc(-1 * var(--f)) 0 0 #1b1626, 0 var(--f) 0 #1b1626, 0 calc(-1 * var(--f)) 0 #1b1626, var(--f) var(--f) 0 #1b1626; }
+    #roster .mk { display: flex; align-items: center; gap: calc(3 * var(--f)); cursor: pointer; }
+    #roster .mk .hd { flex: none; width: calc(20 * var(--f)); height: calc(20 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64);
                       box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--jc, var(--line)), 0 0 0 calc(3 * var(--f)) var(--ink); }
     #roster .mk .hd canvas { display: block; }
     #roster .mk .t { display: flex; flex-direction: column; white-space: nowrap; line-height: calc(13 * var(--f));
@@ -148,7 +150,7 @@
     #roster .grp .chip .cn { color: var(--dim); margin-left: var(--p); }
     #roster .grp .chip.on .cn { color: #5a4020; }
     #roster .mini .row1 { display: flex; gap: calc(3 * var(--p)); align-items: center; margin-bottom: calc(2 * var(--p)); }
-    #roster .mini .hd.big { flex: none; width: calc(42 * var(--f)); height: calc(42 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
+    #roster .mini .hd.big { flex: none; width: calc(40 * var(--f)); height: calc(40 * var(--f)); overflow: hidden; background: linear-gradient(#4a3a6a, #9a5a7a 70%, #d88a64); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #6c5c88; }
     #roster .mini .hd.big canvas { display: block; }
     #roster .mini .nm { color: var(--gold); }
     #roster .mini .jb { color: var(--dim); }

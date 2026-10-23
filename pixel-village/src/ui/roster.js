@@ -6,7 +6,7 @@ import { planHTML } from './cards.js';
 
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
- *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），左上角是地名；每户一列头像（右边小字名字、职业）竖排在自家院子上，
+ *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），左上角是地名；每户一列小头像（右边小字名字、职业）竖排在自家院子上、左上角院子名，
  *         挤在一起的推开、用虚线连回院子；右边是点中的人（默认第一个）的小卡和详细资料；
  *   卡片：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；上面一排筛选；
  *   详情：点了人才显示，横着三栏都用框填满——
@@ -36,9 +36,10 @@ function body(p, k) {
   c.style.width = `calc(${CELL_W * k} * var(--f))`;
   return c;
 }
-function head(p, k) {
-  const c = headCrop(characterAtlas(p), CELL_W, CELL_H, 14, 14);
-  c.style.width = `calc(${14 * k} * var(--f))`;
+/** 头像：从头顶往下截 n × n 个像素（n 大一点能看到肩膀和帽子两边），一个像素 = k 个字点。 */
+function head(p, k, n = 14) {
+  const c = headCrop(characterAtlas(p), CELL_W, CELL_H, n, n);
+  c.style.width = `calc(${n * k} * var(--f))`;
   return c;
 }
 const nowHTML = (s) => `<span class="dot ${s?.kind ?? 'sleep'}"></span><span class="what">${esc(s?.doing ?? '')}</span>${s?.where ? `<span class="loc"><i class="pin"></i>${esc(s.where)}</span>` : ''}`;
@@ -102,7 +103,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
       if (!at) continue;
       const g = document.createElement('div');
       g.className = 'hh';
-      g.innerHTML = '<div class="ms"></div>';
+      g.innerHTML = `<div class="yn">${esc(h.name.replace(/（.*）/, ''))}</div><div class="ms"></div>`;
       const ms = g.querySelector('.ms');
       for (const p0 of h.people) {
         const p = BYID[p0.id];
@@ -111,7 +112,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
         m.dataset.id = p.id;
         m.style.setProperty('--jc', JOB_COLOR(p));
         m.innerHTML = `<span class="hd"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="jb">${esc(p.job)}</span></span>`;
-        m.querySelector('.hd').append(head(p, 2));
+        m.querySelector('.hd').append(head(p, 1, 20));
         m.addEventListener('click', (e) => { e.stopPropagation(); pick(p.id); });
         ms.append(m);
         markers[p.id] = m;
@@ -190,7 +191,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map }) {
         ${friends.length ? `<div class="sec"><div class="lbl">好友</div>${chips(friends, 'var(--c-child)')}</div>` : ''}
         <div class="sec"><div class="lbl">今日安排<span class="count">${p.day.length} 项</span></div><ul class="plan">${planHTML(p.day, s?.cur ?? -1)}</ul></div>
       </div>`;
-    side.querySelector('.hd.big').append(head(p, 3));
+    side.querySelector('.hd.big').append(head(p, 2, 20));
     side.querySelector('.more').addEventListener('click', () => openPerson(p.id));
     side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
     side.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => pick(c.dataset.id)));
