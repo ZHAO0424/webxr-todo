@@ -525,6 +525,15 @@ const gpuPoll = () => {
     gl.deleteQuery(q);
   }
 };
+// 浏览器实际用的显卡：显卡进程崩过一次后 Chrome 会悄悄换成软件渲染（SwiftShader，CPU 模拟显卡），帧率掉到个位数——面板上标红
+const gpuName = (() => {
+  const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const name = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+  const soft = /swiftshader|llvmpipe|software|basic render/i.test(name);
+  const parts = name.replace(/^ANGLE \(|\)$/g, '').split(','); // ANGLE (厂商, 型号 (0x…) Direct3D11 …, D3D11)：只留型号
+  const short = (parts[1] ?? parts[0]).replace(/\(0x[0-9A-F]+\)|Direct3D.*|vs_.*/gi, '').trim();
+  return soft ? `<span style="color:var(--red)">软件渲染（${short}）——浏览器没用上显卡，重启浏览器或打开硬件加速</span>` : short;
+})();
 function debugTick() { // 每帧记一下，半秒刷新一次面板
   const now = performance.now(), d = now - dbg.last;
   dbg.last = now; dbg.frames++; dbg.ms += d; dbg.worst = Math.max(dbg.worst, d);
@@ -540,6 +549,7 @@ function debugTick() { // 每帧记一下，半秒刷新一次面板
     row('三角面', `${(info.render.triangles / 10000).toFixed(1)} 万`),
     row('着色器', info.programs.length),
     row('贴图 / 几何体', `${info.memory.textures} / ${info.memory.geometries}`),
+    row('显卡', gpuName),
     row('像素比', renderer.getPixelRatio().toFixed(2)),
     row('XR', renderer.xr.isPresenting ? `是 · ${renderer.xr.getSession()?.frameRate ?? '?'} Hz（可选 ${renderer.xr.getSession()?.supportedFrameRates?.join(' / ') ?? '未知'}）` : '否'),
     row('在外面', `${out} 人 · ${life.beasts.filter((b) => !b.home).length} 只`),
