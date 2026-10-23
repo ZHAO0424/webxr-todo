@@ -10,6 +10,7 @@ import { LABELS, PLACES } from './labels.js';
 import { setupPixelUI } from './ui/frame.js';
 import { residentCard, animalCard, thingCard, hm, label } from './ui/cards.js';
 import { createRoster } from './ui/roster.js';
+import { createXRCard } from './ui/xrCard.js';
 import { pickThing, describe, YARDS } from './things.js';
 import { HOUSEHOLDS, RESIDENTS } from './residents.js';
 import { voxelCharacter } from './voxel.js';
@@ -171,6 +172,14 @@ const anchor = createAnchor(renderer, stage, {
     if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); sun.shadow.map?.dispose(); sun.shadow.map = null; renderer.shadowMap.needsUpdate = true; }
   },
   onSelect: (controller) => scenes.onSelect(controller), // 指着路牌：换场景，不重新摆沙盘
+  onTap(controller) { // 单手捏一下：和鼠标点场景一样，指着谁就弹谁的卡片，指着空处收起
+    if (scenes.busy) return;
+    controller.updateMatrixWorld(true);
+    ray.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+    ray.ray.direction.set(0, 0, -1).transformDirection(controller.matrixWorld);
+    pickRay();
+  },
+  onMove: () => closeCard(), // 双手握住拖、转、拉近推远，或沙盘滑回眼前：卡片收起
 });
 // 换场景：屏幕左右的按钮、键盘 ← →、XR 里沙盘两边的路牌；?scene=west 直接从西沟开始，?seam=1 两块都画（看接缝）
 const scenes = createSceneSwitch({ world, stage, scenes: SCENES, M: village.M, start: Math.max(0, SCENES.findIndex((s) => s.id === params.get('scene'))), onChange: () => closeCard(), showAll: params.has('seam') });
@@ -192,6 +201,8 @@ const V = village.life.people[0].V;
 const REST = new Set(['idle', 'sitGate', 'chat', 'dinner', 'home', 'read', 'chess', 'evening', 'play']);
 let down = null;
 let sel = null; // { v | b, card }
+const xrCard = createXRCard();
+scene.add(xrCard.mesh);
 
 // 选中的人 / 动物头顶一个上下跳的像素小箭头
 const marker = (() => {
@@ -214,6 +225,11 @@ addEventListener('pointerdown', () => { sound.wake(); music.wake(); syncSoundBtn
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5 || scenes.busy) return; // 拖动视角、正在换场景不算点击
   ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
+  pickRay();
+});
+
+/** 顺着 ray 看点到了谁：人、动物，没有就看房子物件（XR 里单手捏合也走这里）。 */
+function pickRay() {
   const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; }; // 另一块沙盘上的人（藏着）点不到
   const targets = [...village.life.people.filter((v) => !v.inside).map((v) => v.object), ...village.life.beasts.filter((b) => b.object.visible).map((b) => b.object)].filter(shown);
   const hit = ray.intersectObjects(targets, true)[0];
@@ -222,7 +238,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   while (o && !o.userData.resident && !o.userData.beast) o = o.parent;
   if (o?.userData.beast) { selectBeast(o.userData.beast); sound.clickBeast(o.userData.beast); }
   else if (o) selectPerson(village.life.people.find((v) => v.object === o));
-});
+}
 
 /** 没点到人和动物：看打到了什么房子、物件；打在院子地上就是这个院子（西沟：这一片叫什么）。 */
 function pickScene() {
@@ -248,11 +264,12 @@ function selectPlace(w, p) {
   refreshCard();
 }
 
-function closeCard() { sel = null; follow = false; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; }
+function closeCard() { sel = null; follow = false; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; xrCard.set(null); }
 const dockCard = () => { host.style.top = `${clockEl.getBoundingClientRect().bottom + 6}px`; }; // 卡片总在时钟栏下面
 addEventListener('resize', dockCard);
 function show(card, obj, h) {
   host.innerHTML = ''; host.append(card.el); host.hidden = false; dockCard(); obj.add(marker); marker.position.set(0, h, 0); marker.visible = true; markerH = h;
+  xrCard.set(card.el, obj, h + 0.5); // XR 里同一张卡片画成贴图，浮在箭头上面
   if (sel?.v || sel?.b) { // 人和动物的卡片上有"跟随"：镜头平移着把它留在画面中间（距离、角度不变）
     const b = document.createElement('button');
     b.className = 'btn follow';
@@ -607,6 +624,7 @@ renderer.setAnimationLoop((_, frame) => {
   music.update(dt);
   if (params.has('sound')) document.documentElement.dataset.sound = JSON.stringify(sound.stats);
   if (marker.visible) marker.position.y = markerH + (Math.floor(t * 3) % 2) * 0.1; // 一上一下跳
+  xrCard.update(viewer, inXR() || params.has('xrcard')); // ?xrcard=1：桌面上也画 XR 卡片（截图检查用）
   applyLight(s.light);
   backdrop.update(t, s.light.night);
   if (clockEl && s.clock.label !== lastLabel) {

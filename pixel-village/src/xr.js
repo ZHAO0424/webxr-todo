@@ -18,7 +18,8 @@ const TURN = 0.9;                 // 两手连线水平转角 → 沙盘转角
  * 用 'local' 参考空间而不是 'local-floor'：VITURE runtime 的 LOCAL_FLOOR 高度取决于
  * SLAM 启动时眼镜在哪，可能在天上也可能在桌面（见 webxr-场景高度-排查）。
  * 以头为准就不依赖地板。进 XR 时马上摆好；之后快速捏两下（0.4 秒内两次扳机 / 捏合）或系统重新定位（reference space reset），
- * 沙盘用半秒滑到眼前（不瞬移）。单手捏一下不动沙盘；onSelect(手柄) 返回 true 时（指着沙盘边上的路牌）拿去换场景。
+ * 沙盘用半秒滑到眼前（不瞬移）。onSelect(手柄) 返回 true 时（指着沙盘边上的路牌）拿去换场景；否则单手捏一下 = onTap(手柄)，
+ * 和鼠标点场景一样（指着谁弹谁的卡片），不动沙盘。双手握住开始拖 / 转 / 推拉、沙盘开始滑回眼前时调 onMove()（收起卡片）。
  *
  * 双手同时捏合 = 握住沙盘（手感照 HexCity 的 CityGrip / Skyvine 的 SceneRotator）：
  * 每帧把两手的运动分成三个正交分量，第一次分清后锁定到松手——一次拖拽不会中途变成旋转：
@@ -27,7 +28,7 @@ const TURN = 0.9;                 // 两手连线水平转角 → 沙盘转角
  *   opposite 垂直连线的分量                反向错动            → 绕竖轴转（两手连线转多少沙盘转多少，再加上下错动的方向盘）
  * 握过的这一下，松手时不算捏合（不会算进双击）。
  */
-export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
+export function createAnchor(renderer, root, { onSession, onSelect, onTap, onMove } = {}) {
   const xr = renderer.xr;
   xr.setReferenceSpaceType('local');
   let pending = false; // true：马上摆好（刚进 XR）；'glide'：半秒滑过去（双击捏合、系统重新定位）
@@ -57,10 +58,10 @@ export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
     h.ctrl.addEventListener('disconnected', () => { h.pinch = false; });
     h.ctrl.addEventListener('selectstart', () => { h.pinch = true; });
     h.ctrl.addEventListener('selectend', () => { h.pinch = false; });
-    h.ctrl.addEventListener('select', (e) => { // 单手捏一下不动沙盘（以前会马上重摆，一捏就闪到别处）；快速捏两下才重新摆到眼前，而且是滑过去
+    h.ctrl.addEventListener('select', (e) => { // 单手捏一下 = 点一下（不动沙盘）；快速捏两下才重新摆到眼前，而且是滑过去
       if (gripUsed || onSelect?.(e.target)) return; // 双手握过 / 指着路牌换场景
       const now = performance.now();
-      if (now - lastTap < 400) { pending = 'glide'; lastTap = -Infinity; } else lastTap = now;
+      if (now - lastTap < 400) { pending = 'glide'; lastTap = -Infinity; } else { lastTap = now; onTap?.(e.target); }
     });
     return h;
   });
@@ -108,6 +109,7 @@ export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
         if (pan > EPS && pan > zoom * DOMINANCE && pan > rot * DOMINANCE) mode = 'pan';
         else if (zoom > EPS && zoom > pan * DOMINANCE && zoom > rot * DOMINANCE) mode = 'zoom';
         else if (rot > EPS && rot > pan * DOMINANCE && rot > zoom * DOMINANCE) mode = 'rotate';
+        if (mode) onMove?.(); // 分出是拖、推拉还是转了：收起卡片（静握不算）
       }
       if (mode === 'pan') root.position.add(together);
       else if (mode === 'zoom') { // 拉开 = 拉近：沿握住那一刻"眼睛 → 沙盘"的固定轴，按起始间距 / 当前间距的比值定远近（不累积漂移）
@@ -148,6 +150,7 @@ export function createAnchor(renderer, root, { onSession, onSelect } = {}) {
         if (f.lengthSq() < 1e-6) f.set(0, 0, -1);
         f.normalize();
         const to = new THREE.Vector3(p.x + f.x * DISTANCE, p.y - DROP, p.z + f.z * DISTANCE), yaw = Math.atan2(-f.x, -f.z); // 让沙盘正面（+z）朝向观察者
+        if (pending === 'glide') onMove?.();
         if (pending === 'glide') glide = { from: root.position.clone(), to, yaw0: root.rotation.y, yaw1: root.rotation.y + Math.atan2(Math.sin(yaw - root.rotation.y), Math.cos(yaw - root.rotation.y)), t0: performance.now() };
         else { glide = null; root.position.copy(to); root.rotation.set(0, yaw, 0); }
         root.updateMatrixWorld(true);
