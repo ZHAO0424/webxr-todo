@@ -279,7 +279,7 @@
        点阵字按整数倍显示（12px 字 ×2），字体到了才显示字，不会先闪一下系统字。 */
     #loader { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #1c1611; transition: opacity .45s; }
     #loader.out { opacity: 0; pointer-events: none; }
-    #loader .ld { width: 560px; max-width: 92vw; padding: 28px 32px 26px; background: #2b231b;
+    #loader .ld { width: 560px; padding: 28px 32px 26px; background: #2b231b; transform: scale(var(--ls, .75)); /* 跟着窗口缩放（见下面的 fit），比原来小一圈 */
                   box-shadow: 0 0 0 4px #120e0a, inset 0 0 0 4px #7a6448, inset -4px -4px 0 4px #3d3125, inset 0 0 0 8px #1c1611, 0 12px 0 4px rgba(0, 0, 0, .35); }
     #loader:not(.fonts) .ld-text { visibility: hidden; }
     /* 路：和沙盘边上一样，上面一层草皮（带一溜草尖）、一条土路，下面一层层土 */
@@ -349,6 +349,9 @@
     // loader.figure(画布们)：main.js 拍好的货郎走路 8 帧，放上去轮流显示；loader.done()：淡出。
     window.loader = (() => {
       const el = document.getElementById('loader'), q = (c) => el.querySelector(c);
+      const fit = () => el.style.setProperty('--ls', (Math.min(innerWidth / 1000, innerHeight / 700, 1.2) * 0.75).toFixed(3)); // 1000×700 的窗口里是原来的 3/4，大窗口最多到 0.9
+      fit();
+      addEventListener('resize', fit);
       document.fonts.load('24px PixelZh12', '正在下载').finally(() => el.classList.add('fonts'));
       const fill = q('.ld-fill'), walker = q('.ld-walker'), msg = q('.ld-msg'), pct = q('.ld-pct');
       const road = () => q('.ld-road').clientWidth - walker.offsetWidth;

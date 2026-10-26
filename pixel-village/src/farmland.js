@@ -220,3 +220,5 @@ export function buildFarmland(M, terrain, nodes) {
 
   return { object: g, extras, fields, pasture };
 }
+
+export { SHAPES as gardenShapes }; // 白菜、大豆（老村址的菜园也用）
