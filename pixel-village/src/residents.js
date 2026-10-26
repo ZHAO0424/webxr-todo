@@ -1,5 +1,5 @@
 /*
- * 石峪村村民名册（虚构，旧时太行山里的一个石头村）。28 人，12 户 + 2 个外来手艺人。
+ * 石峪村村民名册（虚构，旧时太行山里的一个石头村）。28 人，12 户 + 2 个外来手艺人；老村址（east.js）另有 4 户 5 人。
  *
  * 每个人：
  *   身份   name 全名 / nick 村里怎么叫 / age / sex / home 住哪户 / relation 在家里的身份
@@ -424,6 +424,89 @@ export const HOUSEHOLDS = [
   },
 ];
 
+// 老村址（east.js）：大水以后不肯搬走、或者后来才落脚的几户，都住在黄土坎上
+HOUSEHOLDS.push(
+  {
+    id: 'riverTemple', name: '河神庙（柳家）', kind: '坎上的小砖庙 + 土坯小屋', oldSite: true,
+    note: '黄土坎沿上的河神庙，庙旁一间土坯小屋。柳婆婆守了一辈子庙，水生是她从河滩上捡回来养大的。',
+    people: [
+      {
+        id: 'liu_popo', name: '柳桂芝', nick: '柳婆婆', age: 82, sex: '女', relation: '户主',
+        job: '守庙、看水', skills: ['看天看水', '接骨', '讲老石峪的事'],
+        traits: ['倔', '念旧', '心细'],
+        bio: '大水那年男人没了，全村搬走她不走，守着河神庙过了六十年。每天早晚给河神上一炷香，再去水则碑前看一回水。',
+        story: '柳桂芝十八岁嫁到老石峪，二十二岁那年夏天发了大水。她男人为了把邻居家的孩子从房顶上背下来，再没上岸。水退了，大半人家搬去了下游，她不走，说男人还在这条河里。她在坎上搭了间小屋，守着后来修起的河神庙，一守就是六十年。老石峪哪家住在哪儿、谁家门口有棵什么树，她都记得清清楚楚。新来的人想在这儿落脚，头一个要见的就是她。',
+        likes: '歪脖子老柳、晒太阳、有人来听她讲古',
+        owns: ['河神庙的钥匙'],
+        day: [[15, 'watchWater'], [16.4, 'sitGate'], [17.4, 'cook'], [18.4, 'dinner'], [19.0, 'riverIncense'], [19.5, 'home']],
+        body: 'elder', skin: 'skin', hair: 'bun', hairRamp: 'white', top: 'black', style: 'side', pants: 'black', item: 'cane', elder: true,
+      },
+      {
+        id: 'liu_shuisheng', name: '柳水生', nick: '水生', age: 19, sex: '男', relation: '柳婆婆养大的孙子',
+        job: '捞漂木、撑筏子', skills: ['水性好', '撑筏', '劈柴', '捉鱼'],
+        traits: ['话少', '胆大', '孝顺'],
+        bio: '襁褓里顺着河漂下来，被柳婆婆从河滩上捡回去养大。如今天天在河滩上捞上游冲下来的漂木，晒干劈了当柴卖。',
+        story: '十九年前一个发水的早上，柳婆婆在河滩的柳树根底下捡到一只木盆，盆里是个哭哑了嗓子的娃娃。她给他起名叫水生。水生是在河边长大的，水性比鱼还好，撑一根竹篙能在河心洲两边来回。他话少，力气大，每天捞漂木、劈柴，攒下的钱都交给婆婆。村里的姑娘们说他长得俊，就是太闷。',
+        likes: '河心洲、婆婆做的玉米面糊糊',
+        owns: ['一根竹篙', '一只木筏'],
+        day: [[15, 'driftwood'], [17.4, 'yardWork'], [18.4, 'dinner'], [19.0, 'evening'], [20.6, 'home']],
+        body: 'man', build: 'thin', skin: 'skinTan', hair: 'crew', hat: 'douli', top: 'khaki', style: 'vest', pants: 'brown', item: 'pole', legwrap: true,
+      },
+    ],
+  },
+  {
+    id: 'mason', name: '葛家石匠院', kind: '坎上的夯土房 + 露天石料场', oldSite: true,
+    note: '院里码着一垛垛凿方的条石，地上滚着打了一半的磨盘。叮叮当当的錾子声从早响到晚。',
+    people: [
+      {
+        id: 'ge_shitou', name: '葛长庚', nick: '葛石头', age: 40, sex: '男', relation: '独居',
+        job: '石匠', skills: ['錾磨', '砌石', '采石', '刻碑'],
+        traits: ['闷葫芦', '力气大', '实在'],
+        bio: '从山外来接修堤的活，一干就留了下来。全村的磨盘磨平了都找他来錾，水则碑上的字也是他刻的。',
+        story: '葛长庚是河北那边的石匠，三十岁那年跟着师傅来老石峪修河堤。堤修完了，师傅回去了，他留了下来——他说这片河滩上的石头好，青石细，錾出来的磨盘不掉渣。他一个人住在坎上，整天叮叮当当地凿石头，三棍子打不出一个闷屁。可谁家砌墙基、盘炕、修猪圈，喊一声他就来，给多少是多少。',
+        likes: '好石头、一碗烧酒',
+        owns: ['一套錾子', '一车条石'],
+        day: [[15, 'work'], [17.6, 'yardWork'], [18.4, 'dinner'], [19.0, 'evening'], [20.4, 'home']],
+        body: 'man', build: 'stout', skin: 'skinTan', hair: 'shaved', top: 'grey', style: 'vest', pants: 'black', item: 'hammer', beard: true,
+      },
+    ],
+  },
+  {
+    id: 'limeKiln', name: '白家石灰窑', kind: '坎上的平顶小屋 + 毛石圆窑', oldSite: true,
+    note: '东头山脚下的一座石灰窑，烧窑的时候窑顶冒白烟。屋前一堆青石、一堆烧好的白灰。',
+    people: [
+      {
+        id: 'bai_laohui', name: '白守成', nick: '白老灰', age: 56, sex: '男', relation: '独居',
+        job: '烧石灰', skills: ['烧窑', '看火', '采青石'],
+        traits: ['嘴碎', '好酒', '爱干净却总是一身白'],
+        bio: '一年到头身上沾着白灰，大家都叫他白老灰。修房子、抹墙、勾缝、刷屋子，用的灰都是他窑里出来的。',
+        story: '白守成的爹就烧石灰，窑原先在老石峪东头，大水冲塌了一回，爷儿俩又一块石头一块石头垒了起来。爹死后他一个人守着窑，青石从东山上采，柴火从水生那儿买。他嘴碎，逢人就念叨"修房子，三分砖瓦七分灰"。他天天盼着老村址的破房子有人来修——那可都是他的主顾。',
+        likes: '一壶烧酒、跟人念叨',
+        owns: ['一座石灰窑'],
+        day: [[15, 'work'], [17.5, 'sitGate'], [18.4, 'dinner'], [19.0, 'evening'], [20.2, 'home']],
+        body: 'man', skin: 'skin', hair: 'short', hairRamp: 'grey', hat: 'towel', top: 'white', pants: 'grey', item: 'hammer', mustache: true,
+      },
+    ],
+  },
+  {
+    id: 'duckYard', name: '苗家鸭棚', kind: '河滩上的土坯小屋 + 鸭棚', oldSite: true,
+    note: '离水最近的一户，一圈苇子栅栏围着鸭棚。天一亮鸭子就嘎嘎叫着下河。',
+    people: [
+      {
+        id: 'miao_fengxian', name: '苗凤仙', nick: '凤仙嫂', age: 33, sex: '女', relation: '户主（男人在山外扛活）',
+        job: '养鸭、卖鸭蛋', skills: ['养鸭', '腌咸鸭蛋', '唱小调'],
+        traits: ['爽利', '爱笑', '嘴上不饶人'],
+        bio: '男人常年在山外扛活，她一个人在河滩上养了一群鸭子。鸭蛋挎到村里去卖，腌的咸鸭蛋流油。',
+        story: '苗凤仙是嫁过来的，婆家原先也住老石峪，大水以后搬走了，只留下河滩边上这块地。她男人在山外的煤窑上扛活，一年回来两趟。她嫌村里规矩多，干脆搬到河滩上来养鸭子，自己当家。她嗓门大，爱笑，一边赶鸭子一边唱小调，坎上的柳婆婆总说："凤仙一唱，这河湾就活了。"',
+        likes: '唱小调、跟水生斗嘴',
+        owns: ['十几只鸭子', '一口腌蛋的大缸'],
+        day: [[15, 'tendDucks'], [17.0, 'cook'], [18.2, 'dinner'], [18.8, 'evening'], [20.2, 'home']],
+        body: 'woman', skin: 'skin', hair: 'bun', hat: 'scarf', scarfRamp: 'pink', top: 'red', style: 'side', apron: 'indigo', pants: 'indigo', item: 'basket', blush: true, smile: true,
+      },
+    ],
+  },
+);
+
 // 货郎、骡帮没有自己的院子，晚上借住杂货铺（骡帮平常不在村里，只是名义上的落脚处）
 for (const p of HOUSEHOLDS.find((h) => h.id === 'square').people) if (p.id === 'qian_xiaoer' || p.caravan) p.sleepAt = 'store';
 
@@ -465,6 +548,12 @@ const MORNING = {
   wu_xiaocui: KID('feedRabbits'),
   zheng_laotou: [[6.0, 'sitGate'], [7.0, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.4, 'work']],
   qian_xiaoer: [[6.5, 'yardWork'], [7.5, 'peddle'], [11.8, 'dinner'], [12.5, 'home'], [13.5, 'peddle']],
+  // 老村址：柳婆婆一早上香、看水；水生下河滩捞漂木；葛石头、白老灰开工；凤仙嫂天不亮放鸭子下河
+  liu_popo: [[5.6, 'riverIncense'], [6.3, 'cook'], [7.2, 'watchWater'], [9.4, 'sitGate'], [10.8, 'cook'], [11.8, 'dinner'], [12.5, 'home'], [13.8, 'watchWater']],
+  liu_shuisheng: [[5.8, 'yardWork'], [6.5, 'driftwood'], [11.6, 'dinner'], [12.3, 'home'], [13.2, 'driftwood']],
+  ge_shitou: [[5.8, 'yardWork'], [6.4, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.3, 'work']],
+  bai_laohui: [[5.6, 'work'], [11.8, 'dinner'], [12.5, 'home'], [13.4, 'work']],
+  miao_fengxian: [[5.4, 'cook'], [6.2, 'tendDucks'], [10.8, 'cook'], [11.6, 'dinner'], [12.3, 'home'], [13.3, 'tendDucks']],
   niu_wanshan: [[6.4, 'caravan']], // 骡帮：逢集一早进村，十一点半散集回去（其余日子不来）
   shi_wa: [[6.4, 'caravan']],
 };
@@ -487,6 +576,7 @@ export const FRIENDS = [
   ['xiao_shun', 'xiao_liuzi'], ['xiao_liuzi', 'qian_xiaoer'], // 两个小伙子，加上外来的货郎
   ['zhang_dabao', 'zhao_shitou'], ['zhao_shitou', 'sun_shuanzi'], ['zhang_dabao', 'sun_shuanzi'], ['yang_xiaohu', 'zhang_dabao'], // 男孩一伙
   ['wang_xiaomei', 'liu_erya'], ['liu_erya', 'wu_xiaocui'], ['wang_xiaomei', 'wu_xiaocui'], // 女孩一伙
+  ['liu_popo', 'chen_daniang'], ['liu_popo', 'zheng_laotou'], ['ge_shitou', 'bai_laohui'], ['ge_shitou', 'zhang_tiechui'], ['miao_fengxian', 'liu_shuisheng'], ['miao_fengxian', 'liu_cuihua'], ['liu_shuisheng', 'xiao_shun'], // 老村址：柳婆婆和陈大娘、老郑是老辈的老相识；两个手艺人；凤仙嫂和水生斗嘴
 ];
 export const friendsOf = (id) => FRIENDS.flatMap(([a, b]) => (a === id ? [b] : b === id ? [a] : []));
 
@@ -497,7 +587,7 @@ export const RESIDENTS = HOUSEHOLDS.flatMap((h) => h.people.map((p) => ({ ...p, 
  */
 export function addResident(p) {
   const h = HOUSEHOLDS.find((x) => x.id === p.home);
-  p.household = `${h ? h.name.replace(/（.*）/, '') : ''}（借住）`;
+  if (!p.oldHouse) p.household = `${h ? h.name.replace(/（.*）/, '') : ''}（借住）`; // 住老村址老宅的，household 在 newcomers.js 里写好了
   if (h && !h.people.includes(p)) h.people.push(p);
   if (!RESIDENTS.includes(p)) RESIDENTS.push(p);
 }

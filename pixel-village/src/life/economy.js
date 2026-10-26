@@ -38,6 +38,9 @@ export const GOODS = {
   basket: { name: '筐', unit: '个', price: 8, export: true },
   bun: { name: '烧饼', unit: '个', price: 3, decay: 1 }, // 卖吃食的（村里特意留的空缺）
   clothes: { name: '衣裳', unit: '件', price: 40 }, // 裁缝做的（空缺）
+  lime: { name: '石灰', unit: '斤', price: 3 }, // 老村址白家石灰窑：盘炕、刷墙、修房子（太沉，骡帮不收）
+  stone: { name: '条石', unit: '块', price: 6 }, // 老村址葛家石匠院：砌墙基、修猪圈、盘灶台
+  duckEgg: { name: '鸭蛋', unit: '个', price: 2, decay: 0.05 }, // 老村址凤仙嫂的鸭蛋（腌成咸鸭蛋放得住）
 };
 
 /** 哪户算哪户：村口的几个人各自一户；骡帮是村外的。 */
@@ -66,6 +69,11 @@ const MAKE = [
   { act: ['sitGate', 'garden'], who: 'chen_mancang', good: 'basket', rate: 0.15, max: 8 },
   { act: ['yardWork'], who: ['he_xiulan', 'sun_qiaoyun'], good: 'pickle', rate: 0.06, in: { veg: 2, salt: 0.1 }, max: 6, seasons: ['autumn', 'winter'] },
   { act: ['mill'], good: 'flour', rate: 2, in: { grain: 1 }, max: 30 },
+  // 老村址
+  { act: ['driftwood'], good: 'wood', rate: 4, max: 30 }, // 水生捞漂木，晒干当柴卖
+  { act: ['tendDucks'], good: 'duckEgg', rate: 2.5, max: 30 }, // 凤仙嫂的鸭蛋
+  { act: ['work'], who: 'ge_shitou', good: 'stone', rate: 0.6, max: 20 },
+  { act: ['work'], who: 'bai_laohui', good: 'lime', rate: 2, in: { wood: 0.15 }, max: 60 },
 ];
 
 /** 天天吃用（每户每天）：n = 人头（小孩算 0.6 个）。返回 { 东西: 数量 }。 */
@@ -86,7 +94,7 @@ function targetOf(u) {
 }
 
 /** 开局的家底（铜钱）。 */
-const PURSE = { headman: 320, store: 420, doctor: 160, smith: 140, carpenter: 120, tofu: 110, school: 60, shepherd: 90, farmA: 80, farmB: 100, farmC: 100, zheng_laotou: 40, qian_xiaoer: 90 };
+const PURSE = { headman: 320, store: 420, doctor: 160, smith: 140, carpenter: 120, tofu: 110, school: 60, shepherd: 90, farmA: 80, farmB: 100, farmC: 100, zheng_laotou: 40, qian_xiaoer: 90, riverTemple: 40, mason: 70, limeKiln: 60, duckYard: 50 };
 
 export class Economy {
   constructor(V) {
@@ -139,6 +147,9 @@ export class Economy {
       if (u.id === 'doctor') Object.assign(st, { honey: 6, pill: 20 });
       if (u.id === 'farmA') st.basket = 3;
       if (u.id === 'shepherd') st.wool = S === 'spring' ? 0 : 6;
+      if (u.id === 'mason') st.stone = 6;
+      if (u.id === 'limeKiln') Object.assign(st, { lime: 20, wood: st.wood + 4 });
+      if (u.id === 'duckYard') st.duckEgg = 8;
       for (const g in st) u.ask[g] = GOODS[g]?.outside && ['store', 'qian_xiaoer'].includes(u.id) ? Math.ceil(GOODS[g].price * 1.5) : GOODS[g]?.price ?? 1; // 杂货铺、货郎卖外来货：进价加五成（翻山背进来的辛苦钱）
     }
   }
@@ -241,6 +252,7 @@ export class Economy {
         for (const g in st) if (GOODS[g]?.decay) st[g] = Math.floor(st[g] * (1 - GOODS[g].decay) + 1e-9); // 放坏
         if (u.members.some((p) => /鸡/.test((p.owns ?? []).join()))) st.egg = (st.egg ?? 0) + (S === 'winter' ? 1 : 3); // 鸡下蛋
         if (u.members.some((p) => p.sex === '男' && adult(p) && p.age >= 16 && p.age < 60)) st.wood = (st.wood ?? 0) + 1; // 有壮劳力的人家：顺手捡柴、劈柴，每天自给一捆
+        if (this.V.C[u.members[0]?.home]?.east && !u.members[0].newcomer) st.grain = (st.grain ?? 0) + 0.35 * u.members.length; // 老村址的几户：坎上开了几块小地，口粮大半自己种
         for (const g in u.ask) { // 调价
           const sold = u.sold[g] ?? 0, left = st[g] ?? 0, base = GOODS[g].price;
           if (sold >= 2 && left <= 2) u.ask[g] = Math.min(base * 2, Math.ceil(u.ask[g] * 1.1));
@@ -252,7 +264,28 @@ export class Economy {
     }
     if (!first) { this.relief(day); this.newcomerDues(day); }
     for (const g in this.missing) { this.missing[g] *= 0.7; if (this.missing[g] < 0.05) delete this.missing[g]; } // 缺口慢慢淡忘
-    if (!first) { this.caravan(day); this.tuition(day); }
+    if (!first) { this.caravan(day); this.tuition(day); this.repairsReady(day); }
+  }
+
+  /** 修房子要的料：石灰、条石、柴（除了自家烧的）。 */
+  static REPAIR = { lime: 4, stone: 2, wood: 3 }; // 一共三十来文：新来的人头几天就攒得齐
+
+  /**
+   * 住进老宅的新人：料备齐了，今天就请葛石头来帮着修（给 6 文帮工钱，手头没钱就算人情），料用掉；
+   * 白天的活见 life/oldsite.js（两个人在院里干一天，傍晚房子换样子）。
+   */
+  repairsReady(day) {
+    const V = this.V;
+    V.repairs ??= [];
+    for (const u of this.units.values()) for (const p of u.members) {
+      if (!p.oldHouse || (V.east?.plotState(p.oldHouse) ?? 2) >= 2 || V.repairs.some((r) => r.plot === p.oldHouse && !r.done)) continue;
+      const st = u.stock, R = Economy.REPAIR;
+      if ((st.lime ?? 0) < R.lime || (st.stone ?? 0) < R.stone || (st.wood ?? 0) - this.keep(u, 'wood') < R.wood) continue;
+      for (const [g, q] of Object.entries(R)) st[g] -= q;
+      const mason = this.unit('mason'), wage = Math.min(6, u.coins);
+      if (mason && wage > 0) { u.coins -= wage; mason.coins += wage; this.record({ day, hour: 6.6, buyer: p.id, from: u.id, seller: 'ge_shitou', to: 'mason', good: null, service: '帮工修房', qty: 1, price: wage, kind: 'cash' }); }
+      V.repairs.push({ plot: p.oldHouse, owner: p.id, day, done: false });
+    }
   }
 
   /** 最低卖到多少：外来货不亏本（进价 × 1.1），自家产的最低半价。 */
@@ -330,6 +363,10 @@ export class Economy {
       for (const [g, q] of Object.entries(job?.in ?? {})) { const need = Math.ceil(q * job.rate * 8) + this.keep(u, g); if ((st[g] ?? 0) < need) w.push({ good: g, qty: need - Math.floor(st[g] ?? 0) }); }
     }
     if (u.members.some((p) => h(`sick/${p.id}`) < 1 / 50)) w.push({ good: 'pill', qty: 2, why: '有人病了' });
+    for (const p of u.members) if (p.oldHouse && (this.V.east?.plotState(p.oldHouse) ?? 2) < 2) { // 住进老宅的：攒修房子的料（排在清单最前头）
+      for (const [g, q] of Object.entries(Economy.REPAIR)) { const need = q + (g === 'wood' ? this.keep(u, 'wood') : 0); if ((st[g] ?? 0) < need) w.unshift({ good: g, qty: Math.ceil(need - (st[g] ?? 0)), why: '修房子' }); }
+    }
+    if (h('duckEgg') < 0.05 + rich * 0.12) w.push({ good: 'duckEgg', qty: 4, why: '想吃咸鸭蛋' }); // 只有老村址凤仙嫂家有
     if (u.id === 'smith' && (st.iron ?? 0) < 4) w.push({ good: 'iron', qty: 6 });
     if (u.id === 'tofu' && (st.soy ?? 0) < 10) w.push({ good: 'soy', qty: 12 });
     if (u.id === 'doctor' && (st.honey ?? 0) < 2) w.push({ good: 'honey', qty: 3 });
@@ -342,6 +379,10 @@ export class Economy {
     // 手艺活：农具钝了找铁匠修，家什松了找木匠修（按次给钱）
     if (farm && season() !== 'winter' && h('fix') < 1 / 4) w.push({ service: '修农具', to: 'smith', price: 6 });
     if (h('fixwood') < 1 / 8) w.push({ service: '修家什', to: 'carpenter', price: 5 });
+    // 老村址的手艺：磨盘磨平了找葛石头来錾；盘炕、刷墙要石灰；砌猪圈、垒灶台要条石
+    if ((u.id === 'tofu' || u.members.some((p) => p.jobId === 'miller')) && h('dress') < 1 / 20) w.push({ service: '錾磨盘', to: 'mason', price: 12 });
+    if (h('lime') < 1 / 30 + rich * 0.03) w.push({ good: 'lime', qty: 4, why: '盘炕、刷墙' });
+    if (farm && h('stone') < 1 / 50) w.push({ good: 'stone', qty: 2, why: '修猪圈、垒灶台' });
     const seen = new Map(); // 同一样东西想买两回：合成一回
     for (const x of w) { const k = x.good ?? x.service; if (seen.has(k)) seen.get(k).qty = Math.max(seen.get(k).qty ?? 1, x.qty ?? 1); else seen.set(k, x); }
     return [...seen.values()].filter((x) => x.service ? x.to !== u.id : !this.sellsItself(u, x.good));
@@ -392,7 +433,7 @@ export class Economy {
       swap = this.barterFor(buyer, seller, price);
       if (swap) kind = 'barter';
       else if (this.tie(v.p.id, sp.id) >= 4 && (seller.owe[buyer.id] ?? 0) + price <= 40) kind = 'credit';
-      else if (v.p.newcomer && this.jobs?.[v.p.jobId]?.in?.[good] && (seller.owe[buyer.id] ?? 0) + price <= 60) kind = 'credit'; // 新来的人开张：干活的原料先赊着，卖了再还（赶集日结）
+      else if (v.p.newcomer && (this.jobs?.[v.p.jobId]?.in?.[good] || (v.p.oldHouse && Economy.REPAIR[good])) && (seller.owe[buyer.id] ?? 0) + price <= 60) kind = 'credit'; // 新来的人开张：干活的原料、修老宅的料先赊着，挣了再还（赶集日结）
     }
     if (!kind) { this.fail(v, good, `钱不够（${buyer.coins}文，要${price}文），没东西可换，也赊不着`); return null; }
     if (kind === 'cash') { buyer.coins -= price; seller.coins += price; }

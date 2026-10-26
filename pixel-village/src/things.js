@@ -73,6 +73,18 @@ export const THINGS = {
   cliffRoad: { name: '挂壁古道', about: '在半山腰的崖壁里一锤一钎凿出来的路，中间一段钻进石头里，外侧留着一排窗洞透光。骡帮驮着山货从这里进出，是西沟通往山外的近路。' },
   mountainTemple: { name: '山神庙', about: '半崖上凿进去一个深龛，一间木头小庙整个缩在里面：红柱前廊、灰瓦顶、檐角往上翘。门前一截木栈台挑出崖面，悬在古道上方，西头挂着一口钟。供着山神爷，进山砍柴、采药的人从古道边的石阶爬上去拜一拜。' },
   slabBridge: { name: '石板桥', about: '几块青石板搭在山溪上，两头垒着石墩，挑着担子也走得过去。' },
+  // 老村址（east.js）
+  ruin: { name: '老宅', about: '' },
+  riverTemple: { name: '河神庙', about: '黄土坎沿上一间小砖庙，红门灰瓦，供着河神爷。大水以后修的，庙门正对着那条冲出来的旧河道。柳婆婆每天一早来上香、扫地。' },
+  floodStele: { name: '水则碑', about: '庙前的一块石碑，碑身上一道红漆横线，是大水那年水漫到的高度——比人还高出一头。碑上刻着那年的年月和"后人勿忘"四个字。' },
+  stonePile: { name: '条石', about: '葛石头从东山上采下来、一块块凿方的条石，码在院里。修堤、砌墙基、盖房子都要用。' },
+  millstoneBlank: { name: '没打完的磨盘', about: '葛石头正在凿的一扇石磨盘，磨齿才錾了一半。豆腐坊、水磨坊的磨盘磨平了，都找他来錾。' },
+  limeKiln: { name: '石灰窑', about: '毛石砌的一座圆窑，青石和柴火一层层码进去，烧上三天三夜，出来就是白花花的石灰。抹墙、勾缝、刷屋子都离不了它。' },
+  limePile: { name: '石灰', about: '刚出窑的生石灰，堆成一堆，见了水就冒热气。白老灰说：修房子，三分砖瓦七分灰。' },
+  oldStage: { name: '老戏台台基', about: '老石峪的戏台，大水那年被冲倒了，只剩一座毛石台基和一根烧黑的柱子茬。老郑小时候就在这台下看戏。' },
+  oldBridge: { name: '冲歪的老石桥', about: '原先过溪的石桥，桥面被大水冲走了，只剩两个桥墩歪在水里。如今搭着一根独木，胆大的孩子才敢走。' },
+  driftwood: { name: '漂木堆', about: '水生从河里捞上来的漂木，码在河滩上晒干，劈了当柴卖。发一回水，上游就冲下来一回。' },
+  oldWillow: { name: '歪脖子老柳', about: '河滩上的一棵老柳树，大水里硬是没倒，只是从此歪着脖子。树干上一人多高的地方有一道刻痕，是柳婆婆的男人当年刻的水印。' },
 };
 
 const ROLE_ABOUT = {
@@ -158,6 +170,7 @@ export function pickThing(list, p) {
 /** 卡片上的标题和标签（不含"此刻"）。 */
 export function describe(t, place) {
   const base = THINGS[t.thing];
+  if (t.spec?.name) return { name: t.spec.name, tags: t.spec.tags ?? [], about: t.spec.about ?? base.about }; // 自己带着名字和介绍的（老村址的老宅、原住户的家）
   if (t.thing === 'house') {
     const s = t.spec;
     return { name: `${place ?? ''}${t.role ?? '屋子'}`, tags: [WALL[s.wall] ?? '青砖墙', ROOF[s.roof] ?? '瓦顶', s.porch ? '带前廊' : null, s.chimney ? '有烟囱' : null].filter(Boolean), about: ROLE_ABOUT[t.role] ?? ROLE_ABOUT.屋子 };

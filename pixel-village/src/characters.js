@@ -265,6 +265,15 @@ function hat(g, p, H, view) {
       else { g.vline(x0 - 1, y0 + 2, y0 + 5, R.khaki[3]); g.vline(x0 + w, y0 + 2, y0 + 5, R.khaki[2]); }
       break;
     }
+    case 'douli': { // 斗笠：竹篾编的尖顶大檐，压得低低的
+      g.rect(CX - 1, y0 - 4, 3, 1, R.wheat[3]);
+      g.rect(x0 + 1, y0 - 3, w - 2, 2, R.wheat[3]);
+      g.hline(x0 + 2, CX, y0 - 3, R.wheat[4]);
+      g.rect(x0 - 3, y0 - 1, w + 6, 2, R.wheat[2]);
+      g.hline(x0 - 3, x0 + w + 2, y0 - 1, R.wheat[3]);
+      g.hline(x0 - 4, x0 + w + 3, y0 + 1, R.wheat[1]);
+      break;
+    }
     case 'scarf': { // 头巾（妇女），带小碎花
       const r = R[p.scarfRamp ?? 'indigo'];
       for (let j = -1; j < H.h - 2; j++) for (let i = -1; i <= w; i++) {

@@ -11,7 +11,7 @@ const page = process.argv[2] ?? 'index';
 const out = resolve(process.argv[3] ?? join(here, 'shots'));
 mkdirSync(out, { recursive: true });
 const chrome = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
-const port = 8093;
+const port = Number(process.env.PORT ?? 8093); // PORT=8094 可以同时跑两个检查
 
 const server = spawn(process.execPath, [join(here, 'serve.mjs'), String(port)], { stdio: 'ignore' });
 for (let i = 0; i < 50; i++) { // 等服务器真的能应答了再开浏览器（机器忙的时候 0.8 秒不一定起得来，页面打不开就成了"没跑完"）
@@ -40,6 +40,7 @@ if (sim) console.log(`sim=${sim}`);
 const audit = dom.match(/data-audit="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"');
 if (audit) console.log(`audit=${audit}`);
 const west = dom.match(/data-west="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"'); if (west) console.log(`west=${west}`);
+const east = dom.match(/data-east="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"'); if (east) console.log(`east=${east}`);
 const things = dom.match(/data-things="([^"]*)"/)?.[1]?.replace(/&quot;/g, "\""); if (things) console.log(`things=${things}`);
 const clicked = dom.match(/data-clicked="([^"]*)"/)?.[1]; if (clicked) console.log(`clicked=${clicked}`);
 const snd = dom.match(/data-sound="([^"]*)"/)?.[1]?.replace(/&quot;/g, '"'); if (snd) console.log(`sound=${snd}`);

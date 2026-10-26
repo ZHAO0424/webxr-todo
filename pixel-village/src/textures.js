@@ -687,6 +687,45 @@ const westDecals = {
   }),
 };
 
+// ---------------------------------------------------------------- 老村址（东边）：卵石河滩、沙洲、冲出来的黄土坎
+
+const eastTiles = {
+  gravel: (r) => paint(36, 36, (g) => { // 卵石滩：灰白的圆石头一颗挨一颗，石缝里是沙
+    g.rect(0, 0, 36, 36, R.loess[3]);
+    for (let i = 0; i < 70; i++) { const x = r() * 36, y = r() * 36, w = 2 + Math.floor(r() * 3), c = [R.stone[3], R.stone[3], R.stone[4], R.stone[2], R.white[2]][Math.floor(r() * 5)]; g.rectw(x, y, w, 2, c); g.pxw(x, y, R.stone[4]); g.rectw(x, y + 2, w, 1, R.stone[1]); }
+  }),
+  sand: (r) => paint(36, 36, (g) => { // 河心洲：细沙，水冲出一道道波纹
+    g.rect(0, 0, 36, 36, R.loess[4]);
+    for (let y = 2; y < 36; y += 5) for (let x = 0; x < 36; x++) if ((x + y * 3) % 7 < 4) g.px(x, y + (Math.floor(x / 6) % 2), R.loess[3]);
+    for (let i = 0; i < 10; i++) g.pxw(r() * 36, r() * 36, R.stone[3]);
+  }),
+  bankWall: (r) => paint(36, 36, (g) => { // 大水冲出来的黄土坎：竖着的土层、雨水冲出的沟，夹着几块露出来的石头和草根
+    g.rect(0, 0, 36, 36, R.loess[3]);
+    for (let y = 0; y < 36; y += 4 + Math.floor(r() * 3)) g.rect(0, y, 36, 1, R.loess[2]);
+    for (let i = 0; i < 6; i++) { const x = Math.floor(r() * 36), len = 8 + r() * 20; for (let k = 0; k < len; k++) g.pxw(x + (k % 5 === 4 ? 1 : 0), r() * 3 + k, R.loess[1]); }
+    for (let i = 0; i < 5; i++) g.rectw(r() * 36, r() * 36, 3, 2, R.stone[2]);
+    for (let i = 0; i < 4; i++) g.rectw(r() * 36, 0, 1, 3, R.grass[2]);
+  }),
+  thatch: (r) => paint(18, 18, (g) => { // 苫房的茅草
+    g.rect(0, 0, 18, 18, R.wheat[2]);
+    for (let i = 0; i < 40; i++) g.rectw(r() * 18, r() * 18, 1, 4, [R.wheat[3], R.wheat[1], R.harvest[2]][i % 3]);
+  }),
+};
+const SEASON_EAST_TILES = {
+  winter: {
+    gravel: (r) => paint(36, 36, (g) => snowField(g, r, 36, 36, [[R.stone[3], 14, 2, 1], [R.stone[2], 8, 2, 1]])),
+    sand: (r) => paint(36, 36, (g) => snowField(g, r, 36, 36, [[R.loess[3], 6, 3, 1]])),
+    thatch: (r) => paint(18, 18, (g) => snowField(g, r, 18, 18, [[R.wheat[2], 6, 1, 2]])),
+  },
+};
+
+/** 老村址用的材质，加进村子的 M。 */
+export function addEastMaterials(M, seed = 53) {
+  const r = makeRng(seed);
+  for (const [k, fn] of Object.entries({ ...eastTiles, ...SEASON_EAST_TILES[season()] })) { M.tex[k] = toTexture(fn(r), { tile: true }); M[k] = toon(M.tex[k]); }
+  return M;
+}
+
 /** 庄稼地的地皮：自己一个随机数种子，buildMaterials 最后加进来（不挪动前面贴图的随机花纹）。 */
 function addFieldMaterials(M, seed = 47) {
   const r = makeRng(seed);

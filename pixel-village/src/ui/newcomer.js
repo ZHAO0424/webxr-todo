@@ -21,7 +21,7 @@ const PARTS = [
   { key: 'build', name: '身材', list: [['', '匀称'], ...Object.entries(BUILDS).map(([k, b]) => [k, b.name])] },
   { key: 'hair', name: '头发', list: Object.entries(HAIRS) },
   { key: 'hairRamp', name: '发色', list: [['hair', '乌黑'], ['brown', '棕黑'], ['khaki', '焦黄'], ['grey', '花白'], ['white', '银白']] },
-  { key: 'hat', name: '帽子', list: [['', '不戴'], ['skullcap', '瓜皮帽'], ['towel', '羊肚手巾'], ['felt', '毡帽'], ['scarf', '头巾'], ['straw', '草帽'], ['furcap', '棉帽']] },
+  { key: 'hat', name: '帽子', list: [['', '不戴'], ['skullcap', '瓜皮帽'], ['towel', '羊肚手巾'], ['felt', '毡帽'], ['scarf', '头巾'], ['straw', '草帽'], ['furcap', '棉帽'], ['douli', '斗笠']] },
   { key: 'top', name: '衣裳', list: COLORS },
   { key: 'style', name: '样式', list: [['', '短褂'], ['side', '大襟'], ['vest', '坎肩'], ['gown', '长衫']] },
   { key: 'pants', name: '裤子', list: COLORS.filter(([c]) => !['pink', 'red', 'white'].includes(c)) },
@@ -31,7 +31,7 @@ const PARTS = [
 ];
 const BRING = [['grain', 10], ['flour', 5], ['cloth', 10], ['wood', 5]];
 
-export function createNewcomerPanel(el, { onCreate, econ, homes }) {
+export function createNewcomerPanel(el, { onCreate, econ, homes, plots = () => [] }) {
   el.className = 'panel px';
   el.id = 'newcomer';
   el.hidden = true;
@@ -113,8 +113,10 @@ export function createNewcomerPanel(el, { onCreate, econ, homes }) {
   };
   const homeChips = () => {
     const list = homes();
-    q('.homes').innerHTML = [`<button class="btn chipbtn" data-k="home" data-v="">让他自己找</button>`, ...list.map((h) => `<button class="btn chipbtn" data-k="home" data-v="${esc(h.id)}">借住${esc(h.name)}（${h.n} 口人）</button>`),
-      '<button class="btn chipbtn" disabled title="以后会加可以住的空房子">空房子（以后会有）</button>'].join('');
+    const old = plots();
+    q('.homes').innerHTML = [`<button class="btn chipbtn" data-k="home" data-v="">让他自己找</button>`, ...list.map((h) => `<button class="btn chipbtn" data-k="home" data-v="${esc(h.id)}">借住${esc(h.name)}（${h.n} 口人）</button>`)].join('')
+      + `<div class="lbl sub">老村址的空房子（往东，大水以后没人住的老宅：住进去不交房钱，攒够石灰、条石和柴就能请葛石头帮着修）</div>`
+      + old.map((h) => `<button class="btn chipbtn" data-k="home" data-v="${esc(h.id)}"${h.taken ? ' disabled' : ''} title="${esc(h.story)}">${esc(h.name)}（${h.taken ? `${esc(h.taken)}住着` : esc(h.state)}）</button>`).join('');
   };
   const vacancies = () => {
     const E = econ(), miss = E?.missing ?? {}, rows = JOBS.filter((j) => j.vacancy).map((j) => {

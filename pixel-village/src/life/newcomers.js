@@ -67,6 +67,8 @@ export function scheduleFor(job) {
 export function addNewcomer(V, p, { arriving = true } = {}) {
   p.id ??= `new_${Date.now().toString(36)}${(V.newcomerCount = (V.newcomerCount ?? 0) + 1)}`; // 同一毫秒加好几个人也不撞
   p.newcomer = true;
+  const plot = p.home && V.C[p.home]?.plot ? V.east.claim(p.home, p) : null; // 选了老村址的一处老宅：自己住（不交房钱），塌了的先苫半边顶
+  if (plot) { p.oldHouse = p.home; p.houseState = plot.state; p.household = `老村址·${plot.who}老宅`; }
   p.home ??= pickHost(p, V);
   p.sleepAt = p.home;
   p.unit = p.id; // 自己一户：钱和东西不跟房东家混
@@ -81,7 +83,7 @@ export function addNewcomer(V, p, { arriving = true } = {}) {
   V.people.push(v);
   V.byId[p.id] = v;
   V.econ.addUnit(p, p.coins ?? 50, p.goods ?? {});
-  for (const o of V.people) if (o.p.home === p.home && o !== v) V.econ.bump(p.id, o.p.id, 3); // 房东一家先熟起来
+  for (const o of V.people) if (o.p.home === (plot ? 'riverTemple' : p.home) && o !== v) V.econ.bump(p.id, o.p.id, 3); // 房东一家先熟起来；住老宅的先认柳婆婆（老村址的领路人）
   if (arriving) { // 现在就来：从村口的桥上走进来
     const [x, z] = V.nav.nearestFree(V.nodes.bridgeS.x, V.nodes.bridgeS.z);
     v.pos.set(x, 0, z);
@@ -93,7 +95,8 @@ export function addNewcomer(V, p, { arriving = true } = {}) {
 
 /** 认人：挨家走到院门口打招呼（说会儿话），每家熟识度 +2；走完一圈就选行当。 */
 ACTIVITIES.meetVillage = (v) => {
-  const V = v.V, homes = ['headman', 'store', 'tofu', 'smith', 'carpenter', 'doctor', 'school', 'farmA', 'farmB', 'farmC', 'shepherd'];
+  const V = v.V, village = ['headman', 'store', 'tofu', 'smith', 'carpenter', 'doctor', 'school', 'farmA', 'farmB', 'farmC', 'shepherd'], old = ['riverTemple', 'mason', 'limeKiln', 'duckYard'];
+  const homes = v.p.oldHouse ? [...old, ...village] : [...village, ...old]; // 住老宅的：先去河神庙见柳婆婆，再认坎上几户，再进村
   v.errandText = '新来的，在挨家认人';
   v.char.setItem(null);
   v.met ??= new Set();

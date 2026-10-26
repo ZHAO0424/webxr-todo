@@ -34,6 +34,9 @@ const NAMES = {
   'thresh@spring': '春耕翻地', 'oxHome@spring': '洒扫庭院',
   // 四季的节日（life/events.js）
   chunjie: '串门拜年',
+  // 老村址的几户（life/oldsite.js）
+  riverIncense: '给河神上香', watchWater: '水则碑前看水', driftwood: '河滩上捞漂木', tendDucks: '河滩上放鸭',
+  'driftwood@winter': '河滩上拾冰凌里的漂木', 'tendDucks@winter': '鸭棚里喂鸭',
   moveBenches: '搬条凳', 'market:benches': '搬条凳腾地方',
   qingming: '上坟踏青', duanwu: '包粽子', 'duanwu:host': '张罗包粽子', zhongqiu: '赏月', 'zhongqiu:leader': '主持拜月',
 };
@@ -41,4 +44,4 @@ const NAMES = {
 export const LABELS = new Proxy(NAMES, { get: (o, k) => (typeof k === 'string' ? o[`${k}@${season()}`] ?? o[k] : o[k]) });
 
 /** 各个院子 / 地方的叫法（卡片上显示"在哪儿"）。 */
-export const PLACES = { headman: '王家', school: '学堂', shepherd: '马家羊圈', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', square: '村口', threshing: '场院' };
+export const PLACES = { headman: '王家', school: '学堂', shepherd: '马家羊圈', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', square: '村口', threshing: '场院', riverTemple: '河神庙', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '苗家鸭棚' };

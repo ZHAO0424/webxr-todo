@@ -17,7 +17,7 @@ import { BOUNDS } from './layout.js';
 const CELL = 0.25;
 const STEP = 0.36;
 const HOP = 1.5; // 鸭鹅扑腾着能跳上 / 跳下的坎（梯田石堰、溪岸），找路时算能走但很费劲
-const COST = { path: 1, pad: 1, grass: 1.4, field: 3, stream: 1, forest: 1.8, rock: 2 };
+const COST = { path: 1, pad: 1, grass: 1.4, field: 3, stream: 1, forest: 1.8, rock: 2, gravel: 1.6, sand: 1.6 };
 
 export class NavGrid {
   /** terrain：walkAt / isWater / typeAt；bounds：覆盖多大（村子 + 西沟时往西多出一块）。 */
@@ -158,12 +158,26 @@ export class NavGrid {
     return c;
   }
 
-  /** A* 找路，返回拉直后的折线 [[x,z], …]（不含起点）；找不到返回 null。 */
-  find(ax, az, bx, bz, { swim = false, person = false, maxNodes = 60000, avoid = null, hop = false } = {}) {
+  /**
+   * A* 找路，返回拉直后的折线 [[x,z], …]（不含起点）；找不到返回 null。
+   * 跨沙盘接缝（this.seams：老村址和村子之间只有溪边一条路）分两段找：先到接缝这边的路口，再从那边的路口找过去——
+   * 一口气从老村址东头找到村里的井，A* 要翻遍大半个山坡，搜索上限内找不到。
+   */
+  find(ax, az, bx, bz, opts = {}) {
+    const s = this.seams?.find((q) => (ax < q.x) !== (bx < q.x) && (q.west[0] < q.x) && (q.east[0] >= q.x)); // 两头的路口必须各在接缝一边，不然会来回递归
+    if (s && !opts.seamed) {
+      const [near, far] = ax < s.x ? [s.west, s.east] : [s.east, s.west];
+      const a = this.find(ax, az, ...near, { ...opts, seamed: true }), b = a && this.find(...far, bx, bz, opts);
+      return a && b ? [...a, far, ...b] : null;
+    }
+    return this.findDirect(ax, az, bx, bz, opts);
+  }
+
+  findDirect(ax, az, bx, bz, { swim = false, person = false, maxNodes = 60000, avoid = null, hop = false } = {}) {
     if (avoid?.length) { // 临时障碍（挡路的人）：标成堵住再找，找完还原
       const was = avoid.map((k) => this.blocked[k]);
       for (const k of avoid) this.blocked[k] = 1;
-      try { return this.find(ax, az, bx, bz, { swim, person, maxNodes, hop }); } finally { avoid.forEach((k, i) => { this.blocked[k] = was[i]; }); }
+      try { return this.findDirect(ax, az, bx, bz, { swim, person, maxNodes, hop }); } finally { avoid.forEach((k, i) => { this.blocked[k] = was[i]; }); }
     }
     [bx, bz] = this.nearestFree(bx, bz, swim, 4, person);
     let start = this.index(ax, az);

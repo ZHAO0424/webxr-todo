@@ -17,7 +17,7 @@ const PATH_HALF = 1.0;
 const BASE = -3;
 
 const GRASS = 0, FIELD = 1, PATH = 2, PAD = 3, STREAM = 4, ROCK = 5, FOREST = 6;
-const TYPES = ['grass', 'field', 'path', 'pad', 'stream', 'rock', 'forest'];
+const TYPES = ['grass', 'field', 'path', 'pad', 'stream', 'rock', 'forest', 'gravel', 'sand']; // gravel / sand：老村址的卵石滩、河心洲（east.js）
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -170,7 +170,7 @@ export function buildTerrain(M, { pads, nodes, edges, aprons = [], bounds = BOUN
     b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   };
   const CROPS = cropMats ?? [M.stubbleW, M.furrow, M.furrow, M.veg]; // 茬地 / 谷子地 / 玉米地 / 菜地
-  const topMat = (k) => [M.grass, CROPS[crop[k]], M.street, M.street, M.water, M.rockTop, M.litter][T[k]];
+  const topMat = (k) => [M.grass, CROPS[crop[k]], M.street, M.street, M.water, M.rockTop, M.litter, M.gravel, M.sand][T[k]];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
     const k = id(i, j);

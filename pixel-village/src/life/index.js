@@ -8,6 +8,7 @@ import { holiday } from './variety.js';
 import { Economy } from './economy.js';
 import { Trading } from './trade.js';
 import { jobById } from './newcomers.js';
+import { repairTick } from './oldsite.js';
 
 export { Clock, RATES, rateAt } from './clock.js';
 export { EVENTS, EVENT_NAMES, ORDER, WEATHER, fmt, lunarLabel } from './events.js';
@@ -106,6 +107,7 @@ export function populate(V, residents, extraAnimals, startHour, { event: forcedE
       V.barber.tick(h, clock.day);
       V.econ.tick(h >= prev ? h - prev : h + 24 - prev); // 干活的攒产出
       V.trade.tick(h); // 到点去买东西
+      repairTick(V, h); // 老村址：请了葛石头来修房子的，白天两个人在院里干
       for (const v of V.people) v.update(t, dt, h);
       for (const b of V.beasts) b.update(t, dt, h);
     },

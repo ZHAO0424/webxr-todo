@@ -13,8 +13,8 @@ import { R, INK } from './palette.js';
 
 const GAP = 0.25; // 藏起来以后空多久再出新的一块（秒）
 
-/** 路牌上的画：木板 + 金色箭头 + 那边是什么（西沟：红石崖和松树；村子：灰瓦房）。 */
-function signArt(left) {
+/** 路牌上的画：木板 + 金色箭头 + 那边是什么（西沟：红石崖和松树；村子：灰瓦房；老村址：塌了的土墙和柳树）。 */
+function signArt(left, to = left ? 'west' : 'village') {
   return paint(32, 14, (g) => {
     g.rect(0, 0, 32, 14, INK);
     g.rect(1, 1, 30, 12, R.wood[3]);
@@ -26,7 +26,11 @@ function signArt(left) {
     g.rect(left ? ax + 5 : ax - 12, 5, 8, 4, INK);
     g.rect(left ? ax + 5 : ax - 12, 6, 8, 2, R.gold[3]);
     const px = left ? 19 : 4; // 小画
-    if (left) {
+    if (to === 'east') {
+      g.rect(px, 8, 3, 3, R.loess[3]); g.rect(px + 3, 6, 2, 5, R.loess[3]); g.rect(px + 5, 9, 2, 2, R.loess[2]); g.px(px + 3, 6, R.loess[4]); // 断墙
+      g.rect(px + 7, 4, 1, 7, R.wood[1]); g.rect(px + 5, 2, 5, 3, R.green[2]); for (let i = 0; i < 4; i++) g.px(px + 5 + i, 5 + (i % 2), R.green[3]); // 柳树
+      g.rect(px - 1, 11, 11, 1, R.water[3]);
+    } else if (to === 'west') {
       g.rect(px, 4, 9, 7, R.rock[3]); g.rect(px, 4, 9, 1, R.rock[5]); g.rect(px, 7, 9, 1, R.rock[2]);
       g.rect(px + 6, 2, 1, 3, R.wood[1]); g.rect(px + 4, 2, 5, 1, R.green[2]); g.rect(px + 5, 1, 3, 1, R.green[3]);
       g.rect(px + 2, 8, 1, 3, R.water[4]);
@@ -40,7 +44,8 @@ function signArt(left) {
 /** 一块路牌：木杆 + 画着箭头的木板。以村里的米为单位建，摆的时候整体缩到沙盘大小。 */
 function signpost(M, left) {
   const g = new THREE.Group();
-  const tex = toTexture(signArt(left));
+  const arts = Object.fromEntries(['west', 'village', 'east'].map((to) => [to, toTexture(signArt(left, to))]));
+  const tex = arts[left ? 'west' : 'village'];
   const board = decal(tex, toon(tex, { alphaTest: 0.5, side: THREE.DoubleSide }));
   board.position.y = 2.2;
   g.add(block(-0.08, 0, -0.08, 0.08, 2.6, 0.08, M.wood), board);
@@ -48,7 +53,8 @@ function signpost(M, left) {
   hit.position.y = 1.9;
   g.add(hit);
   g.scale.setScalar(UNIT * 2.5);
-  return { group: g, hit };
+  const show = (to) => { if (arts[to] && board.material.map !== arts[to]) { board.material.map = arts[to]; board.material.needsUpdate = true; } }; // 指向哪块就画哪块
+  return { group: g, hit, show };
 }
 
 /**
@@ -115,7 +121,7 @@ export function createSceneSwitch({ world, stage, scenes, M, start = 0, onChange
         slide.t += dt;
         if (slide.t >= GAP) { world.position.x = slide.to.shift * UNIT; showOnly(); slide = null; } // 空一下，新的一块出来
       }
-      for (const s of signs) s.group.visible = inXR && !!scenes[cur + s.step];
+      for (const s of signs) { const to = scenes[cur + s.step]; s.group.visible = inXR && !!to; if (to) s.show(to.id); }
     },
     /** XR 里扳机 / 捏合：指着路牌就换场景，返回 true（不再重新摆沙盘）。 */
     onSelect(controller) {

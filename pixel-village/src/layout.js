@@ -67,6 +67,7 @@ export const NODES = {
   fieldW: { x: -39, z: 8 },
   fieldE: { x: 40, z: -3 },
   westGate: { x: -44.7, z: 8 }, // 村西口：路翻过山梁接到西沟（west.js 的 east 节点就在接缝另一边）
+  eastR: { x: 37, z: 24 }, eastGate: { x: 44.7, z: 27 }, // 村东口：顺着溪边绕过山嘴，往上游去老村址（east.js 的 west 节点就在接缝另一边）
   westCliff: { x: -44.7, z: -21.5 }, // 羊圈西边：接西沟的挂壁古道东头（骡帮从这儿进村，羊倌从这儿赶羊上崖顶）
   shepS: { x: -37.5, z: -13 }, shepW: { x: -43.2, z: -15 }, // 从羊圈院门绕到院子西南角，再上去接古道
 };
@@ -80,6 +81,7 @@ export const EDGES = [
   ['e1', 'e2'], ['e2', 'gate:doctor'], ['e1', 'L1'], ['L1', 'gate:school'], ['L1', 'L2'], ['L2', 'gate:farmC'],
   ['w1', 'cw'], ['cw', 'gate:carpenter'], ['w1', 'nw'], ['nw', 'gate:farmA'], ['nw', 'gate:shepherd'],
   ['gate:carpenter', 'fieldW'], ['gate:doctor', 'e3'], ['e3', 'fieldE'], ['fieldW', 'westGate'], ['smithS', 'smithN'], ['smithN', 'cw'], ['gate:shepherd', 'shepS'], ['shepS', 'shepW'], ['shepW', 'westCliff'],
+  ['east', 'eastR'], ['eastR', 'eastGate'],
 ];
 
 /** 豆腐坊自家的大豆地：村西坡最高那几级梯田贴着沙盘西边的一溜。 */

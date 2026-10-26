@@ -10,12 +10,13 @@ import { GOODS, unitOf } from './economy.js';
  */
 
 // 放不下的事（和剃头挑子一样）：做饭、上课、放羊、磨豆腐、吃饭、睡觉、在活动上有角色……
-const BUSY = new Set(['cook', 'school', 'teach', 'herd', 'herdHome', 'thresh', 'oxHome', 'grind', 'boil', 'home', 'dinner', 'sellTofu', 'lightTorches', 'putOutTorches', 'nightWatch', 'gatherDucks', 'deliver', 'haircut', 'barber', 'buy', 'serve', 'caravan', 'caravanHome', 'worship', 'mill', 'firewood', 'fish']);
-const HEAVY = new Set(['grain', 'wood', 'tool', 'wooden', 'iron', 'soy', 'basket']); // 男人去扛
+const BUSY = new Set(['riverIncense', 'repair', 'cook', 'school', 'teach', 'herd', 'herdHome', 'thresh', 'oxHome', 'grind', 'boil', 'home', 'dinner', 'sellTofu', 'lightTorches', 'putOutTorches', 'nightWatch', 'gatherDucks', 'deliver', 'haircut', 'barber', 'buy', 'serve', 'caravan', 'caravanHome', 'worship', 'mill', 'firewood', 'fish']);
+const HEAVY = new Set(['grain', 'wood', 'tool', 'wooden', 'iron', 'soy', 'basket', 'lime', 'stone']); // 男人去扛
 const KIDS_OK = new Set(['tofu', 'match', 'salt']); // 打发孩子去买
+const REMOTE = new Set(['lime', 'stone', 'duckEgg']); // 只有老村址有的东西
 /** 拿着什么回家。 */
-const CARRY = { tofu: ['tray'], veg: ['basket'], egg: ['basket'], salt: ['basket'], match: ['basket'], cloth: ['basket'], pill: ['basket'], honey: ['basket'], pickle: ['basket'], flour: [null, 'sack'], grain: [null, 'sack'], soy: [null, 'sack'], wood: [null, 'firewood'], tool: ['hoe'], wooden: ['box'], iron: ['box'], basket: ['basket'], wool: [null, 'sack'] };
-const PLACE = { headman: '王家', school: '学堂', shepherd: '马家', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', zheng_laotou: '剃头挑子', qian_xiaoer: '货郎那儿' };
+const CARRY = { tofu: ['tray'], veg: ['basket'], egg: ['basket'], salt: ['basket'], match: ['basket'], cloth: ['basket'], pill: ['basket'], honey: ['basket'], pickle: ['basket'], flour: [null, 'sack'], grain: [null, 'sack'], soy: [null, 'sack'], wood: [null, 'firewood'], tool: ['hoe'], wooden: ['box'], iron: ['box'], basket: ['basket'], wool: [null, 'sack'], lime: [null, 'sack'], stone: [null, 'sack'], duckEgg: ['basket'] };
+const PLACE = { headman: '王家', school: '学堂', shepherd: '马家', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', zheng_laotou: '剃头挑子', qian_xiaoer: '货郎那儿', riverTemple: '柳婆婆家', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '凤仙嫂家' };
 const STALL_SELLER = { tofu: 'tofu', goods: 'qian_xiaoer', veg: 'farmC' }; // 集上三个摊子各是谁家的
 
 /** v 今天闲着的时段 [[开始, 结束], …]：日程里不是放不下的事（放羊、做饭、上课、吃饭、歇晌……）、白天 7 点到傍晚 6 点之间、至少半个钟点。赶集日上午都在集上，不算。 */
@@ -58,8 +59,9 @@ export class Trading {
         if (!pool.length) pool = grown;
         const kids = ppl.filter((v) => v.p.body === 'child' && v.p.age >= 8);
         if (KIDS_OK.has(w.good) && kids.length && h('kid') < 0.35) pool = kids;
-        pool = pool.filter((v) => (count.get(v) ?? 0) < 1); // 每人每天最多跑一趟：买东西不打乱正常作息
-        if (!pool.length) return;
+        const cap = u.members.some((p) => p.newcomer) || V.C[u.members[0].home]?.east ? 2 : 1; // 新来的（一个人一户、要开张要修房）和老村址几户（离村子远）每天能跑两趟
+        pool = pool.filter((v) => (count.get(v) ?? 0) < cap); // 每人每天最多跑一趟：买东西不打乱正常作息
+        if (!pool.length) { if (REMOTE.has(w.good) && grown.length) this.runs.push({ v: grown[0], alts: [], unit: u, good: w.good, qty: w.qty, why: w.why, at: 9, done: true }); return; } // 老村址才有的东西（石灰、条石、鸭蛋）：家里没人有空，托货郎捎回来
         const v = pool[Math.floor(h('who') * pool.length)];
         count.set(v, (count.get(v) ?? 0) + 1);
         const wins = freeWindows(v, market), win = wins[Math.floor(h('ampm') * wins.length)] ?? [13.6, 17]; // 只挑他今天真闲着的时段（羊倌上午放羊、中午歇晌，就下午去）
@@ -189,7 +191,7 @@ ACTIVITIES.buy = (v, o) => {
 function fix(v, o) {
   const T = v.V.trade, econ = T.econ, shop = econ.unit(o.to), c = T.counter(shop, v);
   v.errandText = `去${PLACE[o.to] ?? ''}${o.service}`;
-  v.char.setItem(o.service === '修农具' ? 'hoe' : 'box');
+  v.char.setItem(o.service === '修农具' ? 'hoe' : o.service === '錾磨盘' ? null : 'box');
   v.go(c.to);
   v.call(() => {
     T.greet(c.who, v);

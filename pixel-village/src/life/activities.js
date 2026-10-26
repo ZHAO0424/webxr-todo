@@ -12,6 +12,8 @@ const WORK = { // 各家默认的干活位置、手里的家伙、朝哪儿
   doctor: { spot: 'herbs', item: 'box', face: [3.6, 0.8] },
   square: { spot: 'barber', item: 'box', face: [-1.6, -3.7] },
   school: { spot: 'teach', item: 'book', state: 'talk', face: [0, 4] },
+  mason: { spot: 'work', item: 'hammer', face: [2.3, 1.6] }, // 老村址：葛石头蹲着錾磨盘
+  limeKiln: { spot: 'work', item: 'hammer', face: [2.2, 0.6] }, // 白老灰守着窑门看火、砸青石
 };
 
 const pick = makeRng(7); // 带种子：同样的设置每次模拟结果都一样，问题能复现
@@ -311,7 +313,7 @@ export const ACTIVITIES = {
     v.end = () => v.V.steaming.delete(v.home.id);
   },
 
-  sellTofu(v) { const sq = v.V.C.square; v.char.setItem('tray'); v.go(sq.spot('tofu')); v.loop = () => v.do(v.rand() > 0.5 ? 'talk' : 'idle', 8); },
+  sellTofu(v) { const sq = v.V.C.square; v.char.setItem('tray'); v.go(sq.spot('tofu')); v.loop = () => { if (!v.V.nav.freeAt(v.pos.x, v.pos.z, false, true)) v.go(sq.spot('tofu')); v.do(v.rand() > 0.5 ? 'talk' : 'idle', 8); }; }, // 集上摆凳子、摊子把脚底下占了：挪到旁边空地上
 
   tendBees(v) { v.char.setItem(null); v.go(v.home.spot('bees')); v.loop = () => v.do('work', 8); },
 

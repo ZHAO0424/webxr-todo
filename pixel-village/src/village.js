@@ -23,6 +23,7 @@ import { daylight } from './daylight.js';
 import { Smoke, Embers, Fireflies, Rain } from './fx.js';
 import { is } from './season.js';
 import { buildWest, WEST_BOUNDS } from './west.js';
+import { buildEast, EAST_BOUNDS } from './east.js';
 
 /** 石拱桥：桥面 + 两侧带拱洞的立面 + 栏板。b 来自地形（桥中心、走向、桥面高、长度）。 */
 function stoneBridge(M, b) {
@@ -222,7 +223,9 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
 
   // 4.7 西沟：接在村子西边的另一块沙盘（west.js）。和村子同一个世界、同一张导航网格，村民走得过去
   const west = buildWest(M);
-  const pickT = (x) => (x < BOUNDS.x0 ? west.terrain : terrain);
+  // 4.8 老村址：接在村子东边（east.js），一样共用世界、导航网格和村民
+  const east = buildEast(M);
+  const pickT = (x) => (x < BOUNDS.x0 ? west.terrain : x >= BOUNDS.x1 ? east.terrain : terrain);
   const ground = {
     walkAt: (x, z) => pickT(x).walkAt(x, z),
     isWater: (x, z) => pickT(x).isWater(x, z),
@@ -230,7 +233,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
   };
 
   // 5. 导航网格（覆盖村子 + 西沟）：把房子、墙、栅栏、道具、树干都投影成障碍（门扇、灯笼这些会动的不算）
-  const nav = new NavGrid(ground, { ...BOUNDS, x0: WEST_BOUNDS.x0 });
+  const nav = new NavGrid(ground, { ...BOUNDS, x0: WEST_BOUNDS.x0, x1: EAST_BOUNDS.x1 });
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const rel = new THREE.Matrix4();
@@ -246,6 +249,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
   for (const [x, z, r] of trunks) nav.blockDisc(x, z, r);
   for (const c of Object.values(C)) for (const [lx, lz, r] of c.discs) nav.blockDisc(...c.at(lx, lz), r); // 火塘
   west.blockNav(nav);
+  east.blockNav(nav);
+  nav.seams = [{ x: BOUNDS.x1, west: [nodes.eastGate.x, nodes.eastGate.z], east: [east.nodes.west.x, east.nodes.west.z] }]; // 村东口：去老村址只有溪边这一条路（见 nav.find）
 
   // 门：院门、栅栏门登记成门格子（关着时动物过不去，人走到跟前会推开）
   const gates = Object.values(C).flatMap((c) => c.gates.map((gt) => {
@@ -313,10 +318,45 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     c.sillSpots = (c.sills ?? []).map(([lx, lz, seat]) => ({ at: c.at(lx, lz), face: c.at(lx, lz + 4), seat })); // 门槛上：脸朝外
   }
 
+  // 老村址的几户原住户（east.js）：包成和村里院落一样的接口（没有院墙、院门），村民系统按"家"认
+  for (const h of Object.values(east.homes)) {
+    const o = new THREE.Object3D();
+    o.position.set(h.x, h.level, h.z);
+    const c = { id: h.id, w: h.w, d: h.d, rot: 0, level: h.level, object: o, gate: h.gate, gates: [], spots: h.spots, doors: h.doors, windows: [], emitters: [], lanterns: [], trees: [], animals: [], spinners: [], discs: [], lightsOut: 21, windowMat: new THREE.MeshBasicMaterial(), sills: [] };
+    c.at = (lx, lz) => [h.x + lx, h.z + lz];
+    c.spot = (name) => (c.spots[name] ? nav.nearestFree(...c.at(...c.spots[name])) : undefined);
+    c.door = (which) => { const d = c.doors[which] ?? c.doors.house; return c.at(...d); };
+    c.gateOut = () => nav.nearestFree(...c.at(...c.gate));
+    c.randomPoint = (a = [-h.w / 2 + 1, -h.d / 2 + 2.5, h.w / 2 - 1, h.d / 2 - 0.5]) => nav.randomIn(a, c.at, rand) ?? c.at(0, 1.5);
+    c.wallSpots = [-2.2, -1.2, 1.2, 2.2].map((dx) => ({ at: nav.nearestFree(...c.at(dx, h.d / 2 + 0.3)), face: c.at(dx, h.d / 2 + 4) })).filter((s) => nav.reachable(...s.at));
+    c.sillSpots = [];
+    c.east = true;
+    C[h.id] = c;
+  }
+  // 老村址的老宅：新来的人可以选一处住（见 life/newcomers.js），也包成院落的样子
+  for (const h of east.houses) {
+    const x = east.plots[h.id].position.x, z = east.plots[h.id].position.z, level = east.plots[h.id].position.y, w = 8, d = 7;
+    const o = new THREE.Object3D();
+    o.position.set(x, level, z);
+    const c = { id: h.id, w, d, rot: 0, level, object: o, gate: [0.96, d / 2 + 0.8], gates: [], spots: { yard: [1.8, 2.4], sweepA: [-1.2, 2.6], sweepB: [2.6, 2.8], work: [0.4, 2.2] }, doors: { house: [-1.04, 1.7] }, windows: [], emitters: [], lanterns: [], trees: [], animals: [], spinners: [], discs: [], lightsOut: 21, windowMat: new THREE.MeshBasicMaterial(), sills: [] };
+    c.at = (lx, lz) => [x + lx, z + lz];
+    c.spot = (name) => (c.spots[name] ? nav.nearestFree(...c.at(...c.spots[name])) : undefined);
+    c.door = () => c.at(...c.doors.house);
+    c.gateOut = () => nav.nearestFree(...c.at(...c.gate));
+    c.randomPoint = (a = [-3, 1.6, 3.2, 3.0]) => nav.randomIn(a, c.at, rand) ?? c.spot('yard');
+    c.wallSpots = [-2.6, -1.6, 2.8].map((dx) => ({ at: nav.nearestFree(...c.at(dx, d / 2 + 0.5)), face: c.at(dx, d / 2 + 4) })).filter((s) => nav.reachable(...s.at));
+    c.sillSpots = [];
+    c.east = true;
+    c.plot = true;
+    C[h.id] = c;
+  }
+
   // 自检 2：走不到的房门 / 去处、和村子不连通的路网节点、走不通的路（见 audit.js）
   Object.assign(root.userData, auditPaths(nav, C, nodes, terrain, EDGES));
   const wa = auditPaths(nav, {}, west.nodes, west.terrain, west.edges); // 西沟的路：和井连不连通、走不走得通
   west.object.userData.audit = { islands: wa.islands, brokenEdges: wa.brokenEdges };
+  const ea = auditPaths(nav, {}, east.nodes, east.terrain, east.edges); // 老村址的路
+  east.object.userData.audit = { islands: ea.islands, brokenEdges: ea.brokenEdges };
 
   // 祭土地：庙前磕头的位置、排队 / 磕完说话的地方（庙前一圈能站、走得到、不在水里）
   const shrine = road.shrine && (() => {
@@ -333,7 +373,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
   const ducks = [-26, 22, -6, 33 + BAND.d]; // 溪里、溪北岸，往西到铁匠铺门口那片草滩
   const duckReach = nav.flood(-12, 28.5, { swim: true, hop: true }); // 鸭鹅从溪里能到的地方：游、走，碰上石堰土坎扑腾着跳上跳下（铁匠铺门口那片草滩不用修路）
   const V = {
-    M, root, nav, C, nodes, torches, shrine,
+    M, root, nav, C, nodes, torches, shrine, east,
     // 祖坟：每个坟头前一个磕头的位置（清明上坟）
     graves: graveAt && { at: [graveAt[0], graveAt[1]], spots: [-1.5, 0, 1.5].map((dx) => ({ at: nav.nearestFree(graveAt[0] + dx, graveAt[1] + 1.0), face: [graveAt[0] + dx, graveAt[1] - 0.6] })) },
     fields: { ...farm.fields, ...Object.fromEntries(['wheatW', 'wheatE', 'milletW', 'milletE', 'cornW', 'cornE'].map((k) => [k, farm.fields[k].filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p))])), fieldWest: west.work.fieldWest.filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p)) }, // fieldWest：西沟主路边的梯田；wheat / millet / corn：按庄稼分的（各季节的农活用）
@@ -349,6 +389,14 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     },
     well: { center: [WELL.x, WELL.z], spot: () => nav.nearestFree(WELL.x + 1.4, WELL.z + 0.6) },
     duckWater: nav.nearestFree(-12, 28.5),
+    // 老村址（east.js）原住户干活的地方：河神庙前上香、水则碑前看水、河滩（捞漂木、看鸭子）
+    oldSite: {
+      temple: { at: nav.nearestFree(...east.work.temple.at), face: east.work.temple.face },
+      light: (hour) => east.lightIncense(hour),
+      stele: { at: nav.nearestFree(...east.work.stele), face: [east.work.stele[0] - 1.1, east.work.stele[1] - 0.6] },
+      beach: east.work.beach.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
+      duckBeach: east.work.beach.slice(0, 4).map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
+    },
     // 小孩玩耍的去处：溪北岸能站的地方（脸朝水），村口附近的庄稼地
     bankClaims: {}, // 溪边洗衣裳的位置有人占了就换一个
     pool: west.work.pool.map((p) => ({ ...p, at: nav.nearestFree(...p.at) })).filter((p) => nav.reachable(...p.at) && Math.hypot(p.at[0] - p.face[0], p.at[1] - p.face[1]) < 6), // 西沟瀑布下水潭边钓鱼的位置
@@ -469,6 +517,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     return Math.abs(cs * dx - sn * dz) <= c.w / 2 + pad && Math.abs(sn * dx + cs * dz) <= c.d / 2 + pad;
   }) ?? null;
   const whereAt = (x, z) => {
+    if (x >= BOUNDS.x1) return east.whereAt(x, z); // 老村址
     if (x < BOUNDS.x0) return Math.hypot(x - V.mill.at[0], z - V.mill.at[1]) < 6 ? '水磨坊' : Math.hypot(x - V.temple.at[0], z - V.temple.at[1]) < 4 ? '山神庙' : west.placeAt(x, z).name; // 西沟
     const c = compoundAt(x, z);
     if (c) return PLACES[c.id];
@@ -490,13 +539,14 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     C,
     M, // 西沟和村子共用一套材质
     west,
+    east,
     update(t, viewerWorld) {
       const dt = Math.max(0, Math.min(0.1, t - last));
       last = t;
       life.update(t, dt);
       // 走到西沟的人和动物挂到西沟那块沙盘下（两块坐标一样）：换场景时跟着那块一起显示 / 藏起来
       for (const a of life.people.concat(life.beasts)) {
-        const host = a.pos.x < BOUNDS.x0 ? west.object : root;
+        const host = a.pos.x < BOUNDS.x0 ? west.object : a.pos.x >= BOUNDS.x1 ? east.object : root;
         if (a.object.parent !== host) host.add(a.object);
       }
       const hour = life.clock.hour;

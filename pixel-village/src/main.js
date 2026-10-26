@@ -125,12 +125,14 @@ try { localStorage.setItem('pvBuildMs', String(Math.round(performance.now() - t0
 window.loader?.set(0.88, '村民起床…', 0.97, 2500);
 await nextFrame();
 const west = village.west; // 西沟：接在村子西边的另一块沙盘（village.js 里一起建，共用导航网格和村民）
+const east = village.east; // 老村址：接在村子东边
 const backdrop = buildBackdrop();
 // 村子和西沟在同一个世界里（西沟的 x 接着村子往西排），换场景 = 把世界平移过来（scenes.js）
 const world = new THREE.Group();
-world.add(village.object, west.object);
+world.add(village.object, west.object, east.object);
 stage.add(world, backdrop.object);
 const SCENES = [
+  { id: 'east', name: '老村址', object: east.object, things: east.things, shift: -90 },
   { id: 'village', name: '村子', object: village.object, things: village.things, shift: 0 },
   { id: 'west', name: '西沟', object: west.object, things: west.things, shift: 90 },
 ];
@@ -198,8 +200,10 @@ const anchor = createAnchor(renderer, stage, {
   onMove: () => closeCard(), // 双手握住拖、转、拉近推远，或沙盘滑回眼前：卡片收起
 });
 // 换场景：屏幕左右的按钮、键盘 ← →、XR 里沙盘两边的路牌；?scene=west 直接从西沟开始，?seam=1 两块都画（看接缝）
-const scenes = createSceneSwitch({ world, stage, scenes: SCENES, M: village.M, start: Math.max(0, SCENES.findIndex((s) => s.id === params.get('scene'))), onChange: () => closeCard(), showAll: params.has('seam') });
+const scenes = createSceneSwitch({ world, stage, scenes: SCENES, M: village.M, start: Math.max(0, SCENES.findIndex((s) => s.id === (params.get('scene') ?? 'village'))), onChange: () => closeCard(), showAll: params.has('seam') });
 renderer.setClearColor(0x000000, 1);
+/** 跟着人走到另一块沙盘：直接换到那一块（不算"换场景"，不关卡片）。 */
+const goToBoard = (object) => { const i = SCENES.findIndex((s) => s.object === object); if (i >= 0) scenes.go(i - SCENES.indexOf(scenes.current), true); };
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
@@ -265,6 +269,7 @@ function pickScene() {
   const t = pickThing(S.things, p);
   if (t) { selectThing(t); sound.clickThing(t); return; }
   if (S.id === 'west') { selectPlace(west.placeAt(p.x, p.z), p); return; }
+  if (S.id === 'east') { selectPlace(east.placeAt(p.x, p.z), p); return; }
   const c = village.compoundAt(p.x, p.z, 0);
   if (c) selectYard(c);
   else closeCard();
@@ -399,7 +404,7 @@ function personStatus(v, hour = village.life.clock.hour) {
   const key = v.doing.split(':')[0];
   return {
     doing: v.inside ? (night ? '已入睡' : '屋内') : v.errandText ?? LABELS[v.doing] ?? v.doing,
-    where: v.inside ? (v.pos.x < BOUNDS.x0 ? village.whereAt(v.pos.x, v.pos.z) : PLACES[v.p.sleepAt ?? v.p.home]) : village.whereAt(v.pos.x, v.pos.z), // 在西沟的磨坊、山神庙里过夜的，写那个地方
+    where: v.inside ? (v.pos.x < BOUNDS.x0 ? village.whereAt(v.pos.x, v.pos.z) : PLACES[v.p.sleepAt ?? v.p.home] ?? village.whereAt(v.pos.x, v.pos.z)) : village.whereAt(v.pos.x, v.pos.z), // 在西沟的磨坊、山神庙里过夜的，写那个地方
     kind: v.inside && night ? 'sleep' : EVENTS[key] ? 'event' : REST.has(v.doing) || v.inside ? 'rest' : '',
     nextText: nxt ? `下一项 ${hm(nxt[0])}　${label(nxt[1], nxt[2])}` : '今日安排已全部完成',
     dealText: dealLine(v),
@@ -410,7 +415,7 @@ function personStatus(v, hour = village.life.clock.hour) {
 // ---------------------------------------------------------------- 买卖（life/economy.js、trade.js）：成交气泡、卡片上今天的买卖、档案里的家当和账
 
 const ECON = village.life.econ;
-if (params.has('debug')) window.__life = village.life; // 调试面板开着时，控制台里能看经济（__life.econ / __life.trade）
+if (params.has('debug')) { window.__life = village.life; window.__village = village; } // 调试：控制台里能看经济（__life.econ / __life.trade）、导航（__village.nav）
 const bubbles = createTradeBubbles();
 if (!params.has('sim')) V.onTrade = (t) => { bubbles.show(t, V.byId); document.documentElement.dataset.trade = `${t.buyer}:${t.good ?? t.service}`; if (params.has('followtrade') && !sel) { const b = V.byId[t.buyer]; selectPerson(b); host.querySelector('.follow')?.click(); const p = b.object.getWorldPosition(new THREE.Vector3()); controls.target.copy(p); camera.position.set(p.x, p.y + 0.09, p.z + 0.13); } }; // ?followtrade=1：第一笔成交时选中买家、镜头跟过去（截图检查用） // 无头快进时不画气泡；data-trade 给无头截图等成交用
 V.onRun = (pd, t) => bubbles.say(pd.object, [['代买 ', '#e0d4bf'], [`${GOODS[t.good].name}×${t.qty}`, '#ffcc66']]); // 货郎代买：头顶冒一句
@@ -436,12 +441,17 @@ function econOf(id) {
 
 // ---------------------------------------------------------------- 新来的人（「创建居民」卡片 → life/newcomers.js）：存在浏览器里，刷新后照旧在村里过
 
-const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'coins', 'goods', 'home', 'jobId', 'jobWhy'];
+const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'coins', 'goods', 'home', 'jobId', 'jobWhy', 'houseState'];
 const loadNewcomers = () => { try { return JSON.parse(localStorage.getItem('pv.newcomers') ?? '[]'); } catch { return []; } };
 const saveNewcomers = () => { try { localStorage.setItem('pv.newcomers', JSON.stringify(V.people.filter((v) => v.p.newcomer).map((v) => Object.fromEntries(SAVE_KEYS.map((k) => [k, v.p[k]]))))); } catch { /* 隐私窗口存不了：只在这次打开里有效 */ } };
 for (const p of params.has('nonew') || params.has('sim') ? [] : loadNewcomers()) { addNewcomer(V, p, { arriving: false }); addResident(p); } // ?nonew=1：不带存下的新人（截图、回归用）
 // ?addnew=胡二根:磨面|推磨;马翠:做饭|烙饼 开局就放几个新人进村（不存档；无头快进看他们挑什么行当用）
-for (const s of (params.get('addnew') ?? '').split(';').filter(Boolean)) { const [name, sk = ''] = s.split(':'); const p = { name, nick: name, age: 32, sex: '男', skills: sk.split('|').filter(Boolean), traits: ['勤快'], bio: '测试用的新人', likes: '——', body: 'man', skin: 'skin', hair: 'short', top: 'indigo', pants: 'black', coins: 60, goods: { grain: 10 } }; addNewcomer(V, p); addResident(p); }
+for (const s of (params.get('addnew') ?? '').split(';').filter(Boolean)) { const [who, home] = s.split('@'), [name, sk = ''] = who.split(':'); const p = { name, nick: name, home: home || undefined, age: 32, sex: '男', skills: sk.split('|').filter(Boolean), traits: ['勤快'], bio: '测试用的新人', likes: '——', body: 'man', skin: 'skin', hair: 'short', top: 'indigo', pants: 'black', coins: 60, goods: { grain: 10 } }; addNewcomer(V, p); addResident(p); }
+V.onRepaired = (v, plot) => { // 老宅修好了：存档，头顶冒一句
+  if (!v) return;
+  saveNewcomers();
+  if (!params.has('sim')) bubbles.say(v.object, [['房子修好了', '#ffcc66'], [' 搬进新屋', '#e0d4bf']]);
+};
 V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一句，档案重建
   saveNewcomers();
   bubbles.say(v.object, [[`当${v.p.job}`, '#ffcc66'], [' 开张了', '#e0d4bf']]);
@@ -449,13 +459,14 @@ V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一�
 };
 const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
   econ: () => ECON,
-  homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square').map((h) => ({ id: h.id, name: PLACES[h.id] ?? h.name, n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头（以后加空房子也放这儿）
+  homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? h.name, n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
+  plots: () => east.houses.map((h) => ({ id: h.id, name: `${h.who}老宅`, state: ['塌了', '能遮雨', '修好了'][h.state], taken: h.owner ? h.ownerName : null, story: h.story })), // 老村址的老宅：空着的可以选来住
   onCreate(p) {
     const v = addNewcomer(V, p);
     addResident(p);
     saveNewcomers();
     roster = makeRoster();
-    if (scenes.current.object !== village.object) scenes.go(-1, true);
+    if (scenes.current.object !== village.object) goToBoard(village.object);
     selectPerson(v);
     host.querySelector('.follow')?.click();
     if (params.has('closeup')) { const p = v.object.getWorldPosition(new THREE.Vector3()); controls.target.copy(p); camera.position.set(p.x, p.y + 0.06, p.z + 0.09); } // ?closeup=1：镜头推到新人跟前（截图检查用）
@@ -475,7 +486,7 @@ const makeRoster = () => createRoster(document.getElementById('roster'), {
     const v = V.byId[id];
     if (!v) return;
     const host2 = v.object.parent; // 人在另一块沙盘上：先换过去
-    if (host2 !== scenes.current.object && !scenes.busy) scenes.go(host2 === west.object ? 1 : -1, true);
+    if (host2 !== scenes.current.object && !scenes.busy) goToBoard(host2);
     selectPerson(v);
     host.querySelector('.follow')?.click();
   },
@@ -483,7 +494,7 @@ const makeRoster = () => createRoster(document.getElementById('roster'), {
   // 档案里的地图：真实场景从正上方看下去的截图；居民按户标在自家院子上
   map: {
     bounds: BOUNDS,
-    homeAt: (id) => { const c = village.C[id]; return c ? [c.object.position.x, c.object.position.z] : null; },
+    homeAt: (id) => { const c = village.C[id]; return c ? (c.east ? [BOUNDS.x1 - 3, Math.max(-20, Math.min(24, c.object.position.z))] : [c.object.position.x, c.object.position.z]) : null; }, // 老村址的几户：地图上标在东边沿（往东就是老村址）
     image: () => (mapImage ??= mapSnapshot()),
   },
 });
@@ -505,7 +516,7 @@ function mapSnapshot() {
   cam.position.set(c.x, c.y + 5, c.z);
   cam.lookAt(c);
   cam.updateMatrixWorld();
-  const hide = [backdrop.object, west.object, marker, ...village.life.people.map((v) => v.object), ...village.life.beasts.map((b) => b.object)].filter((o) => o?.visible);
+  const hide = [backdrop.object, west.object, east.object, marker, ...village.life.people.map((v) => v.object), ...village.life.beasts.map((b) => b.object)].filter((o) => o?.visible);
   hide.forEach((o) => { o.visible = false; });
   applyLight(daylight(11), true); // 中午的光（会顺手换天空，所以先调光再去掉背景；下一帧 applyLight 照村里的钟换回来）
   const bg = scene.background;
@@ -554,6 +565,7 @@ if (params.get('pick')) {
   const id = params.get('pick');
   if (id.startsWith('beast:')) selectBeast(village.life.beasts[Number(id.slice(6))]);
   else if (id.startsWith('thing:')) { const [, k, n] = id.split(':'); selectThing(village.things.filter((t) => t.thing === k)[Number(n ?? 0)]); } // ?pick=thing:millstone
+  else if (id.startsWith('east:')) { const [, k, n] = id.split(':'); selectThing(east.things.filter((t) => t.thing === k)[Number(n ?? 0)]); } // ?scene=east&pick=east:ruin:2
   else if (id.startsWith('west:')) { const [, k, n] = id.split(':'); selectThing(west.things.filter((t) => t.thing === k)[Number(n ?? 0)]); } // ?scene=west&pick=west:watermill
   else if (id.startsWith('yard:')) selectYard(village.C[id.slice(5)]);
   else selectPerson(V.byId[id]);
@@ -690,9 +702,10 @@ renderer.setAnimationLoop((_, frame) => {
   }
   const s = village.update(t, viewer);
   west.update(t, { light: s.light, weather: village.life.weather(), viewer, hour: village.life.clock.hour });
+  east.update(t, { light: s.light, weather: village.life.weather(), viewer, hour: village.life.clock.hour });
   if (follow && sel && (sel.v || sel.b) && !scenes.busy) { // 跟着的人走过了村西口：镜头跟着换到那块沙盘
     const host = (sel.v ?? sel.b).object.parent;
-    if (host !== scenes.current.object) scenes.go(host === west.object ? 1 : -1, true);
+    if (host !== scenes.current.object) goToBoard(host);
   }
   scenes.update(dt, inXR() || params.has('signs')); // ?signs=1：桌面上也显示 XR 里的路牌（截图检查用）
   sound.update(t, dt);
@@ -829,7 +842,7 @@ if (params.has('sim')) {
   document.documentElement.dataset.eve = JSON.stringify(eve);
   { // 经济自检：铜钱守恒、断粮、每天成交多少、怎么付的、缺口、各户家底
     const E = village.life.econ, tr = E.trades, by = (f) => tr.reduce((m, t) => ((m[f(t)] = (m[f(t)] ?? 0) + 1), m), {});
-    document.documentElement.dataset.econ = JSON.stringify({ newcomers: V.people.filter((v) => v.p.newcomer).map((v) => { const u = E.unitOfV(v); return `${v.p.name}@${v.p.home} ${v.p.job}（${v.p.jobWhy ?? ''}）${u.coins}文 产${JSON.stringify(u.made)} 卖出${E.trades.filter((t) => t.to === u.id && t.kind !== 'gift').length}笔 认识${[...E.ties.entries()].filter(([k, n]) => k.includes(v.p.id) && n >= 2).length}人`; }), days: E.day, audit: E.audit(), trades: tr.length, perDay: by((t) => t.day), kind: by((t) => t.kind), goods: by((t) => t.good ?? t.service), hungry: E.hungry.slice(-20), fails: E.fails.slice(-15), missing: E.missing,
+    document.documentElement.dataset.econ = JSON.stringify({ repairs: (V.repairs ?? []).map((r) => `${r.plot}:第${r.day}天${r.done ? '✓' : ''}`), plots: east.houses.filter((h) => h.owner).map((h) => `${h.id}:${h.ownerName}:${h.state}`), oldSite: ['riverTemple', 'mason', 'limeKiln', 'duckYard'].map((id) => { const u = E.unit(id); return u && `${id} ${u.coins}文 ${JSON.stringify(Object.fromEntries(Object.entries(u.stock).filter(([, n]) => n >= 1).map(([g, n]) => [g, Math.round(n)])))} 卖出${E.trades.filter((t) => t.to === id && t.kind !== 'gift').length}笔`; }), newcomers: V.people.filter((v) => v.p.newcomer).map((v) => { const u = E.unitOfV(v); return `${v.p.name}@${v.p.home} ${v.p.job}（${v.p.jobWhy ?? ''}）${u.coins}文 产${JSON.stringify(u.made)} 卖出${E.trades.filter((t) => t.to === u.id && t.kind !== 'gift').length}笔 认识${[...E.ties.entries()].filter(([k, n]) => k.includes(v.p.id) && n >= 2).length}人`; }), days: E.day, audit: E.audit(), trades: tr.length, perDay: by((t) => t.day), kind: by((t) => t.kind), goods: by((t) => t.good ?? t.service), hungry: E.hungry.slice(-20), fails: E.fails.slice(-15), missing: E.missing,
       units: [...E.units.values()].map((u) => `${u.id}:${u.coins}文 粮${Math.round(u.stock.grain ?? 0)} 柴${Math.round(u.stock.wood ?? 0)}${Object.keys(u.owe).length ? ' 欠他' + JSON.stringify(u.owe) : ''}`),
       asks: Object.fromEntries([...E.units.values()].filter((u) => Object.keys(u.sold).length || u.id === 'tofu').map((u) => [u.id, u.ask])),
       sample: tr.slice(-12).map((t) => `${t.day}d${t.hour.toFixed(1)} ${t.buyer}←${t.seller} ${t.good ?? t.service}×${t.qty} ${t.price}文 ${t.kind}${t.swap ? `(${t.swap.good}×${t.swap.qty})` : ''} ${t.place ?? ''}`) });
@@ -847,6 +860,7 @@ scene.traverseVisible((o) => { // 只算当前这块沙盘（另一块藏着不�
 document.documentElement.dataset.tris = String(Math.round(tris)); // 三角面数（不含阴影那一遍）
 document.documentElement.dataset.graves = JSON.stringify(village.life.people[0].V.graves?.at ?? null); // 祖坟在哪（截图对镜头用）
 document.documentElement.dataset.calls = String(drawables); // 每只眼大约这么多 draw call（不含阴影）
+document.documentElement.dataset.east = JSON.stringify({ audit: east.object.userData.audit, bake: east.object.userData.bake, flora: east.object.userData.flora, floating: east.object.userData.floating, coplanar: { found: east.object.userData.coplanar.found, left: east.object.userData.coplanar.left }, things: east.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
 document.documentElement.dataset.west = JSON.stringify({ audit: west.object.userData.audit, pasture: V.pasture.length, work: { fieldWest: V.fields.fieldWest.length, woods: V.woods.filter((w) => w.at[0] < -45).length, mill: V.mill.at.map((v) => +v.toFixed(1)) }, bake: west.object.userData.bake, flora: west.object.userData.flora, floating: west.object.userData.floating, coplanar: { found: west.object.userData.coplanar.found, left: west.object.userData.coplanar.left, leftSamples: west.object.userData.coplanar.leftSamples }, bridges: west.terrain.bridges.length, things: west.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
 document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);
 document.documentElement.dataset.audit = JSON.stringify({ perchFix: village.object.userData.perchFix, coplanar: village.object.userData.coplanar, flora: village.object.userData.flora, floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
