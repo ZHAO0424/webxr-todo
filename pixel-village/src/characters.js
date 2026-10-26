@@ -762,6 +762,334 @@ export function restViews(p) {
   return { front, back, side, b, L: layout(b, 0), hand: front.arms.right, CX, FEET };
 }
 
+/**
+ * 营生卡片上的家伙图标：16 × 16 的像素画，一行一个字符串，字符对颜色（ICON_INK）；外面一圈黑边自动描。
+ * 和手里拿的（ITEMS，几个像素）分开画：卡片上放大了看，要一眼认得出是什么。
+ */
+const ICON_INK = {
+  w: R.wood[3], W: R.wood[4], v: R.wood[2],
+  g: R.grey[1], G: R.grey[2], H: R.grey[3], k: R.black[2],
+  p: R.paper[2], P: R.paper[3], q: R.paper[1],
+  r: R.red[2], R: R.red[3],
+  y: R.gold[3], Y: R.gold[4], o: R.gold[2],
+  l: R.leaf[3], L: R.leaf[4], e: R.leaf[2],
+  b: R.brown[3], B: R.brown[4], n: R.brown[2],
+  c: R.water[3], C: R.water[4],
+  x: R.black[1], s: R.smoke[3], S: R.smoke[2],
+  i: R.indigo[3], I: R.indigo[4],
+  h: R.wheat[3], J: R.wheat[4], j: R.wheat[2],
+  a: R.loess[3], A: R.loess[4], z: R.loess[2],
+  m: R.autumn[2], M: R.autumn[3],
+};
+const ICON_ART = {
+  hoe: [ // 锄头
+    '................',
+    '...........kGG..',
+    '..........wGHHG.',
+    '.........wW.GHHG',
+    '........wW...GHG',
+    '.......wW.....Gk',
+    '......wW........',
+    '.....wW.........',
+    '....wW..........',
+    '...wW...........',
+    '..wW............',
+    '.wW.............',
+    '.v..............',
+    '................',
+  ],
+  pickaxe: [ // 镐
+    '................',
+    '....kGGGGGGk....',
+    '..kGHHHHHHHHGk..',
+    '.kGG...vw...GGk.',
+    'kG.....wW.....Gk',
+    'k......wW......k',
+    '.......wW.......',
+    '.......wW.......',
+    '.......wW.......',
+    '.......wW.......',
+    '.......wW.......',
+    '.......wW.......',
+    '.......wW.......',
+    '.......vw.......',
+  ],
+  charcoal: [ // 铁锹 + 一堆木炭（还有一点火星）
+    '...vwWWv........',
+    '...v....v.......',
+    '....vwWv........',
+    '.....wW.........',
+    '.....wW.........',
+    '.....wW.........',
+    '.....wW.........',
+    '...kGGGGk.......',
+    '...GHHHHG.......',
+    '...GHHHHG.......',
+    '...GHHHHG..xx...',
+    '...kGHHGk.xxRxx.',
+    '....kGGk.xxxxxRx',
+    '.....kk.xxRxxxxx',
+  ],
+  rod: [ // 钓竿 + 钓上来的鱼
+    '...............w',
+    '..............wv',
+    '.............w.P',
+    '............w..P',
+    '...........w...P',
+    '..........w....P',
+    '.........w.....P',
+    '........w......k',
+    '.......w......cC',
+    '......w......cCCc',
+    '.....w.......cCCc',
+    '....n........cCCc',
+    '...nn.........cc.',
+    '..nn.........c..c',
+    '..n.............',
+  ],
+  can: [ // 浇水的铁皮壶
+    '................',
+    '.....kGGGk......',
+    '....G.....G.....',
+    '....G.....G.....',
+    '..kGGGGGGGGk...C',
+    '..GHHHHHHHGk..kC',
+    '..GHHHHHHHGk.kG.',
+    '..GHHHHHHHGkkGk.',
+    '..GHHHHHHHGGGk..',
+    '..GHHHHHHHGk....',
+    '..GHHHHHHHGk....',
+    '..kGGGGGGGGk....',
+  ],
+  whip: [ // 放牛的鞭子：鞭杆 + 甩出去的鞭梢
+    '................',
+    '............bb..',
+    '..........bb..b.',
+    '.........b.....b',
+    '........b......b',
+    '.......b.....bb.',
+    '......nb...bb...',
+    '.....wWnbbb.....',
+    '....wW..........',
+    '...wW...........',
+    '..wW............',
+    '.wW.............',
+    '.v..............',
+  ],
+  trowel: [ // 泥抹子 + 一块砖
+    '.......G........',
+    '......GHG.......',
+    '.....GHHHG......',
+    '....GHHHHHG.....',
+    '...GHHHHHHHG....',
+    '..GHHHHHHHHHG...',
+    '.kGGGGGGGGGGGk..',
+    '.......k........',
+    '.......k........',
+    '......wWW.......',
+    '......wWW.......',
+    '......wWW...rrrr',
+    '......wWW..rRRRr',
+    '......vwv..rRRRr',
+    '...........rrrrr',
+  ],
+  shears: [ // 剪子
+    '.H............H.',
+    '.GH..........HG.',
+    '..GH........HG..',
+    '...GH......HG...',
+    '....GH....HG....',
+    '.....GH..HG.....',
+    '......GHHG......',
+    '.......kk.......',
+    '......rk.kr.....',
+    '....rrr...rrr...',
+    '...r...r.r...r..',
+    '...r...r.r...r..',
+    '....rrr...rrr...',
+  ],
+  bread: [ // 烧饼，冒着热气
+    '.....s...s......',
+    '....s...s.......',
+    '.....s...s......',
+    '................',
+    '.....jjjjjj.....',
+    '...jjhhhhhhjj...',
+    '..jhJJPJJJPJhj..',
+    '.jhJJJJJPJJJJhj.',
+    '.jhJPJJJJJJPJhj.',
+    '.jhJJJJPJJJJJhj.',
+    '..jhJJJJJJPJhj..',
+    '...jjhhhhhhjj...',
+    '.....jjjjjj.....',
+  ],
+  cleaver: [ // 杀猪刀
+    '................',
+    '.kGGGGGGGGk.....',
+    '.GHHHHHHHHG.....',
+    '.GHHHHHHkHG.....',
+    '.GHHHHHHHHGkwwww',
+    '.GHHHHHHHHGkWWWW',
+    '.GHHHHHHHHGkvvvv',
+    '.GHHHHHHHHG.....',
+    '.GHHHHHHHHG.....',
+    '.kGGGGGGGGk.....',
+  ],
+  teapot: [ // 大茶壶
+    '.......nn.......',
+    '......nBBn......',
+    '....nnnnnnnn....',
+    'nn.nBBbbbbbbn.nn',
+    '.nnBbbbbbbbbbnBn',
+    '..nBbbbbbbbbbn.n',
+    '..nbbbbbbbbbbn.n',
+    '...nbbbbbbbbbnn.',
+    '...nbbbbbbbbbn..',
+    '....nnbbbbbnn...',
+    '.....nnnnnnn....',
+  ],
+  mushrooms: [ // 背篓里的蘑菇、核桃、野菜
+    '..........l.....',
+    '...mm....lLl....',
+    '..mMMm..mmLl....',
+    '..mMPMmmMMMml...',
+    '...pp..mMPMm.l..',
+    '...pp...pp..lLl.',
+    '.jjjjjjjjjjjjjj.',
+    '.jhJhJhJhJhJhJj.',
+    '..jhhjhhjhhjhj..',
+    '..jJhJhJhJhJhj..',
+    '..jhhjhhjhhjhj..',
+    '...jJhJhJhJhj...',
+    '...jjjjjjjjjj...',
+  ],
+  trap: [ // 夹子（套野物的）
+    '....HGHGHGHG....',
+    '...Gk.k.k.k.kG..',
+    '..G..........G..',
+    '.G............G.',
+    '.G....oooo....G.',
+    '.GkkkkoyyokkkkG.',
+    '.G....oooo....G.',
+    '.G............G.',
+    '..G..........G..',
+    '...Gk.k.k.k.kG..',
+    '....HGHGHGHG....',
+    '.........kk.....',
+    '..........kk.k..',
+    '...........kkk..',
+  ],
+  smoker: [ // 熏烟罐 + 一只蜜蜂
+    '..ss.......Y.Y..',
+    '.sSSs.....yxyx..',
+    '..sSSs.....yy...',
+    '....sG..........',
+    '...kGHk.........',
+    '..kGHHHk........',
+    '..GHHHHG.bbbb...',
+    '..GHHHHGbBBBBb..',
+    '..GHHHHGbBBBBb..',
+    '..GHHHHG.bbbb...',
+    '..GHHHHG..b.....',
+    '..GHHHHG........',
+    '..kGGGGk........',
+  ],
+  bowl: [ // 一碗热粥，青花碗
+    '.....s..s.......',
+    '....s..s..s.....',
+    '.....s..s.......',
+    '..........w.....',
+    '...........w....',
+    '.iIIIIIIIIIIwIi.',
+    '.iPPPPPPPPPPPPi.',
+    '..PPiPPPiPPPiP..',
+    '...PPPPPPPPPP...',
+    '....PPPPPPPP....',
+    '.....iiiiii.....',
+  ],
+  buckets: [ // 扁担挑两桶水
+    '.......v........',
+    'wwwwwwwWwwwwwwww',
+    '.k............k.',
+    '.k............k.',
+    '.k............k.',
+    'nnnn........nnnn',
+    'nCCn........nCCn',
+    'wWWw........wWWw',
+    'nnnn........nnnn',
+    'wWWw........wWWw',
+    'wWWw........wWWw',
+    '.nn..........nn.',
+  ],
+  seedling: [ // 一穗良种 + 一盆秧苗
+    '.......J........',
+    '......JhJ.......',
+    '......hJh.......',
+    '.....JhJhJ......',
+    '.....hJhJh......',
+    '......JhJ.......',
+    '......hJh.......',
+    '...l...h...l....',
+    '..lLl..h..lLl...',
+    '...lLl.h.lLl....',
+    '....lllhlll.....',
+    '...zzzzzzzzz....',
+    '...zaaaaaaaz....',
+    '....zaAaaaz.....',
+    '....zzzzzzz.....',
+  ],
+  book: [ // 线装的账本 + 一支毛笔
+    '..iiiiiiiiik...k',
+    '..iIIIIIIIIk..w.',
+    '..ix.IpppI.k.w..',
+    '..iIIIpqpIIkw...',
+    '..ix.IpqpI.w....',
+    '..iIIIpqpIwk....',
+    '..ix.IpppwIk....',
+    '..iIIIIIIx.k....',
+    '..ix.IIIIIIk....',
+    '..iIIIIIIIIk....',
+    '..iiiiiiiiik....',
+    '...PPPPPPPPPk...',
+  ],
+};
+
+/** 只在营生卡片上用的几样图标（手里不拿的东西）：16 × 16。 */
+const ICONS = {
+  flourSack(g) { // 面袋：鼓鼓的白布袋，口上扎着麻绳，袋上印一道红记号
+    g.rect(3, 6, 10, 9, R.paper[2]); g.rect(4, 5, 8, 1, R.paper[2]); g.rect(4, 15, 8, 1, R.paper[1]);
+    g.rect(5, 2, 6, 3, R.paper[2]); g.hline(5, 10, 4, R.brown[3]); g.px(11, 3, R.brown[3]); g.px(12, 2, R.brown[3]); // 扎口的麻绳
+    g.vline(3, 7, 13, R.paper[3]); g.rect(10, 7, 3, 8, R.paper[1]); // 左亮右暗
+    g.rect(6, 9, 4, 3, R.red[2]); g.hline(6, 9, 9, R.red[3]); // 记号
+  },
+  pot(g) { // 刨出来的老陶罐：缺了一个口，罐身一道黑花纹
+    g.rect(4, 5, 8, 9, R.loess[3]); g.rect(3, 7, 10, 5, R.loess[3]); g.rect(5, 14, 6, 1, R.loess[2]); g.rect(5, 3, 6, 2, R.loess[3]); g.hline(4, 11, 3, R.loess[4]);
+    g.vline(4, 6, 12, R.loess[4]); g.rect(10, 6, 2, 8, R.loess[2]);
+    g.hline(3, 12, 9, R.brown[1]); g.px(5, 10, R.brown[1]); g.px(8, 10, R.brown[1]); g.px(11, 10, R.brown[1]); // 花纹
+    for (const [x, y] of [[9, 3], [10, 3], [9, 4], [10, 4], [9, 5]]) g.c[y * g.w + x] = null; // 缺口
+  },
+};
+const ICON_PERSON = { body: 'man', hair: 'short', top: 'indigo', pants: 'black', skin: 'skin' };
+
+/** 一样家伙的图标（营生卡片）：画出来、描黑边、裁到有颜色的那一块，按整数倍放大到大约 px 像素见方。 */
+export function itemCanvas(name, px = 48) {
+  let g;
+  if (ICON_ART[name]) { g = new Grid(22, 22); ICON_ART[name].forEach((row, y) => [...row].forEach((ch, x) => g.px(x + 2, y + 2, ICON_INK[ch]))); } // 四周留出描边的地方
+  else if (ICONS[name]) { g = new Grid(18, 18); ICONS[name](g); } // 图标画在 2…15 之间
+  else g = itemGrid(ICON_PERSON, 0, name);
+  if (!g) return null;
+  g.outline();
+  let x0 = g.w, y0 = g.h, x1 = -1, y1 = -1;
+  for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) if (g.c[y * g.w + x]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  if (x1 < 0) return null;
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, k = Math.max(1, Math.floor(px / Math.max(w, h)));
+  const c = document.createElement('canvas');
+  c.width = w * k; c.height = h * k;
+  const ctx = c.getContext('2d');
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const col = g.c[y * g.w + x]; if (col) { ctx.fillStyle = col; ctx.fillRect((x - x0) * k, (y - y0) * k, k, k); } }
+  return c;
+}
+
 /** 只画手持物（干活帧 work = 0 / 1），手在静止姿势的右手位置。 */
 export function itemGrid(p, work = 0, name = p.item) {
   const g = new Grid(FRAME_W, FRAME_H);

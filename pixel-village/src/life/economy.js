@@ -204,11 +204,13 @@ export class Economy {
     if (!job.makes) return;
     if ((u.stock[job.makes] ?? 0) >= (job.max ?? 12)) return;
     const a = this.acc.get(v) ?? {}; this.acc.set(v, a);
-    a[job.makes] = (a[job.makes] ?? 0) + job.rate * dh * (job.season?.[season()] ?? 1); // 季节影响收成
+    const fueled = job.fuel && Object.entries(job.fuel).every(([g, q]) => (u.stock[g] ?? 0) >= q); // 烧炭的手头有煤：引窑火、封窑，一窑出炭多一半
+    a[job.makes] = (a[job.makes] ?? 0) + job.rate * dh * (job.season?.[season()] ?? 1) * (fueled ? job.fuelBoost ?? 1 : 1); // 季节影响收成
     while (a[job.makes] >= 1) {
       const need = job.in ?? {};
       if (Object.entries(need).some(([g, q]) => (u.stock[g] ?? 0) - this.keep(u, g) < q)) { a[job.makes] = 0.99; u.short = true; break; } // 原料不够（自家口粮留着不动）：今天得去买
       for (const [g, q] of Object.entries(need)) u.stock[g] -= q;
+      if (job.fuel) for (const [g, q] of Object.entries(job.fuel)) if ((u.stock[g] ?? 0) >= q) u.stock[g] -= q;
       u.stock[job.makes] = (u.stock[job.makes] ?? 0) + 1;
       u.made[job.makes] = (u.made[job.makes] ?? 0) + 1;
       u.ask[job.makes] ??= Math.max(1, Math.floor(GOODS[job.makes].price * 0.8)); // 刚开张：便宜点招揽客人
@@ -423,6 +425,7 @@ export class Economy {
     for (const p of u.members) { // 新来的人干活要的原料：备够两天的
       const job = this.jobs?.[p.jobId];
       for (const [g, q] of Object.entries(job?.in ?? {})) { const need = Math.ceil(q * job.rate * 8) + this.keep(u, g); if ((st[g] ?? 0) < need) w.push({ good: g, qty: need - Math.floor(st[g] ?? 0) }); }
+      for (const [g, q] of Object.entries(job?.fuel ?? {})) { const need = Math.ceil(q * job.rate * 6); if ((st[g] ?? 0) < need && [...this.units.values()].some((x) => x !== u && (x.stock[g] ?? 0) >= 1)) w.push({ good: g, qty: need - Math.floor(st[g] ?? 0), why: '烧炭引窑火' }); } // 村里有人挖煤才买
     }
     if (u.members.some((p) => h(`sick/${p.id}`) < 1 / 50)) w.push({ good: 'pill', qty: 2, why: '有人病了' });
     for (const p of u.members) if (p.oldHouse && (this.V.east?.plotState(p.oldHouse) ?? 2) < 2) { // 住进老宅的：攒修房子的料（排在清单最前头）
@@ -505,7 +508,7 @@ export class Economy {
       swap = this.barterFor(buyer, seller, price);
       if (swap) kind = 'barter';
       else if (this.tie(v.p.id, sp.id) >= 4 && (seller.owe[buyer.id] ?? 0) + price <= 40) kind = 'credit';
-      else if (v.p.newcomer && (this.jobs?.[v.p.jobId]?.in?.[good] || (v.p.oldHouse && Economy.REPAIR[good])) && (seller.owe[buyer.id] ?? 0) + price <= 60) kind = 'credit'; // 新来的人开张：干活的原料、修老宅的料先赊着，挣了再还（赶集日结）
+      else if (v.p.newcomer && (this.jobs?.[v.p.jobId]?.in?.[good] || this.jobs?.[v.p.jobId]?.fuel?.[good] || (v.p.oldHouse && Economy.REPAIR[good])) && (seller.owe[buyer.id] ?? 0) + price <= 60) kind = 'credit'; // 新来的人开张：干活的原料、修老宅的料先赊着，挣了再还（赶集日结）
     }
     if (!kind) { this.fail(v, good, `钱不够（${buyer.coins}文，要${price}文），没东西可换，也赊不着`); return null; }
     if (kind === 'cash') { buyer.coins -= price; seller.coins += price; }

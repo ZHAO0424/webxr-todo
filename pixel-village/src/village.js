@@ -335,17 +335,17 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
   }
   // 老村址的老宅：新来的人可以选一处住（见 life/newcomers.js），也包成院落的样子
   for (const h of east.houses) {
-    const x = east.plots[h.id].position.x, z = east.plots[h.id].position.z, level = east.plots[h.id].position.y, w = 8, d = 7, rot = east.plots[h.id].rotation.y, cs = Math.cos(rot), sn = Math.sin(rot);
+    const x = east.plots[h.id].position.x, z = east.plots[h.id].position.z, level = east.plots[h.id].position.y, { w, d, lay } = h, rot = east.plots[h.id].rotation.y, cs = Math.cos(rot), sn = Math.sin(rot); // 每处老宅大小、院门、房门不一样（east.js 的 plotLayout）
     const o = new THREE.Object3D();
     o.position.set(x, level, z);
     o.rotation.y = rot;
-    const c = { id: h.id, w, d, rot, level, object: o, gate: [0.96, d / 2 + 0.8], gates: [], spots: { yard: [1.8, 2.4], sweepA: [-1.2, 2.6], sweepB: [2.6, 2.8], work: [0.4, 2.2] }, doors: { house: [-1.04, 1.7] }, windows: [], emitters: [], lanterns: [], trees: [], animals: [], spinners: [], discs: [], lightsOut: 21, windowMat: new THREE.MeshBasicMaterial(), sills: [] };
+    const c = { id: h.id, w, d, rot, level, object: o, gate: lay.gate, gates: [], spots: lay.spots, doors: { house: lay.door }, windows: [], emitters: [], lanterns: [], trees: [], animals: [], spinners: [], discs: [], lightsOut: 21, windowMat: new THREE.MeshBasicMaterial(), sills: [] };
     c.at = (lx, lz) => [x + cs * lx + sn * lz, z - sn * lx + cs * lz]; // 老宅各转了一点角度
     c.spot = (name) => (c.spots[name] ? nav.nearestFree(...c.at(...c.spots[name])) : undefined);
     c.door = () => c.at(...c.doors.house);
     c.gateOut = () => nav.nearestFree(...c.at(...c.gate));
-    c.randomPoint = (a = [-3, 1.6, 3.2, 3.0]) => nav.randomIn(a, c.at, rand) ?? c.spot('yard');
-    c.wallSpots = [-2.6, -1.6, 2.8].map((dx) => ({ at: nav.nearestFree(...c.at(dx, d / 2 + 0.5)), face: c.at(dx, d / 2 + 4) })).filter((s) => nav.reachable(...s.at));
+    c.randomPoint = (a = lay.area) => nav.randomIn(a, c.at, rand) ?? c.spot('yard');
+    c.wallSpots = [-w / 3, -w / 6, w / 3].map((dx) => ({ at: nav.nearestFree(...c.at(dx, d / 2 + 0.5)), face: c.at(dx, d / 2 + 4) })).filter((s) => nav.reachable(...s.at));
     c.sillSpots = [];
     c.east = true;
     c.plot = true;

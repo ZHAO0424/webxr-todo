@@ -50,10 +50,12 @@ const SHAPES = {
     for (const [x, z, h] of [[0, 0, 2], [2, 1, 1], [-2, -1, 1], [1, -2, 1]]) for (let y = 0; y < h; y++) { v(x, y, z, R.stone[2]); v(x + 1, y, z, R.stone[3]); }
   }, [3, 3, 3]),
 };
+/** 野花野草的几种体素模型（老村址也拿去用）。 */
+export const floraGeometries = () => Object.fromEntries(Object.entries(SHAPES).map(([k, f]) => [k, f()]));
 const WEIGHTS = [['tuft', 0.3], ['foxtail', 0.2], ['daisy', 0.18], ['aster', 0.12], ['dandelion', 0.1], ['pebbles', 0.1]];
 
 /** 土地庙：一人高的小砖龛，坡顶，里面红底，门前一个香炉。 */
-function shrine(M) {
+export function shrine(M) {
   const g = new THREE.Group();
   g.add(block(-0.75, 0, -0.55, 0.75, 0.35, 0.55, M.stone)); // 台基
   g.add(block(-0.6, 0.35, -0.45, 0.6, 1.35, -0.3, M.brick), block(-0.6, 0.35, -0.45, -0.45, 1.35, 0.4, M.brick), block(0.45, 0.35, -0.45, 0.6, 1.35, 0.4, M.brick));
@@ -73,7 +75,7 @@ function shrine(M) {
 }
 
 /** 石敢当：路口立的一块石碑，顶上一抹红。 */
-function stoneTablet(M) {
+export function stoneTablet(M) {
   const g = new THREE.Group();
   g.add(block(-0.3, 0, -0.18, 0.3, 0.15, 0.18, M.stone), block(-0.2, 0.15, -0.08, 0.2, 1.05, 0.08, M.stone), block(-0.2, 0.95, -0.09, 0.2, 1.05, 0.09, M.redCloth, { outline: false }));
   return g;

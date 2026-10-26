@@ -116,84 +116,111 @@
     #roster .pet { display: flex; align-items: flex-end; gap: var(--p); }
     #roster .pet canvas { image-rendering: pixelated; }
     /* 来了个新人：和档案一样的横板大卡，左边填人（空缺提示、名字年纪、会什么、性格），右边长相预览、本钱、带的东西 */
-    #newcomer { position: fixed; inset: 5vh 4vw auto; max-height: 90vh; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 6; font-size: calc(16 * var(--f)); line-height: calc(24 * var(--f)); }
-    #newcomer, #newcomer * { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; } /* 这张大卡整页用 16 像素点阵字（游戏里的对话框那样大） */
-    #newcomer .rhead .title { font-size: calc(32 * var(--f)) !important; line-height: calc(36 * var(--f)) !important; }
-    #newcomer .rhead .tabs .btn { padding: 0 calc(3 * var(--p)); line-height: calc(28 * var(--f)); }
-    #newcomer .stagebox { display: flex; flex-direction: column; gap: calc(4 * var(--p)); }
-    #newcomer .views .v canvas { margin: 0 auto; }
-    #newcomer .arrows { display: flex; align-items: center; justify-content: center; gap: calc(4 * var(--p)); }
-    #newcomer .arr { width: calc(40 * var(--f)); line-height: calc(40 * var(--f)); font-size: calc(16 * var(--f)); text-align: center; padding: 0; }
-    #newcomer .cur { min-width: calc(110 * var(--p)); display: flex; flex-direction: column; align-items: center; }
-    #newcomer .cur .pn { color: var(--gold); } #newcomer .cur .pv { font-size: calc(16 * var(--f)); } #newcomer .cur .pi { color: var(--dim); font-style: normal; }
-    #newcomer .ptabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(56 * var(--p)), 1fr)); gap: calc(2 * var(--p)); }
-    #newcomer .ptab { display: flex; flex-direction: column; align-items: flex-start; padding: var(--p) calc(3 * var(--p)); line-height: calc(22 * var(--f)); text-align: left; }
-    #newcomer .ptab i { font-style: normal; color: var(--dim); }
-    #newcomer .ptab.on i { color: var(--ink); }
-    #newcomer .partbox .lbl { margin-top: calc(4 * var(--p)); }
-    #newcomer .seg { display: flex; gap: calc(2 * var(--p)); }
-    #newcomer .seg .chipbtn { min-width: calc(30 * var(--p)); text-align: center; }
+    /* 「创建居民」：屏幕当中的弹窗，后面的沙盘压暗。字：标题 32、正文 16（点阵字的整数倍），分区标题金色带一道底线 */
+    #newcomer { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(calc(520 * var(--p)), 96vw); max-height: 94vh; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 6;
+                font-size: calc(16 * var(--f)); line-height: calc(24 * var(--f)); box-shadow: 0 0 0 100vmax rgba(14, 10, 8, .55); }
     #newcomer[hidden] { display: none; }
-    #newcomer .rhead { display: flex; align-items: center; gap: calc(3 * var(--p)); padding-right: calc(10 * var(--p)); }
-    #newcomer .rhead .title { color: var(--gold); font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
-    #newcomer .rhead .hint { color: var(--dim); }
-    #newcomer .nbody { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: calc(3 * var(--p)); overflow: auto; }
-    #newcomer .ncol { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
-    #newcomer .box { padding: calc(3 * var(--p)) calc(4 * var(--p)); }
-    #newcomer .lbl { color: var(--gold); margin: calc(2 * var(--p)) 0 var(--p); }
-    #newcomer .lbl:first-child { margin-top: 0; }
-    #newcomer .row2 { display: flex; gap: calc(4 * var(--p)); margin-bottom: var(--p); }
-    #newcomer label { display: flex; align-items: center; gap: calc(2 * var(--p)); color: var(--dim); }
-    #newcomer .in { font: inherit; color: var(--text); background: #17120d; border: 0; box-shadow: inset 0 var(--f) 0 #0e0b08, 0 0 0 var(--f) var(--line); padding: var(--f) calc(2 * var(--p)); width: calc(44 * var(--p)); }
-    #newcomer input[type=number].in { width: calc(18 * var(--p)); }
-    #newcomer .row2 label { display: flex; align-items: center; gap: calc(2 * var(--p)); flex: 1; }
-    #newcomer .row2 .in { flex: 1; width: auto; }
-    #newcomer .in.wide { width: 100%; box-sizing: border-box; margin-top: var(--p); resize: none; }
-    #newcomer input[type=range].in { padding: 0; accent-color: var(--gold); }
-    #newcomer .chips { display: flex; flex-wrap: wrap; gap: var(--p); }
-    #newcomer .chips .lbl.sub { flex-basis: 100%; margin: var(--p) 0 0; color: var(--dim); }
-    #newcomer .chipbtn { padding: 0 calc(3 * var(--p)); line-height: calc(26 * var(--f)); }
-    #newcomer .chips.small .chipbtn { line-height: calc(24 * var(--f)); }
-    #newcomer .chips { gap: calc(2 * var(--p)); }
-    #newcomer .in { line-height: calc(26 * var(--f)); }
-    #newcomer .seg { display: flex; gap: var(--p); }
-    #newcomer .tabs { display: flex; gap: var(--p); }
-    #newcomer .nbody[hidden] { display: none; }
-    #newcomer .look-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    #newcomer .info-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    #newcomer .stagebox { display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
-    #newcomer .views { flex: 1; display: flex; justify-content: center; align-items: flex-end; gap: calc(6 * var(--p)); background: var(--stage-bg); box-shadow: 0 0 0 var(--f) var(--ink); padding: calc(6 * var(--p)) calc(4 * var(--p)) calc(3 * var(--p)); min-height: calc(110 * var(--p)); }
-    #newcomer canvas { display: block; image-rendering: pixelated; }
-    #newcomer .ptabs { display: flex; flex-wrap: wrap; gap: var(--p); margin-bottom: calc(3 * var(--p)); }
-    #newcomer .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(30 * var(--p)), 1fr)); gap: calc(2 * var(--p)); }
-    #newcomer .opt { display: flex; flex-direction: column; align-items: center; gap: var(--f); padding: var(--p) 0; line-height: calc(14 * var(--f)); }
-    #newcomer .opt .thumb { background: var(--face-bg); padding: var(--f) calc(2 * var(--f)) 0; box-shadow: 0 0 0 var(--f) var(--ink); }
-    #newcomer .opt.on .thumb { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--gold); }
-    #newcomer .mini { display: flex; gap: calc(4 * var(--p)); align-items: center; }
-    #newcomer .mini .pv { background: var(--stage-bg); padding: calc(2 * var(--p)); box-shadow: 0 0 0 var(--f) var(--ink); }
-    #newcomer .mini .who { display: flex; flex-direction: column; } #newcomer .mini .who b { color: var(--gold); font-weight: normal; }
-    #newcomer .vrow { display: flex; gap: calc(3 * var(--p)); align-items: baseline; flex-wrap: wrap; }
-    #newcomer .vrow b { color: var(--gold); font-weight: normal; }
-    #newcomer .vrow.taken { opacity: 0.55; }
-    #newcomer .job-page { grid-template-columns: 1fr; }
-    #newcomer .jhead { display: flex; justify-content: space-between; align-items: center; gap: calc(3 * var(--p)); flex-wrap: wrap; margin-bottom: calc(3 * var(--p)); }
-    #newcomer .jcats { display: flex; gap: var(--p); flex-wrap: wrap; }
-    #newcomer .jcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(110 * var(--p)), 1fr)); gap: calc(3 * var(--p)); }
-    #newcomer .jcard { display: flex; gap: calc(3 * var(--p)); align-items: center; text-align: left; padding: calc(2 * var(--p)); }
-    #newcomer .jcard .thumb { background: var(--face-bg); padding: var(--f) calc(2 * var(--f)) 0; box-shadow: 0 0 0 var(--f) var(--ink); flex: none; }
-    #newcomer .jcard.on .thumb { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--gold); }
-    #newcomer .jcard .jt { display: flex; flex-direction: column; gap: calc(2 * var(--f)); line-height: calc(24 * var(--f)); }
-    #newcomer .jcard .jt b { font-weight: normal; color: var(--gold); }
-    #newcomer .jcard .jt .dim { white-space: nowrap; }
-    #newcomer .jcard .jt .l1 { display: flex; align-items: center; gap: calc(2 * var(--f)); }
-    #newcomer .jcard[disabled] { opacity: 0.5; }
-    #newcomer .tag { font-style: normal; margin-left: calc(2 * var(--f)); padding: 0 calc(2 * var(--f)); box-shadow: 0 0 0 var(--f) currentColor; }
-    #newcomer .tag.short { color: var(--red); } #newcomer .tag.match { color: var(--gold); }
-    #newcomer .jdesc { margin-top: calc(3 * var(--p)); min-height: calc(40 * var(--f)); line-height: calc(15 * var(--f)); }
+    #newcomer, #newcomer * { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; }
     #newcomer .dim { color: var(--dim); }
-    #newcomer .go { display: flex; justify-content: flex-end; align-items: center; gap: calc(3 * var(--p)); margin-top: calc(2 * var(--p)); }
-    #newcomer .err { color: var(--red); }
-    #newcomer .close { margin-left: auto; --c: var(--red); padding: 0 calc(2 * var(--p)); }
+    #newcomer b { color: var(--gold); }
+    /* 顶栏：标题 + 步骤条 + 关闭 */
+    #newcomer .rhead { display: flex; align-items: center; gap: calc(6 * var(--p)); }
+    #newcomer .rhead .title { color: var(--gold); font-size: calc(32 * var(--f)); line-height: calc(36 * var(--f)); text-shadow: calc(2 * var(--f)) calc(2 * var(--f)) 0 var(--ink); }
+    #newcomer .tabs { display: flex; align-items: center; }
+    #newcomer .tabs .link { width: calc(8 * var(--p)); height: calc(2 * var(--f)); background: var(--line); }
+    #newcomer .step { display: flex; align-items: center; gap: calc(2 * var(--p)); padding: 0 calc(4 * var(--p)) 0 var(--p); line-height: calc(30 * var(--f)); }
+    #newcomer .step b { width: calc(22 * var(--f)); height: calc(22 * var(--f)); line-height: calc(22 * var(--f)); text-align: center; background: var(--ink); color: var(--dim); text-shadow: none; }
+    #newcomer .step.on b { color: var(--gold); }
+    #newcomer .step.done { --c: #45583a; }
+    #newcomer .step.done b { color: var(--green); }
+    #newcomer .close { margin-left: auto; --c: var(--red); width: calc(32 * var(--f)); padding: 0; line-height: calc(30 * var(--f)); font-size: calc(16 * var(--f)); }
+    #newcomer .hint { color: var(--dim); padding-bottom: calc(2 * var(--p)); border-bottom: var(--f) solid var(--line); }
+    /* 三页 */
+    #newcomer .nbody { flex: 1; min-height: 0; display: grid; gap: calc(4 * var(--p)); overflow: hidden; }
+    #newcomer .nbody[hidden] { display: none; }
+    #newcomer .nbody > .box { overflow: auto; min-width: 0; }
+    #newcomer .look-page { grid-template-columns: auto minmax(0, 1fr); }
+    #newcomer .info-page { grid-template-columns: auto minmax(0, 1.25fr) minmax(0, 1fr); }
+    #newcomer .job-page { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+    #newcomer .box { padding: calc(4 * var(--p)) calc(5 * var(--p)); }
+    #newcomer h3 { margin: calc(5 * var(--p)) 0 calc(3 * var(--p)); padding-bottom: var(--p); font-size: calc(16 * var(--f)); line-height: calc(24 * var(--f)); font-weight: normal; color: var(--gold); border-bottom: var(--f) solid var(--line); display: flex; align-items: baseline; gap: calc(4 * var(--p)); }
+    #newcomer h3:first-child { margin-top: 0; }
+    #newcomer h3 small { color: var(--dim); font-size: inherit; }
+    /* 立绘：竖着的框，人站在地上；两边一对大箭头；底下一块木牌 */
+    #newcomer .pcol { display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--p)); }
+    #newcomer .stagebox { display: flex; align-items: center; gap: calc(3 * var(--p)); }
+    #newcomer .portrait { background: linear-gradient(#7d9bab, #b9c9c4 76%, #8a7350 76%, #6b5638); display: grid; place-items: end center; overflow: hidden;
+                          box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(4 * var(--f)) #7a6448, 0 0 0 calc(5 * var(--f)) var(--ink), inset 0 calc(2 * var(--f)) 0 rgba(0, 0, 0, .25); margin: calc(5 * var(--f)); } /* 木头画框 */
+    #newcomer .portrait.big { width: calc(196 * var(--f)); height: calc(320 * var(--f)); padding-bottom: calc(22 * var(--f)); }
+    #newcomer .portrait.small { width: calc(150 * var(--f)); height: calc(244 * var(--f)); padding-bottom: calc(16 * var(--f)); }
+    #newcomer .portrait canvas { display: block; image-rendering: pixelated; }
+    #newcomer .arr { width: calc(40 * var(--f)); height: calc(56 * var(--f)); padding: 0; font-size: calc(16 * var(--f)); }
+    #newcomer .plaque { min-width: calc(196 * var(--f)); padding: var(--p) calc(4 * var(--p)); background: #5a442c; box-shadow: 0 0 0 var(--f) var(--ink), inset 0 var(--f) 0 #8a6a44, inset 0 calc(-2 * var(--f)) 0 #3c2c1c;
+                        display: flex; flex-direction: column; align-items: center; text-align: center; }
+    #newcomer .plaque .pn, #newcomer .plaque .pi, #newcomer .plaque span { color: var(--dim); }
+    #newcomer .plaque b { font-size: calc(16 * var(--f)); }
+    #newcomer .plaque.who { min-width: calc(150 * var(--f)); }
+    /* 表单 */
+    #newcomer .field { display: grid; grid-template-columns: calc(56 * var(--f)) minmax(0, 1fr) auto; align-items: center; gap: calc(3 * var(--p)); margin-bottom: calc(2 * var(--p)); }
+    #newcomer .field .k, #newcomer label .k { color: var(--dim); }
+    #newcomer .field .val { min-width: calc(56 * var(--f)); text-align: right; }
+    #newcomer .field.nok { grid-template-columns: minmax(0, 1fr) auto; }
+    #newcomer .partbox { display: flex; flex-direction: column; }
+    #newcomer .partbox .tools { margin-top: auto; padding-top: calc(4 * var(--p)); display: flex; gap: calc(2 * var(--p)); }
+    #newcomer .seg { display: flex; gap: var(--p); }
+    #newcomer .seg .chipbtn { min-width: calc(56 * var(--f)); text-align: center; }
+    #newcomer .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: calc(4 * var(--p)); }
+    #newcomer label { display: flex; align-items: center; gap: calc(2 * var(--p)); min-width: 0; }
+    #newcomer label .in { flex: 1; min-width: 0; width: auto; }
+    #newcomer .in { font: inherit; color: var(--text); background: #17120d; border: 0; box-shadow: inset 0 var(--f) 0 #0e0b08, 0 0 0 var(--f) var(--line); padding: var(--f) calc(3 * var(--p)); line-height: calc(28 * var(--f)); width: 100%; }
+    #newcomer .in.wide { margin-top: calc(2 * var(--p)); resize: none; display: block; }
+    #newcomer .in::placeholder { color: #7d6d58; }
+    #newcomer input[type=range].in { padding: 0; height: calc(28 * var(--f)); accent-color: var(--gold); background: none; box-shadow: none; }
+    #newcomer .chips { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); }
+    #newcomer .chips .sub { flex-basis: 100%; margin: calc(2 * var(--p)) 0 0; color: var(--dim); }
+    #newcomer .chipbtn { padding: 0 calc(4 * var(--p)); line-height: calc(28 * var(--f)); }
+    #newcomer .chipbtn[disabled] { opacity: .45; cursor: default; }
+    /* 外观：一格格按钮，格子上写着现在选的 */
+    #newcomer .ptabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(104 * var(--f)), 1fr)); gap: calc(2 * var(--p)); }
+    #newcomer .ptab { display: flex; flex-direction: column; align-items: flex-start; padding: calc(2 * var(--p)) calc(4 * var(--p)); text-align: left; }
+    #newcomer .ptab i { font-style: normal; color: var(--dim); }
+    #newcomer .ptab.on i { color: #5a3a14; }
+    /* 营生：背包格子 + 右边详细 */
+    #newcomer .jobbox { display: flex; flex-direction: column; gap: calc(4 * var(--p)); }
+    #newcomer .jcats { display: flex; gap: var(--p); flex-wrap: wrap; }
+    #newcomer .jcats .btn { line-height: calc(30 * var(--f)); }
+    #newcomer .jcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(112 * var(--f)), 1fr)); gap: calc(3 * var(--p)); }
+    #newcomer .jcard { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p)); padding: calc(3 * var(--p)) var(--p) calc(2 * var(--p)); }
+    #newcomer .slot { position: relative; display: grid; place-items: center; width: calc(72 * var(--f)); height: calc(72 * var(--f)); background: radial-gradient(#e8d6ac, #c9ad78 70%, #b0925e); /* 浅木色的格子，家伙描着黑边看得清 */
+                      box-shadow: inset 0 0 0 var(--f) var(--ink), inset 0 0 0 calc(3 * var(--f)) #8a6a44, inset 0 0 0 calc(4 * var(--f)) var(--ink); }
+    #newcomer .slot canvas { display: block; image-rendering: pixelated; }
+    #newcomer .slot.big { width: calc(104 * var(--f)); height: calc(104 * var(--f)); flex: none; }
+    #newcomer .jcard.on .slot { box-shadow: inset 0 0 0 var(--f) var(--ink), inset 0 0 0 calc(3 * var(--f)) var(--gold), inset 0 0 0 calc(4 * var(--f)) var(--ink); }
+    #newcomer .jcard .jt { display: flex; flex-direction: column; align-items: center; line-height: calc(22 * var(--f)); }
+    #newcomer .jcard.on .jt b, #newcomer .jcard.on .jt .dim { color: #2a1a10; text-shadow: none; }
+    #newcomer .jcard[disabled] { opacity: .5; }
+    #newcomer .slot .tag { position: absolute; right: calc(-2 * var(--f)); top: calc(-4 * var(--f)); }
+    #newcomer .tag { font-style: normal; padding: 0 calc(2 * var(--p)); line-height: calc(20 * var(--f)); background: var(--c-craft); color: #fff6e6; box-shadow: 0 0 0 var(--f) var(--ink); }
+    #newcomer .tag.short { background: var(--red); } #newcomer .tag.match { background: var(--c-farm); }
+    #newcomer .undecided { align-self: flex-start; }
+    #newcomer .jdesc .empty { color: var(--dim); padding-top: calc(6 * var(--p)); text-align: center; }
+    #newcomer .jdesc .dh { display: flex; gap: calc(5 * var(--p)); align-items: center; padding-bottom: calc(3 * var(--p)); border-bottom: var(--f) solid var(--line); }
+    #newcomer .jdesc .dn { color: var(--gold); font-size: calc(32 * var(--f)); line-height: calc(36 * var(--f)); text-shadow: calc(2 * var(--f)) calc(2 * var(--f)) 0 var(--ink); }
+    #newcomer .jdesc .tags { display: flex; gap: calc(2 * var(--p)); margin-top: var(--p); }
+    #newcomer .jdesc p { margin: calc(4 * var(--p)) 0; }
+    #newcomer .jdesc dl { display: grid; grid-template-columns: auto 1fr; gap: calc(2 * var(--p)) calc(4 * var(--p)); margin: 0 0 calc(4 * var(--p)); }
+    #newcomer .jdesc dt { color: var(--dim); white-space: nowrap; }
+    #newcomer .jdesc dd { margin: 0; }
+    #newcomer .season { display: flex; align-items: center; gap: calc(2 * var(--p)); }
+    #newcomer .season .k { color: var(--dim); margin-right: calc(2 * var(--p)); }
+    #newcomer .sz { padding: 0 calc(3 * var(--p)); background: #45382a; box-shadow: 0 0 0 var(--f) var(--ink); }
+    #newcomer .sz b { color: inherit; margin-right: var(--f); }
+    #newcomer .sz.hi { background: var(--c-farm); } #newcomer .sz.lo { color: var(--dim); background: #2a2119; }
+    /* 底栏：上一步 / 下一步 / 进村 */
+    #newcomer .foot { display: flex; justify-content: flex-end; align-items: center; gap: calc(3 * var(--p)); padding-top: calc(3 * var(--p)); border-top: var(--f) solid var(--line); }
+    #newcomer .foot .btn { line-height: calc(34 * var(--f)); padding: 0 calc(6 * var(--p)); }
+    #newcomer .foot .btn[hidden] { display: none; }
+    #newcomer .foot .err { color: var(--red); margin-right: auto; }
     body.roster-open #newcomer ~ #card { visibility: hidden; }
     /* 家当和账：存货标签一行，赊账一行，最近的买卖一条条往下 */
     #roster .econ .stock { display: flex; flex-wrap: wrap; gap: var(--p); margin-top: var(--p); }
