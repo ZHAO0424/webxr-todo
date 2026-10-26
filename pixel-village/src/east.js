@@ -93,15 +93,15 @@ const streamHalf = (u) => STREAM_HALF + 0.8 * smooth(-44, -30, u); // 河湾里�
  * tree：院里的树；extra：磨盘、铁匠炉、木料、羊圈；who：原来是谁家的（现在村里哪户的祖宅）；state 2 = 囫囵的（0 / 1 留给旧存档）。
  */
 export const HOUSES = [
-  { id: 'old1', u: -20.5, z: 8.6, rot: 178, w: 11, d: 7.5, kind: 'court', mat: 'brick', roof: 'roof', house: [6.4, 4.2, 3.0], wing: true, pen: 'cow', who: '王家', state: 2, story: '王村长的爷爷那辈住在这儿，是老石峪数得着的大院：青砖瓦房，正房带厢房，院门有门楼，西墙根一座牛棚。大水那年一家人搬去了下游，院子一直空着。' },
-  { id: 'old2', u: -21.5, z: -1.6, rot: -4, w: 9.5, d: 5.5, kind: 'row', mat: 'wood', roof: 'roof', house: [4.6, 3.4, 3.0], annex: [3.8, 3.4, 2.7], who: '孙家', state: 2, story: '孙掌柜家的老铺面：临着老街两间连着的屋，一间木板门面做买卖，一间土坯屋住人，门前一片石板铺的场子。' },
+  { id: 'old1', u: -20.5, z: 9.1, rot: 178, w: 11, d: 8.5, kind: 'court', mat: 'brick', roof: 'roof', house: [5.6, 3.8, 3.0], wing: true, pen: 'cow', who: '王家', state: 2, story: '王村长的爷爷那辈住在这儿，是老石峪数得着的大院：青砖瓦房，正房带厢房，院门有门楼，西墙根一座牛棚。大水那年一家人搬去了下游，院子一直空着。' },
+  { id: 'old2', u: -22.5, z: -2.3, rot: -4, w: 9.5, d: 5.5, kind: 'row', mat: 'brick', roof: 'roof', house: [4.6, 3.4, 3.0], annex: [3.8, 3.4, 2.7], who: '孙家', state: 2, story: '孙掌柜家的老铺面：临着老街两间连着的屋，两间青砖瓦房连着，一间做铺面（木板门、柜台），一间住人，门前一片石板铺的场子。' },
   { id: 'old3', u: -10, z: 6.6, rot: 184, w: 8, d: 6.5, kind: 'stone', house: [4.6, 3.4, 2.6], extra: 'mill', pen: 'coop', who: '赵家', state: 2, story: '赵家的老磨坊，青石垒的。大水从门里冲进来，把石磨盘冲到了门外，墙根还留着一道黄泥印子；院里搭着鸡窝。' },
-  { id: 'old4', u: 15, z: 3.8, rot: 186, w: 9, d: 7, kind: 'court', mat: 'rubble', roof: 'slate', house: [5.2, 4.0, 2.8], tree: 'persimmon', pen: 'pig', who: '陈家', state: 2, story: '陈老汉出生在这院里。他说大水那天他才八九岁，是被他爹扛在肩上从齐腰深的水里背出去的。院里那棵老柿子树还年年结果，猪圈空着。' },
+  { id: 'old4', u: 14, z: 5.1, rot: 186, w: 9, d: 8, kind: 'court', mat: 'rubble', roof: 'slate', house: [4.6, 3.6, 2.8], tree: 'persimmon', pen: 'pig', who: '陈家', state: 2, story: '陈老汉出生在这院里。他说大水那天他才八九岁，是被他爹扛在肩上从齐腰深的水里背出去的。院里那棵老柿子树还年年结果，猪圈空着。' },
   { id: 'old5', u: -11.5, z: -17, rot: 8, w: 7, d: 6, kind: 'fence', house: [3.8, 3.0, 2.4], who: '杨家', state: 2, story: '杨家给唐东家当长工时住的小院：一间土坯草房，一圈荆条篱笆，别的什么也没有。' },
-  { id: 'old6', u: -35, z: 9, rot: 14, w: 9, d: 7, kind: 'stone', house: [5.4, 3.8, 2.8], tree: 'locust', pen: 'coop', who: '吴家', state: 2, story: '吴家老宅，石头垒的，石板盖顶。院墙外一棵老槐树，墙根一座鸡窝。' },
-  { id: 'old7', u: -12, z: -3.6, rot: -6, w: 8, d: 6, kind: 'wood', house: [5.4, 3.8, 3.0], extra: 'lumber', who: '刘家', state: 2, story: '刘木匠自己盖的木板房。木匠家的房子梁最粗，院里还码着他没用完的木料。' },
-  { id: 'old8', u: -4, z: -3.2, rot: 3, w: 7, d: 6, kind: 'stone', house: [4.2, 3.2, 2.6], extra: 'forge', who: '张家', state: 2, story: '张家头一代铁匠在这儿打铁：一间石头屋，院里一座铁匠炉，地上埋着烧黑的炉渣。' },
-  { id: 'old9', u: 38.5, z: 10.3, rot: -20, w: 9.5, d: 6.5, kind: 'court', mat: 'adobe', roof: 'roof', house: [5.8, 4.2, 3.0], wing: true, pen: 'cow', tree: 'jujube', who: '周家', state: 2, story: '周家药铺原先开在这儿，前店后院，院里一座牛棚。屋里的药柜早没了，墙上还看得出一格格药斗子的印子。' },
+  { id: 'old6', u: -35.8, z: 9, rot: 14, w: 9, d: 7, kind: 'stone', house: [5.4, 3.8, 2.8], tree: 'locust', pen: 'coop', who: '吴家', state: 2, story: '吴家老宅，石头垒的，石板盖顶。院墙外一棵老槐树，墙根一座鸡窝。' },
+  { id: 'old7', u: -13, z: -3.6, rot: -6, w: 8, d: 6, kind: 'fence', house: [5.4, 3.8, 3.0], extra: 'lumber', who: '刘家', state: 2, story: '刘木匠家的土坯草房，篱笆小院。木匠家的房子梁最粗，院里还码着他没用完的木料。' },
+  { id: 'old8', u: -2.5, z: -3.8, rot: 3, w: 7, d: 6, kind: 'stone', house: [4.2, 3.2, 2.6], extra: 'forge', who: '张家', state: 2, story: '张家头一代铁匠在这儿打铁：一间石头屋，院里一座铁匠炉，地上埋着烧黑的炉渣。' },
+  { id: 'old9', u: 38.5, z: 10.3, rot: -20, w: 9.5, d: 7.5, kind: 'court', mat: 'adobe', roof: 'roof', house: [5.0, 3.8, 3.0], wing: true, pen: 'cow', tree: 'jujube', who: '周家', state: 2, story: '周家药铺原先开在这儿，前店后院，院里一座牛棚。屋里的药柜早没了，墙上还看得出一格格药斗子的印子。' },
   { id: 'old10', u: -38.3, z: -2.8, rot: 4, w: 8, d: 6.5, kind: 'cave', extra: 'pen', who: '马家', state: 2, story: '马家放羊时住的靠崖窑，挖在西头山根的黄土崖里，冬暖夏凉，门前一圈石头羊圈。' },
   { id: 'old11', u: -2.5, z: 6.6, rot: 176, w: 6.5, d: 6, kind: 'fence', house: [3.8, 3.0, 2.4], who: '郑家', state: 2, story: '剃头匠老郑家的老屋，就一间，篱笆小院，在老街南边、场院跟前。他说小时候秋天就在场院的谷草垛里钻着玩。' },
   { id: 'old12', u: 26, z: 14.2, rot: -24, w: 7, d: 5.5, kind: 'stone', house: [5.0, 3.4, 2.8], tree: 'persimmon', who: '李家', state: 2, story: '据说是早年教书先生住的石头房，在冲沟南岸的崖边上，院里一棵柿子树。大水没淹到，是年久没人住才空的。' },
@@ -110,7 +110,7 @@ const PEN = { w: 3.0, d: 2.6 }; // 牲口圈：在院子前面靠西的角上
 /** 宅基地里各样东西的位置（本地坐标，原点在宅基地中心，+z 朝院门）：正房、院门、房门、院里站人的地方。 */
 function plotLayout(p) {
   const { w, d } = p, [hw, hd] = p.house ?? [w - 1.5, 2.6], aw = p.annex?.[0] ?? 0;
-  const hz = p.kind === 'cave' ? -d / 2 + 0.7 : -d / 2 + hd / 2 + 0.5, hx = p.kind === 'court' && p.wing ? -w * 0.12 : aw / 2;
+  const hz = p.kind === 'cave' ? -d / 2 + 0.7 : -d / 2 + hd / 2 + (p.kind === 'court' ? 1.1 : 0.5), hx = p.kind === 'court' && p.wing ? -w * 0.12 : aw / 2;
   const gx = p.kind === 'cave' ? -0.6 : Math.round(w * 0.14 * 10) / 10;
   const front = p.kind === 'cave' ? -d / 2 + 1.5 : hz + hd / 2; // 正房前脸（窑洞是窑脸）
   let y0 = front + 0.6, y1 = d / 2 - 0.5;
@@ -144,7 +144,7 @@ const PASTURE = { u0: -43, u1: -30, z0: -22, z1: -10 }; // 西头山坳里一块
 const ANCESTRAL = { u: -3, z: -24.6, w: 8, d: 4 }; // 老祠堂的遗址：只剩台基和柱础
 /** 村里过日子的地方：场院（打谷、晒粮）、菜园、果园、祖坟；其余的坡都开成梯田种庄稼（见 farmAt）。 */
 const THRESH = { u: -8.5, z: 14.6, w: 10, d: 5.6 }; // 场院：老街南边、塘上头一块平场，谷草垛、碌碡、晒粮的席子
-const GARDENS = [{ u: -32, z: -4.6, w: 3.5, d: 5 }, { u: 4, z: -7, w: 5, d: 4.5 }]; // 院边的菜园子：篱笆围着，一畦畦白菜
+const GARDENS = [{ u: -32, z: -4.6, w: 3.5, d: 5 }, { u: 5.2, z: -7, w: 5, d: 4.5 }]; // 院边的菜园子：篱笆围着，一畦畦白菜
 const ORCH = { u: -12, z: 28.5, w: 10, d: 6 }; // 坡脚溪边的果园：柿子、核桃一行行
 const GRAVE = { u: 26, z: -20, w: 6, d: 4 }; // 林子边的祖坟
 /** 这条线以北是高大的老林子：西头从草场后面起，往东越来越往南压，东北角（青石崖顶上）整个是林子。 */
@@ -214,11 +214,11 @@ function sideMat(M) {
 // ---------------------------------------------------------------- 路网
 
 const ROAD = {
-  west: [-44.7, 27], g1: [-36, 24], tmp: [-23, 22], lw: [-12, 22], pS: [0, 17.5], lkN: [6, 19.5], ford: [19, 16.5], pastG: [27, 20], eR: [36, 15.5], // 从村东口过来：顺着溪边绕过山嘴，沿湖北岸往东（在沟口过一道土埂）
+  west: [-44.7, 27], g1: [-36, 24], tmp: [-23, 22], lw: [-12, 22], pS: [3, 17.5], lkN: [6, 19.5], ford: [19, 16.5], pastG: [27, 20], eR: [36, 15.5], // 从村东口过来：顺着溪边绕过山嘴，沿湖北岸往东（在沟口过一道土埂）
   duckG: [-30, 31.5], // 下到湖西头的鸭棚
   c1: [-29, 12], // 上坡去老街
-  st0: [-37, 3.2], st1: [-27, 1], st1b: [-19, 3.5], st2: [-10, 0], stM: [1, 2], st3: [11, -0.5], st4: [21, -1], st5: [30, -2.5], // 老街：顺着坡弯弯扭扭
-  ln0: [-30, -11], ln1: [-21, -9.5], ln2: [-9, -12.5], ln2b: [8, -11.2], ln3: [17, -13], ln3b: [21, -12.5], // 上坡的小路
+  st0: [-37, 3.2], st1: [-28.5, 1], st1b: [-19, 3.5], st2: [-7.5, 0.5], stM: [3.5, 2], st3: [11, -0.5], st4: [21, -1], st5: [30, -2.5], // 老街：顺着坡弯弯扭扭
+  ln0: [-29, -11], ln1: [-21, -9.5], ln2: [-7.5, -12.5], ln2b: [8, -11.2], ln3: [17, -13], ln3b: [21, -12.5], // 上坡的小路
   pgate: [-36, -8.6], pastIn: [-36, -11.4], // 西头的草场（栅栏南边留的口子进去）
   mineF: [35, -3.4], up1: [8, -21], shedF: [14, -20.5], up2: [8, -27], gateN: [12, -29.5], // 煤窑、山货棚、进山口
   apF: [16.5, -13.3],
@@ -416,14 +416,14 @@ function ruinPlot(M, spec) {
     g.add(hs);
     if (spec.annex) { // 连着正房的那一间（共一道山墙），矮一点、草顶
       const [aw, ad, ah] = spec.annex;
-      const an = ruinHouse(M, { w: aw, d: ad, h: ah, state: s, seed: 400 + spec.u, mat: 'adobe', lit, chimney: false });
+      const an = ruinHouse(M, { w: aw, d: ad, h: ah, state: s, seed: 400 + spec.u, mat, roof: spec.roof, lit, chimney: false }); // 和正房一样的料
       an.position.set(L.hx - hw / 2 - aw / 2 + 0.02, 0, L.hz);
       g.add(an);
     }
   }
   if (spec.wing) { // 东厢房：小一点，在正房东边
-    const wing = ruinHouse(M, { w: 3.0, d: 2.6, h: 2.4, state: s, seed: 500 + spec.u * 3, mat, roof: spec.roof, lit, chimney: false });
-    wing.position.set(w / 2 - 2.0, 0, L.hz + 0.3);
+    const wing = ruinHouse(M, { w: 2.6, d: 2.4, h: 2.3, state: s, seed: 500 + spec.u * 3, mat, roof: spec.roof, lit, chimney: false });
+    wing.position.set(w / 2 - 2.1, 0, L.hz + 0.2);
     g.add(wing);
   }
   // 院子：前墙在院门那儿留口；塌了的（旧存档）缺几段
@@ -440,7 +440,7 @@ function ruinPlot(M, spec) {
   };
   const ring = (h, wm, t, cap) => { run(-w / 2, -d / 2, w / 2, -d / 2, null, h, wm, t, cap); run(-w / 2, -d / 2, -w / 2, d / 2, null, h, wm, t, cap); run(w / 2, -d / 2, w / 2, d / 2, null, h, wm, t, cap); run(-w / 2, d / 2, w / 2, d / 2, gapAt, h, wm, t, cap); };
   if (kind === 'court') {
-    ring(1.7, mat === 'brick' ? 'brick' : mat === 'rubble' ? 'rubble' : 'adobe', 0.35, true);
+    ring(1.15, mat === 'brick' ? 'brick' : mat === 'rubble' ? 'rubble' : 'adobe', 0.35, true); // 齐胸高的院墙：院里看得见
     for (const sx of [-1, 1]) g.add(block(L.gx + sx * 1.15 - 0.25, 0, d / 2 - 0.45, L.gx + sx * 1.15 + 0.25, 2.3, d / 2 + 0.1, M.brick)); // 门楼两根砖垛
     g.add(block(L.gx - 1.45, 2.3, d / 2 - 0.55, L.gx + 1.45, 2.5, d / 2 + 0.2, M.roof)); // 门楼顶
   } else if (kind === 'stone') ring(1.0, 'rubble', 0.5, false);
@@ -630,7 +630,7 @@ function plotNavShape(spec) {
   if (kind !== 'row') { out.push(box3(-w / 2, d / 2 - t, gx - 0.65, d / 2 + t), box3(gx + 0.65, d / 2 - t, w / 2, d / 2 + t)); }
   if (kind === 'cave') out.push(box3(-w / 2, -d / 2 - 1.6, w / 2, L.front - 0.1), box3(-w / 2 - t, L.front, -w / 2 + t, d / 2));
   else out.push(box3(L.hx - L.hw / 2 - L.aw - 0.2, L.hz - L.hd / 2 - 0.2, L.hx + L.hw / 2 + 0.2, L.hz + L.hd / 2 + 0.2)); // 正房（连着那间）
-  if (spec.wing) out.push(box3(w / 2 - 3.6, L.hz + 0.3 - 1.5, w / 2 - 0.4, L.hz + 0.3 + 1.5));
+  if (spec.wing) out.push(box3(w / 2 - 3.6, L.hz + 0.2 - 1.4, w / 2 - 0.6, L.hz + 0.2 + 1.4));
   if (spec.pen) out.push(box3(-w / 2, d / 2 - 0.3 - PEN.d - 0.2, -w / 2 + 0.3 + PEN.w + 0.2, d / 2));
   if (spec.extra === 'pen') out.push(box3(w / 2 - 3.4, -d / 2 + 1.8, w / 2 - 0.1, d / 2 - 0.1));
   if (spec.extra === 'mill') out.push(box3(w / 2 + 0.2, -2.3, w / 2 + 1.7, 0.9));
@@ -700,10 +700,15 @@ function mountainGate(M) {
 /** 山货收购棚：一座敞棚，棚下摞着背篓、麻袋，前面一排竹匾晒着蘑菇、核桃、野菜。原点在平台中心。 */
 function gatherShed(M) {
   const g = new THREE.Group();
-  g.add(P.shed(M, -1.6, -0.6, 3.6, 2.4));
-  g.add(P.sacks(M, 3).translateX(-2.6).translateZ(0.9));
-  [M.persimmonMat ?? M.corn, M.hawthornMat ?? M.corn, M.corn].forEach((fill, i) => g.add(P.dryingMat(M, fill, 0.9, 1.3).translateX(0.7 + i * 1.0).translateZ(0.9))); // 晒蘑菇、山楂、核桃
-  g.add(block(2.6, 0, -1.8, 3.4, 0.9, -1.0, M.wheat)); // 一摞背篓
+  g.add(P.herbRacks(M, -2.6, -1.4, 3)); // 晾山货的木架：蘑菇、山楂、核桃
+  [M.persimmonMat ?? M.corn, M.hawthornMat ?? M.corn].forEach((fill, i) => g.add(P.dryingMat(M, fill, 1.0, 1.3).translateX(-3.0 + i * 1.2).translateZ(1.2))); // 地上晒的竹匾
+  g.add(P.lumber(M, 1.8, -1.4)); // 从山上拖下来的原木
+  g.add(P.workbench(M, 2.0, 0.9)); // 破板子、做背架的木架
+  g.add(block(-0.45, 0, 0.6, 0.15, 0.55, 1.2, M.wood), block(-0.2, 0.55, 0.85, -0.1, 0.95, 0.95, M.wood)); // 劈柴的木墩，上面斜插一把斧子
+  g.add(block(-0.3, 0.9, 0.75, 0.1, 1.05, 1.05, M.iron));
+  g.add(P.cart(M, -0.6, 1.6, 1.57)); // 拉木头的车
+  for (let i = 0; i < 3; i++) g.add(block(-0.6 + i * 0.6, 0, -2.0, -0.15 + i * 0.6, 0.85, -1.55, M.wheat)); // 一排背篓（上山背山货）
+  g.add(block(0.6, 0, -2.1, 0.75, 1.6, -1.95, M.wood), block(1.0, 0, -2.1, 1.15, 1.6, -1.95, M.wood), block(0.6, 1.1, -2.1, 1.15, 1.2, -1.95, M.wood)); // 靠着的背架
   return tag(g, 'gatherPoint');
 }
 
@@ -1177,7 +1182,7 @@ export function buildEast(M) {
       for (const [k, h] of Object.entries(HOMES)) if (Math.abs(u - h.u) < h.w / 2 + 0.5 && Math.abs(z - h.z) < h.d / 2 + 0.5) return HOME_NAMES[k];
       const p = HOUSES.find((h) => Math.hypot(u - h.u, z - h.z) < Math.max(h.w, h.d) / 2 + 0.6);
       if (p) return p.owner ? `${p.ownerName ?? ''}家（${p.who}老宅）` : `${p.who}老宅`;
-      for (const [s, name] of [[MINE, '煤窑口'], [SHED, '山货收购棚'], [MGATE, '进山口'], [APIARY, '蜂场'], [ANCESTRAL, '老祠堂遗址'], [THRESH, '场院'], [ORCH, '果园'], [GRAVE, '祖坟']]) if (Math.abs(u - s.u) < s.w / 2 + 1 && Math.abs(z - s.z) < s.d / 2 + 1) return name;
+      for (const [s, name] of [[MINE, '煤窑口'], [SHED, '山货场'], [MGATE, '进山口'], [APIARY, '蜂场'], [ANCESTRAL, '老祠堂遗址'], [THRESH, '场院'], [ORCH, '果园'], [GRAVE, '祖坟']]) if (Math.abs(u - s.u) < s.w / 2 + 1 && Math.abs(z - s.z) < s.d / 2 + 1) return name;
       return placeAt(x, z).name;
     },
     work,
