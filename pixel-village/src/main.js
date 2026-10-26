@@ -14,7 +14,7 @@ import { createRoster } from './ui/roster.js';
 import { createXRCard } from './ui/xrCard.js';
 import { createTradeBubbles } from './ui/tradeBubble.js';
 import { GOODS } from './life/economy.js';
-import { addNewcomer, jobById } from './life/newcomers.js';
+import { addNewcomer, jobById, setJob, RELICS } from './life/newcomers.js';
 import { createNewcomerPanel } from './ui/newcomer.js';
 import { addResident } from './residents.js';
 import { pickThing, describe, YARDS } from './things.js';
@@ -441,16 +441,19 @@ function econOf(id) {
 
 // ---------------------------------------------------------------- 新来的人（「创建居民」卡片 → life/newcomers.js）：存在浏览器里，刷新后照旧在村里过
 
-const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'coins', 'goods', 'home', 'jobId', 'jobWhy', 'houseState'];
+const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'coins', 'goods', 'home', 'jobId', 'jobWhy', 'houseState', 'jobPicked', 'met', 'jobHistory'];
 const loadNewcomers = () => { try { return JSON.parse(localStorage.getItem('pv.newcomers') ?? '[]'); } catch { return []; } };
 const saveNewcomers = () => { try { localStorage.setItem('pv.newcomers', JSON.stringify(V.people.filter((v) => v.p.newcomer).map((v) => Object.fromEntries(SAVE_KEYS.map((k) => [k, v.p[k]]))))); } catch { /* 隐私窗口存不了：只在这次打开里有效 */ } };
 for (const p of params.has('nonew') || params.has('sim') ? [] : loadNewcomers()) { addNewcomer(V, p, { arriving: false }); addResident(p); } // ?nonew=1：不带存下的新人（截图、回归用）
-// ?addnew=胡二根:磨面|推磨;马翠:做饭|烙饼 开局就放几个新人进村（不存档；无头快进看他们挑什么行当用）
-for (const s of (params.get('addnew') ?? '').split(';').filter(Boolean)) { const [who, home] = s.split('@'), [name, sk = ''] = who.split(':'); const p = { name, nick: name, home: home || undefined, age: 32, sex: '男', skills: sk.split('|').filter(Boolean), traits: ['勤快'], bio: '测试用的新人', likes: '——', body: 'man', skin: 'skin', hair: 'short', top: 'indigo', pants: 'black', coins: 60, goods: { grain: 10 } }; addNewcomer(V, p); addResident(p); }
+// ?addnew=胡二根:磨面|推磨@old3#miller;马翠:做饭 开局就放几个新人进村（名:手艺|手艺@住处#行当，后两段可省；不存档，无头快进测行当用）
+for (const s of (params.get('addnew') ?? '').split(';').filter(Boolean)) { const [rest, job] = s.split('#'), [who, home] = rest.split('@'), [name, sk = ''] = who.split(':'); const p = { name, nick: name, home: home || undefined, jobId: job || undefined, jobPicked: job ? true : undefined, age: 32, sex: '男', skills: sk.split('|').filter(Boolean), traits: ['勤快'], bio: '测试用的新人', likes: '——', body: 'man', skin: 'skin', hair: 'short', top: 'indigo', pants: 'black', coins: 60, goods: { grain: 10 } }; addNewcomer(V, p); addResident(p); }
 V.onRepaired = (v, plot) => { // 老宅修好了：存档，头顶冒一句
   if (!v) return;
   saveNewcomers();
   if (!params.has('sim')) bubbles.say(v.object, [['房子修好了', '#ffcc66'], [' 搬进新屋', '#e0d4bf']]);
+};
+V.onRelic = (v, n) => { // 挖到一件老东西：头顶冒一句（村史馆第几件）
+  if (!params.has('sim')) bubbles.say(v.object, [[`挖到${RELICS[(n - 1) % RELICS.length]}`, '#ffcc66'], [` 村史馆第${n}件`, '#e0d4bf']]);
 };
 V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一句，档案重建
   saveNewcomers();
@@ -461,6 +464,15 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
   econ: () => ECON,
   homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? h.name, n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
   plots: () => east.houses.map((h) => ({ id: h.id, name: `${h.who}老宅`, state: ['塌了', '能遮雨', '修好了'][h.state], taken: h.owner ? h.ownerName : null, story: h.story })), // 老村址的老宅：空着的可以选来住
+  onChangeJob(id, jobId) { // 档案里点「改行」选好了：马上换过去
+    const v = V.byId[id];
+    if (!v) return;
+    setJob(v, jobId, { picked: true });
+    v.finish();
+    saveNewcomers();
+    roster = makeRoster();
+    bubbles.say(v.object, [['改行', '#e0d4bf'], [` 当${v.p.job}`, '#ffcc66']]);
+  },
   onCreate(p) {
     const v = addNewcomer(V, p);
     addResident(p);
@@ -472,7 +484,7 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
     if (params.has('closeup')) { const p = v.object.getWorldPosition(new THREE.Vector3()); controls.target.copy(p); camera.position.set(p.x, p.y + 0.06, p.z + 0.09); } // ?closeup=1：镜头推到新人跟前（截图检查用）
   },
 });
-if (params.has('newcomer')) setTimeout(() => newcomerPanel.show(['look', 'info'].includes(params.get('newcomer')) || /^(build|hair|hairRamp|hat|top|style|pants|skin|face|extra)$/.test(params.get('newcomer')) ? params.get('newcomer') : 'look'), 0); // ?newcomer=1 / info / hair……：一打开就是「创建居民」的那一页（截图检查用）
+if (params.has('newcomer')) setTimeout(() => newcomerPanel.show(['look', 'info', 'job'].includes(params.get('newcomer')) || /^(build|hair|hairRamp|hat|top|style|pants|skin|face|extra)$/.test(params.get('newcomer')) ? params.get('newcomer') : 'look'), 0); // ?newcomer=1 / info / hair……：一打开就是「创建居民」的那一页（截图检查用）
 document.getElementById('newBtn')?.addEventListener('click', (e) => { e.stopPropagation(); if (newcomerPanel.open) newcomerPanel.close(); else { roster.close(); newcomerPanel.show(); showSettings(false); showDebug(false); } });
 
 // 村民档案：左下角按钮打开页面里的横板大卡；详情里"去村里找"= 关掉档案、选中这个人并跟着他
@@ -482,6 +494,7 @@ const makeRoster = () => createRoster(document.getElementById('roster'), {
   hour: () => village.life.clock.hour,
   beasts: (home) => village.life.beasts.filter((b) => !b.s.caravan && (b.c?.id ?? (b.swim ? 'farmC' : b.s.role === 'pigeon' ? 'school' : null)) === home) // 鸭鹅归吴家、鸽子落在学堂（和旧档案页一样）
     .map((b) => ({ kind: b.s.kind, name: b.info.name, kindName: b.info.kind, about: b.info.about })),
+  onChangeJob: (id) => { const v = V.byId[id]; if (v) newcomerPanel.changeJob({ ...v.p, earned: ECON.unitOfV(v)?.earned ?? 0 }); }, // 改行：打开「创建居民」的营生页
   onFind: (id) => {
     const v = V.byId[id];
     if (!v) return;
@@ -842,7 +855,7 @@ if (params.has('sim')) {
   document.documentElement.dataset.eve = JSON.stringify(eve);
   { // 经济自检：铜钱守恒、断粮、每天成交多少、怎么付的、缺口、各户家底
     const E = village.life.econ, tr = E.trades, by = (f) => tr.reduce((m, t) => ((m[f(t)] = (m[f(t)] ?? 0) + 1), m), {});
-    document.documentElement.dataset.econ = JSON.stringify({ repairs: (V.repairs ?? []).map((r) => `${r.plot}:第${r.day}天${r.done ? '✓' : ''}`), plots: east.houses.filter((h) => h.owner).map((h) => `${h.id}:${h.ownerName}:${h.state}`), oldSite: ['riverTemple', 'mason', 'limeKiln', 'duckYard'].map((id) => { const u = E.unit(id); return u && `${id} ${u.coins}文 ${JSON.stringify(Object.fromEntries(Object.entries(u.stock).filter(([, n]) => n >= 1).map(([g, n]) => [g, Math.round(n)])))} 卖出${E.trades.filter((t) => t.to === id && t.kind !== 'gift').length}笔`; }), newcomers: V.people.filter((v) => v.p.newcomer).map((v) => { const u = E.unitOfV(v); return `${v.p.name}@${v.p.home} ${v.p.job}（${v.p.jobWhy ?? ''}）${u.coins}文 产${JSON.stringify(u.made)} 卖出${E.trades.filter((t) => t.to === u.id && t.kind !== 'gift').length}笔 认识${[...E.ties.entries()].filter(([k, n]) => k.includes(v.p.id) && n >= 2).length}人`; }), days: E.day, audit: E.audit(), trades: tr.length, perDay: by((t) => t.day), kind: by((t) => t.kind), goods: by((t) => t.good ?? t.service), hungry: E.hungry.slice(-20), fails: E.fails.slice(-15), missing: E.missing,
+    document.documentElement.dataset.econ = JSON.stringify({ repairs: (V.repairs ?? []).map((r) => `${r.plot}:第${r.day}天${r.done ? '✓' : ''}`), plots: east.houses.filter((h) => h.owner).map((h) => `${h.id}:${h.ownerName}:${h.state}`), oldSite: ['riverTemple', 'mason', 'limeKiln', 'duckYard'].map((id) => { const u = E.unit(id); return u && `${id} ${u.coins}文 ${JSON.stringify(Object.fromEntries(Object.entries(u.stock).filter(([, n]) => n >= 1).map(([g, n]) => [g, Math.round(n)])))} 卖出${E.trades.filter((t) => t.to === id && t.kind !== 'gift').length}笔`; }), newcomers: V.people.filter((v) => v.p.newcomer).map((v) => { const u = E.unitOfV(v); return `${v.p.name}@${v.p.home} ${v.p.job}（${v.p.jobWhy ?? ''}）${u.coins}文 挣${u.earned ?? 0}文 产${JSON.stringify(u.made)} 卖出${E.trades.filter((t) => t.to === u.id && t.kind !== 'gift').length}笔 认识${[...E.ties.entries()].filter(([k, n]) => k.includes(v.p.id) && n >= 2).length}人`; }), days: E.day, audit: E.audit(), trades: tr.length, perDay: by((t) => t.day), kind: by((t) => t.kind), goods: by((t) => t.good ?? t.service), hungry: E.hungry.slice(-20), fails: E.fails.slice(-15), missing: E.missing,
       units: [...E.units.values()].map((u) => `${u.id}:${u.coins}文 粮${Math.round(u.stock.grain ?? 0)} 柴${Math.round(u.stock.wood ?? 0)}${Object.keys(u.owe).length ? ' 欠他' + JSON.stringify(u.owe) : ''}`),
       asks: Object.fromEntries([...E.units.values()].filter((u) => Object.keys(u.sold).length || u.id === 'tofu').map((u) => [u.id, u.ask])),
       sample: tr.slice(-12).map((t) => `${t.day}d${t.hour.toFixed(1)} ${t.buyer}←${t.seller} ${t.good ?? t.service}×${t.qty} ${t.price}文 ${t.kind}${t.swap ? `(${t.swap.good}×${t.swap.qty})` : ''} ${t.place ?? ''}`) });

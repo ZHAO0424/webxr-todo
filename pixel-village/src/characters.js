@@ -667,8 +667,8 @@ export function characterFrames(p) {
 }
 
 /** 捏人预览：站着的一张（front 正面 / side 侧面 / back 背面），描好边画到画布上；scale 倍放大（最近邻）。 */
-export function previewCanvas(p, view = 'front', scale = 1) {
-  p = dress({ ...p, item: null });
+export function previewCanvas(p, view = 'front', scale = 1, withItem = false) { // withItem：手里拿着家伙（选营生的卡片）
+  p = dress({ ...p, item: withItem ? p.item : null });
   const b = bodyOf(p);
   let g;
   if (view === 'side') { g = new Grid(FRAME_W, FRAME_H); sideView(g, p, b, WALK_SIDE[1]); } else g = frontOrBack(p, b, view, IDLE[0], 0);

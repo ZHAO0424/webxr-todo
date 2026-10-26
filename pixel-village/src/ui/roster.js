@@ -82,7 +82,7 @@ function dayHTML(day) {
     <div class="bars">${KINDS.filter(({ k }) => sum[k] > 0).map(({ k, name }) => `<div class="bar"><span class="bn"><i style="background:${color(k)}"></i>${name}</span><span class="bt"><i style="width:${(sum[k] / max) * 100}%;background:${color(k)}"></i></span><span class="bh">${sum[k].toFixed(1)} 时</span></div>`).join('')}</div>`;
 }
 
-export function createRoster(el, { status, beasts, econ, onFind, onClose, map, hour }) {
+export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, onClose, map, hour }) {
   el.className = 'panel px';
   el.id = 'roster';
   el.hidden = true;
@@ -222,7 +222,7 @@ export function createRoster(el, { status, beasts, econ, onFind, onClose, map, h
     const relOf = (o) => (o.relation.startsWith(`${p.name}的`) ? o.relation.slice(p.name.length + 1) : o.relation === '户主' ? '户主' : o.nick);
     const rel = (o, tag, color) => `<div class="rel" data-id="${o.id}" style="--rc:${color}"><span class="hd"></span><span class="rn">${esc(o.name)}</span><span class="rt">${esc(tag === '家人' ? relOf(o) : '好友')}</span></div>`;
     side.innerHTML = `<div class="paper box mini"><div class="row1"><span class="hd big"></span><div class="t">
-        <div class="l1"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><button class="btn find">去村里找</button></div>
+        <div class="l1"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><button class="btn find">去村里找</button>${p.newcomer && p.met ? '<button class="btn chjob">改行</button>' : ''}</div>
         <div class="jb">${esc(p.job)} · ${p.age}岁 · ${p.sex} · ${esc(p.relation)}</div>
         <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</div>
         <div class="now"></div>
@@ -251,6 +251,7 @@ export function createRoster(el, { status, beasts, econ, onFind, onClose, map, h
     }
     if (!animals.length) side.querySelector('.pets-sec').remove();
     side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
+    side.querySelector('.chjob')?.addEventListener('click', () => { close(); onChangeJob?.(p.id); }); // 新来的人：换个营生
     nowHTMLs();
   }
 

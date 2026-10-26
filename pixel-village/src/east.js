@@ -614,6 +614,7 @@ export function buildEast(M) {
     beach: Array.from({ length: 10 }, (_, i) => { const u = -20 + i * 4; return [W(u), sz(u) - streamHalf(u) - 1.2]; }),
     temple: { at: [W(HOMES.riverTemple.u) - 2.4, HOMES.riverTemple.z + 1.5], face: [W(HOMES.riverTemple.u) - 2.4, HOMES.riverTemple.z - 1.2] },
     stele: [W(HOMES.riverTemple.u) - 1.4, HOMES.riverTemple.z + 2.6],
+    digs: [...OLDBED.slice(1, -1).map(([u, z]) => [W(u), z]), ...HOUSES.map((p) => [W(p.u) + (p.u % 2 ? 4.8 : -4.8), p.z + 1])], // 刨旧物：旧河道里、老宅院墙外
     mason: [W(HOMES.mason.u) + 1.0, HOMES.mason.z + 1.4],
     kiln: [W(HOMES.limeKiln.u) + 2.2, HOMES.limeKiln.z + 1.8],
   };

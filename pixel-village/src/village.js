@@ -396,6 +396,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
       stele: { at: nav.nearestFree(...east.work.stele), face: [east.work.stele[0] - 1.1, east.work.stele[1] - 0.6] },
       beach: east.work.beach.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
       duckBeach: east.work.beach.slice(0, 4).map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
+      digs: east.work.digs.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
     },
     // 小孩玩耍的去处：溪北岸能站的地方（脸朝水），村口附近的庄稼地
     bankClaims: {}, // 溪边洗衣裳的位置有人占了就换一个

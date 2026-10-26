@@ -11,11 +11,11 @@ import { GOODS, unitOf } from './economy.js';
 
 // 放不下的事（和剃头挑子一样）：做饭、上课、放羊、磨豆腐、吃饭、睡觉、在活动上有角色……
 const BUSY = new Set(['riverIncense', 'repair', 'cook', 'school', 'teach', 'herd', 'herdHome', 'thresh', 'oxHome', 'grind', 'boil', 'home', 'dinner', 'sellTofu', 'lightTorches', 'putOutTorches', 'nightWatch', 'gatherDucks', 'deliver', 'haircut', 'barber', 'buy', 'serve', 'caravan', 'caravanHome', 'worship', 'mill', 'firewood', 'fish']);
-const HEAVY = new Set(['grain', 'wood', 'tool', 'wooden', 'iron', 'soy', 'basket', 'lime', 'stone']); // 男人去扛
+const HEAVY = new Set(['grain', 'wood', 'tool', 'wooden', 'iron', 'soy', 'basket', 'lime', 'stone', 'charcoal', 'seed']); // 男人去扛
 const KIDS_OK = new Set(['tofu', 'match', 'salt']); // 打发孩子去买
 const REMOTE = new Set(['lime', 'stone', 'duckEgg']); // 只有老村址有的东西
 /** 拿着什么回家。 */
-const CARRY = { tofu: ['tray'], veg: ['basket'], egg: ['basket'], salt: ['basket'], match: ['basket'], cloth: ['basket'], pill: ['basket'], honey: ['basket'], pickle: ['basket'], flour: [null, 'sack'], grain: [null, 'sack'], soy: [null, 'sack'], wood: [null, 'firewood'], tool: ['hoe'], wooden: ['box'], iron: ['box'], basket: ['basket'], wool: [null, 'sack'], lime: [null, 'sack'], stone: [null, 'sack'], duckEgg: ['basket'] };
+const CARRY = { tofu: ['tray'], veg: ['basket'], egg: ['basket'], salt: ['basket'], match: ['basket'], cloth: ['basket'], pill: ['basket'], honey: ['basket'], pickle: ['basket'], flour: [null, 'sack'], grain: [null, 'sack'], soy: [null, 'sack'], wood: [null, 'firewood'], tool: ['hoe'], wooden: ['box'], iron: ['box'], basket: ['basket'], wool: [null, 'sack'], lime: [null, 'sack'], stone: [null, 'sack'], duckEgg: ['basket'], fish: ['basket'], pork: ['basket'], wildfood: ['basket'], game: ['basket'], charcoal: [null, 'sack'], seed: [null, 'sack'], relic: ['box'] };
 const PLACE = { headman: '王家', school: '学堂', shepherd: '马家', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', zheng_laotou: '剃头挑子', qian_xiaoer: '货郎那儿', riverTemple: '柳婆婆家', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '凤仙嫂家' };
 const STALL_SELLER = { tofu: 'tofu', goods: 'qian_xiaoer', veg: 'farmC' }; // 集上三个摊子各是谁家的
 

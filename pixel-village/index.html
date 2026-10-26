@@ -154,6 +154,21 @@
     #newcomer .vrow { display: flex; gap: calc(3 * var(--p)); align-items: baseline; flex-wrap: wrap; }
     #newcomer .vrow b { color: var(--gold); font-weight: normal; }
     #newcomer .vrow.taken { opacity: 0.55; }
+    #newcomer .job-page { grid-template-columns: 1fr; }
+    #newcomer .jhead { display: flex; justify-content: space-between; align-items: center; gap: calc(3 * var(--p)); flex-wrap: wrap; margin-bottom: calc(3 * var(--p)); }
+    #newcomer .jcats { display: flex; gap: var(--p); flex-wrap: wrap; }
+    #newcomer .jcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(84 * var(--p)), 1fr)); gap: calc(2 * var(--p)); }
+    #newcomer .jcard { display: flex; gap: calc(3 * var(--p)); align-items: center; text-align: left; padding: calc(2 * var(--p)); }
+    #newcomer .jcard .thumb { background: var(--face-bg); padding: var(--f) calc(2 * var(--f)) 0; box-shadow: 0 0 0 var(--f) var(--ink); flex: none; }
+    #newcomer .jcard.on .thumb { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--gold); }
+    #newcomer .jcard .jt { display: flex; flex-direction: column; gap: var(--f); line-height: calc(14 * var(--f)); }
+    #newcomer .jcard .jt b { font-weight: normal; color: var(--gold); }
+    #newcomer .jcard .jt .dim { white-space: nowrap; }
+    #newcomer .jcard .jt .l1 { display: flex; align-items: center; gap: calc(2 * var(--f)); }
+    #newcomer .jcard[disabled] { opacity: 0.5; }
+    #newcomer .tag { font-style: normal; margin-left: calc(2 * var(--f)); padding: 0 calc(2 * var(--f)); box-shadow: 0 0 0 var(--f) currentColor; }
+    #newcomer .tag.short { color: var(--red); } #newcomer .tag.match { color: var(--gold); }
+    #newcomer .jdesc { margin-top: calc(3 * var(--p)); min-height: calc(40 * var(--f)); line-height: calc(15 * var(--f)); }
     #newcomer .dim { color: var(--dim); }
     #newcomer .go { display: flex; justify-content: flex-end; align-items: center; gap: calc(3 * var(--p)); margin-top: calc(2 * var(--p)); }
     #newcomer .err { color: var(--red); }
