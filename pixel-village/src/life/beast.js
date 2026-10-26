@@ -8,7 +8,7 @@ import { animalInfo } from '../animalInfo.js';
 
 // 会拱门的牲口，以及每次挑新去处时溜出院子转一圈的概率
 const PUSHERS = { dog: 0.12, pig: 0.05, sheep: 0.04, donkey: 0.03, ox: 0.02 };
-const SPEED = { dog: 1.5, dogBlack: 1.4, cat: 0.8, hen: 0.5, henBrown: 0.5, rooster: 0.5, duck: 0.5, goose: 0.45, pig: 0.35, sheep: 0.55, donkey: 0.7, ox: 0.6, magpie: 3, pigeon: 0 };
+const SPEED = { boar: 0.55, dog: 1.5, dogBlack: 1.4, cat: 0.8, hen: 0.5, henBrown: 0.5, rooster: 0.5, duck: 0.5, goose: 0.45, pig: 0.35, sheep: 0.55, donkey: 0.7, ox: 0.6, magpie: 3, pigeon: 0 };
 
 export class Beast {
   constructor(s, V, c, rand) {

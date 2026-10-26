@@ -31,38 +31,47 @@ export const JOBS = [
   { id: 'fisher', name: '钓鱼', cat: '地里河里', kind: 'make', makes: 'fish', rate: 1.2, max: 16, place: 'beach', item: 'rod', anim: 'sit', season: S4(1, 1.2, 1, 0.5),
     keys: ['钓鱼', '打鱼', '水性', '撒网', '耐性'], est: 6,
     desc: '坐在老村址的河心洲、深水湾下竿，钓上来的鱼挎到村里卖', where: '老村址河滩', buyers: '手头宽裕的人家；过年人人要一条（年年有余）', setup: '一根钓竿' },
-  { id: 'gardener', name: '种菜', cat: '地里河里', kind: 'make', makes: 'veg', rate: 4, place: 'yard', item: 'hoe', anim: 'work', season: S4(1, 1.2, 1, 0.3),
-    keys: ['种菜', '种地', '菜', '浇', '庄稼'], est: 7,
+  { id: 'gardener', name: '种菜', cat: '地里河里', kind: 'make', makes: 'veg', rate: 4, place: 'yard', item: 'can', anim: 'work', season: S4(1, 1.2, 1, 0.3),
+    keys: ['种菜', '种地', '菜', '浇', '庄稼'], est: 7, tool: '锄头、水瓢',
     desc: '在住处边上开块菜地，锄地、浇水，青菜卖给村里', where: '自家院边的菜地', buyers: '村里青菜老是不够吃，补这个缺口', setup: '锄头、菜籽' },
   { id: 'miller', name: '磨面', cat: '地里河里', kind: 'make', vacancy: true, makes: 'flour', rate: 3, in: { grain: 1 }, place: 'mill', item: 'basket', anim: 'work', season: S4(1, 1, 1, 1),
     keys: ['磨', '面', '推磨', '碾', '粮'], est: 10, note: '西沟水磨坊没人看着，各家只能自己背粮食去磨',
     desc: '看着西沟的水磨坊，把粮食磨成白面卖', where: '西沟水磨坊', buyers: '想吃白面的人家、卖烧饼的', setup: '不用置办（粮食向三家农户买）' },
   // ---- 手艺、买卖
-  { id: 'builder', name: '泥瓦木工', cat: '手艺买卖', kind: 'rounds', service: '修房盘炕', price: 8, place: 'rounds', item: 'hammer', anim: 'work', season: S4(1, 1, 1, 0.7),
+  { id: 'builder', name: '泥瓦木工', cat: '手艺买卖', kind: 'rounds', service: '修房盘炕', price: 8, place: 'rounds', item: 'trowel', anim: 'work', season: S4(1, 1, 1, 0.7),
     keys: ['木工', '泥瓦', '盖房', '修房', '砌墙', '盘炕', '力气'], est: 9,
     desc: '扛着家伙上门：盘炕、补墙、苫房顶、修门窗；老村址的人修老宅也请他帮工', where: '谁家叫就去谁家', buyers: '各家二十来天有一回小修', setup: '泥抹子、锤子（刘木匠做家具车轮，他盖房修房，不抢生意）' },
-  { id: 'tailor', name: '裁缝', cat: '手艺买卖', kind: 'make', vacancy: true, makes: 'clothes', rate: 0.35, in: { cloth: 4 }, place: 'gate', item: null, anim: 'sit', season: S4(1, 1, 1, 1),
+  { id: 'tailor', name: '裁缝', cat: '手艺买卖', kind: 'make', vacancy: true, makes: 'clothes', rate: 0.35, in: { cloth: 4 }, place: 'gate', item: 'shears', anim: 'sit', season: S4(1, 1, 1, 1),
     keys: ['裁缝', '针线', '缝', '衣', '绣'], est: 8, note: '布是骡帮、货郎卖的，买回来没人会做',
     desc: '坐在自家门口做衣裳', where: '自家门口', buyers: '衣裳穿破了的人', setup: '针线、剪子（布向杂货铺、货郎买）' },
   { id: 'snack', name: '卖吃食', cat: '手艺买卖', kind: 'make', vacancy: true, makes: 'bun', rate: 6, in: { flour: 0.1, wood: 0.05 }, place: 'square', item: 'tray', anim: 'work', season: S4(1, 1, 1, 1),
     keys: ['做饭', '面食', '烙', '饼', '馍', '厨', '吃'], est: 6, note: '赶集、看戏的时候，村口没有卖吃的',
     desc: '在村口支个炉子烙烧饼', where: '村口', buyers: '赶集、看戏、闲逛的人', setup: '一个炉子（白面向磨面的买）' },
-  { id: 'butcher', name: '杀猪卖肉', cat: '手艺买卖', kind: 'rounds', service: '杀猪', price: 15, pork: 6, place: 'rounds', item: 'tray', anim: 'work', season: S4(0.8, 0.6, 1, 1.8),
+  { id: 'butcher', name: '杀猪卖肉', cat: '手艺买卖', kind: 'rounds', service: '杀猪', price: 15, pork: 6, place: 'rounds', item: 'knife', anim: 'work', season: S4(0.8, 0.6, 1, 1.8),
     keys: ['杀猪', '屠户', '刀', '力气大', '肉'], est: 8,
     desc: '养猪的人家请他去杀猪（年前最忙），分到的肉卖给村里', where: '养猪的人家（陈家、吴家）', buyers: '杀猪：养猪的人家；猪肉：手头宽裕的人家、过节', setup: '一把杀猪刀、一张肉案子' },
-  { id: 'teahouse', name: '茶摊说书', cat: '手艺买卖', kind: 'stall', service: '喝茶', price: 1, place: 'square', item: 'bowl', anim: 'talk', season: S4(1, 1.2, 1, 0.8),
+  { id: 'teahouse', name: '茶摊说书', cat: '手艺买卖', kind: 'stall', service: '喝茶', price: 1, place: 'square', item: 'teapot', anim: 'talk', season: S4(1, 1.2, 1, 0.8),
     keys: ['说书', '讲古', '泡茶', '烧水', '唱', '会说'], est: 5,
     desc: '村口支个茶摊，大碗茶一文一碗，人多了讲一段书', where: '村口大槐树下', buyers: '在村口闲坐、闲聊的人顺手买一碗', setup: '一把大茶壶、几只粗瓷碗' },
   // ---- 山上
-  { id: 'forager', name: '上山采山货', cat: '山上', kind: 'make', makes: 'wildfood', rate: 1.5, max: 24, place: 'woods', item: 'basket', anim: 'squat', season: S4(1.2, 0.8, 1.5, 0.3),
+  { id: 'forager', name: '上山采山货', cat: '山上', kind: 'make', makes: 'wildfood', rate: 1.5, max: 24, place: 'forest', item: 'basket', anim: 'squat', season: S4(1.2, 0.8, 1.5, 0.3),
     keys: ['采', '山', '野菜', '蘑菇', '核桃', '认得草木'], est: 6,
-    desc: '背着背篓上山：春天挖野菜，秋天捡核桃、采蘑菇', where: '村外山坡、西沟的林子', buyers: '各家（尝个鲜）；核桃骡帮也收', setup: '一只背篓' },
-  { id: 'hunter', name: '打猎', cat: '山上', kind: 'make', makes: 'game', rate: 0.3, max: 8, place: 'woods', item: 'pole', anim: 'squat', season: S4(0.8, 0.6, 1.1, 1.4),
+    desc: '背着背篓从进山口上山：春天挖野菜，秋天捡核桃、采蘑菇，背回来倒在山货收购棚的竹匾里晒', where: '老村址北边的老林子、山货收购棚', buyers: '各家（尝个鲜）；核桃骡帮也收', setup: '一只背篓' },
+  { id: 'hunter', name: '打猎', cat: '山上', kind: 'make', makes: 'game', rate: 0.3, max: 8, place: 'forest', item: 'trap', anim: 'squat', season: S4(0.8, 0.6, 1.1, 1.4),
     keys: ['打猎', '套兔子', '山', '眼尖', '脚力'], est: 6,
-    desc: '在林子边下套子、撵野兔山鸡，入冬最好打', where: '村外山坡、西沟的林子', buyers: '手头宽裕的人家、过节', setup: '几副套子' },
-  { id: 'charcoal', name: '烧炭', cat: '山上', kind: 'make', makes: 'charcoal', rate: 1.5, max: 30, place: 'yard', item: 'hoe', anim: 'work', season: S4(0.8, 0.7, 1, 1.2),
+    desc: '在老林子边下套子、撵野兔山鸡（林子里还有野猪），入冬最好打', where: '老村址北边的老林子', buyers: '手头宽裕的人家、过节', setup: '几副套子' },
+  { id: 'charcoal', name: '烧炭', cat: '山上', kind: 'make', makes: 'charcoal', rate: 1.5, max: 30, place: 'yard', item: 'shovel', anim: 'work', season: S4(0.8, 0.7, 1, 1.2),
     keys: ['烧炭', '烧窑', '砍柴', '力气', '看火'], est: 6,
     desc: '捡林子里的枯树枝，在住处边上挖个炭窑焖成木炭', where: '自家院边的炭窑', buyers: '冬天烤火的人家（比柴暖、没烟）', setup: '挖个炭窑（卖炭不卖柴，不和卖柴的抢）' },
+  { id: 'beekeeper', name: '养蜂', cat: '山上', kind: 'make', makes: 'honey', rate: 0.35, max: 30, place: 'apiary', item: 'smoker', hat: 'veil', anim: 'work', season: S4(1.2, 1.4, 1, 0.2),
+    keys: ['养蜂', '蜂', '细心', '胆大', '花'], est: 7,
+    desc: '照看老村址向阳坡上的蜂场：开箱、熏烟、割蜜，冬天给蜂箱裹草帘', where: '老村址的蜂场', buyers: '骡帮逢集收蜂蜜（村外的钱）；周郎中做蜜丸也要', setup: '熏烟罐、纱帽（蜂箱现成的）' },
+  { id: 'miner', name: '挖煤', cat: '山上', kind: 'make', makes: 'coal', rate: 2, max: 40, place: 'mine', item: 'pickaxe', anim: 'work', season: S4(1, 0.9, 1, 1.1),
+    keys: ['挖', '力气大', '下窑', '煤', '胆大'], est: 7,
+    desc: '下老村址青石崖脚的煤窑，一镐一镐刨煤，装上斗车推出来倒在煤堆上', where: '老村址的煤窑口', buyers: '冬天烧炕、烤火的人家（比柴耐烧）；骡帮也收', setup: '一把镐（煤窑现成的）' },
+  { id: 'cowherd', name: '放牛', cat: '地里河里', kind: 'wage', wage: 6, payer: 'farm', place: 'pasture', item: 'whip', anim: 'idle', season: S4(1, 1.2, 1, 0.8),
+    keys: ['放牛', '放羊', '赶牲口', '牛', '耐心'], est: 6,
+    desc: '看着老村址草场上几家寄养的牛：赶着吃草、饮水，傍晚数一遍', where: '老村址的放牛草场', buyers: '寄养牛的农户按天给工钱', setup: '一根鞭子' },
   // ---- 照料人
   { id: 'carer', name: '照看老人孩子', cat: '照料人', kind: 'rounds', service: '照看', price: 4, place: 'rounds', item: 'bowl', anim: 'work', season: S4(1, 1.2, 1.2, 1),
     keys: ['照顾', '做饭', '细心', '带孩子', '伺候', '耐心'], est: 5,
@@ -71,13 +80,13 @@ export const JOBS = [
     keys: ['挑担', '力气', '挑水', '腿脚快'], est: 5,
     desc: '从井里挑水送到人家水缸里，一担两文', where: '井边到各家院里', buyers: '老人家、挑不动水的人家；夏天用水多', setup: '一副水桶、一根扁担' },
   // ---- 新鲜的
-  { id: 'agronomist', name: '农技员（育良种）', cat: '新鲜的', kind: 'make', makes: 'seed', rate: 0.3, max: 10, wage: 3, payer: 'headman', place: 'yard', item: 'hoe', anim: 'squat', season: S4(1.3, 0.8, 1.2, 0.6),
+  { id: 'agronomist', name: '农技员（育良种）', cat: '新鲜的', kind: 'make', makes: 'seed', rate: 0.3, max: 10, wage: 3, payer: 'headman', place: 'trial', item: 'seedling', anim: 'squat', season: S4(1.3, 0.8, 1.2, 0.6),
     keys: ['识字', '种地', '选种', '农技', '算账', '庄稼'], est: 8,
-    desc: '在住处边开一溜试验田，挑穗大粒饱的留种、比着种；农户换了良种，这一季多打一成半粮', where: '自家院边的试验田', buyers: '三家农户，开春、入秋换种；村长家每天补贴 3 文', setup: '几样谷种（向农户要）' },
+    desc: '在老村址的培育田里一畦一样庄稼比着种，挑穗大粒饱的留种；农户换了良种，这一季多打一成半粮', where: '老村址的培育田', buyers: '三家农户，开春、入秋换种；村长家每天补贴 3 文', setup: '几样谷种（向农户要）' },
   { id: 'clerk', name: '村委会文书', cat: '新鲜的', kind: 'wage', wage: 7, payer: 'headman', place: 'rounds', item: 'book', anim: 'talk', season: S4(1, 1, 1, 1),
     keys: ['识字', '写字', '算账', '记账', '跑腿', '会说'], est: 7,
     desc: '给王村长打下手：记账、写通知，挨家挨户传话，开村会时坐在边上记', where: '村长家、挨家挨户', buyers: '村长家按天给工钱（公中的钱）', setup: '笔墨纸' },
-  { id: 'relic', name: '挖旧物·办村史馆', cat: '新鲜的', kind: 'make', makes: 'relic', rate: 0.08, max: 6, place: 'digs', item: 'hoe', anim: 'squat', season: S4(1, 1.3, 1, 0.5),
+  { id: 'relic', name: '挖旧物·办村史馆', cat: '新鲜的', kind: 'make', makes: 'relic', rate: 0.08, max: 6, place: 'digs', item: 'pickaxe', anim: 'squat', season: S4(1, 1.3, 1, 0.5),
     keys: ['识字', '好奇', '挖', '古董', '考据', '耐性'], est: 5,
     desc: '在老村址的废墟、旧河道里刨大水埋下的老东西：铜钱、瓷片、老匾……挖到的记进村史馆，品相好的骡帮收', where: '老村址的废墟、旧河道', buyers: '骡帮逢集收；挖到的每一样都记进村史馆', setup: '一把小镐（靠运气）' },
   // ---- 旧存档里还有人干的（和 NPC 撞，不再给选）
@@ -86,7 +95,7 @@ export const JOBS = [
 ];
 export const jobById = Object.fromEntries(JOBS.map((j) => [j.id, j]));
 /** 卡片上"此刻在干什么"。 */
-const DOING = { hand: '下地帮工', fisher: '河滩上钓鱼', gardener: '侍弄菜地', miller: '水磨坊磨面', builder: '等人叫去修房', tailor: '门口做衣裳', snack: '村口烙烧饼', butcher: '等人叫去杀猪', teahouse: '村口摆茶摊', forager: '上山采山货', hunter: '山上下套子', charcoal: '炭窑烧炭', carer: '照看老人孩子', water: '挑水送水', agronomist: '试验田里育种', clerk: '村委会的差事', relic: '老村址刨旧物', basketry: '编筐', woodcutter: '砍柴' };
+const DOING = { beekeeper: '蜂场里照看蜂箱', miner: '煤窑里挖煤', cowherd: '草场上放牛', hand: '下地帮工', fisher: '河滩上钓鱼', gardener: '侍弄菜地', miller: '水磨坊磨面', builder: '等人叫去修房', tailor: '门口做衣裳', snack: '村口烙烧饼', butcher: '等人叫去杀猪', teahouse: '村口摆茶摊', forager: '上山采山货', hunter: '山上下套子', charcoal: '炭窑烧炭', carer: '照看老人孩子', water: '挑水送水', agronomist: '试验田里育种', clerk: '村委会的差事', relic: '老村址刨旧物', basketry: '编筐', woodcutter: '砍柴' };
 export const JOB_CATS = ['地里河里', '手艺买卖', '山上', '照料人', '新鲜的'];
 
 /** 挖到的老东西（村史馆的展品，按挖到的先后轮着来）。 */
@@ -150,6 +159,7 @@ export function addNewcomer(V, p, { arriving = true } = {}) {
   p.skills ??= [];
   if (p.jobId && !jobById[p.jobId]) p.jobId = undefined;
   p.met ??= !!(p.jobId && !p.jobPicked); // 旧存档：定了行当的都认过人了
+  if (p.jobId && jobById[p.jobId]?.hat && !p.hat) p.hat = jobById[p.jobId].hat; // 养蜂的：没戴帽子的给一顶纱帽
   const job = p.jobId ? jobById[p.jobId] : null;
   p.job = job ? (p.met ? job.name : `新来的（要做${job.name}），在认人`) : '新来的，还没找着活';
   p.day = scheduleFor(job, p.met);
@@ -237,6 +247,23 @@ ACTIVITIES.newJob = (v, id) => {
     return;
   }
   if (job.place === 'digs') { v.loop = () => { v.go(near(V.oldSite.digs, 4)); v.do('squat', 25); }; return; } // 老村址的废墟、旧河道里刨（一处刨一阵，再挪到旁边）
+  const O = V.oldSite;
+  if (job.place === 'mine') { // 挖煤：在洞口里头刨一阵，背一筐出来倒在煤堆上
+    v.loop = () => { v.go(O.mine.at); v.do('work', 25, { face: O.mine.face }); v.back('basket:coal'); v.go(O.mine.heap); v.do('work', 3); v.back(null); };
+    return;
+  }
+  if (job.place === 'pasture') { v.loop = () => { v.go(pick(O.pasture)); v.do(v.rand() < 0.5 ? 'idle' : 'work', 18); }; return; } // 放牛：草场里转，时不时甩一鞭
+  if (job.place === 'apiary') { v.loop = () => { v.go(pick(O.apiary)); v.do('work', 20); }; return; } // 养蜂：蜂箱跟前熏烟、开箱
+  if (job.place === 'trial') { v.loop = () => { v.go(pick(O.trial)); v.do(v.rand() < 0.6 ? 'squat' : 'work', 22); }; return; } // 培育田：蹲在畦头看穗、比着记
+  if (job.place === 'forest') { // 进老林子：林子边上挖、捡、下套子；采山货的隔一阵背回收购棚倒下
+    let n = 0;
+    v.loop = () => {
+      v.go(near(O.forest, 4));
+      v.do(job.anim, 25);
+      if (job.id === 'forager' && ++n % 3 === 0) { v.back('basket:wild'); v.go(O.gather); v.do('work', 4); v.back(null); }
+    };
+    return;
+  }
   if (job.place === 'field') { // 帮忙种田：到最宽裕的那户的地里帮着干，傍晚收工钱（economy.js 的 newcomerDues）
     const boss = V.econ.employerFor(v);
     v.p.workFor = boss?.id ?? null;

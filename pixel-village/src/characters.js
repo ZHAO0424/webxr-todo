@@ -265,6 +265,12 @@ function hat(g, p, H, view) {
       else { g.vline(x0 - 1, y0 + 2, y0 + 5, R.khaki[3]); g.vline(x0 + w, y0 + 2, y0 + 5, R.khaki[2]); }
       break;
     }
+    case 'veil': { // 养蜂的纱帽：草帽檐上垂一圈白纱，罩到肩膀
+      g.rect(x0 + 1, y0 - 3, w - 2, 3, R.wheat[3]);
+      g.rect(x0 - 2, y0, w + 4, 1, R.wheat[2]);
+      for (let j = 1; j < H.h + 1; j++) for (let i = -2; i < w + 2; i++) if ((i + j) % 2 === 0 && (view !== 'front' || j < 2 || i < 0 || i > w - 1)) g.px(x0 + i, y0 + j, R.white[3]);
+      break;
+    }
     case 'douli': { // 斗笠：竹篾编的尖顶大檐，压得低低的
       g.rect(CX - 1, y0 - 4, 3, 1, R.wheat[3]);
       g.rect(x0 + 1, y0 - 3, w - 2, 2, R.wheat[3]);
@@ -465,6 +471,50 @@ const ITEMS = {
       g.vline(bx + 1, y + 1, y + 5, R.wood[1]); g.vline(bx + 2, y + 1, y + 5, R.wood[1]);
       g.rect(bx, y + 6, 4, 5, R.wood[2]); g.hline(bx, bx + 3, y + 6, R.water[3]); g.hline(bx, bx + 3, y + 8, R.slate[2]);
     }
+  },
+  pickaxe(g, hand, work) { // 镐：挖煤、刨旧物，举起 / 刨下
+    if (work === 1) { g.line(hand.x + 1, hand.y, hand.x + 3, hand.y - 11, R.wood[3]); g.hline(hand.x - 1, hand.x + 7, hand.y - 12, R.stone[2]); g.px(hand.x + 7, hand.y - 11, R.stone[3]); g.px(hand.x - 1, hand.y - 11, R.stone[3]); }
+    else { g.line(hand.x + 1, hand.y, hand.x + 8, hand.y - 3, R.wood[3]); g.vline(hand.x + 8, hand.y - 6, hand.y + 1, R.stone[2]); g.px(hand.x + 8, hand.y - 6, R.stone[4]); }
+  },
+  axe(g, hand, work) { // 斧子
+    const up = work === 1;
+    g.line(hand.x + 1, hand.y, hand.x + (up ? 2 : 7), hand.y - (up ? 10 : 2), R.wood[3]);
+    if (up) { g.rect(hand.x + 2, hand.y - 12, 3, 3, R.stone[2]); g.px(hand.x + 4, hand.y - 12, R.stone[4]); } else { g.rect(hand.x + 7, hand.y - 4, 2, 4, R.stone[2]); g.px(hand.x + 8, hand.y - 4, R.stone[4]); }
+  },
+  knife(g, hand, work) { // 杀猪刀：长刃、木把
+    const y = hand.y - (work === 1 ? 3 : 0);
+    g.hline(hand.x, hand.x + 1, y, R.wood[2]); g.hline(hand.x + 2, hand.x + 7, y, R.grey[3]); g.hline(hand.x + 2, hand.x + 6, y + 1, R.grey[2]); g.px(hand.x + 7, y - 1, R.white[3]);
+  },
+  trowel(g, hand, work) { // 泥抹子 + 一小桶泥
+    const y = hand.y - (work === 1 ? 2 : 0);
+    g.vline(hand.x + 1, y - 2, y, R.wood[3]); g.rect(hand.x, y - 4, 4, 2, R.grey[3]); g.hline(hand.x, hand.x + 3, y - 4, R.grey[4]);
+    g.rect(hand.x - 3, hand.y + 3, 3, 3, R.wood[2]); g.hline(hand.x - 3, hand.x - 1, hand.y + 3, R.mud[2]);
+  },
+  teapot(g, hand, work) { // 大铜茶壶：倒茶时壶嘴往下
+    const y = hand.y - 1, dy = work === 1 ? 1 : 0;
+    g.rect(hand.x, y, 5, 4, R.gold[2]); g.hline(hand.x + 1, hand.x + 3, y - 1, R.gold[3]); g.px(hand.x + 2, y - 2, R.gold[4]);
+    g.line(hand.x + 5, y + 1, hand.x + 7, y - 1 + dy * 3, R.gold[2]); g.vline(hand.x - 1, y, y + 2, R.gold[1]);
+  },
+  trap(g, hand) { // 套子：一盘细绳、一根木橛子
+    g.rect(hand.x - 1, hand.y, 4, 3, R.wheat[1]); g.hline(hand.x - 1, hand.x + 2, hand.y + 1, R.wheat[3]); g.vline(hand.x + 3, hand.y - 4, hand.y + 3, R.wood[3]);
+  },
+  shovel(g, hand, work) { // 铁锹：烧炭、刨土
+    if (work === 1) { g.vline(hand.x + 2, hand.y - 8, hand.y + 2, R.wood[3]); g.rect(hand.x + 1, hand.y + 3, 3, 4, R.stone[2]); }
+    else { g.line(hand.x + 1, hand.y, hand.x + 7, hand.y + 4, R.wood[3]); g.rect(hand.x + 7, hand.y + 4, 3, 3, R.stone[2]); g.px(hand.x + 9, hand.y + 6, R.stone[1]); }
+  },
+  seedling(g, hand) { // 一盘秧苗（育良种）
+    g.rect(hand.x - 2, hand.y + 1, 6, 2, R.wood[2]); for (let i = 0; i < 6; i += 2) { g.px(hand.x - 2 + i, hand.y, R.cabbage[3]); g.px(hand.x - 1 + i, hand.y - 1, R.cabbage[4]); }
+  },
+  smoker(g, hand, work) { // 养蜂的熏烟罐：一只小铁罐，罐嘴冒烟
+    g.rect(hand.x, hand.y - 1, 3, 4, R.slate[2]); g.px(hand.x + 1, hand.y - 2, R.slate[3]);
+    g.px(hand.x + 2, hand.y - 3 - work, R.smoke[2]); g.px(hand.x + 3, hand.y - 5 - work, R.smoke[3]);
+  },
+  can(g, hand, work) { // 浇菜的水瓢 / 水壶
+    g.rect(hand.x, hand.y, 4, 3, R.wood[2]); g.hline(hand.x, hand.x + 3, hand.y, R.water[3]); g.line(hand.x + 4, hand.y + 1, hand.x + 6, hand.y - 1 + work * 3, R.wood[2]);
+  },
+  shears(g, hand) { // 剪子 + 一卷布（裁缝）
+    g.rect(hand.x - 2, hand.y + 1, 4, 3, R.indigo[3]); g.hline(hand.x - 2, hand.x + 1, hand.y + 1, R.indigo[4]);
+    g.line(hand.x + 2, hand.y, hand.x + 5, hand.y - 3, R.grey[3]); g.line(hand.x + 2, hand.y - 2, hand.x + 5, hand.y + 1, R.grey[3]);
   },
   bucket(g, hand) { // 一只泔水桶（喂猪）
     g.rect(hand.x - 1, hand.y, 4, 4, R.wood[2]); g.hline(hand.x - 1, hand.x + 2, hand.y + 1, R.slate[2]); g.hline(hand.x - 1, hand.x + 2, hand.y, R.mud[2]);

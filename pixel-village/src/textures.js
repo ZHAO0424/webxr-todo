@@ -706,6 +706,17 @@ const eastTiles = {
     for (let i = 0; i < 5; i++) g.rectw(r() * 36, r() * 36, 3, 2, R.stone[2]);
     for (let i = 0; i < 4; i++) g.rectw(r() * 36, 0, 1, 3, R.grass[2]);
   }),
+  coalRock: (r) => paint(36, 36, (g) => { // 煤矿那面石崖：青灰的石层夹着一道道黑亮的煤线
+    g.rect(0, 0, 36, 36, R.stone[2]);
+    for (let y = 0; y < 36; y += 5 + Math.floor(r() * 3)) g.rect(0, y, 36, 1, R.stone[1]);
+    for (let i = 0; i < 3; i++) { const y = Math.floor(r() * 34); g.rect(0, y, 36, 2, R.black[1]); for (let x = 0; x < 36; x += 3) g.px(x + Math.floor(r() * 2), y, R.black[3]); }
+    for (let i = 0; i < 6; i++) g.rectw(r() * 36, r() * 36, 3, 2, R.stone[3]);
+  }),
+  stoneTop: (r) => paint(36, 36, (g) => { // 石崖顶：灰石头 + 石缝里的草
+    g.rect(0, 0, 36, 36, R.stone[3]);
+    for (let i = 0; i < 8; i++) g.rectw(r() * 36, r() * 36, 6, 4, R.stone[2]);
+    for (let i = 0; i < 9; i++) { const x = r() * 36, y = r() * 36; g.rectw(x, y, 3, 2, R.grass[2]); g.pxw(x + 1, y, R.grass[3]); }
+  }),
   thatch: (r) => paint(18, 18, (g) => { // 苫房的茅草
     g.rect(0, 0, 18, 18, R.wheat[2]);
     for (let i = 0; i < 40; i++) g.rectw(r() * 18, r() * 18, 1, 4, [R.wheat[3], R.wheat[1], R.harvest[2]][i % 3]);

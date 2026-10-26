@@ -334,7 +334,7 @@ export function voxelCharacter(p, M) {
       add(-0.17, -0.72, -0.14, 0.17, -0.42, 0.14, M.straw);
       add(-0.24, -0.42, -0.2, 0.24, 0.08, 0.2, M.straw);
       add(-0.26, 0.04, -0.22, 0.26, 0.11, 0.22, M.wood);
-      const top = { corn: M.corn, grass: M.veg, dung: M.flatRoof, persimmon: M.gold }[fill];
+      const top = { corn: M.corn, grass: M.veg, dung: M.flatRoof, persimmon: M.gold, coal: M.ink, wild: M.persimmonMat ?? M.gold }[fill]; // coal：一筐煤；wild：山货
       if (top) add(-0.2, 0.1, -0.16, 0.2, 0.24, 0.16, top);
       g.position.set(0, sh - 0.05, -0.42);
     } else if (kind === 'bench') { // 扛条凳：凳面顺着前后搭在右肩上，四条腿朝上
@@ -485,9 +485,9 @@ export function voxelCharacter(p, M) {
 
 // ---------------------------------------------------------------- 动物
 
-const PLUMP = { dog: 3, dogBlack: 3, cat: 2, hen: 2, henBrown: 2, rooster: 2, duck: 2, goose: 3, pig: 4, sheep: 4, donkey: 4, ox: 6, magpie: 2, pigeon: 1 };
+const PLUMP = { boar: 4, dog: 3, dogBlack: 3, cat: 2, hen: 2, henBrown: 2, rooster: 2, duck: 2, goose: 3, pig: 4, sheep: 4, donkey: 4, ox: 6, magpie: 2, pigeon: 1 };
 // 人是 Q 版大头，动物也按同样的夸张程度放大，不然站在人旁边像玩具
-const ANIMAL_SCALE = { dog: 1.6, dogBlack: 1.6, cat: 1.6, hen: 1.7, henBrown: 1.7, rooster: 1.7, duck: 1.7, goose: 1.5, pig: 1.4, sheep: 1.4, donkey: 1.2, ox: 1.35, magpie: 1.7, pigeon: 1.6 };
+const ANIMAL_SCALE = { boar: 1.4, dog: 1.6, dogBlack: 1.6, cat: 1.6, hen: 1.7, henBrown: 1.7, rooster: 1.7, duck: 1.7, goose: 1.5, pig: 1.4, sheep: 1.4, donkey: 1.2, ox: 1.35, magpie: 1.7, pigeon: 1.6 };
 
 /*
  * 猪和牛照"我的世界"的样子用方块拼：身子一块、头一块、鼻子一块、四条方腿，配色沿用原来的黄牛 / 黑猪。
@@ -526,7 +526,19 @@ const BOXY = {
     ];
   },
 };
-const BOXY_SCALE = { ox: 1.15, pig: 1.0 };
+BOXY.boar = (step) => { // 野猪：比家猪瘦长，棕黑，脊背一道硬鬃，嘴边两颗獠牙
+  const p = R.brown[2], P = R.brown[1], m = R.black[2], w = R.white[3], k = R.slate[0];
+  return [
+    ...legs([-7, 3], [-4, 1], 5, 3, P, k, step),
+    [-8, 5, -4, 7, 12, 4, (x, yy) => (yy === 5 ? P : p)], // 身子
+    [-6, 12, -1, 6, 14, -0, m], [-6, 12, 0, 6, 14, 1, m], // 脊背上的硬鬃
+    [7, 6, -3, 13, 12, 3, (x, yy, z) => (x === 12 && yy === 10 && Math.abs(z + 0.5) === 1.5 ? k : p)], // 头 + 眼睛
+    [13, 6, -2, 16, 9, 2, P], // 长嘴
+    [14, 8, -3, 15, 11, -2, w], [14, 8, 2, 15, 11, 3, w], // 獠牙
+    [8, 12, -3, 10, 14, -1, P], [8, 12, 1, 10, 14, 3, P], // 耳朵
+  ];
+};
+const BOXY_SCALE = { ox: 1.15, pig: 1.0, boar: 1.05 };
 
 function boxyFrames(kind, M) {
   return [0, 1].map((step) => {

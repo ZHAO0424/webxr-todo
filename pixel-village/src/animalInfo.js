@@ -7,15 +7,15 @@ import { PLACES as HOMES } from './labels.js';
 
 export const KIND_NAMES = {
   dog: '黄狗', dogBlack: '黑狗', cat: '狸花猫', hen: '芦花鸡', henBrown: '麻母鸡', rooster: '大公鸡', duck: '麻鸭', goose: '大白鹅',
-  pig: '黑猪', sheep: '绵羊', donkey: '灰毛驴', ox: '黄牛', magpie: '喜鹊', pigeon: '鸽子',
+  pig: '黑猪', boar: '野猪', sheep: '绵羊', donkey: '灰毛驴', ox: '黄牛', magpie: '喜鹊', pigeon: '鸽子',
 };
 
 const NAMES = {
   dog: ['大黄', '虎子'], dogBlack: ['黑子', '乌金'], cat: ['花花', '咪咪', '狸子'],
   hen: ['芦花', '小芦', '点点', '米米', '豆豆', '花脖', '白翅', '小麻'], henBrown: ['麻姑', '红冠', '小褐', '枣子'], rooster: ['大红袍', '金冠', '将军', '打鸣王'],
   duck: ['嘎嘎', '扁嘴', '小麻', '水漂', '鸭头'], goose: ['大白', '二白', '长脖', '老憨'],
-  pig: ['黑娃', '胖墩', '哼哼', '肥肥'], sheep: ['头羊', '白云', '卷卷', '咩咩', '小犄角', '花脸', '棉花', '团子', '老绵'],
-  donkey: ['灰灰'], ox: ['老黄'], magpie: ['喳喳', '报喜'], pigeon: ['灰点', '白羽', '铃铛', '瓦灰', '雨点', '小信', '咕咕', '斑斑'],
+  pig: ['黑娃', '胖墩', '哼哼', '肥肥'], boar: ['独眼', '大獠牙', '黑鬃', '小野'], sheep: ['头羊', '白云', '卷卷', '咩咩', '小犄角', '花脸', '棉花', '团子', '老绵'],
+  donkey: ['灰灰'], ox: ['老黄', '花鼻子', '大犍', '小犊'], magpie: ['喳喳', '报喜'], pigeon: ['灰点', '白羽', '铃铛', '瓦灰', '雨点', '小信', '咕咕', '斑斑'],
 };
 
 const ABOUT = {
@@ -28,6 +28,7 @@ const ABOUT = {
   duck: '吴家的鸭子。白天漂在溪上觅食，天黑前由小翠赶回家中。',
   goose: '比狗还警觉，生人一靠近便伸长脖子追赶。同属吴家，常随鸭群一同下溪。',
   pig: '吃了睡、睡了吃。听见泔水桶响，便哼哼着挤到槽边。',
+  boar: '东山林子边上的野猪，夜里下山拱地里的红薯玉米。打猎的人在林边下了套子，它们精得很，轻易不上当。',
   sheep: '羊倌老马的羊群。清晨随他上坡吃草，日落时一声鞭响，便排成一列返回羊圈。',
   donkey: '豆腐坊的毛驴，蒙着眼拉磨，一圈又一圈。不干活时便站在棚下嚼草。',
   ox: '杨家的老黄牛，碾场全靠它拉动石碾。脾气温和，孩子骑上去也不恼。',
@@ -44,6 +45,10 @@ export function animalInfo(s, c) {
   const key = `${c?.id ?? 'wild'}:${s.kind}`;
   const i = used.get(key) ?? 0;
   used.set(key, i + 1);
+  if (s.ownerText) { // 老村址：林子里的野猪、放牛人放的牛
+    const k = `${s.ownerText}:${s.kind}`, j = used.get(k) ?? 0; used.set(k, j + 1);
+    return { name: (NAMES[s.kind] ?? ['小家伙'])[j % (NAMES[s.kind] ?? [1]).length], kind: KIND_NAMES[s.kind] ?? s.kind, owner: s.ownerText, about: s.about ?? ABOUT[s.kind] ?? '' };
+  }
   const owner = s.role === 'duck' || s.role === 'goose' ? '吴家' : s.role === 'pigeon' ? '学堂屋檐下' : HOMES[c?.id] ?? '村里';
   const offset = (c?.id ?? 'w').length; // 不同院子从名单里不同位置开始取，同名少一些
   return { name: pool[(i + offset) % pool.length], kind: KIND_NAMES[s.kind] ?? s.kind, owner, about: ABOUT[s.kind] ?? '' };

@@ -17,7 +17,7 @@ import { BOUNDS } from './layout.js';
 const CELL = 0.25;
 const STEP = 0.36;
 const HOP = 1.5; // 鸭鹅扑腾着能跳上 / 跳下的坎（梯田石堰、溪岸），找路时算能走但很费劲
-const COST = { path: 1, pad: 1, grass: 1.4, field: 3, stream: 1, forest: 1.8, rock: 2, gravel: 1.6, sand: 1.6 };
+const COST = { path: 1, pad: 1, grass: 1.4, field: 3, stream: 1, forest: 1.8, rock: 2, gravel: 1.6, sand: 1.6, stone: 2 };
 
 export class NavGrid {
   /** terrain：walkAt / isWater / typeAt；bounds：覆盖多大（村子 + 西沟时往西多出一块）。 */

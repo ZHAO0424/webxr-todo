@@ -75,6 +75,11 @@ const ANIMALS = {
     body: ['............pp..', '.t.ppppppppppp..', 't.pPPPPPpppppkss', '..ppppppppppppss', '..pppppppppppp..', '...pppppppppp...'],
     legs: [['...p.p....p.p...'], ['....pp.....pp...']],
   },
+  boar: { // 野猪：棕黑的鬃毛、脊背一道硬鬃、两颗白獠牙
+    keys: { p: R.brown[2], P: R.brown[1], m: R.black[2], w: R.white[3], k: INK, t: R.brown[1] },
+    body: ['....mmmmm.......', '.t.mmmmmmmmmpp..', 't.pPPpppppppkpww', '..pppppppppppppw', '..pppppppppppp..', '...PPpppppppP...'],
+    legs: [['...p.p....p.p...'], ['....pp.....pp...']],
+  },
   sheep: {
     keys: { w: R.white[3], W: R.white[2], f: R.slate[2], k: INK },
     body: ['...........ff.', '..wWwWwWw.fkff', '.wwwwwwwwwffff', 'WwWwWwWwWwwff.', '.wwwwwwwwwww..', '..WwWwWwWwW...'],

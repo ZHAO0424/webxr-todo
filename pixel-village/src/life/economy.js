@@ -50,6 +50,7 @@ export const GOODS = {
   charcoal: { name: '木炭', unit: '斤', price: 4 },
   seed: { name: '良种', unit: '升', price: 30 }, // 农技员育的谷种：换上的农户这一季多打一成半粮
   relic: { name: '老物件', unit: '件', price: 25, export: true }, // 老村址废墟里挖出来的（骡帮收）
+  coal: { name: '煤', unit: '斤', price: 2, export: true }, // 老村址煤窑挖的（骡帮也收）
 };
 
 /** 哪户算哪户：村口的几个人各自一户；骡帮是村外的。 */
@@ -435,7 +436,8 @@ export class Economy {
     want('pork', 0.04 + rich * 0.12 + (festive2 ? 0.25 : 0) + (S === 'winter' ? 0.05 : 0), 2, '割二斤肉');
     want('wildfood', (S === 'spring' || S === 'autumn' ? 0.07 : 0.03) + rich * 0.04, 2, S === 'spring' ? '尝个鲜野菜' : '买点核桃蘑菇');
     want('game', 0.05 + rich * 0.08 + (festive2 ? 0.1 : 0) + (S === 'winter' ? 0.04 : 0), 1, '买只野味');
-    want('charcoal', (S === 'winter' ? 0.14 : S === 'autumn' ? 0.07 : 0.03) + rich * 0.08, 3, S === 'winter' || S === 'autumn' ? '烤火' : '烧水做饭');
+    want('charcoal', (S === 'winter' ? 0.16 : S === 'autumn' ? 0.1 : 0.06) + rich * 0.08, 3, S === 'winter' || S === 'autumn' ? '烤火（炭没烟）' : '烧水、熨衣裳');
+    want('coal', (S === 'winter' ? 0.2 : S === 'autumn' ? 0.08 : 0.03) + rich * 0.06, 6, '烧炕、烤火');
     if (['farmA', 'farmB', 'farmC'].includes(u.id) && u.boost !== S && (st.seed ?? 0) < 1 && S !== 'winter') want('seed', 0.15, 1, '换新谷种');
     if (u.id === 'smith' && (st.iron ?? 0) < 4) w.push({ good: 'iron', qty: 6 });
     if (u.id === 'tofu' && (st.soy ?? 0) < 10) w.push({ good: 'soy', qty: 12 });

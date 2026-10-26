@@ -116,7 +116,23 @@
     #roster .pet { display: flex; align-items: flex-end; gap: var(--p); }
     #roster .pet canvas { image-rendering: pixelated; }
     /* 来了个新人：和档案一样的横板大卡，左边填人（空缺提示、名字年纪、会什么、性格），右边长相预览、本钱、带的东西 */
-    #newcomer { position: fixed; inset: 8vh 5vw auto; max-height: 84vh; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 6; }
+    #newcomer { position: fixed; inset: 5vh 4vw auto; max-height: 90vh; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 6; font-size: calc(16 * var(--f)); line-height: calc(24 * var(--f)); }
+    #newcomer, #newcomer * { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; } /* 这张大卡整页用 16 像素点阵字（游戏里的对话框那样大） */
+    #newcomer .rhead .title { font-size: calc(32 * var(--f)) !important; line-height: calc(36 * var(--f)) !important; }
+    #newcomer .rhead .tabs .btn { padding: 0 calc(3 * var(--p)); line-height: calc(28 * var(--f)); }
+    #newcomer .stagebox { display: flex; flex-direction: column; gap: calc(4 * var(--p)); }
+    #newcomer .views .v canvas { margin: 0 auto; }
+    #newcomer .arrows { display: flex; align-items: center; justify-content: center; gap: calc(4 * var(--p)); }
+    #newcomer .arr { width: calc(40 * var(--f)); line-height: calc(40 * var(--f)); font-size: calc(16 * var(--f)); text-align: center; padding: 0; }
+    #newcomer .cur { min-width: calc(110 * var(--p)); display: flex; flex-direction: column; align-items: center; }
+    #newcomer .cur .pn { color: var(--gold); } #newcomer .cur .pv { font-size: calc(16 * var(--f)); } #newcomer .cur .pi { color: var(--dim); font-style: normal; }
+    #newcomer .ptabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(56 * var(--p)), 1fr)); gap: calc(2 * var(--p)); }
+    #newcomer .ptab { display: flex; flex-direction: column; align-items: flex-start; padding: var(--p) calc(3 * var(--p)); line-height: calc(22 * var(--f)); text-align: left; }
+    #newcomer .ptab i { font-style: normal; color: var(--dim); }
+    #newcomer .ptab.on i { color: var(--ink); }
+    #newcomer .partbox .lbl { margin-top: calc(4 * var(--p)); }
+    #newcomer .seg { display: flex; gap: calc(2 * var(--p)); }
+    #newcomer .seg .chipbtn { min-width: calc(30 * var(--p)); text-align: center; }
     #newcomer[hidden] { display: none; }
     #newcomer .rhead { display: flex; align-items: center; gap: calc(3 * var(--p)); padding-right: calc(10 * var(--p)); }
     #newcomer .rhead .title { color: var(--gold); font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
@@ -130,16 +146,21 @@
     #newcomer label { display: flex; align-items: center; gap: calc(2 * var(--p)); color: var(--dim); }
     #newcomer .in { font: inherit; color: var(--text); background: #17120d; border: 0; box-shadow: inset 0 var(--f) 0 #0e0b08, 0 0 0 var(--f) var(--line); padding: var(--f) calc(2 * var(--p)); width: calc(44 * var(--p)); }
     #newcomer input[type=number].in { width: calc(18 * var(--p)); }
+    #newcomer .row2 label { display: flex; align-items: center; gap: calc(2 * var(--p)); flex: 1; }
+    #newcomer .row2 .in { flex: 1; width: auto; }
     #newcomer .in.wide { width: 100%; box-sizing: border-box; margin-top: var(--p); resize: none; }
     #newcomer input[type=range].in { padding: 0; accent-color: var(--gold); }
     #newcomer .chips { display: flex; flex-wrap: wrap; gap: var(--p); }
     #newcomer .chips .lbl.sub { flex-basis: 100%; margin: var(--p) 0 0; color: var(--dim); }
-    #newcomer .chipbtn { padding: 0 calc(2 * var(--p)); line-height: calc(16 * var(--f)); }
-    #newcomer .chips.small .chipbtn { line-height: calc(14 * var(--f)); }
+    #newcomer .chipbtn { padding: 0 calc(3 * var(--p)); line-height: calc(26 * var(--f)); }
+    #newcomer .chips.small .chipbtn { line-height: calc(24 * var(--f)); }
+    #newcomer .chips { gap: calc(2 * var(--p)); }
+    #newcomer .in { line-height: calc(26 * var(--f)); }
     #newcomer .seg { display: flex; gap: var(--p); }
     #newcomer .tabs { display: flex; gap: var(--p); }
     #newcomer .nbody[hidden] { display: none; }
-    #newcomer .look-page { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+    #newcomer .look-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    #newcomer .info-page { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     #newcomer .stagebox { display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
     #newcomer .views { flex: 1; display: flex; justify-content: center; align-items: flex-end; gap: calc(6 * var(--p)); background: var(--stage-bg); box-shadow: 0 0 0 var(--f) var(--ink); padding: calc(6 * var(--p)) calc(4 * var(--p)) calc(3 * var(--p)); min-height: calc(110 * var(--p)); }
     #newcomer canvas { display: block; image-rendering: pixelated; }
@@ -157,11 +178,11 @@
     #newcomer .job-page { grid-template-columns: 1fr; }
     #newcomer .jhead { display: flex; justify-content: space-between; align-items: center; gap: calc(3 * var(--p)); flex-wrap: wrap; margin-bottom: calc(3 * var(--p)); }
     #newcomer .jcats { display: flex; gap: var(--p); flex-wrap: wrap; }
-    #newcomer .jcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(84 * var(--p)), 1fr)); gap: calc(2 * var(--p)); }
+    #newcomer .jcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(110 * var(--p)), 1fr)); gap: calc(3 * var(--p)); }
     #newcomer .jcard { display: flex; gap: calc(3 * var(--p)); align-items: center; text-align: left; padding: calc(2 * var(--p)); }
     #newcomer .jcard .thumb { background: var(--face-bg); padding: var(--f) calc(2 * var(--f)) 0; box-shadow: 0 0 0 var(--f) var(--ink); flex: none; }
     #newcomer .jcard.on .thumb { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--gold); }
-    #newcomer .jcard .jt { display: flex; flex-direction: column; gap: var(--f); line-height: calc(14 * var(--f)); }
+    #newcomer .jcard .jt { display: flex; flex-direction: column; gap: calc(2 * var(--f)); line-height: calc(24 * var(--f)); }
     #newcomer .jcard .jt b { font-weight: normal; color: var(--gold); }
     #newcomer .jcard .jt .dim { white-space: nowrap; }
     #newcomer .jcard .jt .l1 { display: flex; align-items: center; gap: calc(2 * var(--f)); }

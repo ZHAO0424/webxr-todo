@@ -335,11 +335,12 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
   }
   // 老村址的老宅：新来的人可以选一处住（见 life/newcomers.js），也包成院落的样子
   for (const h of east.houses) {
-    const x = east.plots[h.id].position.x, z = east.plots[h.id].position.z, level = east.plots[h.id].position.y, w = 8, d = 7;
+    const x = east.plots[h.id].position.x, z = east.plots[h.id].position.z, level = east.plots[h.id].position.y, w = 8, d = 7, rot = east.plots[h.id].rotation.y, cs = Math.cos(rot), sn = Math.sin(rot);
     const o = new THREE.Object3D();
     o.position.set(x, level, z);
-    const c = { id: h.id, w, d, rot: 0, level, object: o, gate: [0.96, d / 2 + 0.8], gates: [], spots: { yard: [1.8, 2.4], sweepA: [-1.2, 2.6], sweepB: [2.6, 2.8], work: [0.4, 2.2] }, doors: { house: [-1.04, 1.7] }, windows: [], emitters: [], lanterns: [], trees: [], animals: [], spinners: [], discs: [], lightsOut: 21, windowMat: new THREE.MeshBasicMaterial(), sills: [] };
-    c.at = (lx, lz) => [x + lx, z + lz];
+    o.rotation.y = rot;
+    const c = { id: h.id, w, d, rot, level, object: o, gate: [0.96, d / 2 + 0.8], gates: [], spots: { yard: [1.8, 2.4], sweepA: [-1.2, 2.6], sweepB: [2.6, 2.8], work: [0.4, 2.2] }, doors: { house: [-1.04, 1.7] }, windows: [], emitters: [], lanterns: [], trees: [], animals: [], spinners: [], discs: [], lightsOut: 21, windowMat: new THREE.MeshBasicMaterial(), sills: [] };
+    c.at = (lx, lz) => [x + cs * lx + sn * lz, z - sn * lx + cs * lz]; // 老宅各转了一点角度
     c.spot = (name) => (c.spots[name] ? nav.nearestFree(...c.at(...c.spots[name])) : undefined);
     c.door = () => c.at(...c.doors.house);
     c.gateOut = () => nav.nearestFree(...c.at(...c.gate));
@@ -397,6 +398,13 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
       beach: east.work.beach.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
       duckBeach: east.work.beach.slice(0, 4).map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
       digs: east.work.digs.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
+      // 各行当的地方：煤窑口、放牛草场、蜂场、培育田、山货收购棚、林子边
+      mine: { ...east.work.mine, at: nav.nearestFree(...east.work.mine.at), heap: nav.nearestFree(...east.work.mine.heap) },
+      pasture: east.work.pasture.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
+      apiary: east.work.apiary.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
+      trial: east.work.trial.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
+      gather: nav.nearestFree(...east.work.gather),
+      forest: east.work.forest.map((p) => nav.nearestFree(...p)).filter((p) => nav.reachable(...p)),
     },
     // 小孩玩耍的去处：溪北岸能站的地方（脸朝水），村口附近的庄稼地
     bankClaims: {}, // 溪边洗衣裳的位置有人占了就换一个
@@ -420,6 +428,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     ...Array.from({ length: 5 }, () => ({ kind: 'duck', role: 'duck', worldArea: ducks, reach: duckReach })),
     ...Array.from({ length: 8 }, (_, i) => ({ kind: 'pigeon', role: 'pigeon', cx: 0, cz: -8, r: 12, y: 22, offset: i * 0.35 })),
     // 骡帮的三头骡子：平常不在村里，逢集跟着牛老大来，到了村口在西边空地上站着
+    ...east.animals, // 老村址：林子边的野猪、草场上的牛
     ...Array.from({ length: 3 }, (_, i) => ({ kind: 'donkey', role: 'mule', caravan: 'niu_wanshan', name: ['大青', '二黑', '花脸'][i], worldArea: [nodes.sqW.x - 6, nodes.sqW.z - 6, nodes.sqW.x - 2.5, nodes.sqW.z - 1] })),
   ];
   V.bonfire = { lit: false };
