@@ -463,7 +463,7 @@ V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一�
 const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
   econ: () => ECON,
   homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? h.name, n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
-  plots: () => east.houses.map((h) => ({ id: h.id, name: `${h.who}老宅`, state: ['塌了', '能遮雨', '修好了'][h.state], taken: h.owner ? h.ownerName : null, story: h.story })), // 老村址的老宅：空着的可以选来住
+  plots: () => east.houses.map((h) => ({ id: h.id, name: `${h.who}老宅`, state: ['塌了', '能遮雨', '空着'][h.state], taken: h.owner ? h.ownerName : null, story: h.story })), // 老村址的老宅：空着的可以选来住
   onChangeJob(id, jobId) { // 档案里点「改行」选好了：马上换过去
     const v = V.byId[id];
     if (!v) return;
