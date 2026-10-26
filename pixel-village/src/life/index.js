@@ -5,6 +5,9 @@ import { Beast } from './beast.js';
 import { eventOf, weatherOf, EVENTS } from './events.js';
 import { Barbershop } from './barber.js';
 import { holiday } from './variety.js';
+import { Economy } from './economy.js';
+import { Trading } from './trade.js';
+import { jobById } from './newcomers.js';
 
 export { Clock, RATES, rateAt } from './clock.js';
 export { EVENTS, EVENT_NAMES, ORDER, WEATHER, fmt, lunarLabel } from './events.js';
@@ -73,6 +76,11 @@ export function populate(V, residents, extraAnimals, startHour, { event: forcedE
   V.eventOn = (key) => { const e = EVENTS[key]; return V.today() === key && V.weather() !== 'rain' && clock.hour >= e.from - e.prep && clock.hour < e.to; }; // 场面道具什么时候摆出来
   V.barber = new Barbershop(V);
   V.holiday = () => holiday(clock.day);
+  V.econ = new Economy(V); // 各户的钱和东西、产出、吃用、调价、成交（economy.js）
+  V.trade = new Trading(V, V.econ); // 派人去买、当面成交（trade.js）
+  V.econ.jobs = jobById; // 新来的人的行当（newcomers.js）
+  V.econ.newDay(clock.day);
+  V.trade.plan(clock.day);
   return {
     people: V.people,
     beasts: V.beasts,
@@ -80,6 +88,8 @@ export function populate(V, residents, extraAnimals, startHour, { event: forcedE
     today: () => V.today(),
     weather: () => V.weather(),
     barber: V.barber,
+    econ: V.econ,
+    trade: V.trade,
     update(t, dt) {
       const prev = clock.hour;
       clock.update(dt);
@@ -88,10 +98,14 @@ export function populate(V, residents, extraAnimals, startHour, { event: forcedE
         for (const b of V.beasts) b.reset();
         for (const g of V.nav.gates) g.ajar = false;
         for (const v of V.people) { v.entry = -1; v.inside = true; v.lift = 0; v.perched = false; v.down = null; const [dx, dz] = V.nav.nearestFree(...v.bed.door('house')); v.pos.set(dx, 0, dz); }
+        V.econ.newDay(clock.day); // 结账：吃用、放坏、调价、今天想买什么
+        V.trade.plan(clock.day);
       }
       if (crossed(6.6)) for (const tr of V.torches) tr.lit = false; // 天亮了还没人去灭的，算熄了
       if (h > 19.25 || h < 5) for (const tr of V.torches) tr.lit = true; // 兜底：过了七点一刻还没点的，算别人顺手点了
       V.barber.tick(h, clock.day);
+      V.econ.tick(h >= prev ? h - prev : h + 24 - prev); // 干活的攒产出
+      V.trade.tick(h); // 到点去买东西
       for (const v of V.people) v.update(t, dt, h);
       for (const b of V.beasts) b.update(t, dt, h);
     },

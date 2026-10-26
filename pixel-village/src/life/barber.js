@@ -85,7 +85,7 @@ ACTIVITIES.haircut = (v) => {
   const leave = () => { shop.queue = shop.queue.filter((x) => x !== v); if (shop.seated === v) shop.seated = null; if (shop.done === v) shop.done = null; v.V.release(v); };
   v.loop = () => {
     if (shop.done === v || (!shop.open() && shop.seated !== v)) { // 剃完了（或者剃头匠不在）
-      if (shop.done === v) shop.served++;
+      if (shop.done === v) { shop.served++; v.V.econ?.pay(v, 'zheng_laotou', 2, '剃头'); } // 剃一个头两文钱
       leave();
       v.finish();
       return;

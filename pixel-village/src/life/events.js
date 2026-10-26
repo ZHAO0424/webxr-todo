@@ -239,7 +239,7 @@ export const EVENT_ACTS = {
         const st = M.stalls[Number(name.match(/stall(\d)/)[1])];
         v.go(sq.spot(name));
         v.do('talk', 6 + v.rand() * 4, { face: sq.at(st.x, st.z) }); // 挑一挑、讲讲价
-        v.call(() => v.V.release(v));
+        v.call(() => { v.V.release(v); v.V.trade?.atStall(v, st.kind); }); // 按自家清单买（economy.js / trade.js）
       }
       v.go(sq.randomPoint([sq.playArea[0], sq.playArea[1], 6.0, sq.playArea[3]])); // 逛一逛，碰见熟人说两句（东边摞着条凳，不往那儿去）
       v.do(v.rand() < 0.5 ? 'talk' : 'idle', 3 + v.rand() * 3);

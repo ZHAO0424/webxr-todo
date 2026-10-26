@@ -103,12 +103,13 @@ export class Villager {
     if (this.inside) { this.inside = false; this.object.visible = true; }
     this.reset();
     this.errand = name;
+    this.errandText = null; // 卡片上写的具体差事（"去赵家豆腐坊买豆腐"），差事自己填
     this.doing = name;
     ACTIVITIES[name](this, arg);
   }
 
   /** 差事办完 / 活动提前散了：下一帧按日程重新派活。 */
-  finish() { this.errand = null; this.entry = undefined; this.tasks = []; this.loop = null; }
+  finish() { this.errand = null; this.errandText = null; this.entry = undefined; this.tasks = []; this.loop = null; }
 
   /**
    * 正前方的人：前方 0.75 米以内、左右偏不到 0.45 米（再偏就擦肩过去了，不算挡）。没有返回 null。

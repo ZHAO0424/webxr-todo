@@ -29,6 +29,30 @@ const BODIES = {
   child: { headW: 11, headH: 10, torsoW: 9, torsoH: 6, legH: 4, neck: 0 },
 };
 
+/**
+ * 体型（捏人用）：在男 / 女 / 老人的身量上加减。p.build 不写就是匀称。
+ * 帧高 40、脚底在第 38 行：最高的体型（腿 +1、身子 +1）头顶还留着戴帽子的地方。
+ */
+export const BUILDS = {
+  stout: { name: '魁梧', torsoW: 2, legH: 1 },
+  thin: { name: '精瘦', torsoW: -2, legH: 1 },
+  tall: { name: '高个', torsoH: 1, legH: 1 },
+  short: { name: '矮壮', torsoW: 1, legH: -1 },
+  fat: { name: '富态', torsoW: 2, torsoH: 1 },
+  slim: { name: '苗条', torsoW: -1, legH: 1 },
+  petite: { name: '娇小', torsoH: -1, legH: -1 },
+  broad: { name: '宽肩', torsoW: 1, torsoH: 1 },
+  bent: { name: '佝偻', torsoH: -1, legH: -1, torsoW: 1 },
+};
+/** 这个人的身量：BODIES 加上体型的增减。 */
+export function bodyOf(p) {
+  const b = BODIES[p.body] ?? BODIES.man, d = BUILDS[p.build];
+  if (!d) return b;
+  return { ...b, torsoW: b.torsoW + (d.torsoW ?? 0), torsoH: b.torsoH + (d.torsoH ?? 0), legH: b.legH + (d.legH ?? 0) };
+}
+/** 发型（捏人用的名字）。 */
+export const HAIRS = { short: '短发', crew: '寸头', part: '分头', shaved: '光头', queue: '长辫', bun: '发髻', topknot: '抓髻', twinbuns: '双丫髻', braids: '两条辫子', ponytail: '马尾', fringe: '齐刘海', long: '披发' };
+
 // ---------------------------------------------------------------- 像素网格
 
 class Grid {
@@ -166,11 +190,22 @@ function hair(g, p, H, view) {
     for (let i = 1; i < w - 1; i += 2) g.px(x0 + i, y0, r[3]);
     return;
   }
-  cap(style === 'bun' || style === 'braids' || style === 'long' ? 3 : 3);
-  // 鬓角 / 侧发
-  const side = style === 'short' ? ey - 1 : ey + 2;
+  if (style === 'crew') { // 寸头：贴着头皮短短一层
+    for (let j = 0; j < 2; j++) for (let i = 0; i < w; i++) if (!(j === 0 && (i < 1 || i > w - 2))) g.px(x0 + i, y0 + j, (i + j) % 2 ? r[2] : r[1]);
+    if (back) for (let j = 2; j < h - 3; j++) for (let i = 1; i < w - 1; i++) g.px(x0 + i, y0 + j, (i + j) % 2 ? r[2] : r[3]);
+    return;
+  }
+  cap(3);
+  // 鬓角 / 侧发：短的到耳朵上面，长的盖过耳朵
+  const shortish = ['short', 'part', 'queue', 'topknot'].includes(style); // （老住户的发型照旧：只有 short 是短鬓角）
+  const side = shortish ? ey - 1 : ey + 2;
   g.vline(x0, y0 + 1, side, r[2]); g.vline(x0 + w - 1, y0 + 1, side, r[1]);
-  if (style !== 'short') { g.vline(x0 - 1, y0 + 2, side, r[1]); g.vline(x0 + w, y0 + 2, side, r[1]); }
+  if (!shortish) { g.vline(x0 - 1, y0 + 2, side, r[1]); g.vline(x0 + w, y0 + 2, side, r[1]); }
+  if (style === 'part' && !back) { g.px(x0 + 3, y0, R[p.skin][3]); g.hline(x0 + 4, x0 + w - 1, y0 + 3, r[1]); g.px(x0 + w - 1, y0 + 4, r[1]); } // 分头：左边一道发缝，刘海往右梳
+  if (style === 'fringe' && !back) g.hline(x0, x0 + w - 1, y0 + 3, r[1]); // 齐刘海：齐眉一刀切
+  if (style === 'topknot') { g.rect(CX - 1, y0 - 2, 3, 2, r[1]); g.px(CX, y0 - 2, r[2]); } // 抓髻：头顶挽个小疙瘩
+  if (style === 'twinbuns') for (const bx of [x0, x0 + w - 3]) { g.rect(bx, y0 - 2, 3, 3, r[1]); g.px(bx + 1, y0 - 2, r[2]); } // 双丫髻
+  if (style === 'long') { g.vline(x0 - 1, side, side + 4, r[1]); g.vline(x0 + w, side, side + 4, r[1]); } // 披发：垂到肩上
   if (style === 'bun') { g.rect(CX - 2, y0 - 2, 5, 3, r[1]); g.hline(CX - 1, CX + 1, y0 - 2, r[2]); g.px(CX + 2, y0 - 1, R.gold[3]); } // 发髻 + 簪
   if (style === 'braids') { // 两条辫子 + 红头绳
     for (const sx of [x0 - 1, x0 + w]) { g.vline(sx, side, side + 9, r[1]); g.px(sx, side + 10, R.red[3]); g.px(sx, side + 11, R.red[2]); }
@@ -182,6 +217,9 @@ function hair(g, p, H, view) {
     }
     if (style === 'short' || style === 'white') g.hline(x0 + 1, x0 + w - 2, y0 + h - 1, R[p.skin][2]);
     if (style === 'bun') { g.rect(CX - 2, y0 + 1, 5, 3, r[0]); g.hline(CX - 1, CX + 1, y0 + 1, r[2]); }
+    if (style === 'queue') { g.vline(CX, y0 + h - 1, y0 + h + 9, r[1]); g.vline(CX + 1, y0 + h - 1, y0 + h + 7, r[2]); g.px(CX, y0 + h + 10, R.red[2]); } // 长辫：从后脑垂到腰
+    if (style === 'ponytail') { g.rect(CX - 1, y0 + h - 2, 3, 6, r[1]); g.px(CX, y0 + h - 3, R.red[3]); } // 马尾：后脑扎一把
+    if (style === 'long' || style === 'fringe') g.rect(x0, y0 + h - 1, w, style === 'long' ? 4 : 2, r[1]); // 披发、齐刘海：后面垂过脖子
   }
 }
 
@@ -538,8 +576,9 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
   g.px(hx0 + 3, ey, S[1]); g.px(hx0 + 3, ey + 1, S[2]); // 耳
   // 头发（侧面：后脑勺和头顶）
   const r = R[p.hairRamp ?? 'hair'];
-  if (p.hair === 'shaved' || p.hair === 'tuft') {
-    for (let i = 1; i < hw - 1; i++) g.px(hx0 + i, hy0, r[3]);
+  if (p.hair === 'shaved' || p.hair === 'tuft' || p.hair === 'crew') {
+    for (let i = 1; i < hw - 1; i++) g.px(hx0 + i, hy0, p.hair === 'crew' ? r[1] : r[3]);
+    if (p.hair === 'crew') for (let i = 0; i < hw - 4; i++) g.px(hx0 + i, hy0 + 1, r[2]);
     if (p.hair === 'tuft') g.rect(hx0 + 3, hy0 - 2, 3, 2, r[1]);
   } else {
     for (let i = 0; i < hw - 2; i++) g.px(hx0 + i, hy0, r[2]);
@@ -549,6 +588,11 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
     for (let j = ey - hy0; j < ey - hy0 + (long ? 4 : 2); j++) for (let i = 0; i < (long ? 4 : 3); i++) g.px(hx0 + i, hy0 + j, r[1]); // 后脑勺；长头发再往下盖过耳朵
     if (p.hair === 'bun') g.rect(hx0 - 2, hy0 + 1, 3, 3, r[1]);
     if (p.hair === 'braids') { g.vline(hx0, hy0 + 6, hy0 + 15, r[1]); g.px(hx0, hy0 + 16, R.red[3]); }
+    if (p.hair === 'queue') { g.vline(hx0 - 1, ey, ey + 12, r[1]); g.px(hx0 - 1, ey + 13, R.red[2]); }
+    if (p.hair === 'ponytail') { g.rect(hx0 - 2, ey - 2, 2, 5, r[1]); }
+    if (p.hair === 'topknot') g.rect(hx0 + 3, hy0 - 2, 3, 2, r[1]);
+    if (p.hair === 'twinbuns') g.rect(hx0 + 1, hy0 - 2, 3, 3, r[1]);
+    if (p.hair === 'long') g.rect(hx0, ey + 2, 3, 4, r[1]);
   }
   const H = { x0: hx0, y0: hy0, w: hw, h: hh, ey };
   hat(g, p, H, 'side');
@@ -602,7 +646,7 @@ const IDLE = [
 /** 生成一个人的全部帧（每帧一个 Grid，已描边）。 */
 export function characterFrames(p) {
   p = dress(p);
-  const b = BODIES[p.body];
+  const b = bodyOf(p);
   const frames = [];
   frames.push(frontOrBack(p, b, 'front', IDLE[0], 0), frontOrBack(p, b, 'front', IDLE[1], 0));
   frames.push(frontOrBack(p, b, 'front', IDLE[0], 0), frontOrBack(p, b, 'front', { ...IDLE[0], armR: -1 }, 1));
@@ -611,6 +655,20 @@ export function characterFrames(p) {
   for (const pose of WALK_FRONT) frames.push(frontOrBack(p, b, 'back', pose, 0));
   for (const g of frames) g.outline();
   return frames;
+}
+
+/** 捏人预览：站着的一张（front 正面 / side 侧面 / back 背面），描好边画到画布上；scale 倍放大（最近邻）。 */
+export function previewCanvas(p, view = 'front', scale = 1) {
+  p = dress({ ...p, item: null });
+  const b = bodyOf(p);
+  let g;
+  if (view === 'side') { g = new Grid(FRAME_W, FRAME_H); sideView(g, p, b, WALK_SIDE[1]); } else g = frontOrBack(p, b, view, IDLE[0], 0);
+  g.outline();
+  const c = document.createElement('canvas');
+  c.width = FRAME_W * scale; c.height = FRAME_H * scale;
+  const ctx = c.getContext('2d');
+  for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) { const col = g.c[y * g.w + x]; if (col) { ctx.fillStyle = col; ctx.fillRect(x * scale, y * scale, scale, scale); } }
+  return c;
 }
 
 /** 把一个人的 16 帧排成一行图集（每格四周 2 像素透明）。 */
@@ -637,7 +695,7 @@ export function characterAtlas(p) {
  */
 export function restViews(p) {
   p = dress(p);
-  const b = BODIES[p.body];
+  const b = bodyOf(p);
   const front = frontOrBack(p, b, 'front', IDLE[0], 0, { item: false });
   const back = frontOrBack(p, b, 'back', IDLE[0], 0, { item: false });
   const side = new Grid(FRAME_W, FRAME_H);

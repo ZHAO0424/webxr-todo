@@ -12,7 +12,7 @@ import { portrait, bodyCrop } from './frame.js';
  * 卡片分静态部分（建一次）和动态部分（update，每过村里一分钟刷新一次），折叠状态不会被刷新打断。
  */
 
-const BYID = Object.fromEntries(RESIDENTS.map((p) => [p.id, p]));
+const BYID = new Proxy({}, { get: (_, id) => RESIDENTS.find((p) => p.id === id) }); // 实时查（新来的人随时会加进名册）
 const hm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60) % 60).padStart(2, '0')}`;
 const label = (a, arg) => (LABELS[a] ?? a) + (arg && LABELS[`${a}:${arg}`] ? `（${LABELS[`${a}:${arg}`]}）` : '');
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
@@ -63,7 +63,7 @@ export function residentCard(p, { live = true, onPick, onClose } = {}) {
       <div class="name">${esc(p.name)}<span class="nick">${esc(p.nick)}</span></div>
       <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.job)}</span><span class="chip soft">${p.age}岁 · ${p.sex}</span><span class="chip soft">${esc(p.household)}</span><span class="chip soft">${esc(p.relation)}</span></div>
     </div></div>
-    ${live ? '<div class="paper now"><span class="dot"></span><span class="doing"></span></div><div class="next"></div>' : ''}
+    ${live ? '<div class="paper now"><span class="dot"></span><span class="doing"></span></div><div class="next"></div><div class="deal"></div>' : ''}
     <p style="margin-top:calc(3 * var(--p))">${esc(p.bio)}</p>
     <details class="fold"><summary>性格 · 喜好</summary><div>
       <div class="row">${p.traits.map((t) => `<span class="chip" style="--c:var(--c-plum)">${esc(t)}</span>`).join('')}</div>
@@ -78,15 +78,16 @@ export function residentCard(p, { live = true, onPick, onClose } = {}) {
   el.querySelector('.face').append(residentFace(p));
   el.querySelector('.close')?.addEventListener('click', onClose);
   if (onPick) el.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => onPick(c.dataset.id)));
-  const doing = el.querySelector('.doing'), dot = el.querySelector('.dot'), next = el.querySelector('.next'), plan = el.querySelector('.plan');
+  const doing = el.querySelector('.doing'), dot = el.querySelector('.dot'), next = el.querySelector('.next'), deal = el.querySelector('.deal'), plan = el.querySelector('.plan');
   let lastCur = -2;
   return {
     el,
-    update({ doing: d, where, kind, nextText, cur }) {
+    update({ doing: d, where, kind, nextText, cur, dealText }) {
       if (!live) return;
       doing.innerHTML = `<span class="what">${esc(d)}</span>` + (where ? `<span class="loc"><i class="pin"></i>${esc(where)}</span>` : '');
       dot.className = `dot ${kind ?? ''}`;
       next.textContent = nextText ?? '';
+      deal.textContent = dealText ?? ''; // 今天的买卖（最近一笔）
       if (cur !== lastCur) { lastCur = cur; plan.innerHTML = planHTML(p.day, cur); }
     },
   };

@@ -115,6 +115,56 @@
     #roster .pets { display: flex; flex-wrap: wrap; gap: var(--p) calc(4 * var(--p)); align-items: flex-end; margin-top: calc(2 * var(--p)); }
     #roster .pet { display: flex; align-items: flex-end; gap: var(--p); }
     #roster .pet canvas { image-rendering: pixelated; }
+    /* 来了个新人：和档案一样的横板大卡，左边填人（空缺提示、名字年纪、会什么、性格），右边长相预览、本钱、带的东西 */
+    #newcomer { position: fixed; inset: 8vh 5vw auto; max-height: 84vh; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 6; }
+    #newcomer[hidden] { display: none; }
+    #newcomer .rhead { display: flex; align-items: center; gap: calc(3 * var(--p)); padding-right: calc(10 * var(--p)); }
+    #newcomer .rhead .title { color: var(--gold); font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
+    #newcomer .rhead .hint { color: var(--dim); }
+    #newcomer .nbody { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: calc(3 * var(--p)); overflow: auto; }
+    #newcomer .ncol { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
+    #newcomer .box { padding: calc(3 * var(--p)) calc(4 * var(--p)); }
+    #newcomer .lbl { color: var(--gold); margin: calc(2 * var(--p)) 0 var(--p); }
+    #newcomer .lbl:first-child { margin-top: 0; }
+    #newcomer .row2 { display: flex; gap: calc(4 * var(--p)); margin-bottom: var(--p); }
+    #newcomer label { display: flex; align-items: center; gap: calc(2 * var(--p)); color: var(--dim); }
+    #newcomer .in { font: inherit; color: var(--text); background: #17120d; border: 0; box-shadow: inset 0 var(--f) 0 #0e0b08, 0 0 0 var(--f) var(--line); padding: var(--f) calc(2 * var(--p)); width: calc(44 * var(--p)); }
+    #newcomer input[type=number].in { width: calc(18 * var(--p)); }
+    #newcomer .in.wide { width: 100%; box-sizing: border-box; margin-top: var(--p); resize: none; }
+    #newcomer input[type=range].in { padding: 0; accent-color: var(--gold); }
+    #newcomer .chips { display: flex; flex-wrap: wrap; gap: var(--p); }
+    #newcomer .chipbtn { padding: 0 calc(2 * var(--p)); line-height: calc(16 * var(--f)); }
+    #newcomer .chips.small .chipbtn { line-height: calc(14 * var(--f)); }
+    #newcomer .seg { display: flex; gap: var(--p); }
+    #newcomer .tabs { display: flex; gap: var(--p); }
+    #newcomer .nbody[hidden] { display: none; }
+    #newcomer .look-page { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+    #newcomer .stagebox { display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
+    #newcomer .views { flex: 1; display: flex; justify-content: center; align-items: flex-end; gap: calc(6 * var(--p)); background: var(--stage-bg); box-shadow: 0 0 0 var(--f) var(--ink); padding: calc(6 * var(--p)) calc(4 * var(--p)) calc(3 * var(--p)); min-height: calc(110 * var(--p)); }
+    #newcomer canvas { display: block; image-rendering: pixelated; }
+    #newcomer .ptabs { display: flex; flex-wrap: wrap; gap: var(--p); margin-bottom: calc(3 * var(--p)); }
+    #newcomer .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(30 * var(--p)), 1fr)); gap: calc(2 * var(--p)); }
+    #newcomer .opt { display: flex; flex-direction: column; align-items: center; gap: var(--f); padding: var(--p) 0; line-height: calc(14 * var(--f)); }
+    #newcomer .opt .thumb { background: var(--face-bg); padding: var(--f) calc(2 * var(--f)) 0; box-shadow: 0 0 0 var(--f) var(--ink); }
+    #newcomer .opt.on .thumb { box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--gold); }
+    #newcomer .mini { display: flex; gap: calc(4 * var(--p)); align-items: center; }
+    #newcomer .mini .pv { background: var(--stage-bg); padding: calc(2 * var(--p)); box-shadow: 0 0 0 var(--f) var(--ink); }
+    #newcomer .mini .who { display: flex; flex-direction: column; } #newcomer .mini .who b { color: var(--gold); font-weight: normal; }
+    #newcomer .vrow { display: flex; gap: calc(3 * var(--p)); align-items: baseline; flex-wrap: wrap; }
+    #newcomer .vrow b { color: var(--gold); font-weight: normal; }
+    #newcomer .vrow.taken { opacity: 0.55; }
+    #newcomer .dim { color: var(--dim); }
+    #newcomer .go { display: flex; justify-content: flex-end; align-items: center; gap: calc(3 * var(--p)); margin-top: calc(2 * var(--p)); }
+    #newcomer .err { color: var(--red); }
+    #newcomer .close { margin-left: auto; --c: var(--red); padding: 0 calc(2 * var(--p)); }
+    body.roster-open #newcomer ~ #card { visibility: hidden; }
+    /* 家当和账：存货标签一行，赊账一行，最近的买卖一条条往下 */
+    #roster .econ .stock { display: flex; flex-wrap: wrap; gap: var(--p); margin-top: var(--p); }
+    #roster .econ .stock .chip { margin: 0; }
+    #roster .econ .owe { display: flex; flex-wrap: wrap; gap: calc(3 * var(--p)); color: var(--red); margin-top: var(--p); }
+    #roster .econ .deals { list-style: none; margin: var(--p) 0 0; padding: 0; color: var(--dim); }
+    #roster .econ .deals li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #roster .econ .dim { color: var(--dim); }
     /* 档案的地图：左边像素俯视图（等比放大、像素不糊），右边点中的人和"此刻谁在哪儿" */
     #roster .tabs { display: flex; gap: calc(2 * var(--p)); margin-left: calc(3 * var(--p)); }
     #roster .rmap { height: 100%; display: flex; gap: calc(4 * var(--p)); }
@@ -262,12 +312,13 @@
   <div id="hint">
     <div id="settings" class="dark px" hidden><button id="sound" class="btn">声音：关</button><button id="music" class="btn">音乐：关</button><button id="season" class="btn">季节：秋</button></div>
     <div id="debug" class="dark px" hidden></div>
-    <div class="bar px"><button id="settingsBtn" class="btn">设置</button><button id="debugBtn" class="btn">调试</button><button id="rosterBtn" class="btn">村民档案</button></div>
+    <div class="bar px"><button id="settingsBtn" class="btn">设置</button><button id="debugBtn" class="btn">调试</button><button id="rosterBtn" class="btn">村民档案</button><button id="newBtn" class="btn">创建居民</button></div>
   </div>
   <div id="clock" class="dark px"></div>
   <button id="goLeft" class="scene-nav dark px" title="往西走（←）" hidden><span class="tri"></span><span class="label"></span></button>
   <button id="goRight" class="scene-nav dark px" title="往东走（→）" hidden><span class="tri"></span><span class="label"></span></button>
   <div id="card" hidden></div>
+  <div id="newcomer" hidden></div>
   <div id="roster" hidden></div>
   <pre id="err"></pre>
   <script type="module" src="src/main.js"></script>

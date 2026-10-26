@@ -491,3 +491,13 @@ export const FRIENDS = [
 export const friendsOf = (id) => FRIENDS.flatMap(([a, b]) => (a === id ? [b] : b === id ? [a] : []));
 
 export const RESIDENTS = HOUSEHOLDS.flatMap((h) => h.people.map((p) => ({ ...p, home: h.id, household: h.name })));
+
+/**
+ * 加一个新来的人（「来了个新人」卡片填的，见 life/newcomers.js）：进名册，挂在借住的那户底下（档案地图上标在那家院子上）。
+ */
+export function addResident(p) {
+  const h = HOUSEHOLDS.find((x) => x.id === p.home);
+  p.household = `${h ? h.name.replace(/（.*）/, '') : ''}（借住）`;
+  if (h && !h.people.includes(p)) h.people.push(p);
+  if (!RESIDENTS.includes(p)) RESIDENTS.push(p);
+}

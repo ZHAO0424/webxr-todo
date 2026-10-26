@@ -13,7 +13,7 @@ import { portrait, bodyCrop } from './frame.js';
  * status(id) 给出这个人此刻的状态（和村子里点人看到的同一份），beasts(home) 给出这家的牲口，hour() 是村里的钟，onFind(id) = 关掉档案、在村里选中并跟着这个人。
  */
 
-const BYID = Object.fromEntries(RESIDENTS.map((p) => [p.id, p]));
+const BYID = new Proxy({}, { get: (_, id) => RESIDENTS.find((p) => p.id === id) }); // 实时查（新来的人随时会加进名册）
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const JOB_COLOR = (p) => (p.body === 'child' ? 'var(--c-child)' : /匠|郎中|掌柜|剃头|货郎|先生|伙计|徒弟|豆腐/.test(p.job) ? 'var(--c-craft)' : /村长/.test(p.job) ? 'var(--c-chief)' : 'var(--c-farm)');
 
@@ -82,7 +82,7 @@ function dayHTML(day) {
     <div class="bars">${KINDS.filter(({ k }) => sum[k] > 0).map(({ k, name }) => `<div class="bar"><span class="bn"><i style="background:${color(k)}"></i>${name}</span><span class="bt"><i style="width:${(sum[k] / max) * 100}%;background:${color(k)}"></i></span><span class="bh">${sum[k].toFixed(1)} 时</span></div>`).join('')}</div>`;
 }
 
-export function createRoster(el, { status, beasts, onFind, onClose, map, hour }) {
+export function createRoster(el, { status, beasts, econ, onFind, onClose, map, hour }) {
   el.className = 'panel px';
   el.id = 'roster';
   el.hidden = true;
@@ -231,6 +231,7 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
       <div class="paper box info">
         <div class="sec"><div class="lbl">背景故事</div><p class="story">${esc(p.story ?? p.bio)}</p></div>
         <div class="sec"><div class="lbl">一天<span class="count">${p.day.length} 项安排</span></div>${dayHTML(p.day)}</div>
+        <div class="sec econ-sec"><div class="lbl">家当和账<span class="count"></span></div><div class="econ"></div></div>
         <div class="two">
           <div class="sec"><div class="lbl">家人 · 好友</div><div class="rels">${family.map((o) => rel(o, '家人', 'var(--c-craft)')).join('')}${friends.map((o) => rel(o, '好友', 'var(--c-child)')).join('')}</div></div>
           <div class="sec pets-sec"><div class="lbl">家里的牲口</div><div class="pets"></div></div>
@@ -253,11 +254,23 @@ export function createRoster(el, { status, beasts, onFind, onClose, map, hour })
     nowHTMLs();
   }
 
+  /** 家当和账（economy.js）：这户的铜钱、存着的东西、最近的买卖、赊的账。没有经济数据时整块不显示。 */
+  function econHTML(p) {
+    const box = side.querySelector('.econ'), e = econ?.(p.id);
+    if (!box) return;
+    if (!e) { side.querySelector('.econ-sec')?.remove(); return; }
+    side.querySelector('.econ-sec .count').textContent = `${e.unit} · ${e.coins} 文`;
+    box.innerHTML = `<div class="stock">${e.stock.map(([n, q, u]) => `<span class="chip soft">${esc(n)} ${q}${esc(u)}</span>`).join('') || '<span class="dim">家里没什么存货</span>'}</div>`
+      + (e.owe.length ? `<div class="owe">${e.owe.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : '')
+      + `<ul class="deals">${e.log.map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="dim">这几天还没有买卖</li>'}</ul>`;
+  }
+
   /** 小卡上会变的：此刻在干什么、在哪儿，时间条上此刻的竖线。 */
   function nowHTMLs() {
     const p = BYID[picked];
     if (!p || !side.firstChild) return;
     const s = status(p.id);
+    econHTML(p);
     side.querySelector('.mini .now').innerHTML = nowHTML(s);
     const h = hour?.() ?? 12, line = side.querySelector('.now-line');
     line.hidden = h < DAY0 || h > DAY1;

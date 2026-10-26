@@ -159,6 +159,8 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 .card .pin { display: inline-block; width: calc(5 * var(--f)); height: calc(7 * var(--f)); margin-right: calc(2 * var(--f)); vertical-align: calc(-1 * var(--f));
   background: var(--gold); clip-path: polygon(50% 100%, 0 45%, 0 20%, 20% 0, 80% 0, 100% 20%, 100% 45%); }
 .card .next { color: var(--dim); margin-top: var(--f); }
+.card .deal { color: var(--gold); margin-top: var(--f); }
+.card .deal:empty { display: none; }
 .card p { margin: var(--p) 0; }
 .card .row { margin: 0 0 var(--p); }
 .card .row b { color: var(--gold); text-shadow: none; margin-right: calc(2 * var(--p)); }
