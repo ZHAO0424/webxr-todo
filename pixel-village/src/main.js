@@ -27,9 +27,11 @@ import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 import { createSceneSwitch } from './scenes.js';
 import { setSeason, season, SEASONS, ORDER as SEASON_ORDER } from './season.js';
+import { setRuins, ruinsMode } from './east.js';
 
 const params = new URLSearchParams(location.search);
 setSeason(params.get('season') ?? 'autumn'); // ?season=spring|summer|autumn|winter：建场景之前定（见 season.js）
+setRuins(params.get('ruins') === '1'); // ?ruins=1：废墟开局（老村址没人住的老宅是塌的，新居民住进来才修好）；设置里的「老宅」按钮切换
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -688,6 +690,17 @@ if (seasonBtn) {
     e.stopPropagation();
     const q = new URLSearchParams(location.search);
     q.set('season', SEASON_ORDER[(SEASON_ORDER.indexOf(season()) + 1) % SEASON_ORDER.length]);
+    location.search = q.toString();
+  });
+}
+// 老宅按钮：完好开局 ⇄ 废墟开局（要重建场景，带着新参数重新加载页面）
+const ruinsBtn = document.getElementById('ruins');
+if (ruinsBtn) {
+  ruinsBtn.textContent = `老宅：${ruinsMode() ? '废墟开局' : '完好'}`;
+  ruinsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const q = new URLSearchParams(location.search);
+    if (ruinsMode()) q.delete('ruins'); else q.set('ruins', '1');
     location.search = q.toString();
   });
 }

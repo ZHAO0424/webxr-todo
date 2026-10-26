@@ -4,7 +4,7 @@ import { R, GLOW } from './palette.js';
 import { addEastMaterials } from './textures.js';
 import { buildTerrain, rawHeight } from './terrain.js';
 import { streamZ, BAND, STREAM_HALF, WATER_Y } from './layout.js';
-import { house, wallSeg } from './buildings.js';
+import { house, wallSeg, lantern } from './buildings.js';
 import * as PROPS from './props.js';
 import { tagged, tag, collectThings } from './things.js';
 import { voxelTree, voxelGeometry } from './voxel.js';
@@ -48,6 +48,7 @@ const P = tagged(PROPS);
 
 export const EAST_BOUNDS = { x0: 45, x1: 135, z0: -36, z1: 36 + BAND.d };
 const OX = 90;
+const CELL_E = 0.5; // 湖水离岸远近按半米一格算
 const W = (u) => OX + u;
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -71,6 +72,10 @@ const LAKE_U0 = -2; // 湖从这儿往东
 const shoreZ = (u) => 35.5 - 0.42 * u + 1.2 * Math.sin(u * 0.35) + 0.6 * Math.sin(u * 0.9 + 1);
 const lakeR = (u, z) => (u < LAKE_U0 ? 9 : 1 + (shoreZ(u) - z) / 4);
 const inChannel = () => false;
+const LAKE_Y = WATER_Y - 0.3; // 湖面比小溪低一截：溪水漫过石坝跌进湖里
+const DAM_U = LAKE_U0; // 小石坝：溪到这儿进湖
+/** 湖边一圈毛石砌的驳岸（岸沿铺石头）：湖北岸一圈 + 湖西头那道直边。 */
+const quay = (u, z) => lakeR(u, z) < 1.25 || (u >= LAKE_U0 - 0.6 && u < LAKE_U0 + 0.1 && z > sz(u));
 /**
  * 黄土冲沟：当年的山洪从东头山口冲下来，在黄土坡上刨出一道五到八米深的沟，斜劈过坡，一直通到坡下的大湖。
  * 两岸是陡立的黄土崖，沟底长着草和几棵柳树，中间一条踩出来的小路；老街在沟上过一座土拱桥。
@@ -92,11 +97,19 @@ const streamHalf = (u) => STREAM_HALF + 0.8 * smooth(-44, -30, u); // 河湾里�
  * annex：连着正房的那一间；pen：院里的牲口圈（好人家 cow 牛棚，中等 pig 猪圈 / coop 鸡窝，穷人家没有）；
  * tree：院里的树；extra：磨盘、铁匠炉、木料、羊圈；who：原来是谁家的（现在村里哪户的祖宅）；state 2 = 囫囵的（0 / 1 留给旧存档）。
  */
+/**
+ * 开局模式：默认老宅都是囫囵的；废墟开局（main.js 按 ?ruins=1 在建场景之前设）时，没人住的老宅塌的塌、漏的漏（RUIN_STATE），
+ * 新居民住进哪一处，那一处才修成囫囵的。
+ */
+let RUINS = false;
+export const setRuins = (on) => { RUINS = !!on; };
+export const ruinsMode = () => RUINS;
+const RUIN_STATE = { old1: 1, old2: 1, old3: 0, old4: 1, old5: 0, old6: 1, old7: 0, old8: 0, old9: 1, old10: 0, old11: 0, old12: 1 }; // 0 塌了 / 1 能遮雨（大户人家的砖瓦房塌得慢）
 export const HOUSES = [
   { id: 'old1', u: -20.5, z: 9.1, rot: 178, w: 11, d: 8.5, kind: 'court', mat: 'brick', roof: 'roof', house: [5.6, 3.8, 3.0], wing: true, pen: 'cow', who: '王家', state: 2, story: '王村长的爷爷那辈住在这儿，是老石峪数得着的大院：青砖瓦房，正房带厢房，院门有门楼，西墙根一座牛棚。大水那年一家人搬去了下游，院子一直空着。' },
   { id: 'old2', u: -22.5, z: -2.3, rot: -4, w: 9.5, d: 5.5, kind: 'row', mat: 'brick', roof: 'roof', house: [4.6, 3.4, 3.0], annex: [3.8, 3.4, 2.7], who: '孙家', state: 2, story: '孙掌柜家的老铺面：临着老街两间连着的屋，两间青砖瓦房连着，一间做铺面（木板门、柜台），一间住人，门前一片石板铺的场子。' },
   { id: 'old3', u: -10, z: 6.6, rot: 184, w: 8, d: 6.5, kind: 'stone', house: [4.6, 3.4, 2.6], extra: 'mill', pen: 'coop', who: '赵家', state: 2, story: '赵家的老磨坊，青石垒的。大水从门里冲进来，把石磨盘冲到了门外，墙根还留着一道黄泥印子；院里搭着鸡窝。' },
-  { id: 'old4', u: 14, z: 5.1, rot: 186, w: 9, d: 8, kind: 'court', mat: 'rubble', roof: 'slate', house: [4.6, 3.6, 2.8], tree: 'persimmon', pen: 'pig', who: '陈家', state: 2, story: '陈老汉出生在这院里。他说大水那天他才八九岁，是被他爹扛在肩上从齐腰深的水里背出去的。院里那棵老柿子树还年年结果，猪圈空着。' },
+  { id: 'old4', u: 12.6, z: 5.5, rot: 186, w: 9, d: 8, kind: 'court', mat: 'rubble', roof: 'slate', house: [4.6, 3.6, 2.8], tree: 'persimmon', pen: 'pig', who: '陈家', state: 2, story: '陈老汉出生在这院里。他说大水那天他才八九岁，是被他爹扛在肩上从齐腰深的水里背出去的。院里那棵老柿子树还年年结果，猪圈空着。' },
   { id: 'old5', u: -11.5, z: -17, rot: 8, w: 7, d: 6, kind: 'fence', house: [3.8, 3.0, 2.4], who: '杨家', state: 2, story: '杨家给唐东家当长工时住的小院：一间土坯草房，一圈荆条篱笆，别的什么也没有。' },
   { id: 'old6', u: -35.8, z: 9, rot: 14, w: 9, d: 7, kind: 'stone', house: [5.4, 3.8, 2.8], tree: 'locust', pen: 'coop', who: '吴家', state: 2, story: '吴家老宅，石头垒的，石板盖顶。院墙外一棵老槐树，墙根一座鸡窝。' },
   { id: 'old7', u: -13, z: -3.6, rot: -6, w: 8, d: 6, kind: 'fence', house: [5.4, 3.8, 3.0], extra: 'lumber', who: '刘家', state: 2, story: '刘木匠家的土坯草房，篱笆小院。木匠家的房子梁最粗，院里还码着他没用完的木料。' },
@@ -164,6 +177,7 @@ const terrace = (u, z) => Math.max(0.6, Math.floor(slope(u, z) / 1.2) * 1.2);
 /** 老村址自己的地面（还没和村子的山梁接上）：{ h, type, crop }。 */
 function ground(u, z) {
   const x = W(u), s = sz(u), half = streamHalf(u);
+  if (quay(u, z) && lakeR(u, z) >= 1) return { h: 0.6, type: 'stone' }; // 驳岸：岸沿一圈石头，侧面毛石砌到水里
   if (z > s + half) return { h: Math.max(0, Math.floor((0.5 + Math.min(1.0, (z - s - half) * 0.18) + 0.25 * Math.sin(x * 0.3)) / 1.2) * 1.2), type: 'grass' }; // 溪南的河滩，和村子一样
   if (z > s - half - 3) return { h: 0.6, type: 'gravel' }; // 北岸的卵石滩
   if (lakeR(u, z) < 1.4) return { h: 0.6, type: 'sand' }; // 湖边一圈沙滩
@@ -197,14 +211,15 @@ function natural(x, z) {
 
 function water(x, z) {
   const u = x - OX, s = sz(u);
-  if ((u < LAKE_U0 + 6 && Math.abs(z - s) < streamHalf(u)) || lakeR(u, z) < 1) return WATER_Y; // 西边一段小溪流进湖里
+  if (lakeR(u, z) < 1) return LAKE_Y;
+  if (u < LAKE_U0 + 6 && Math.abs(z - s) < streamHalf(u)) return u < DAM_U ? WATER_Y : LAKE_Y; // 西边一段小溪，过了石坝就是湖
   return null;
 }
 
 /** 落差侧面：坡上的坎子是黄土坎（不是砌的）；青石崖是一层层夹着煤线的青石。 */
 function sideMat(M) {
   return (type, drop, x, z) => {
-    if (type === 'stone') return M.coalRock; // 青石崖夹着煤线
+    if (type === 'stone') return quay(x - OX, z) ? M.rubble : M.coalRock; // 湖边是毛石驳岸；青石崖夹着煤线
     if (type === 'path' || type === 'pad') return null;
     if (drop >= 0.6) return M.bankWall;
     return null;
@@ -217,7 +232,7 @@ const ROAD = {
   west: [-44.7, 27], g1: [-36, 24], tmp: [-23, 22], lw: [-12, 22], pS: [3, 17.5], lkN: [6, 19.5], ford: [19, 16.5], pastG: [27, 20], eR: [36, 15.5], // 从村东口过来：顺着溪边绕过山嘴，沿湖北岸往东（在沟口过一道土埂）
   duckG: [-30, 31.5], // 下到湖西头的鸭棚
   c1: [-29, 12], // 上坡去老街
-  st0: [-37, 3.2], st1: [-28.5, 1], st1b: [-19, 3.5], st2: [-7.5, 0.5], stM: [3.5, 2], st3: [11, -0.5], st4: [21, -1], st5: [30, -2.5], // 老街：顺着坡弯弯扭扭
+  st0: [-37, 3.2], st1: [-28.5, 1], st1b: [-19, 3.5], st2: [-7.5, 0.5], stM: [3.5, 2], st3: [10.5, -1], st4: [21, -1], st5: [30, -2.5], // 老街：顺着坡弯弯扭扭
   ln0: [-29, -11], ln1: [-21, -9.5], ln2: [-7.5, -12.5], ln2b: [8, -11.2], ln3: [17, -13], ln3b: [21, -12.5], // 上坡的小路
   pgate: [-36, -8.6], pastIn: [-36, -11.4], // 西头的草场（栅栏南边留的口子进去）
   mineF: [35, -3.4], up1: [8, -21], shedF: [14, -20.5], up2: [8, -27], gateN: [12, -29.5], // 煤窑、山货棚、进山口
@@ -264,6 +279,7 @@ function ruinHouse(M, { w = 5.2, d = 4, h = 2.8, state = 0, seed = 1, mat = 'ado
   const roofMat = roof ?? (mat === 'rubble' ? 'slate' : 'thatch'); // 石头房盖石板，土坯房、木板房苫草；好人家瓦顶
   if (state >= 2) { // 囫囵的：有人住才点灯
     const hs = house(M, { w, d, h, wall: mat, rise: 1.3, roofMat, chimney, lit, front: [{ k: 'door', x: -w / 5 }, { k: lit ? 'windowLit' : 'window', x: w / 5, y: 1.0 }] });
+    hs.object.userData.windows = hs.windows; // 亮灯的窗户（夜里窗前放光晕）
     return hs.object;
   }
   if (mat === 'wood') return ruinTimber(M, { w, d, h, state, rand });
@@ -484,7 +500,13 @@ function ruinPlot(M, spec) {
   if (spec.extra === 'lumber') g.add(P.lumber(M, -w / 2 + 1.6, yz + 0.3)); // 木匠没用完的木料
   if (spec.extra === 'pen') { // 窑前的石头羊圈
     const x0 = w / 2 - 3.2, x1 = w / 2 - 0.3, z0 = -d / 2 + 2.0, z1 = d / 2 - 0.3;
-    for (const [a, b] of [[[x0, z0], [x1, z0]], [[x1, z0], [x1, z1]], [[x0, z1], [x1 - 1.2, z1]], [[x0, z0], [x0, z1 - 1.0]]]) g.add(wallSeg(M, a[0], a[1], b[0], b[1], { h: 0.8, mat: 'rubble', t: 0.45, cap: false }));
+    for (const [a, b] of [[[x0, z0], [x1, z0]], [[x1, z0], [x1, z1]], [[x0, z1], [x1, z1]], [[x0, z0], [x0, z1 - 1.0]]]) g.add(wallSeg(M, a[0], a[1], b[0], b[1], { h: 0.8, mat: 'rubble', t: 0.45, cap: false })); // 羊从院里那边的口子进出
+    if (s >= 2) {
+      for (const x of [x0 + 0.35, x1 - 0.35]) g.add(block(x - 0.07, 0, z0 + 1.15, x + 0.07, 1.35, z0 + 1.29, M.wood)); // 靠着后墙的草棚：两根柱子
+      g.add(block(x0 + 0.2, 1.35, z0 + 0.1, x1 - 0.2, 1.5, z0 + 1.45, M.thatch));
+      g.add(block(x0 + 0.5, 0, z1 - 0.8, x0 + 1.7, 0.35, z1 - 0.4, M.stone)); // 石槽
+      g.add(P.haystack(M, x1 - 0.7, z0 + 0.7, 0.4, 0.8)); // 棚下一小垛干草
+    }
   }
   g.userData.plot = spec.id;
   return g;
@@ -595,6 +617,66 @@ function bambooGeo(seed) {
   return voxelGeometry([-12, 0, -12], [13, 46, 13], solid, color, 0.12, [-0.06, 0, -0.06]);
 }
 
+/** 一丛芦苇（湖边浅水里）：一根根细秆、几片斜出去的叶子，夏天青、秋天黄（顶上白芦花）、冬天枯黄，春天才冒出半截。voxel 边长 0.08 米。 */
+function reedGeo(seed) {
+  const r = makeRng(seed), vox = new Map();
+  const put = (x, y, z, c) => vox.set(`${x},${y},${z}`, c);
+  const sea = is('winter') ? 'winter' : is('autumn') ? 'autumn' : is('spring') ? 'spring' : 'summer';
+  const stem = { spring: [R.grass[2], R.grass[3]], summer: [R.leaf[2], R.leaf[3]], autumn: [R.wheat[2], R.harvest[2]], winter: [R.wheat[1], R.wheat[2]] }[sea];
+  const plume = { spring: null, summer: R.wheat[3], autumn: R.white[2], winter: R.wheat[3] }[sea];
+  const tall = sea === 'spring' ? 0.55 : 1;
+  for (let k = 0; k < 9; k++) {
+    const bx = Math.round((r() - 0.5) * 7), bz = Math.round((r() - 0.5) * 7), H = Math.round((14 + r() * 10) * tall), lean = (r() - 0.5) * 0.25;
+    for (let y = 0; y < H; y++) put(bx + Math.round(lean * y), y, bz, y > H * 0.5 ? stem[1] : stem[0]);
+    if (plume) for (let y = H; y < H + 3; y++) { const x = bx + Math.round(lean * y); put(x, y, bz, plume); put(x + 1, y - 1, bz, plume); } // 芦花
+    const ly = Math.floor(H * 0.4), dir = r() < 0.5 ? 1 : -1; // 一片斜出去的叶子
+    for (let i = 1; i < 4; i++) put(bx + Math.round(lean * ly) + dir * i, ly + i, bz, stem[0]);
+  }
+  const solid = (x, y, z) => vox.has(`${x},${y},${z}`), color = (x, y, z) => vox.get(`${x},${y},${z}`);
+  return voxelGeometry([-9, 0, -9], [10, 30, 10], solid, color, 0.08, [-0.04, 0, -0.04]);
+}
+
+/**
+ * 湖水的材质（除了冬天）：按离岸远近分四档颜色（岸边浅、发青，越往湖心越深越蓝），斜着看映出天色；
+ * 一道道短横的波纹慢慢漂、忽明忽暗，岸边一圈碎浪花，白天偶尔闪一下阳光，夜里波纹映着月光。
+ * 都按一米 18 像素的格子算（和地上的贴图一样大的像素），不用后处理。shore：离岸远近的贴图（0 岸边 … 1 离岸 6 米以上）。
+ */
+function lakeWaterMaterial(M, shore, box) {
+  const mat = new THREE.MeshToonMaterial({ map: M.water.map, gradientMap: M.water.gradientMap });
+  const uniforms = { uTime: { value: 0 }, uShore: { value: shore }, uBox: { value: new THREE.Vector4(...box) }, uSky: { value: new THREE.Color('#b4c8f0') }, uNight: { value: 0 } };
+  mat.userData.uniforms = uniforms;
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, uniforms);
+    sh.vertexShader = 'varying vec3 vLp;\nvarying vec3 vWp;\nvarying float vUp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLp = position; vUp = normal.y; vWp = (modelMatrix * vec4(position, 1.0)).xyz;');
+    sh.fragmentShader = 'uniform float uTime;\nuniform float uNight;\nuniform sampler2D uShore;\nuniform vec4 uBox;\nuniform vec3 uSky;\nvarying vec3 vLp;\nvarying vec3 vWp;\nvarying float vUp;\nfloat wHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', `
+  float wGlint = 0.0;
+  {
+    vec2 px = floor(vLp.xz * 18.0);
+    float dep = texture2D(uShore, (vLp.xz - uBox.xy) / (uBox.zw - uBox.xy)).r;
+    float band = floor(min(dep, 0.999) * 4.0);
+    vec3 col = band < 0.5 ? vec3(0.25, 0.46, 0.44) : band < 1.5 ? vec3(0.17, 0.37, 0.44) : band < 2.5 ? vec3(0.12, 0.29, 0.41) : vec3(0.09, 0.22, 0.36);
+    float f = 1.0 - clamp(normalize(cameraPosition - vWp).y, 0.0, 1.0);
+    col = mix(col, uSky * 0.55, 0.05 + 0.3 * f * f);
+    float row = floor(px.y / 4.0), dir = mod(row, 2.0) * 2.0 - 1.0;
+    float qx = px.x + floor(uTime * 1.5 + row * 3.7) * dir;
+    vec2 cell = floor(vec2(qx / 7.0, row));
+    float h = wHash(cell);
+    float lx = mod(qx, 7.0), ly = mod(px.y, 4.0), len = 2.0 + floor(h * 4.0);
+    float on = step(h, mix(0.3, 0.14, dep)) * step(0.15, sin(uTime * 1.1 + h * 40.0));
+    if (on > 0.5 && ly < 0.5 && lx < len) { col = mix(col, uSky * 0.35 + vec3(0.32, 0.42, 0.46), 0.55); wGlint = 1.0; }
+    else if (on > 0.5 && ly < 1.5 && lx < len) col *= 0.9;
+    if (dep < 0.08 && wHash(px + floor(uTime * 2.0)) > 0.55) { col = mix(col, vec3(0.62, 0.72, 0.70), 0.6); wGlint = 0.3; }
+    if (dep > 0.2 && wHash(px * 1.31 + floor(uTime * 4.0)) > 0.9985) col = mix(col, vec3(0.95), 1.0 - uNight);
+    if (vUp < 0.5) col = vec3(0.12, 0.28, 0.40);
+    diffuseColor.rgb = col;
+  }`)
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vec3(0.3, 0.38, 0.5) * wGlint * uNight * 0.35;');
+  };
+  mat.customProgramCacheKey = () => 'east-lake';
+  return mat;
+}
+
 /** 冲歪的老石桥：两个桥墩斜在水里，一根独木搭在上面（走不过去，只是看着）。 */
 function brokenBridge(M, x, z) {
   const g = new THREE.Group();
@@ -632,7 +714,7 @@ function plotNavShape(spec) {
   else out.push(box3(L.hx - L.hw / 2 - L.aw - 0.2, L.hz - L.hd / 2 - 0.2, L.hx + L.hw / 2 + 0.2, L.hz + L.hd / 2 + 0.2)); // 正房（连着那间）
   if (spec.wing) out.push(box3(w / 2 - 3.6, L.hz + 0.2 - 1.4, w / 2 - 0.6, L.hz + 0.2 + 1.4));
   if (spec.pen) out.push(box3(-w / 2, d / 2 - 0.3 - PEN.d - 0.2, -w / 2 + 0.3 + PEN.w + 0.2, d / 2));
-  if (spec.extra === 'pen') out.push(box3(w / 2 - 3.4, -d / 2 + 1.8, w / 2 - 0.1, d / 2 - 0.1));
+  if (spec.extra === 'pen') { const x0 = w / 2 - 3.2, x1 = w / 2 - 0.3, z0 = -d / 2 + 2.0, z1 = d / 2 - 0.3; out.push(box3(x0 - 0.25, z0 - 0.25, x1 + 0.25, z0 + 0.25), box3(x1 - 0.25, z0, x1 + 0.25, z1 + 0.25), box3(x0 - 0.25, z1 - 0.25, x1, z1 + 0.25), box3(x0 - 0.25, z0, x0 + 0.25, z1 - 1.0)); } // 羊圈只挡墙，圈里羊走得动
   if (spec.extra === 'mill') out.push(box3(w / 2 + 0.2, -2.3, w / 2 + 1.7, 0.9));
   return out;
 }
@@ -697,18 +779,18 @@ function mountainGate(M) {
   return tag(g, 'mountainGate');
 }
 
-/** 山货收购棚：一座敞棚，棚下摞着背篓、麻袋，前面一排竹匾晒着蘑菇、核桃、野菜。原点在平台中心。 */
+/** 山货场（进山口下面）：晾山货的木架、地上的竹匾，拖下山的原木、木工台、劈柴墩，一排背篓、一副背架。原点在场子中心（8 × 5），+z 朝南。 */
 function gatherShed(M) {
   const g = new THREE.Group();
-  g.add(P.herbRacks(M, -2.6, -1.4, 3)); // 晾山货的木架：蘑菇、山楂、核桃
-  [M.persimmonMat ?? M.corn, M.hawthornMat ?? M.corn].forEach((fill, i) => g.add(P.dryingMat(M, fill, 1.0, 1.3).translateX(-3.0 + i * 1.2).translateZ(1.2))); // 地上晒的竹匾
-  g.add(P.lumber(M, 1.8, -1.4)); // 从山上拖下来的原木
-  g.add(P.workbench(M, 2.0, 0.9)); // 破板子、做背架的木架
-  g.add(block(-0.45, 0, 0.6, 0.15, 0.55, 1.2, M.wood), block(-0.2, 0.55, 0.85, -0.1, 0.95, 0.95, M.wood)); // 劈柴的木墩，上面斜插一把斧子
-  g.add(block(-0.3, 0.9, 0.75, 0.1, 1.05, 1.05, M.iron));
-  g.add(P.cart(M, -0.6, 1.6, 1.57)); // 拉木头的车
-  for (let i = 0; i < 3; i++) g.add(block(-0.6 + i * 0.6, 0, -2.0, -0.15 + i * 0.6, 0.85, -1.55, M.wheat)); // 一排背篓（上山背山货）
-  g.add(block(0.6, 0, -2.1, 0.75, 1.6, -1.95, M.wood), block(1.0, 0, -2.1, 1.15, 1.6, -1.95, M.wood), block(0.6, 1.1, -2.1, 1.15, 1.2, -1.95, M.wood)); // 靠着的背架
+  g.add(P.herbRacks(M, -2.1, -1.3, 2)); // 晾山货的木架：蘑菇、山楂、核桃（x -3.8 … -0.4）
+  const fills = is('autumn') ? [M.persimmonMat ?? M.corn, M.hawthornMat ?? M.corn] : [M.millet ?? M.corn, M.wheat];
+  fills.forEach((fill, i) => g.add(P.dryingMat(M, fill, 1.0, 1.3).translateX(-3.0 + i * 1.2).translateZ(1.4))); // 地上晒的竹匾
+  g.add(P.lumber(M, 2.0, -1.6)); // 从山上拖下来的原木（x 0.3 … 3.7，z -2.3 … -0.2）
+  g.add(P.workbench(M, 2.2, 1.4)); // 破板子、做背架的木工台
+  g.add(block(-0.1, 0, 0.3, 0.5, 0.55, 0.9, M.wood)); // 劈柴的木墩，上面斜插一把斧子
+  g.add(block(0.15, 0.55, 0.55, 0.25, 0.95, 0.65, M.wood), block(0.0, 0.85, 0.5, 0.4, 1.0, 0.7, M.iron));
+  for (let i = 0; i < 3; i++) g.add(block(-1.0 + i * 0.55, 0, 1.65, -0.6 + i * 0.55, 0.8, 2.05, M.wheat)); // 一排背篓（上山背山货）
+  g.add(block(-0.2, 0, -2.3, -0.05, 1.6, -2.15, M.wood), block(0.2, 0, -2.3, 0.35, 1.6, -2.15, M.wood), block(-0.2, 1.1, -2.3, 0.35, 1.2, -2.15, M.wood)); // 靠着的背架
   return tag(g, 'gatherPoint');
 }
 
@@ -763,6 +845,7 @@ function ancestralRuin(M) {
  */
 export function buildEast(M) {
   addEastMaterials(M);
+  for (const p of HOUSES) p.state = RUINS ? RUIN_STATE[p.id] ?? 0 : 2;
   const root = new THREE.Group();
   root.scale.setScalar(UNIT);
   const rand = makeRng(717);
@@ -807,6 +890,22 @@ export function buildEast(M) {
   // 2. 地形
   const terrain = buildTerrain(M, { pads, nodes, edges, aprons, bounds: EAST_BOUNDS, natural, water, farm: farmAt, sideMat: sideMat(M), cropMats: [M.stubbleW, M.furrow, M.furrow, M.sprout] });
   root.add(terrain.object);
+  let lakeMat = null;
+  if (!is('winter')) { // 冬天湖面结冰：用村里那张冰面贴图
+    const N = [Math.round((EAST_BOUNDS.x1 - EAST_BOUNDS.x0) / CELL_E), Math.round((EAST_BOUNDS.z1 - EAST_BOUNDS.z0) / CELL_E)], dist = new Float32Array(N[0] * N[1]).fill(1e9), q0 = [];
+    for (let j = 0; j < N[1]; j++) for (let i = 0; i < N[0]; i++) { const x = EAST_BOUNDS.x0 + (i + 0.5) * CELL_E, z = EAST_BOUNDS.z0 + (j + 0.5) * CELL_E; if (!terrain.isWater(x, z)) { dist[j * N[0] + i] = 0; q0.push(j * N[0] + i); } }
+    for (let pass = 0; pass < 2; pass++) for (let j0 = 0; j0 < N[1]; j0++) for (let i0 = 0; i0 < N[0]; i0++) { // 两遍倒角距离（够用）
+      const i = pass ? N[0] - 1 - i0 : i0, j = pass ? N[1] - 1 - j0 : j0, k = j * N[0] + i, sgn = pass ? 1 : -1;
+      for (const [di, dj, w] of [[sgn, 0, 1], [0, sgn, 1], [sgn, sgn, 1.41], [-sgn, sgn, 1.41]]) { const ni = i + di, nj = j + dj; if (ni >= 0 && nj >= 0 && ni < N[0] && nj < N[1]) dist[k] = Math.min(dist[k], dist[nj * N[0] + ni] + w); }
+    }
+    const data = new Uint8Array(N[0] * N[1]);
+    for (let k = 0; k < data.length; k++) data[k] = Math.min(255, Math.round((dist[k] * CELL_E / 6) * 255));
+    const shore = new THREE.DataTexture(data, N[0], N[1], THREE.RedFormat);
+    shore.magFilter = shore.minFilter = THREE.LinearFilter;
+    shore.needsUpdate = true;
+    lakeMat = lakeWaterMaterial(M, shore, [EAST_BOUNDS.x0, EAST_BOUNDS.z0, EAST_BOUNDS.x1, EAST_BOUNDS.z1]);
+    terrain.object.traverse((o) => { if (o.material === M.water) o.material = lakeMat; });
+  }
 
   // 3. 老宅、原住户、老戏台台基和老井、各行当的地方
   const plots = {};
@@ -845,7 +944,7 @@ export function buildEast(M) {
     const lv = terrain.heightAt(W(gd.u), gd.z), f = P.fence(M, W(gd.u - gd.w / 2), gd.z - gd.d / 2, W(gd.u + gd.w / 2), gd.z + gd.d / 2, { h: 0.8, gap: [0.4, 0.62] });
     f.position.y = lv;
     root.add(tag(f, 'veggie'));
-    root.add(P.scarecrow(M, W(gd.u + gd.w / 2 - 0.8), gd.z - gd.d / 2 + 0.8, 0.4).translateY(lv));
+    if (is('summer', 'autumn')) root.add(P.scarecrow(M, W(gd.u + gd.w / 2 - 0.8), gd.z - gd.d / 2 + 0.8, 0.4).translateY(lv)); // 稻草人：庄稼、菜快熟的时候
   }
   // 土拱桥：老街（ford—st4）从沟上过，路面下是一道垫起来的土埂；两面各砌一个黄土拱券，看着像一座土拱桥
   {
@@ -881,7 +980,8 @@ export function buildEast(M) {
   place(P.haystack(M, 0, 0, 1.1, 2.2), near(...hp('duckYard', -4.6, 1.0), 2.4, 2.4, 2));
   place(P.haystack(M, 0, 0, 1.3, 2.6), near(W(PASTURE.u1 + 2.4), PASTURE.z0 + 2.5, 2.8, 2.8, 3));
   place(P.firewood(M, 0, 0, 1.6), near(...hp('limeKiln', -4.8, 1.0), 1.8, 0.8, 1.5));
-  root.add(P.scarecrow(M, W(TRIAL.u0 + 3), (TRIAL.z0 + TRIAL.z1) / 2 + 0.5, 0.3).translateY(terrain.heightAt(W(0), -18)));
+  if (is('summer', 'autumn')) root.add(P.scarecrow(M, W(TRIAL.u0 + 3), (TRIAL.z0 + TRIAL.z1) / 2 + 0.5, 0.3).translateY(terrain.heightAt(W(0), -18)));
+  if (is('winter')) for (const [k, dx] of [['riverTemple', 3.4], ['mason', -2.6], ['duckYard', 3.0], ['limeKiln', -3.2]]) { const h = HOMES[k], spot = near(W(h.u) + dx, h.z + h.d / 2 + 2.6, 1.2, 1.2, 2.5); if (spot) place(P.snowman(M, 0, 0), spot, W(h.u), h.z + h.d / 2 + 1); } // 冬天：孩子们在门外堆的雪人（脸朝院门）
   root.add(trialMarkers(M, terrain.heightAt(W(0), -18)));
   const pastureLevel = terrain.heightAt(W((PASTURE.u0 + PASTURE.u1) / 2), (PASTURE.z0 + PASTURE.z1) / 2);
   const fence = P.fence(M, W(PASTURE.u0 + 0.6), PASTURE.z0 + 0.6, W(PASTURE.u1 - 0.6), PASTURE.z1 - 0.6, { h: 1.0, gap: [0.48, 0.6] }); // 栅栏缩进草场里一点（边上是坎子），南边留口
@@ -892,8 +992,23 @@ export function buildEast(M) {
   const drift = driftPile(M);
   drift.position.set(W(-26), 0.6, sz(-26) - streamHalf(-26) - 1.4);
   root.add(drift);
+  { // 小石坝：溪水到湖西头漫过一排条石跌进湖里（条石中间留着过水的口子），两头毛石砌的坝肩
+    const s0 = sz(DAM_U), half = streamHalf(DAM_U), xa = W(DAM_U - 1.0), xb = W(DAM_U - 0.35), dam = new THREE.Group();
+    dam.add(block(xa, LAKE_Y - 0.6, s0 - half - 0.2, xb, WATER_Y - 0.08, s0 + half + 0.2, M.rubble, { outline: false })); // 坝身（水底下）
+    for (let z = s0 - half + 0.05; z < s0 + half - 0.3; z += 0.85) dam.add(block(xa - 0.05, WATER_Y - 0.1, z, xb + 0.05, WATER_Y + 0.14, z + 0.55, M.stone)); // 一块块条石，中间的口子过水
+    for (const sg of [-1, 1]) {
+      const zi = s0 + sg * (half - 0.1), zo = s0 + sg * (half + 1.3), top = terrain.heightAt(W(DAM_U - 0.7), s0 + sg * (half + 0.9)) + 0.3;
+      dam.add(block(W(DAM_U - 1.4), LAKE_Y - 0.6, Math.min(zi, zo), W(DAM_U + 0.1), top, Math.max(zi, zo), M.rubble)); // 坝肩
+    }
+    root.add(tag(dam, 'smallDam'));
+  }
+  for (const u of [6, 24]) { // 湖边两处洗衣裳、挑水的石头码头：从岸沿一级级下到水里
+    const z0 = shoreZ(u) - 0.2, st = new THREE.Group();
+    for (let k = 0; k < 4; k++) st.add(block(W(u) - 0.7, LAKE_Y - 0.5, z0 + k * 0.4, W(u) + 0.7, 0.6 - (k + 1) * 0.42, z0 + (k + 1) * 0.4, M.stone));
+    root.add(tag(st, 'lakeSteps'));
+  }
   const lakeBox = new THREE.Mesh(new THREE.BoxGeometry(34, 0.6, 16), new THREE.MeshBasicMaterial({ visible: false })); // 点湖看卡片
-  lakeBox.position.set(W(27), WATER_Y, 33);
+  lakeBox.position.set(W(27), LAKE_Y, 33);
   lakeBox.userData.dynamic = true;
   root.add(tag(lakeBox, 'lake'));
 
@@ -930,7 +1045,7 @@ export function buildEast(M) {
     if (type === 'forest' && rand() < 0.85) {
       kind = pick([['pine', 0.4], ['oak', 0.35], ['locust', 0.15], ['bush', 0.1]]);
       if (kind !== 'bush') { tall.push([kind, px, pz, 1.35 + rand() * 0.55 + smooth(-27, -34, pz) * 0.3]); continue; } // 高大的林子
-    } else if (type === 'stone' && lakeR(u, pz) > 1.6 && rand() < 0.12) kind = rand() < 0.6 ? 'pine' : 'bush'; // 石缝里的松树
+    } else if (type === 'stone' && lakeR(u, pz) > 1.6 && !quay(u, pz) && rand() < 0.12) kind = rand() < 0.6 ? 'pine' : 'bush'; // 石缝里的松树
     else if (type === 'grass' && toLine(u, pz, OLDBED) < OLDBED_HALF - 0.6 && rand() < 0.35) kind = 'willow'; // 沟底的柳树
     else if ((type === 'grass' || type === 'sand') && lakeR(u, pz) < 2.4 && lakeR(u, pz) > 1.4 && Math.sin(u * 0.25) > 0.2) { if (rand() < 0.7) bamboos.push([px, pz, 0.8 + rand() * 0.4]); continue; } // 湖西头、东头岸上两片竹林
     else if (type === 'grass' && lakeR(u, pz) < 2.2 && rand() < 0.35) kind = pick([['willow', 0.7], ['poplar', 0.3]]); // 湖边的柳树
@@ -948,10 +1063,13 @@ export function buildEast(M) {
   for (const p of HOUSES) if (p.tree) { const [x, z] = plotAt(p, -p.w / 2 + 1.1, p.d / 2 - 1.1); groves[p.tree].push([x, z, 0.85 + rand() * 0.2]); } // 院里长出来的树（墙角）
   const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), sc = new THREE.Vector3(), p3 = new THREE.Vector3();
   const flora = new THREE.Group();
+  const treeTops = []; // 树梢（喜鹊落脚）
   const instance = (kind, seed, list) => {
     if (!list.length) return;
     const mesh = new THREE.InstancedMesh(voxelTree(kind, seed, 1), M.voxel, list.length);
-    list.forEach(([x, z, s], i) => { mesh.setMatrixAt(i, m4.compose(p3.set(x, terrain.heightAt(x, z), z), qt, sc.set(s, s, s))); trunks.push([x, z, kind === 'bush' ? 0.3 : 0.4 * Math.min(1.5, s)]); });
+    mesh.geometry.computeBoundingBox();
+    const top = mesh.geometry.boundingBox.max.y;
+    list.forEach(([x, z, s], i) => { mesh.setMatrixAt(i, m4.compose(p3.set(x, terrain.heightAt(x, z), z), qt, sc.set(s, s, s))); trunks.push([x, z, kind === 'bush' ? 0.3 : 0.4 * Math.min(1.5, s)]); if (kind !== 'bush' && kind !== 'pine' && kind !== 'cypress') treeTops.push([x, terrain.heightAt(x, z) + top * s, z]); });
     mesh.castShadow = mesh.receiveShadow = true;
     flora.add(mesh);
   };
@@ -962,6 +1080,21 @@ export function buildEast(M) {
     if (!list.length) continue;
     const mesh = new THREE.InstancedMesh(bambooGeo(61 + v), M.voxel, list.length);
     list.forEach(([x, z, s], i) => { mesh.setMatrixAt(i, m4.compose(p3.set(x, terrain.heightAt(x, z), z), qt, sc.set(s, s, s))); trunks.push([x, z, 0.5]); });
+    mesh.castShadow = mesh.receiveShadow = true;
+    flora.add(mesh);
+  }
+  const reeds = [];
+  for (let x = W(LAKE_U0) + 0.5; x < EAST_BOUNDS.x1 - 0.5; x += 1.1) for (let z = 28; z < EAST_BOUNDS.z1 - 0.5; z += 1.1) {
+    const px = x + (rand() - 0.5) * 0.8, pz = z + (rand() - 0.5) * 0.8, u = px - OX, r = lakeR(u, pz);
+    if (r < 0.62 || r >= 0.97 || !terrain.isWater(px, pz) || Math.sin(u * 0.45 + pz * 0.2) < -0.1 || [6, 24].some((v) => Math.abs(u - v) < 2) || u < DAM_U + 3 || rand() < 0.35) continue;
+    reeds.push([px, pz, 0.8 + rand() * 0.35]);
+  }
+  for (let v = 0; v < 3; v++) {
+    const list = reeds.filter((_, i) => i % 3 === v);
+    if (!list.length) continue;
+    const mesh = new THREE.InstancedMesh(reedGeo(71 + v), M.voxel, list.length);
+    list.forEach(([x, z, sc0], i) => mesh.setMatrixAt(i, m4.compose(p3.set(x, LAKE_Y - 0.15, z), qt.setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 1.7), sc.set(sc0, sc0, sc0))));
+    qt.identity();
     mesh.castShadow = mesh.receiveShadow = true;
     flora.add(mesh);
   }
@@ -1078,6 +1211,46 @@ export function buildEast(M) {
   pointLight(W(HOMES.riverTemple.u) + 4.0, HOMES.riverTemple.level + 2.2, HOMES.riverTemple.z + 1.2, 0.02);
   pointLight(W(HOMES.duckYard.u) - 1.6, HOMES.duckYard.level + 1.6, HOMES.duckYard.z + 1.4, 0.02);
   pointLight(W(MINE.u + MINE_MOUTH.x), MINE.level + 3.6, MINE.z - MINE.d / 2 + 2.8, 0.03); // 煤窑口的两盏马灯
+  const fireLight = (x, y, z, base) => { const l = new THREE.PointLight(GLOW.fire, 0, 0.06, 1.4); l.position.set(x, y, z); root.add(l); lights.push({ l, base, flicker: true }); };
+  // 火把（和村里一样：天一擦黑点上，火苗一跳一跳，地上一圈暖光）：煤窑口两边（整夜不灭）、进山口牌坊、土拱桥头、山货场
+  const torches = [];
+  const torchAt = (x, z, always = false) => { const tr = P.torch(M); tr.object.position.set(x, terrain.walkAt(x, z), z); root.add(tr.object); torches.push({ ...tr, x, z, always }); return tr; };
+  for (const sx of [-1, 1]) torchAt(W(MINE.u + MINE_MOUTH.x + sx * 2.7), MINE.z - MINE.d / 2 + 1.3, true);
+  torchAt(W(MGATE.u - 2.6), MGATE.z + 0.9);
+  torchAt(W(SHED.u + 3.7), SHED.z + 0.4);
+  { const A = nodes.st4, B = nodes.ford, len = Math.hypot(B.x - A.x, B.z - A.z), ux = (B.x - A.x) / len, uz = (B.z - A.z) / len, k = Math.max(0, toLine(A.x - OX, A.z, OLDBED) - OLDBED_HALF - 1.0); torchAt(A.x + ux * k + uz * 1.4, A.z + uz * k - ux * 1.4); } // 土拱桥北头
+  fireLight(torches[3].x, terrain.walkAt(torches[3].x, torches[3].z) + 2.4, torches[3].z, 0.03);
+  fireLight(torches[2].x, terrain.walkAt(torches[2].x, torches[2].z) + 2.4, torches[2].z, 0.02);
+  // 原住户门口一根挂灯笼的木杆；河神庙檐下一对红灯笼
+  const lanterns = [];
+  const hang = (x, y, z, s0 = 0.8) => { const l = lantern(M, s0); l.position.set(x, y, z); root.add(l); lanterns.push(l); return l; };
+  for (const [k, b] of Object.entries(homes)) {
+    if (!b.home) continue;
+    const hp0 = b.object.position, ho = b.home.object.position, x = hp0.x + ho.x + b.home.door.x + 1.0, z = hp0.z + ho.z + b.home.door.z - 0.45, y = hp0.y;
+    const pole = new THREE.Group();
+    pole.add(block(x - 0.06, y, z - 0.06, x + 0.06, y + 2.5, z + 0.06, M.wood), block(x - 0.06, y + 2.38, z - 0.55, x + 0.06, y + 2.48, z + 0.06, M.wood));
+    root.add(pole);
+    hang(x, y + 2.38, z - 0.45, 0.65);
+  }
+  for (const sx of [-1, 1]) hang(temple.object.position.x - 4.2 + sx * 1.1, temple.object.position.y + 2.6, temple.object.position.z + 0.55, 0.7);
+  // 窗前的光晕（和村里一样）：原住户的屋子、有人住的老宅
+  const halos = [];
+  const addHalos = (obj, key) => {
+    root.updateMatrixWorld(true);
+    obj.traverse((o) => {
+      for (const wv of o.userData.windows ?? []) {
+        const v = root.worldToLocal(o.localToWorld(wv.clone()));
+        const sp = new THREE.Sprite(M.windowHalo);
+        sp.scale.set(2.2, 2.2, 1);
+        sp.position.copy(v);
+        sp.userData.key = key;
+        root.add(sp);
+        halos.push(sp);
+      }
+    });
+  };
+  for (const [k, b] of Object.entries(homes)) if (b.home) { b.home.object.userData.windows = b.home.windows; addHalos(b.object, k); }
+  for (const p of HOUSES) if (p.owner) addHalos(plots[p.id], p.id);
   const ownWindow = M.windowLit.clone(); // 老村址自己的窗户：天黑才亮
   ownWindow.onBeforeCompile = M.windowLit.onBeforeCompile;
   ownWindow.customProgramCacheKey = M.windowLit.customProgramCacheKey;
@@ -1098,7 +1271,7 @@ export function buildEast(M) {
   };
   const placeAt = (x, z) => {
     const u = x - OX, t = terrain.typeAt(x, z);
-    if (lakeR(u, z) < 1.15) return PLACE.lake;
+    if (quay(u, z)) return PLACE.lake;
     if (t === 'stream' || z > sz(u) + streamHalf(u)) return z > sz(u) ? PLACE.south : PLACE.beach;
     if (toLine(u, z, OLDBED) < OLDBED_HALF + 0.3) return PLACE.oldbed;
     if (t === 'gravel') return PLACE.beach;
@@ -1145,6 +1318,29 @@ export function buildEast(M) {
     ...Array.from({ length: 4 }, () => ({ kind: 'ox', role: 'cow', worldArea: [W(PASTURE.u0 + 1.5), PASTURE.z0 + 1.5, W(PASTURE.u1 - 1.5), PASTURE.z1 - 1.5], ownerText: '老村址草场（各家寄养）', about: '村里几家寄养在草场上的黄牛，白天在栅栏里低头吃草，放牛的人看着；农忙时各家牵回去犁地、拉车。' })),
   ];
 
+  // 老村址的鸡狗鹅鸭、树上的喜鹊、马家老窑羊圈里寄养的羊
+  const ma = HOUSES.find((h) => h.id === 'old10'), pen = [plotAt(ma, ma.w / 2 - 2.7, -ma.d / 2 + 2.5), plotAt(ma, ma.w / 2 - 0.8, ma.d / 2 - 0.8)];
+  const swimmers = is('winter') ? [W(-35), 24.5, W(-25), 31] : [W(-34), 29, W(30), EAST_BOUNDS.z1]; // 冬天湖上结冰：鸭鹅在鸭棚门口转
+  const spread = []; // 喜鹊落脚的树：挑十来棵隔得开的
+  for (const tp of treeTops.filter((_, i) => i % 3 === 0)) if (tp[2] > -24 && spread.every((o) => Math.hypot(o[0] - tp[0], o[2] - tp[2]) > 9)) spread.push(tp);
+  const magpie = (i) => {
+    const mine = spread.filter((_, k) => k % 3 === i % 3).slice(0, 6);
+    if (mine.length < 2) return null;
+    const perches = mine.map(([x, y, z]) => [x, y - 0.05, z]);
+    const hops = perches.map((a, ia) => perches.map((b, ib) => ({ j: ib, d: Math.hypot(a[0] - b[0], a[2] - b[2]) })).filter((o) => o.j !== ia && o.d < 40).map(({ j, d }) => ({ j, lift: 1.5 + d * 0.1 })));
+    return { kind: 'magpie', role: 'bird', perches, hops, ownerText: '老村址的喜鹊', about: '在老村址的树梢之间飞来飞去，喳喳地叫。村里人说喜鹊登枝，好事将至。' };
+  };
+  const extra = [
+    { kind: 'dog', role: 'dog', worldArea: [W(-30), -2, W(-6), 5], ownerText: '葛石头家的大黄', about: '葛石头家的黄狗，白天在老街上溜达，见了生人先叫两声，再摇着尾巴凑过去闻。' },
+    { kind: 'dogBlack', role: 'dog', worldArea: [W(18), -9, W(34), -1], ownerText: '白家看石灰窑的黑子', about: '白家的黑狗，守着石灰窑和煤窑口那一片，夜里有点动静就叫。' },
+    ...Array.from({ length: 4 }, () => ({ kind: 'goose', role: 'goose', worldArea: swimmers, swim: true, ownerText: '苗家鸭棚的大白鹅', about: '苗家养的大白鹅，一早从鸭棚出来，顺着小溪游过石坝下到湖里，比狗还会看门。' })),
+    ...Array.from({ length: 6 }, () => ({ kind: 'duck', role: 'duck', worldArea: swimmers, swim: true, ownerText: '苗家鸭棚的鸭子', about: '苗家放的鸭子，白天在小溪和湖西头的浅水里找吃的，傍晚一赶就排着队回棚。' })),
+    ...[0, 1, 2, 3].map(magpie).filter(Boolean),
+    ...Array.from({ length: 3 }, () => ({ kind: 'sheep', role: 'sheep', worldArea: [Math.min(pen[0][0], pen[1][0]), Math.min(pen[0][1], pen[1][1]), Math.max(pen[0][0], pen[1][0]), Math.max(pen[0][1], pen[1][1])], ownerText: '寄养在马家老窑羊圈的羊', about: '村里羊倌寄养在马家老窑羊圈里的几只绵羊。马家搬走以后羊圈空了好些年，如今又有羊在里头咩咩叫。' })),
+    ...['hen', 'henBrown', 'rooster'].map((kind) => ({ kind, role: 'chicken', worldArea: [W(HOMES.riverTemple.u + 2.4), HOMES.riverTemple.z - 1, W(HOMES.riverTemple.u + 6.2), HOMES.riverTemple.z + 3], ownerText: '柳婆婆家的鸡', about: '柳婆婆养的几只鸡，在河神庙东边的小院里刨食。' })),
+  ];
+  animals.push(...extra);
+
   let last = 0, litAt = -9; // 最近一次上香的钟点
 
   /** 老宅换个样子（住进来先苫半边顶 = 1，修好了 = 2）：整处重搭、单独合批，卡片跟着改。 */
@@ -1163,13 +1359,15 @@ export function buildEast(M) {
     bakeStatic(g);
     g.userData.dynamic = true;
     plots[id] = g;
+    for (const h of halos.filter((sp) => sp.userData.key === id)) { root.remove(h); halos.splice(halos.indexOf(h), 1); }
+    if (spec.owner) addHalos(g, id);
     for (const t of things) if (t.spec?.plot === id) { t.spec = plotCard(spec); t.box.max.y = Math.max(t.box.max.y, g.position.y + 5); }
   }
   return {
     lightIncense(hour) { litAt = hour; },
     setPlotState,
     /** 新来的人住进一处老宅：记下是谁，塌了的先苫上半边顶。 */
-    claim(id, p) { const h = HOUSES.find((x) => x.id === id); if (!h) return null; h.owner = p.id; h.ownerName = p.nick || p.name; for (const t of things) if (t.spec?.plot === id) t.spec = plotCard(h); setPlotState(id, Math.max(h.state, p.houseState ?? 1), true); return h; }, // 有人住了：整处重搭，晚上点灯
+    claim(id, p) { const h = HOUSES.find((x) => x.id === id); if (!h) return null; h.owner = p.id; h.ownerName = p.nick || p.name; for (const t of things) if (t.spec?.plot === id) t.spec = plotCard(h); setPlotState(id, RUINS ? 2 : Math.max(h.state, p.houseState ?? 1), true); return h; }, // 有人住了：整处重搭（废墟开局：修成囫囵的），晚上点灯
     plotState: (id) => HOUSES.find((x) => x.id === id)?.state,
     object: root,
     terrain,
@@ -1187,6 +1385,8 @@ export function buildEast(M) {
     },
     work,
     animals,
+    swimFrom: [W(-20), sz(-20)], // 鸭鹅从这儿（小溪里）游得到的地方
+    waterY: (x, z) => (terrain.isWater(x, z) ? terrain.heightAt(x, z) : null),
     edges,
     houses: HOUSES,
     plots,
@@ -1208,7 +1408,17 @@ export function buildEast(M) {
       rain.update(dt, weather === 'rain');
       const k = Math.min(1, n * 1.1) * (hour > 21.5 || hour < 4.6 ? 0 : 1);
       ownWindow.color.setRGB(0.42 + 0.58 * k, 0.36 + 0.64 * k, 0.34 + 0.66 * k);
-      for (const { l, base } of lights) l.intensity = base * n * (hour > 21.5 || hour < 4.6 ? 0 : 1);
+      const late = hour > 21.5 || hour < 4.6;
+      for (const { l, base, flicker } of lights) l.intensity = base * n * (late && !flicker ? 0 : 1) * (flicker ? 0.92 + (Math.floor(t * 9 + l.position.x) % 3) * 0.04 : 1);
+      for (const tr of torches) {
+        tr.fire.visible = n > 0.1 && (tr.always || !late);
+        const f = tr.fire.userData.flame;
+        f.scale.y = Math.floor(t * 8 + tr.x) % 3 === 0 ? 0.68 : 0.6;
+        f.position.x = Math.floor(t * 6 + tr.z) % 2 ? 0.03 : -0.03;
+      }
+      for (const sp of halos) sp.visible = n > 0.05 && !late;
+      for (const lt of lanterns) lt.rotation.z = Math.round(Math.sin(t * 1.3 + lt.position.x) * 2) * 0.04;
+      if (lakeMat) { const U = lakeMat.userData.uniforms; U.uTime.value = t; U.uNight.value = n; U.uSky.value.set(light.sky); }
       sprites.face(viewer);
     },
   };

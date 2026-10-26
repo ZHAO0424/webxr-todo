@@ -4,7 +4,7 @@ import { GLOW } from './palette.js';
 import { buildMaterials } from './textures.js';
 import { buildTerrain, rawHeight, padLevel } from './terrain.js';
 import { buildCompounds } from './compounds.js';
-import { PLACEMENTS, NODES, EDGES, WELL, BOUNDS, BAND, streamZ, STREAM_HALF, inSoy } from './layout.js';
+import { PLACEMENTS, NODES, EDGES, WELL, BOUNDS, BAND, streamZ, STREAM_HALF, inSoy, WATER_Y } from './layout.js';
 import * as PROPS from './props.js';
 import { tagged, tag, collectThings } from './things.js';
 
@@ -372,9 +372,11 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
   })();
 
   const ducks = [-26, 22, -6, 33 + BAND.d]; // 溪里、溪北岸，往西到铁匠铺门口那片草滩
+  const eastReach = nav.flood(...east.swimFrom, { swim: true, hop: true }); // 老村址苗家的鸭鹅：小溪 + 湖
   const duckReach = nav.flood(-12, 28.5, { swim: true, hop: true }); // 鸭鹅从溪里能到的地方：游、走，碰上石堰土坎扑腾着跳上跳下（铁匠铺门口那片草滩不用修路）
   const V = {
     M, root, nav, C, nodes, torches, shrine, east,
+    waterY: (x, z) => (x >= BOUNDS.x1 ? east.waterY(x, z) ?? WATER_Y : WATER_Y), // 水面多高（老村址的湖比溪低一截）
     // 祖坟：每个坟头前一个磕头的位置（清明上坟）
     graves: graveAt && { at: [graveAt[0], graveAt[1]], spots: [-1.5, 0, 1.5].map((dx) => ({ at: nav.nearestFree(graveAt[0] + dx, graveAt[1] + 1.0), face: [graveAt[0] + dx, graveAt[1] - 0.6] })) },
     fields: { ...farm.fields, ...Object.fromEntries(['wheatW', 'wheatE', 'milletW', 'milletE', 'cornW', 'cornE'].map((k) => [k, farm.fields[k].filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p))])), fieldWest: west.work.fieldWest.filter((p) => nav.freeAt(...p, false, true) && nav.reachable(...p)) }, // fieldWest：西沟主路边的梯田；wheat / millet / corn：按庄稼分的（各季节的农活用）
@@ -428,7 +430,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     ...Array.from({ length: 5 }, () => ({ kind: 'duck', role: 'duck', worldArea: ducks, reach: duckReach })),
     ...Array.from({ length: 8 }, (_, i) => ({ kind: 'pigeon', role: 'pigeon', cx: 0, cz: -8, r: 12, y: 22, offset: i * 0.35 })),
     // 骡帮的三头骡子：平常不在村里，逢集跟着牛老大来，到了村口在西边空地上站着
-    ...east.animals, // 老村址：林子边的野猪、草场上的牛
+    ...east.animals.map((a) => (a.swim ? { ...a, reach: eastReach } : a)), // 老村址：林子边的野猪、草场上的牛、苗家的鸭鹅、狗、喜鹊、羊、鸡
     ...Array.from({ length: 3 }, (_, i) => ({ kind: 'donkey', role: 'mule', caravan: 'niu_wanshan', name: ['大青', '二黑', '花脸'][i], worldArea: [nodes.sqW.x - 6, nodes.sqW.z - 6, nodes.sqW.x - 2.5, nodes.sqW.z - 1] })),
   ];
   V.bonfire = { lit: false };

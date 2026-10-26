@@ -163,7 +163,7 @@ export class Beast {
     this.jump = { from: [this.pos.x, y0, this.pos.z], to: [tx, y1, tz], k: 0, lift: 0.25 + up * 0.6, dur: 0.45 + Math.abs(y1 - y0) * 0.25 };
   }
 
-  yAt(x, z) { const nav = this.V.nav; return this.swim && nav.water[nav.index(x, z)] ? WATER_Y - 3 * VOX : nav.heightAt(x, z) + 0.03; }
+  yAt(x, z) { const nav = this.V.nav; return this.swim && nav.water[nav.index(x, z)] ? (this.V.waterY?.(x, z) ?? WATER_Y) - 3 * VOX : nav.heightAt(x, z) + 0.03; }
 
   update(t, dt, hour) {
     const s = this.s, V = this.V;
@@ -199,7 +199,7 @@ export class Beast {
     } else if (this.home) { this.object.visible = false; return; }
     else this.behave(t, dt, hour);
 
-    if (y === null) y = this.swim && V.nav.water[V.nav.index(this.pos.x, this.pos.z)] ? WATER_Y - 3 * VOX + (Math.floor(t * 1.5 + this.phase) % 2) * VOX : V.nav.heightAt(this.pos.x, this.pos.z) + 0.03;
+    if (y === null) y = this.swim && V.nav.water[V.nav.index(this.pos.x, this.pos.z)] ? (V.waterY?.(this.pos.x, this.pos.z) ?? WATER_Y) - 3 * VOX + (Math.floor(t * 1.5 + this.phase) % 2) * VOX : V.nav.heightAt(this.pos.x, this.pos.z) + 0.03;
     this.y = y;
     present(this, dt, y);
     this.object.rotation.z = this.pecking ? (Math.floor(t * 4 + this.phase) % 2 ? -0.35 : 0) : 0;
@@ -278,7 +278,7 @@ export class Beast {
   /** 猫、喜鹊：蹲在高处，隔一阵跳 / 飞到另一个高处（抛物线）。 */
   perchUpdate(t, dt) {
     const s = this.s, c = this.c;
-    const P = (i) => { const [x, y, z] = s.perches[i]; const [wx, wz] = c.at(x, z); return [wx, c.level + y, wz]; };
+    const P = (i) => { const [x, y, z] = s.perches[i]; const [wx, wz] = c ? c.at(x, z) : [x, z]; return [wx, (c ? c.level : 0) + y, wz]; }; // 院外的（老村址树上的喜鹊）：落脚点就是沙盘坐标
     if (!this.flight) {
       const [x, y, z] = P(this.perch);
       this.pos.set(x, 0, z);
