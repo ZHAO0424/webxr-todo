@@ -1,6 +1,7 @@
 # 像素村落后台模拟：每小时把村子往前过一段（现实过去多久，村里就走多久，跟网页开着一样），存档提交回仓库。
 # 网页（pixel-village/）默认读 pixel-village/world/state.json，所以关了网页，村子的日子也在往前走。
-# 有人在网页「我的居民」里点「提交到村子」开了 Issue，也马上跑一次：先收新居民（tools/intake.mjs），再模拟、提交，最后回帖关 Issue。
+# 每次先收新居民（tools/intake.mjs）：网页存到云端（Supabase）的、和走 GitHub Issue 提交的；再模拟、提交存档，最后回结果（写回云端 / 回帖关 Issue）。
+# 有人开了提交居民的 Issue 也马上跑一次。
 # 也可以在 Actions 页面手动点「Run workflow」立刻跑一次。
 name: 像素村落后台模拟
 
@@ -31,6 +32,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }} # 云端居民表的管理员密钥（仓库 Settings → Secrets；没设就只收 Issue）
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -52,5 +54,5 @@ jobs:
           git commit -q -m "像素村落：后台模拟存档"
           for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
           git diff --quiet origin/main HEAD -- world/state.json # 三回都没推上去：这一步算失败，下面不回帖（下回重跑会再收一遍，收过的不会重复）
-      - name: 回帖、关 Issue
+      - name: 回结果（写回云端、回帖关 Issue）
         run: node tools/intake.mjs close "$RUNNER_TEMP/intake.json"

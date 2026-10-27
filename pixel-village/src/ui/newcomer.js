@@ -36,7 +36,7 @@ const jt = (j, k) => (EN ? j.en?.[k] ?? j[k] : j[k]); // 营生的字（英文�
 const goodName = (g) => (EN ? GOODS[g].en?.name ?? GOODS[g].name : GOODS[g].name);
 const goodUnit = (g) => (EN ? GOODS[g].en?.unit ?? '' : GOODS[g].unit);
 
-export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind, onLeave, residents = () => [], econ, homes, pickHome = () => null, M }) {
+export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind, onLeave, share, residents = () => [], econ, homes, pickHome = () => null, M }) {
   el.className = 'panel px';
   el.id = 'newcomer';
   el.hidden = true;
@@ -315,28 +315,32 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   };
 
   // ---------------------------------------------------------------- 我的居民
-  const STATUS_CLS = { local: 'warn', pending: 'wait', stale: 'warn', in: 'ok', changed: 'warn', editing: 'wait', leaving: 'off' };
+  const STATUS_CLS = { local: 'warn', queued: 'warn', pending: 'wait', stale: 'warn', rejected: 'warn', in: 'ok', changed: 'warn', editing: 'wait', leaving: 'off' };
+  /** 退回的原因（后台回的是「中文\n\n英文」两段）：按界面语言取一段。 */
+  const reason = (s) => { const parts = String(s ?? '').replace(/^[⚠️✅\s]+/, '').split(/\n\n/); return (EN ? parts[1] ?? parts[0] : parts[0]).trim(); };
   /** 一个人的卡：立绘、名字、营生、状态，按状态排的按钮。 */
   const mineCards = () => {
     const box = q('.mcards'), list = residents();
     box.innerHTML = '';
     for (const r of list) {
-      const { p, status, owner } = r, [st, why] = STATUS[status];
+      const { p, status, owner, row } = r, [st, why0] = STATUS[status];
+      const why = status === 'rejected' ? `${reason(row?.result)} ${tr('改好了点「修改」保存，会自动再提交。', 'Fix it via Edit; saving resubmits automatically.')}` : why0;
       const card = document.createElement('div');
       card.className = 'paper mcard';
       card.dataset.id = p.id;
-      const main = status === 'local' || status === 'stale' ? ['join', tr('提交到村子', 'Submit to village')] : status === 'changed' ? ['edit', tr('提交改动', 'Submit changes')] : null;
-      const again = status === 'pending' ? ['join', tr('再打开提交页', 'Reopen submit page')] : status === 'editing' ? ['edit', tr('再打开提交页', 'Reopen submit page')] : null;
+      const main = ['local', 'stale', 'changed'].includes(status) ? tr('提交到村子', 'Submit to village') : status === 'queued' ? tr('再试一次', 'Retry') : null;
+      const viaIssue = ['local', 'queued', 'stale'].includes(status); // 连不上村子的服务器：还可以走 GitHub
       const asking = leaveAsk === p.id;
       card.innerHTML = `<div class="mp"><div class="v"></div></div><div class="mt">
           <div class="l1"><b>${esc(pName(p))}</b><span class="badge ${STATUS_CLS[status]}">${esc(st)}</span></div>
-          <div class="dim jb">${esc(pJob(p))}${owner ? ` · GitHub @${esc(owner)}` : ''}</div>
+          <div class="dim jb">${esc(pJob(p))}${owner && !owner.startsWith('sb:') ? ` · GitHub @${esc(owner)}` : ''}</div>
           <div class="why">${esc(why)}</div>
-          ${asking ? `<div class="ask">${status === 'local' || status === 'pending' || status === 'stale' ? tr('他还没进大家的村子，删掉就没了。确定？', 'They haven\'t joined the shared village; removing deletes them. Sure?') : tr('要从大家的村子里也离开，得提交到 GitHub。确定让他走？', 'Leaving the shared village needs a GitHub submission. Let them go?')}
+          ${notes[p.id] ? `<div class="okmsg">${esc(notes[p.id])}</div>` : ''}
+          ${asking ? `<div class="ask">${status === 'local' ? tr('他还没提交过，删掉就没了。确定？', 'They were never submitted; removing deletes them. Sure?') : tr('他会离开大家的村子（下次后台处理时）。确定让他走？', 'They will leave the shared village (at the next update). Let them go?')}
             <span class="acts"><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button></span></div>`
-          : `<div class="acts">${main ? `<button class="btn on" data-act="submit" data-kind="${main[0]}">${main[1]}</button>` : ''}
+          : `<div class="acts">${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}
             <button class="btn" data-act="edit">${tr('修改', 'Edit')}</button>${p.met ? `<button class="btn" data-act="job">${tr('改行', 'New job')}</button>` : ''}
-            <button class="btn" data-act="find">${tr('去村里找', 'Find')}</button>${again ? `<button class="btn" data-act="submit" data-kind="${again[0]}">${again[1]}</button>` : ''}
+            <button class="btn" data-act="find">${tr('去村里找', 'Find')}</button>${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 提交', 'Submit via GitHub')}</button>` : ''}
             <button class="btn danger" data-act="leave">${tr('离村', 'Leave')}</button></div>`}
         </div>`;
       draw(card.querySelector('.mp .v'), p, 'front', 110);
@@ -348,25 +352,35 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     add.innerHTML = `<span class="plus">＋</span><span>${tr('再建一个居民', 'Create another resident')}</span>`;
     box.append(add);
   };
-  const submit = (kind, p) => {
-    window.open(issueUrl(kind, p), '_blank', 'noopener');
-    markSent(kind, p);
+  /** 走 GitHub 提交（连不上村子服务器时的后路）：打开填好资料的 Issue 页面。 */
+  const viaGitHub = (kind, p) => { window.open(issueUrl(kind, p), '_blank', 'noopener'); markSent(kind, p); };
+  /** 存到村子的服务器（main.js 的 share：存云端，连不上就排队等联网）。结果写在卡片 / 「进村了」页上。 */
+  let notes = {}, doneState = null;
+  const send = (p, leave = false) => {
+    if (p === made) doneState = 'sending';
+    notes[p.id] = tr('正在提交……', 'Submitting...');
+    sync();
+    return Promise.resolve(share?.(p, leave)).then((r) => {
+      notes[p.id] = r === 'ok' ? tr('已提交。', 'Submitted.') : r === 'queued' ? '' : r || '';
+      if (p === made) doneState = r;
+      if (!el.hidden) sync();
+      return r;
+    });
   };
 
-  /** 「进村了」页：刚建的人现在只在这台电脑上——说清楚，给「提交到村子」。 */
+  /** 「进村了」页：刚建的人已经自动提交到大家的村子（或者连不上、排队等联网）——说清楚现在是什么情况。 */
   const doneHTML = () => {
     const p = made;
     if (!p) return;
     draw(q('.donep .v'), p, 'front', 180);
-    const sent = q('.donebox').dataset.sent === p.id;
+    const st = doneState;
     q('.donebox').innerHTML = `<h3>${EN ? `${esc(pName(p))} has arrived!` : `${esc(p.name)} 进村了！`}</h3>
       <p>${tr('他正从村口的桥上走进来：先挨家认人，再自己找住处，第二天开张。', 'They\'re walking in over the bridge now: first meeting everyone, then finding a home, and starting work the next day.')}</p>
-      <div class="note"><b>${tr('现在只有你看得见他。', 'Right now only you can see them.')}</b>${tr('他存在这台电脑的浏览器里。要让所有打开村子的人都看到，提交到村子：', 'They\'re saved in this browser. To let everyone who opens the village see them, submit to the village:')}
-        <ol><li>${tr('点下面的按钮，会打开 GitHub，资料已经填好。', 'Press the button below; GitHub opens with everything filled in.')}</li>
-        <li>${tr('点 GitHub 页面上的「Submit new issue」（要登录 GitHub，没有账号可以免费注册）。', 'Press "Submit new issue" on GitHub (you need to sign in; accounts are free).')}</li>
-        <li>${tr('一般几分钟，最多一小时左右，他就进了大家的村子。以后用同一个 GitHub 账号改他、让他离村。', 'Within minutes (at most about an hour) they join the shared village. Later edits use the same GitHub account.')}</li></ol></div>
-      ${sent ? `<p class="okmsg">${tr('已打开提交页。在 GitHub 上点了提交就行；在「我的居民」里能看到他走到哪一步了。', 'Submit page opened. Once you press submit on GitHub you\'re done; "My residents" shows their progress.')}</p>` : ''}
-      <div class="acts"><button class="btn on" data-act="submitMade">${sent ? tr('再打开一次', 'Open again') : tr('提交到村子', 'Submit to village')}</button><button class="btn" data-act="watch">${tr('先不提交，看看他', 'Not now, watch them')}</button><button class="btn" data-act="mine">${tr('我的居民', 'My residents')}</button></div>`;
+      <div class="note">${st === 'sending' ? `<b>${tr('正在提交到大家的村子……', 'Submitting to the shared village...')}</b>`
+        : st === 'ok' ? `<b>${tr('已经提交到大家的村子。', 'Submitted to the shared village.')}</b>${tr('村子每小时收一次新人：最多一小时左右，所有打开村子的人都看得见他。在这之前只有你看得见。以后在「我的居民」里改他、让他离村，存一下就自动提交（认的是这个浏览器，换电脑就改不了了）。', 'The village takes in newcomers every hour, so within about an hour everyone who opens the village will see them. Until then only you can. Edit them or let them leave from "My residents"; saving submits automatically (tied to this browser, so you can\'t edit them from another computer).')}`
+        : st === 'queued' ? `<b>${tr('没连上村子的服务器。', 'Couldn\'t reach the village server.')}</b>${tr('他已经存在这台电脑上，下次打开网页会自动再提交；也可以点「再试一次」，或者改用 GitHub 提交（要 GitHub 账号）。', 'They\'re saved on this computer and will be resubmitted next time you open the page. You can also retry now, or submit via GitHub (needs an account).')}`
+        : `<b>${esc(st ?? '')}</b>`}</div>
+      <div class="acts">${st === 'queued' ? `<button class="btn on" data-act="retryMade">${tr('再试一次', 'Retry')}</button><button class="btn" data-act="issueMade">${tr('改用 GitHub 提交', 'Submit via GitHub')}</button>` : ''}<button class="btn${st === 'queued' ? '' : ' on'}" data-act="watch">${tr('去看看他', 'Watch them')}</button><button class="btn" data-act="mine">${tr('我的居民', 'My residents')}</button></div>`;
   };
 
   const sync = () => {
@@ -388,10 +402,10 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     q('.foot .back').hidden = page === 'look' || !!changing;
     q('.foot .fwd').textContent = page === 'look' ? `${tr('下一步：填资料', 'Next: profile')} →` : `${tr('下一步：选营生', 'Next: work')} →`;
     q('.newonly .bring-h').hidden = q('.newonly .bring').hidden = q('.newonly .coin-h').hidden = q('.newonly .coin-f').hidden = !!editing; // 改的时候：本钱、带的东西不能改
-    q('.hint').textContent = page === 'mine' ? tr('自己在这台电脑上建的人。提交到村子以后，所有打开村子的人都看得见。', 'Residents you made on this computer. Once submitted, everyone who opens the village can see them.')
+    q('.hint').textContent = page === 'mine' ? tr('在这个浏览器里建的居民。建好、改好都会自动提交到大家的村子，村子每小时收一次。', 'Residents you made in this browser. Creating or editing submits them to the shared village automatically; it updates every hour.')
       : page === 'done' ? ''
       : page === 'look' ? tr('先捏个样子：右边分组点选，也可以用人像底下的箭头一个个换；按住人拖动转着看，滚轮放大缩小', 'Shape their look: pick from the groups on the right, or step through with the arrows; drag to turn, scroll to zoom')
-      : page === 'info' ? (editing ? tr('改好了点「保存修改」；要让大家看到，回到「我的居民」提交改动', 'Press "Save changes", then submit them from "My residents" so everyone sees them') : tr('起个名字、说说会什么，再挑个住处', 'Give them a name, say what they can do'))
+      : page === 'info' ? (editing ? tr('改好了点「保存修改」：这边马上换样子，也会自动提交到大家的村子', 'Press "Save changes": they change right away here and are submitted to the shared village') : tr('起个名字、说说会什么，再挑个住处', 'Give them a name, say what they can do'))
       : changing ? (EN ? `Currently: ${pJob(changing)}; earned ${changing.earned ?? 0} coins since starting` : `现在干的是${changing.job}；开张以来挣了 ${changing.earned ?? 0} 文`)
       : tr('挑个营生点「进村」：他从村口的桥上走进来，先挨家认人，第二天开张', 'Pick a job and press "Move in": they walk in over the bridge, meet everyone and start work the next day');
     q('.coinv').textContent = form.coins; q('.agev').textContent = form.age;
@@ -413,14 +427,16 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     if (act) {
       q('.foot .err').textContent = '';
       if (act === 'new') { api.create(); return; }
-      if (act === 'submit' && r) { submit(t.dataset.kind, r.p); sync(); return; }
+      if (act === 'share' && r) { send(r.p); return; }
+      if (act === 'issue' && r) { viaGitHub(r.inWorld ? 'edit' : 'join', r.p); notes[r.p.id] = tr('已打开 GitHub 提交页：在那边点「Submit new issue」。', 'GitHub opened: press "Submit new issue" there.'); sync(); return; }
       if (act === 'edit' && r) { api.edit(r.p); return; }
       if (act === 'job' && r) { api.close(); onChangeJob?.(r.p.id); return; }
       if (act === 'find' && r) { api.close(); onFind?.(r.p.id); return; }
       if (act === 'leave' && r) { leaveAsk = r.p.id; sync(); return; }
       if (act === 'leaveNo') { leaveAsk = null; sync(); return; }
-      if (act === 'leaveYes' && r) { leaveAsk = null; if (['in', 'changed', 'editing'].includes(r.status)) submit('leave', r.p); onLeave?.(r.p.id, r.status); sync(); if (!residents().length) api.close(); return; }
-      if (act === 'submitMade' && made) { submit('join', made); q('.donebox').dataset.sent = made.id; sync(); return; }
+      if (act === 'leaveYes' && r) { leaveAsk = null; if (r.status !== 'local') send(r.p, true); onLeave?.(r.p.id, r.status); sync(); if (!residents().length) api.close(); return; } // 没提交过的直接删；提交过的告诉村子他走了
+      if (act === 'retryMade' && made) { send(made); return; }
+      if (act === 'issueMade' && made) { viaGitHub('join', made); doneState = tr('已打开 GitHub 提交页：在那边点「Submit new issue」就行。', 'GitHub opened: press "Submit new issue" there.'); sync(); return; }
       if (act === 'watch') { api.close(); if (made) onFind?.(made.id); return; }
       if (act === 'mine') { page = 'mine'; sync(); return; }
     }
@@ -461,15 +477,18 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     const bad = nameError(p);
     if (bad) { page = 'info'; sync(); q('.foot .err').textContent = bad; q('[data-f=name]').focus(); return; }
     q('.foot .err').textContent = '';
-    if (editing) { // 只改样子和资料：本钱、带的东西、营生不动
+    if (editing) { // 只改样子和资料：本钱、带的东西、营生不动；存好自动提交到村子
       const { coins, goods, jobId, jobPicked, ...look } = p;
-      onEdit?.(editing.id, look);
-      editing = null; page = 'mine'; sync();
+      const who = editing;
+      onEdit?.(who.id, look);
+      editing = null; page = 'mine';
+      send(who);
       return;
     }
     made = onCreate(p) ?? p;
     form = FORM0();
-    page = 'done'; sync();
+    page = 'done';
+    send(made); // 进村就提交到大家的村子
   });
   addEventListener('keydown', (e) => { if (!el.hidden && e.key === 'Escape' && !e.target.closest?.('input, textarea')) api.close(); });
 

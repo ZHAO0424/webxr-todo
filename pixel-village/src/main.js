@@ -30,7 +30,8 @@ import { setSeason, season, festival, SEASONS, ORDER as SEASON_ORDER } from './s
 import { setRuins, ruinsMode, EAST_BOUNDS } from './east.js';
 import { auditOverlaps } from './overlap.js';
 import { SAVE_KEYS, loadWorld, yearOf, yearLabel } from './world.js';
-import { mine, statusOf } from './mine.js';
+import { mine, statusOf, markSent, markQueued } from './mine.js';
+import { cloud } from './cloud.js';
 import { signature, pickKeys, EDIT_KEYS } from './residentSchema.js';
 import { EN, tr, plural } from './i18n.js';
 import { villageName, hhName, hhField, word, pName, pNick, pJob } from './names.js';
@@ -526,10 +527,35 @@ V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一�
   roster = makeRoster();
 };
 /** 「我的居民」里每个人：本地那份（村里有就用村里活着的那个）、走到哪一步、主人是谁。 */
+let cloudRows = null; // 云端自己那几行（后台处理了没有、退回的原因）：打开网页时取一次，提交后再取
 const myResidents = () => noMine ? [] : mine.list().filter((p) => !mine.meta()[p.id]?.left).map((p0) => {
-  const live = V.byId[p0.id]?.p, w = worldNewcomers.get(p0.id);
-  return { p: live ?? p0, status: statusOf(live ?? p0, w), owner: w?.owner };
+  const live = V.byId[p0.id]?.p, w = worldNewcomers.get(p0.id), row = cloudRows?.[p0.id];
+  return { p: live ?? p0, status: statusOf(live ?? p0, w, undefined, row), owner: w?.owner, row, inWorld: !!w };
 });
+/**
+ * 提交到大家的村子（src/cloud.js）：在存档里了就是改（edit），还没进就是新来（join），leave 离村。
+ * 返回 'ok'；连不上（超时、断网、服务器出错）返回 'queued'——先存本机，下次打开自动再发；被数据库拒了（一个浏览器超过三个）返回原因。
+ */
+async function share(p0, leave = false) {
+  const p = V.byId[p0.id]?.p ?? p0, kind = leave ? 'leave' : worldNewcomers.has(p.id) ? 'edit' : 'join';
+  if (params.has('uicheck') || params.has('nocloud')) return 'ok'; // 无头检查界面：不往真的云端写
+  try {
+    await cloud.save(kind, p);
+    markSent(kind, p);
+    cloud.rows().then((r) => { if (r) cloudRows = r; });
+    return 'ok';
+  } catch (e) {
+    if (e.status >= 400 && e.status < 500 && /too many/.test(e.message)) return tr('一个浏览器最多三个居民：先让一个离村再建。', 'At most three residents per browser: let one leave first.');
+    markQueued(kind, p);
+    return 'queued';
+  } finally { updateNewBtn(); }
+}
+/** 打开网页：上回没发出去的再发一遍；顺手取云端那几行看处理结果。 */
+if (!noMine) setTimeout(async () => {
+  const meta = mine.meta();
+  for (const p of mine.list()) if (meta[p.id]?.queue) await share(p, meta[p.id].queue === 'leave');
+  cloudRows = (await cloud.rows()) ?? cloudRows;
+}, 3000);
 /** 自己的人走了（离村、或者删掉没提交的）：这次打开里先让他进屋不出来（模拟里别人可能正跟他打交道，不直接拿掉），档案里不再列。 */
 function dropResident(id) {
   const v = V.byId[id];
@@ -554,10 +580,11 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
     saveNewcomers();
     roster = makeRoster();
   },
-  onLeave(id, status) { // 离村：没进大家村子的直接删；进了的已经打开了 GitHub 提交页（mine.js 记下 left）
-    if (!['in', 'changed', 'editing'].includes(status)) mine.remove(id);
+  onLeave(id, status) { // 离村：没提交过的直接删；提交过的面板已经告诉村子他走了（mine.js 记下 left）
+    if (status === 'local') mine.remove(id);
     dropResident(id);
   },
+  share,
   econ: () => ECON,
   homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? hhName(h), n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
   M: village.M, // 第一步的 3D 小人用村里同一套材质
@@ -569,6 +596,7 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
     v.finish();
     saveNewcomers();
     roster = makeRoster();
+    if (myIds().has(id)) share(v.p); // 自己的人：改行也提交到村子
     bubbles.say(v.object, EN ? [['New job: ', '#e0d4bf'], [pJob(v.p), '#ffcc66']] : [['改行', '#e0d4bf'], [` 当${v.p.job}`, '#ffcc66']]);
   },
   onCreate(p) {

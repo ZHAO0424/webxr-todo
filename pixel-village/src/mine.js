@@ -1,17 +1,19 @@
 /*
  * 我的居民：这台电脑上自己建的人。浏览器里存一份完整资料（pv.newcomers），另记每人提交到哪一步了（pv.mine）。
  *
- * 大家看的是同一个村子（仓库里的 world/state.json，后台每小时往前过一段）。自己建的人要进这个村子，得「提交到村子」：
- *   打开 GitHub 新建 Issue 的页面，资料已经填好（```pv-resident 代码块），点提交就行（要有 GitHub 账号）。
- *   后台模拟（.github/workflows/pixel-village-sim.yml → tools/intake.mjs）收到就把人放进存档、关掉 Issue；
- *   发 Issue 的 GitHub 账号就是这个人的主人，以后只认这个账号的修改、离村。
- * 没提交、还在等的时候，人先只在自己这台电脑的村子里；改了样子、资料没提交的，也是自己这边先看到。
+ * 大家看的是同一个村子（仓库里的 world/state.json，后台每小时往前过一段）。自己建的人要进这个村子：
+ *   默认存到云端（src/cloud.js，Supabase，匿名登录，不用账号）：建好、改好、离村时自动存上去；
+ *   连不上云端时先存本机、标「等联网」，下次打开自动再发；还可以改走 GitHub Issue（issueUrl，要 GitHub 账号）。
+ *   后台模拟（.github/workflows/pixel-village-sim.yml → tools/intake.mjs）每小时把两边收到的都放进存档。
+ *   主人：云端的是这个浏览器的匿名身份，Issue 的是发 Issue 的 GitHub 账号；以后只认主人的修改、离村。
+ * 还没进村、改了还没生效的时候，人先按自己这边的样子显示。
  *
  * 状态（statusOf）：
- *   local    只在这台电脑上（没提交）
- *   pending  提交了，等入村（后台一般几分钟到一小时）     stale：提交三小时了还没进村（多半 Issue 没提交成功）
+ *   local    只在这台电脑上（没提交）               queued：存云端没成功，等联网了自动再发
+ *   pending  提交了，等入村（后台每小时收一次）       stale：提交三小时了还没进村
+ *   rejected 后台退回了（重名、超过三个……），云端那一行的 result 里写着原因
  *   in       已经在村子里，和存档里一样
- *   changed  在村子里，这边改过样子 / 资料，还没提交      editing：改动提交了，等后台改
+ *   changed  在村子里，这边改过样子 / 资料，还没提交   editing：改动提交了，等后台改
  *   leaving  提交了离村（这边先不显示他）
  */
 import { EN, tr } from './i18n.js';
@@ -34,9 +36,11 @@ export const mine = {
   remove(id) { this.save(this.list().filter((p) => p.id !== id)); this.setMeta(id, null); },
 };
 
-/** 这个人走到哪一步了。p：本地那份；w：存档里的那份（没有就是还没进村）。 */
-export function statusOf(p, w, meta = mine.meta()[p.id] ?? {}) {
+/** 这个人走到哪一步了。p：本地那份；w：存档里的那份（没有就是还没进村）；row：云端那一行（看后台处理结果）。 */
+export function statusOf(p, w, meta = mine.meta()[p.id] ?? {}, row = null) {
   if (meta.left) return 'leaving';
+  if (meta.queue) return 'queued';
+  if (row?.applied_at && row.applied_at >= row.updated_at && /^⚠/.test(row.result ?? '') && (!w || signature(w) !== signature(p))) return 'rejected';
   const sent = meta.sent, old = sent && Date.now() - sent.at > STALE;
   if (!w) return sent?.kind === 'join' ? (old ? 'stale' : 'pending') : 'local';
   const same = signature(w) === signature(p);
@@ -46,11 +50,13 @@ export function statusOf(p, w, meta = mine.meta()[p.id] ?? {}) {
 }
 export const STATUS = {
   local: [tr('只在这台电脑上', 'Only on this computer'), tr('别人看不到。提交到村子，大家就都能看见他。', 'Others can\'t see them yet. Submit to the village so everyone can.')],
-  pending: [tr('等入村', 'Joining soon'), tr('已提交，后台处理好就进村（一般几分钟，最多一小时左右）。', 'Submitted. They\'ll join once it\'s processed (usually minutes, at most about an hour).')],
-  stale: [tr('还没处理', 'Not processed yet'), tr('提交好几个小时了还没生效：多半 GitHub 页面上没点「提交」。可以再提交一次。', 'Submitted hours ago but still not applied — most likely Submit was never clicked on the GitHub page. You can submit again.')],
+  queued: [tr('等联网', 'Waiting to send'), tr('已存在这台电脑上，但没连上村子的服务器。下次打开会自动再发，也可以点「再试一次」。', 'Saved on this computer, but the village server couldn\'t be reached. It retries next time you open the page, or press Retry.')],
+  pending: [tr('等入村', 'Joining soon'), tr('已提交。村子每小时收一次新人，最多一小时左右大家就都看得见他。', 'Submitted. The village takes in newcomers every hour, so everyone will see them within about an hour.')],
+  stale: [tr('还没处理', 'Not processed yet'), tr('提交好几个小时了还没生效，可以再提交一次。', 'Submitted hours ago but still not applied. You can submit again.')],
+  rejected: [tr('被退回', 'Sent back'), ''], // 原因在云端那一行的 result 里
   in: [tr('在村里', 'In the village'), tr('大家都看得见他。', 'Everyone can see them.')],
   changed: [tr('有改动没提交', 'Unsubmitted changes'), tr('改动只在这台电脑上，提交以后大家才看得见。', 'Your changes are only on this computer until you submit them.')],
-  editing: [tr('改动等生效', 'Changes pending'), tr('改动已提交，后台处理好就生效。', 'Changes submitted; they\'ll apply once processed.')],
+  editing: [tr('改动等生效', 'Changes pending'), tr('改动已提交，村子每小时处理一次，最多一小时左右就生效。', 'Changes submitted; the village applies them every hour.')],
   leaving: [tr('正在离村', 'Leaving'), tr('已提交离村，这台电脑上先不显示他。', 'Leaving submitted; hidden on this computer.')],
 };
 
@@ -69,5 +75,7 @@ export function issueUrl(kind, p) {
   const body = `${intro}\n\n\`\`\`pv-resident\n${JSON.stringify({ v: 1, kind, id: p.id, data: pickKeys(p, keys) })}\n\`\`\`\n`;
   return `https://github.com/${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
-/** 记下提交了（打开 GitHub 页面的那一刻）。 */
-export const markSent = (kind, p) => { if (kind === 'leave') mine.setMeta(p.id, { left: true, sent: { kind, at: Date.now() } }); else mine.setMeta(p.id, { left: undefined, sent: { kind, at: Date.now(), sig: signature(p) } }); };
+/** 记下提交了（存上云端、或者打开 GitHub 页面的那一刻）。 */
+export const markSent = (kind, p) => { if (kind === 'leave') mine.setMeta(p.id, { left: true, queue: undefined, sent: { kind, at: Date.now() } }); else mine.setMeta(p.id, { left: undefined, queue: undefined, sent: { kind, at: Date.now(), sig: signature(p) } }); };
+/** 存云端没成功：记下要发什么，等联网了再发（离村的这边先不显示）。 */
+export const markQueued = (kind, p) => mine.setMeta(p.id, { queue: kind, ...(kind === 'leave' ? { left: true } : {}) });
