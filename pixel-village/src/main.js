@@ -724,12 +724,14 @@ let lastLabel = '';
 let shadowFrame = 1;
 const first = village.update(0, camera.position);
 applyLight(first.light, true);
+let fishLook = params.get('fish');
 renderer.setAnimationLoop((_, frame) => {
   const work0 = performance.now();
   const t = clock.getElapsedTime();
   const dt = Math.min(0.1, t - lastT);
   lastT = t;
   if (!(frame && anchor.update(frame, viewer))) {
+    if (fishLook && village.fish) { const which = fishLook; fishLook = null; const sp = village.fish.spot(which === 'stream'); if (sp) { const p = sp.host.localToWorld(new THREE.Vector3(sp.x, sp.y, sp.z)); controls.target.copy(p); camera.position.set(p.x, p.y + 0.1, p.z + 0.16); } } // ?fish=jump：镜头对准湖心看跳鱼；?fish=stream：对准村前小溪里的鱼（截图检查用）
     if (follow && sel && (sel.v || sel.b)) { // 跟随：相机和观察点一起平移，角色慢慢移到画面中间
       const o = (sel.v ?? sel.b).object.getWorldPosition(followAt);
       followD.subVectors(o, controls.target).multiplyScalar(Math.min(1, dt * 3));

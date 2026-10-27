@@ -23,6 +23,7 @@ import { snapPerches, findFloating, markReachable, auditPaths } from './audit.js
 import { daylight } from './daylight.js';
 import { Smoke, Embers, Fireflies, Rain } from './fx.js';
 import { is } from './season.js';
+import { buildFish } from './fish.js';
 import { buildWest, WEST_BOUNDS } from './west.js';
 import { buildEast, EAST_BOUNDS } from './east.js';
 
@@ -228,6 +229,12 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
   // 4.8 老村址：接在村子东边（east.js），一样共用世界、导航网格和村民
   const east = buildEast(M);
   const pickT = (x) => (x < BOUNDS.x0 ? west.terrain : x >= BOUNDS.x1 ? east.terrain : terrain);
+  // 4.9 水里的鱼（只是画面）：村前小溪、西沟的溪和水潭、老村址的溪和大湖；湖心有跳鱼。冬天结冰不建
+  const fish = is('winter') ? null : buildFish(M, [
+    { host: root, terrain, bounds: BOUNDS, per: 40, max: 14, size: [0.6, 0.85], kinds: ['crucian'], tint: '#b4c4c0', alpha: 0.8 },
+    { host: west.object, terrain: west.terrain, bounds: WEST_BOUNDS, per: 40, max: 10, size: [0.6, 0.85], kinds: ['crucian'], tint: '#b4c4c0', alpha: 0.8 },
+    { host: east.object, terrain: east.terrain, bounds: EAST_BOUNDS, per: 90, max: 22, size: [0.65, 1.1], jumps: true, kinds: ['carp', 'carp', 'crucian'] },
+  ]);
   const ground = {
     walkAt: (x, z) => pickT(x).walkAt(x, z),
     isWater: (x, z) => pickT(x).isWater(x, z),
@@ -554,6 +561,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     M, // 西沟和村子共用一套材质
     west,
     east,
+    fish, // 水里的鱼（画面）
     world: V, // 模拟的全部状态（人、动物、钟、经济、老宅……）：存档读档（world.js）、后台模拟用
     /**
      * 模拟一步（不碰画面）：钟、人、动物、经济、门开关（挡不挡路）、集市摊子挡路、散集搬凳子。
@@ -597,6 +605,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
       const L = overcast(daylight(hour), weather); // 阴天、雨天：太阳弱、天发灰，雨天白天屋里也点灯
       const n = L.night;
       rain.update(dt, weather === 'rain');
+      fish?.update(dt, hour, n);
 
       const step = Math.floor(t * 2); // 溪水按整像素往西流
       if (step !== waterStep && !is('winter')) { waterStep = step; terrain.water.offset.x = (step % 36) / 36; } // 冬天溪面结冰，不流
