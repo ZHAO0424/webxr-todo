@@ -4,7 +4,9 @@
  * - 身份：第一次存的时候自动匿名登录（不用注册），登录凭据存在浏览器里（pv.sb）。换电脑、清了浏览器数据就是另一个人，改不了原来的居民。
  * - 表 public.residents：{ id, owner（自动是自己）, kind join / edit / leave, data 资料, updated_at, applied_at, result }。
  *   数据库的规则（RLS + 列权限）只让每人读写自己的行，applied_at / result 只有后台能写；每人只能有一个居民（离村以后才能再建）。
- * - 后台（.github/workflows/pixel-village-sim.yml → tools/intake.mjs）每小时把 updated_at 比 applied_at 新的行收进村子存档，回写 applied_at 和 result。
+ * - 后台（.github/workflows/pixel-village-sim.yml → tools/intake.mjs）把 updated_at 比 applied_at 新的行收进村子存档，回写 applied_at 和 result。
+ *   什么时候跑：玩家一存（insert / 改了 kind、data），数据库触发器 residents_dispatch 就通过 pg_net 叫 GitHub 马上跑一次（repository_dispatch，
+ *   令牌在 Supabase Vault 的 gh_dispatch_token）；另外 pg_cron 每小时叫一次（pv-sim-hourly），GitHub 自己的定时只是备用。
  * - 网络不好：每次请求 15 秒没回就算失败；调用的地方先存本机、标「等联网」，下次打开再发（见 main.js 的 retryQueued）。
  * 这里用的是公开的 publishable key（本来就放在网页里）；管理员密钥只在 GitHub 的私密配置里，后台用。
  */

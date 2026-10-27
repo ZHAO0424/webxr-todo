@@ -10,7 +10,7 @@
  *
  * 状态（statusOf）：
  *   local    只在这台电脑上（没提交）               queued：存云端没成功，等联网了自动再发
- *   pending  提交了，等入村（后台每小时收一次）       stale：提交三小时了还没进村
+ *   pending  提交了，等入村（一存云端就叫后台马上跑，见 cloud.js）       stale：提交三小时了还没进村
  *   rejected 后台退回了（重名、超过三个……），云端那一行的 result 里写着原因
  *   in       已经在村子里，和存档里一样
  *   changed  在村子里，这边改过样子 / 资料，还没提交   editing：改动提交了，等后台改
@@ -51,12 +51,12 @@ export function statusOf(p, w, meta = mine.meta()[p.id] ?? {}, row = null) {
 export const STATUS = {
   local: [tr('只在这台电脑上', 'Only on this computer'), tr('别人看不到。提交到村子，大家就都能看见他。', 'Others can\'t see them yet. Submit to the village so everyone can.')],
   queued: [tr('等联网', 'Waiting to send'), tr('已存在这台电脑上，但没连上村子的服务器。下次打开会自动再发，也可以点「再试一次」。', 'Saved on this computer, but the village server couldn\'t be reached. It retries next time you open the page, or press Retry.')],
-  pending: [tr('等入村', 'Joining soon'), tr('已提交。村子每小时收一次新人，最多一小时左右大家就都看得见他。', 'Submitted. The village takes in newcomers every hour, so everyone will see them within about an hour.')],
+  pending: [tr('等入村', 'Joining soon'), tr('已提交。一般两三分钟他就从村口走进来（刷新网页看）；服务器忙的时候要久一点。', 'Submitted. They usually walk in within a few minutes (refresh the page); it can take longer when the server is busy.')],
   stale: [tr('还没处理', 'Not processed yet'), tr('提交好几个小时了还没生效，可以再提交一次。', 'Submitted hours ago but still not applied. You can submit again.')],
   rejected: [tr('被退回', 'Sent back'), ''], // 原因在云端那一行的 result 里
   in: [tr('在村里', 'In the village'), tr('大家都看得见他。', 'Everyone can see them.')],
   changed: [tr('有改动没提交', 'Unsubmitted changes'), tr('改动只在这台电脑上，提交以后大家才看得见。', 'Your changes are only on this computer until you submit them.')],
-  editing: [tr('改动等生效', 'Changes pending'), tr('改动已提交，村子每小时处理一次，最多一小时左右就生效。', 'Changes submitted; the village applies them every hour.')],
+  editing: [tr('改动等生效', 'Changes pending'), tr('改动已提交，一般两三分钟就生效（刷新网页看）。', 'Changes submitted; they usually apply within a few minutes (refresh the page).')],
   leaving: [tr('正在离村', 'Leaving'), tr('已提交离村，这台电脑上先不显示他。', 'Leaving submitted; hidden on this computer.')],
 };
 
