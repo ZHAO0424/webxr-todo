@@ -222,10 +222,8 @@
     #newcomer .ptab i { font-style: normal; color: var(--dim); }
     #newcomer .ptab.on i { color: #5a3a14; }
     /* 营生：背包格子 + 右边详细 */
-    #newcomer .jobbox { display: flex; flex-direction: column; gap: calc(4 * var(--p)); }
-    #newcomer .jcats { display: flex; gap: var(--p); flex-wrap: wrap; }
-    #newcomer .jcats .btn { line-height: calc(30 * var(--f)); }
-    #newcomer .jcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(90 * var(--f)), 1fr)); gap: calc(2 * var(--p)); }
+    #newcomer .jobbox { display: flex; flex-direction: column; gap: calc(4 * var(--p)); min-height: 0; }
+    #newcomer .jcards { overflow-y: auto; min-height: 0; flex: 1 1 auto; align-content: start; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(90 * var(--f)), 1fr)); gap: calc(2 * var(--p)); }
     #newcomer .jcard { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--p)); padding: calc(3 * var(--p)) var(--p) calc(2 * var(--p)); }
     #newcomer .slot { position: relative; display: grid; place-items: center; width: calc(56 * var(--f)); height: calc(56 * var(--f)); background: radial-gradient(#e8d6ac, #c9ad78 70%, #b0925e); /* 浅木色的格子，家伙描着黑边看得清 */
                       box-shadow: inset 0 0 0 var(--f) var(--ink), inset 0 0 0 calc(3 * var(--f)) #8a6a44, inset 0 0 0 calc(4 * var(--f)) var(--ink); }

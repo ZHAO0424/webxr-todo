@@ -1147,7 +1147,7 @@ if (params.has('uicheck')) {
     { name: 'roster:cards', open: () => { closeAll(); roster.show(); document.querySelector('#roster [data-v=list]')?.click(); } },
     ...[0, 1, 2, 3].map((g) => ({ name: `new:look${g}`, open: () => { closeAll(); newcomerPanel.create('look'); document.querySelector(`#newcomer [data-group="${g}"]`)?.click(); } })),
     { name: 'new:info', open: () => { closeAll(); newcomerPanel.create('info'); } },
-    ...[0, 1, 2, 3, 4].map((c) => ({ name: `new:job${c}`, open: () => { closeAll(); newcomerPanel.create('job'); document.querySelectorAll('#newcomer .jcats button')[c]?.click(); document.querySelector('#newcomer .jcard')?.dispatchEvent(new Event('pointerover', { bubbles: true })); } })),
+    { name: 'new:job', open: () => { closeAll(); newcomerPanel.create('job'); document.querySelector('#newcomer .jcard')?.dispatchEvent(new Event('pointerover', { bubbles: true })); } },
     { name: 'new:done', open: () => { const n = document.querySelector('#newcomer [data-f=name]'); n.value = EN ? 'Hu Ergen' : '胡二根'; n.dispatchEvent(new Event('input')); document.querySelector('#newcomer .create').click(); } },
     { name: 'new:mine', open: () => { closeAll(); newcomerPanel.mine(); } },
     { name: 'detail', open: () => { closeAll(); const id = myIds().values().next().value; if (id) { roster.show(id); roster.layout(); } } }, // 自己的人的详情：勋章、好感度

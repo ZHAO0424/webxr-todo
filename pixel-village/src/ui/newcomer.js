@@ -3,7 +3,7 @@ import { RESIDENTS, HOUSEHOLDS } from '../residents.js';
 import { previewCanvas, itemCanvas } from '../characters.js';
 import { voxelCharacter } from '../voxel.js';
 import { R } from '../palette.js';
-import { JOBS, JOB_CATS, rankJobs } from '../life/newcomers.js';
+import { JOBS, rankJobs } from '../life/newcomers.js';
 import { GOODS } from '../life/economy.js';
 import { PARTS, GROUPS, SKILLS, TRAITS, BRING } from '../residentSchema.js';
 import { issueUrl, markSent, STATUS } from '../mine.js';
@@ -43,7 +43,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   const LOOK0 = { build: '', hair: 'short', hairRamp: 'hair', hat: '', top: 'teal', style: '', pattern: '', pants: 'black', skin: 'skin', extra: '', beard: false, mustache: false, blush: false, smile: false, legwrap: false };
   const FORM0 = () => ({ jobId: '', name: '', nick: '', age: 30, sex: '男', skills: new Set(), more: '', traits: new Set(), bio: '', likes: '', coins: 80, bring: new Set(['grain']), home: '', ...LOOK0 });
   let form = FORM0();
-  let page = 'look', group = 0, part = 'build', cat = JOB_CATS[0], changing = null, editing = null, hover = null, made = null, leaveAsk = null;
+  let page = 'look', group = 0, part = 'build', changing = null, editing = null, hover = null, made = null, leaveAsk = null;
   // changing：改行的那个人（档案里点「改行」）；editing：在改样子资料的那个人；hover：鼠标停在哪一格营生上；made：刚进村的那个人（「进村了」页）；leaveAsk：在问"真让他走吗"的那个人
 
   const chips = (key, list) => list.map(([v, t]) => `<button class="btn chipbtn" data-k="${key}" data-v="${esc(v)}">${esc(t)}</button>`).join('');
@@ -81,7 +81,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       </div>
       <div class="paper box">
         <h3>${tr('名字', 'Name')}</h3>
-        <div class="row2"><label><span class="k">${tr('名字', 'Name')}</span><input class="in" data-f="name" maxlength="${EN ? 14 : 6}" placeholder="${tr('比如 胡二根', 'e.g. Hu Ergen')}"></label><label><span class="k">${tr('村里叫', 'Known as')}</span><input class="in" data-f="nick" maxlength="${EN ? 14 : 6}" placeholder="${tr('比如 胡磨倌', 'e.g. Miller Hu')}"></label></div>
+        <div class="row2"><label><span class="k">${tr('名字', 'Name')}</span><input class="in" data-f="name" maxlength="${EN ? 14 : 6}" placeholder="${tr('比如 胡二根', 'e.g. Hu Ergen')}"></label></div>
         <h3>${tr('会什么', 'Skills')}<small>${tr('可多选，也可以自己写', 'Pick any, or write your own')}</small></h3><div class="chips">${chips('skills', SKILLS.map((s) => [s, word(s)]))}</div>
         <input class="in wide" data-f="more" placeholder="${tr('自己写，用顿号隔开，比如 做豆腐、剃头', 'Your own, comma-separated, e.g. tofu making, barbering')}">
         <h3>${tr('性格', 'Personality')}<small>${tr('挑两三个', 'Pick two or three')}</small></h3><div class="chips">${chips('traits', TRAITS.map((s) => [s, word(s)]))}</div>
@@ -98,7 +98,6 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     </div>
     <div class="nbody job-page" hidden>
       <div class="paper box jobbox">
-        <div class="jcats"></div>
         <div class="jcards"></div>
         <button class="btn chipbtn undecided" data-k="jobId" data-v="">${tr('先不定，到村里看看再说', 'Decide later, after looking around')}</button>
       </div>
@@ -116,7 +115,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     const f = { ...form, ...over }, age = Math.max(16, Math.min(80, Number(f.age) || 30)), man = f.sex === '男';
     const [ek, ev] = (f.extra || ':').split(':');
     return {
-      name: f.name.trim(), nick: f.nick.trim() || f.name.trim(), age, sex: f.sex,
+      name: f.name.trim(), nick: f.name.trim(), age, sex: f.sex, // 不另起外号：村里就叫名字
       skills: [...f.skills, ...f.more.split(/[、，,;；\s]+/).filter(Boolean)], traits: [...f.traits].slice(0, 3),
       bio: f.bio.trim(), likes: f.likes.trim() || '——', // 来历没写：卡片上按男女给一句（names.js 的 defaultBio）
       body: age >= 60 && man ? 'elder' : man ? 'man' : 'woman', build: f.build || undefined, elder: age >= 60 || undefined,
@@ -282,15 +281,13 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   const fit = (c, n) => { const k = n / Math.max(c.width, c.height); c.style.width = `calc(${(c.width * k).toFixed(1)} * var(--f))`; c.style.height = `calc(${(c.height * k).toFixed(1)} * var(--f))`; };
   const SEASONS = EN ? ['Spr', 'Sum', 'Aut', 'Win'] : ['春', '夏', '秋', '冬'];
   const seasonBar = (j) => ['spring', 'summer', 'autumn', 'winter'].map((s, i) => { const v = j.season[s], lv = v >= 1.2 ? 'hi' : v <= 0.6 ? 'lo' : 'mid'; return `<span class="sz ${lv}"><b>${SEASONS[i]}</b>${lv === 'hi' ? tr('旺', '↑') : lv === 'lo' ? tr('淡', '↓') : tr('平', '–')}</span>`; }).join('');
-  const perDay = (n) => (EN ? `~${n} coins/day` : `约 ${n} 文/天`);
-  /** ③ 营生：左边这一类的格子——每格画着这一行的家伙、名字、一天约挣几文，角上标正缺 / 对口；右边选中那一行的详细。 */
+  /** ③ 营生：左边所有营生放在一起（不分类、不标钱）——每格画着这一行的家伙、名字，角上标正缺 / 对口；右边选中那一行的详细。 */
   const jobCards = () => {
     const E = econ(), who = changing ?? person(), ranked = E ? rankJobs(who, E) : JOBS.filter((j) => !j.legacy).map((job) => ({ job, est: job.est, rivals: 0 }));
     const by = Object.fromEntries(ranked.map((r) => [r.job.id, r]));
-    q('.jcats').innerHTML = JOB_CATS.map((c) => `<button class="btn${c === cat ? ' on' : ''}" data-cat="${esc(c)}">${esc(word(c))}</button>`).join('');
     const box = q('.jcards');
     box.innerHTML = '';
-    for (const job of JOBS.filter((j) => !j.legacy && j.cat === cat)) {
+    for (const job of JOBS.filter((j) => !j.legacy)) {
       const r = by[job.id] ?? { est: job.est, rivals: 0 }, cur = changing && changing.jobId === job.id;
       const b = document.createElement('button');
       b.className = `btn jcard${form.jobId === job.id ? ' on' : ''}`;
@@ -300,13 +297,13 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       const c = icon(job, 56);
       if (c) { fit(c, 34); slot.append(c); }
       if (r.short || r.match) slot.append(Object.assign(document.createElement('i'), { className: `tag ${r.short ? 'short' : 'match'}`, textContent: r.short ? tr('缺', 'Need') : tr('对口', 'Fit') }));
-      b.append(slot, Object.assign(document.createElement('span'), { className: 'jt', innerHTML: `<b>${esc(jt(job, 'name').replace(/（.*）|\s*\(.*\)/, ''))}</b><span class="dim">${cur ? tr('现在干的', 'Current') : perDay(r.est)}</span>` }));
+      b.append(slot, Object.assign(document.createElement('span'), { className: 'jt', innerHTML: `<b>${esc(jt(job, 'name').replace(/（.*）|\s*\(.*\)/, ''))}</b>${cur ? `<span class="dim">${tr('现在干的', 'Current')}</span>` : ''}` }));
       box.append(b);
     }
     const j = JOBS.find((x) => x.id === (hover ?? form.jobId)), d = q('.jdesc');
     if (!j) { d.innerHTML = `<div class="empty">${changing ? tr('挑一个新营生，点「改行」，他马上换过去。', 'Pick a new job and press "Change job" — they switch right away.') : tr('左边点一格，看看这一行干什么。<br><br>不选也行：他认完人，自己按"村里缺什么 + 自己会什么"挑一个。', 'Click a tile on the left to see what the job involves.<br><br>Or skip it: after meeting everyone they pick one based on what the village needs and what they can do.')}</div>`; return; }
     const r = by[j.id] ?? { est: j.est, rivals: 0 };
-    d.innerHTML = `<div class="dh"><span class="slot big"></span><div><div class="dn">${esc(jt(j, 'name'))}</div><div class="dim">${esc(word(j.cat))} · ${perDay(r.est)}${r.rivals ? (EN ? ` · ${r.rivals} already doing it` : ` · 已有 ${r.rivals} 人在做`) : ''}</div><div class="tags">${r.short ? `<i class="tag short">${tr('村里正缺', 'Village needs it')}</i>` : ''}${r.match ? `<i class="tag match">${tr('和会的对口', 'Matches skills')}</i>` : ''}</div></div></div>
+    d.innerHTML = `<div class="dh"><span class="slot big"></span><div><div class="dn">${esc(jt(j, 'name'))}</div>${r.rivals ? `<div class="dim">${EN ? `${r.rivals} already doing it` : `已有 ${r.rivals} 人在做`}</div>` : ''}<div class="tags">${r.short ? `<i class="tag short">${tr('村里正缺', 'Village needs it')}</i>` : ''}${r.match ? `<i class="tag match">${tr('和会的对口', 'Matches skills')}</i>` : ''}</div></div></div>
       <p>${esc(jt(j, 'desc'))}</p>
       <dl><dt>${tr('在哪儿干', 'Where')}</dt><dd>${esc(jt(j, 'where'))}</dd><dt>${tr('谁买', 'Buyers')}</dt><dd>${esc(jt(j, 'buyers'))}</dd><dt>${tr('要置办', 'Needs')}</dt><dd>${esc(jt(j, 'setup'))}</dd></dl>
       <div class="season"><span class="k">${tr('四季', 'Seasons')}</span>${seasonBar(j)}</div>`;
@@ -492,7 +489,6 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       if (act === 'mine') { if (made) selId = made.id; editing = null; changing = null; page = 'mine'; sync(); return; }
     }
     if (t.dataset.page) { page = t.dataset.page; sync(); return; }
-    if (t.dataset.cat) { cat = t.dataset.cat; sync(); return; }
     if (t.dataset.go) { page = PAGES[Math.max(0, Math.min(editing ? 1 : 2, PAGES.indexOf(page) + Number(t.dataset.go)))]; sync(); return; }
     if (t.dataset.group) { group = Number(t.dataset.group); part = GROUPS[group][2][0]; sync(); return; }
     if (t.dataset.pk) { part = t.dataset.pk; setValue(PARTS.find((x) => x.key === t.dataset.pk), t.dataset.pv); sync(); return; }
@@ -547,12 +543,12 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   const api = {
     get open() { return !el.hidden; },
     /** 改行：p 是档案里那个人（name、job、jobId、earned、外观）。 */
-    changeJob(p) { changing = p; editing = null; form.jobId = ''; cat = JOBS.find((j) => j.id === p.jobId)?.cat ?? JOB_CATS[0]; page = 'job'; sync(); open(); },
+    changeJob(p) { changing = p; editing = null; form.jobId = ''; page = 'job'; sync(); open(); },
     /** 改样子、资料：p 是村里那个人。 */
     edit(p) { changing = null; editing = p; form = formOf(p); group = 0; part = 'build'; page = 'look'; sync(); open(); },
     /** 新建一个（which：直接到哪一页 / 哪一样，截图检查用）。 */
     create(which = 'look') { if (residents().length) { api.mine(); return; } // 已经有自己的居民了：一个浏览器只能有一个
-      changing = null; editing = null; if (made) { form = FORM0(); made = null; } if (PARTS.some((x) => x.key === which)) { group = Math.max(0, GROUPS.findIndex(([, , ks]) => ks.includes(which))); part = which; which = 'look'; } page = which; if (page === 'job') { const c = JOBS.find((j) => j.id === form.jobId)?.cat; if (c) cat = c; } sync(); open(); },
+      changing = null; editing = null; if (made) { form = FORM0(); made = null; } if (PARTS.some((x) => x.key === which)) { group = Math.max(0, GROUPS.findIndex(([, , ks]) => ks.includes(which))); part = which; which = 'look'; } page = which; sync(); open(); },
     /** 左下角按钮：有自己的人先看「我的居民」，一个都没有直接新建。 */
     show(which) { if (which) { api.create(which); return; } changing = null; editing = null; leaveAsk = null; page = 'mine'; sync(); open(); }, // 一个都没有也先到「我的居民」：有「新建」那一格，也能用邮箱登录找回
     mine() { changing = null; editing = null; page = 'mine'; sync(); open(); },

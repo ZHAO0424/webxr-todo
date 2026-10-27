@@ -428,7 +428,7 @@ function torso(g, p, b, L, view, pose) {
 
 /**
  * 外面罩着的（画在上身、胳膊上面）：羊皮袄的长下摆和毛领、斗篷、军大衣的毛领。
- * 斗篷从肩膀往下慢慢张开（三行宽一格），盖住胳膊，到膝盖。蓑衣不在这儿：下雨天下地才披，是立体的挂件（voxel.js 的 setRain）。
+ * 斗篷从肩膀往下慢慢张开（三行宽一格，两边最多各宽两格），盖住胳膊，到膝盖。往后最多张一格：老村址门前的台阶一级 0.3 米，往后张得多的下摆下台阶时会插进身后高一级的台阶里。蓑衣不在这儿：下雨天下地才披，是立体的挂件（voxel.js 的 setRain）。
  */
 function outer(g, p, b, L, view) {
   const st = p.style, x0 = CX - Math.floor(b.torsoW / 2), w = b.torsoW, y0 = L.torsoTop, knee = L.legTop + Math.ceil(b.legH * 0.55);
@@ -442,7 +442,7 @@ function outer(g, p, b, L, view) {
   if (st === 'cape') {
     const C = R[p.top];
     for (let y = y0; y <= knee; y++) {
-      const half = Math.floor(w / 2) + Math.floor((y - y0) / 3);
+      const half = Math.floor(w / 2) + Math.min(2, Math.floor((y - y0) / 3));
       for (let i = -half; i <= half; i++) g.px(CX + i, y, C[Math.abs(i) === half ? 1 : i < -half + 2 ? 3 : 2]);
     }
     if (view === 'front') { g.px(CX, y0 + 1, R.gold[3]); g.vline(CX, y0 + 2, knee, C[1]); } // 领口一颗扣，前襟合着
@@ -771,9 +771,9 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
     if (st === 'overalls') g.rect(tx0 + tw - 2, ty + 4, 2, b.torsoH - 4, R[p.pants][2]);
     if (st === 'sheepskin') { g.rect(tx0 - 1, ty + b.torsoH, tw + 2, knee - ty - b.torsoH + 1, FLEECE[2]); g.hline(tx0 - 1, tx0 + tw, knee, FLEECE[4]); g.rect(tx0, ty - 1, tw, 2, FLEECE[4]); }
     if (st === 'army') g.rect(tx0, ty, tw, 2, R.brown[3]);
-    if (st === 'cape') { // 斗篷侧面：贴着背往下，三行往后张一格
+    if (st === 'cape') { // 斗篷侧面：贴着背往下，最多往后张一格（张多了下台阶时插进身后的台阶）
       const C = R[p.top];
-      for (let y = ty; y <= knee; y++) { const back = Math.floor((y - ty) / 3); for (let x = tx0 - back; x < tx0 + tw; x++) g.px(x, y, C[x === tx0 - back ? 1 : 2]); }
+      for (let y = ty; y <= knee; y++) { const back = Math.min(1, Math.floor((y - ty) / 4)); for (let x = tx0 - back; x < tx0 + tw; x++) g.px(x, y, C[x === tx0 - back ? 1 : 2]); }
       g.rect(tx0 - 1, ty - 2, 3, 3, C[2]);
     }
     if (p.acc === 'satchel') g.rect(tx0 + 1, ty + b.torsoH - 3, 4, 4, R.green[3]);
@@ -835,7 +835,7 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
   }
   const hand = { x: ax, y: armTop + b.torsoH - 2 };
   g.rect(hand.x, hand.y, 2, 2, S[3]);
-  if (p.style === 'cape') { const C = R[p.top], ty = L.torsoTop, tx0 = CX - 3, tw = 7, knee = L.legTop + Math.ceil(b.legH * 0.55); for (let y = ty; y <= knee; y++) { const back = Math.floor((y - ty) / 3); for (let x = tx0 - back; x < tx0 + tw; x++) g.px(x, y, C[x === tx0 - back ? 1 : 2]); } } // 斗篷罩在胳膊外面（侧面不露手）
+  if (p.style === 'cape') { const C = R[p.top], ty = L.torsoTop, tx0 = CX - 3, tw = 7, knee = L.legTop + Math.ceil(b.legH * 0.55); for (let y = ty; y <= knee; y++) { const back = Math.min(1, Math.floor((y - ty) / 4)); for (let x = tx0 - back; x < tx0 + tw; x++) g.px(x, y, C[x === tx0 - back ? 1 : 2]); } } // 斗篷罩在胳膊外面（侧面不露手）
   if (item && p.item && ITEMS[p.item] && !['cane', 'kite'].includes(p.item)) ITEMS[p.item](g, hand, 0, 'side');
   if (item && p.item === 'cane') ITEMS.cane(g, { x: hand.x + 1, y: hand.y }, 0);
 }
