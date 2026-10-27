@@ -56,15 +56,17 @@ function body(p, k) {
 }
 // 小孩是大头身材（头和大人差不多大、身子短），按身高截同一截身子要换个比例：半身像大人 56%、小孩 72%，头像大人 48%、小孩 55%（截出来都是十八九行）
 const BUST = (p) => (p.body === 'child' ? 0.72 : 0.56), HEAD = (p) => (p.body === 'child' ? 0.55 : 0.48);
+/** 截头像、半身像用的：不拿手里的东西（水生的竹篙竖得比头高，会被当成头的一部分，头像就往一边偏）。 */
+const bare = (p) => ({ ...p, item: undefined });
 /** 半身像：头和上半身，一个像素 = 3 个字点（所有人一样大）。 */
 function bust(p) {
-  const { canvas, w } = bodyCrop(characterAtlas(p), CELL_W, CELL_H, BUST(p), 20);
+  const { canvas, w } = bodyCrop(characterAtlas(bare(p)), CELL_W, CELL_H, BUST(p), 20);
   canvas.style.width = `calc(${w * 3} * var(--f))`;
   return canvas;
 }
 /** 头像：头和肩膀，一个像素 = k 个字点。 */
 function head(p, k) {
-  const { canvas, w } = bodyCrop(characterAtlas(p), CELL_W, CELL_H, HEAD(p), 18);
+  const { canvas, w } = bodyCrop(characterAtlas(bare(p)), CELL_W, CELL_H, HEAD(p), 18);
   canvas.style.width = `calc(${w * k} * var(--f))`;
   return canvas;
 }

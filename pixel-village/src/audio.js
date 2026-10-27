@@ -211,7 +211,7 @@ export function createSound(village, getCamera) {
     }
     if (best && bestN >= 4) { crowd.move(best); crowd.set(Math.min(0.6, 0.08 * bestN)); } else crowd.set(0);
     const fiddler = people.find((v) => v.state === 'fiddle');
-    if (fiddler) opera(fiddler, people.find((v) => v.state === 'sing'));
+    if (fiddler && near(posOf(fiddler, 1), WORK_NEAR)) opera(fiddler, people.find((v) => v.state === 'sing')); // 唱戏的梆子和锣：凑近戏台才听得见
     if (V.eventOn('shrine') && t > (cool.get('shrine') ?? 0)) { const s = centerOf(thing('shrine')); if (s) synth('bell', s); cool.set('shrine', t + 8 + Math.random() * 8); }
 
     // 春节：天亮前后各家门口放鞭炮

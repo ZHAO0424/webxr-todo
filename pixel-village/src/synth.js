@@ -68,21 +68,14 @@ export function makeSynth(ctx) {
 
   // ---------------------------------------------------------------- 唱戏：板胡 + 梆子 + 锣 + 唱腔
 
-  const SCALE = [196, 220, 247, 294, 330, 392, 440, 494, 587, 659]; // G 宫五声音阶两个八度
   const BEAT = 0.42;
   /** 排一拍。state = { next（下一拍的音频时间）, nextNote, beat, note }，第一次传 {} 就行。 */
   function operaStep(st, out, singerOut) {
     const now = ctx.currentTime;
     if (!(st.next >= now - 1)) Object.assign(st, { next: now + 0.05, nextNote: 0, beat: st.beat ?? 0, note: st.note ?? 3 });
-    SFX.block(st.next, out); // 梆子每拍一下
-    if (st.beat % 16 === 0) SFX.gong(st.next, out, true); // 每 16 拍一声锣
-    if (st.next >= st.nextNote - 0.05) { // 板胡：五声音阶上随机走，偶尔一个长音
-      st.note = Math.max(1, Math.min(SCALE.length - 2, st.note + [-2, -1, -1, 1, 1, 2, 0][Math.floor(Math.random() * 7)]));
-      const dur = BEAT * (Math.random() < 0.25 ? 2 : 1);
-      voice(st.next, [SCALE[st.note], SCALE[st.note] * 1.003], dur * 0.95, out, { form: 1600, Q: 1.2, peak: 0.18, vib: 5 });
-      if (singerOut && st.beat % 2 === 0) voice(st.next, [SCALE[st.note], SCALE[st.note] * 1.02], dur * 1.8, singerOut, { form: 900, Q: 2, peak: 0.22, vib: 9 }); // 唱腔：元音"啊"的共振峰、颤音大
-      st.nextNote = st.next + dur;
-    }
+    if (st.beat % 2 === 0) SFX.block(st.next, out); // 梆子隔一拍一下
+    if (st.beat % 32 === 0) SFX.gong(st.next, out, true); // 隔一阵一声锣
+    // 板胡和唱腔原来是合成的（锯齿波在五声音阶上随机走），听着像一段怪调子一直响，去掉了：只留梆子和锣
     st.beat++;
     st.next += BEAT;
   }

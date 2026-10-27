@@ -26,7 +26,7 @@ const list = (a) => a.join(tr('、', ', '));
 
 /** 村民头像：正面待机帧的头和上半身。 */
 function residentFace(p) {
-  const { canvas, w } = bodyCrop(characterAtlas(p), CELL_W, CELL_H, p.body === 'child' ? 0.66 : 0.5, 20); // 头和肩膀：小孩大头身材，按身高要多截一点才和大人截到同一截
+  const { canvas, w } = bodyCrop(characterAtlas({ ...p, item: undefined }), CELL_W, CELL_H, p.body === 'child' ? 0.66 : 0.5, 20); // 不拿手里的东西：竖着的竹篙、烟袋会把头像挤偏 // 头和肩膀：小孩大头身材，按身高要多截一点才和大人截到同一截
   canvas.style.width = `calc(${w * 2} * var(--f))`; // 一个像素 = 2 个字点
   return canvas;
 }
