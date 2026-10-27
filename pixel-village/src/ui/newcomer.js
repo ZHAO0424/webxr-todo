@@ -8,7 +8,7 @@ import { GOODS } from '../life/economy.js';
 import { PARTS, GROUPS, SKILLS, TRAITS, BRING } from '../residentSchema.js';
 import { issueUrl, markSent, STATUS } from '../mine.js';
 import { EN, tr } from '../i18n.js';
-import { word, pName, pJob } from '../names.js';
+import { word, pName, pNick, pJob } from '../names.js';
 
 /*
  * 「我的居民」+「创建居民」：屏幕当中一张游戏里那样的弹窗（后面的沙盘压暗）。
@@ -48,7 +48,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
 
   const chips = (key, list) => list.map(([v, t]) => `<button class="btn chipbtn" data-k="${key}" data-v="${esc(v)}">${esc(t)}</button>`).join('');
   const portrait = (cls) => `<div class="portrait ${cls}"><div class="v"></div></div>`;
-  el.innerHTML = `<div class="rhead"><span class="title"></span>
+  el.innerHTML = `<div class="rhead"><button class="btn tohub" data-act="mine" title="${tr('回到我的居民', 'Back to my residents')}">← ${tr('我的居民', 'My residents')}</button><span class="title"></span>
       <span class="tabs"><button class="btn step" data-page="look"><b>1</b>${tr('捏人', 'Look')}</button><i class="link"></i><button class="btn step" data-page="info"><b>2</b>${tr('资料', 'Profile')}</button><i class="link l2"></i><button class="btn step s3" data-page="job"><b>3</b>${tr('营生', 'Work')}</button></span>
       <button class="btn close" title="${tr('关闭（Esc）', 'Close (Esc)')}">×</button></div>
     <div class="hint"></div>
@@ -318,40 +318,69 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   const STATUS_CLS = { local: 'warn', queued: 'warn', pending: 'wait', stale: 'warn', rejected: 'warn', in: 'ok', changed: 'warn', editing: 'wait', leaving: 'off' };
   /** 退回的原因（后台回的是「中文\n\n英文」两段）：按界面语言取一段。 */
   const reason = (s) => { const parts = String(s ?? '').replace(/^[⚠️✅\s]+/, '').split(/\n\n/); return (EN ? parts[1] ?? parts[0] : parts[0]).trim(); };
-  /** 一个人的卡：立绘、名字、营生、状态，按状态排的按钮。 */
+  /**
+   * 「我的居民」：像游戏里的选角色界面——
+   *   左边一列居民位（一个浏览器最多 3 个：有人的是头像 + 名字 + 状态，空的是「＋ 创建新居民」）；
+   *   右边是选中的那个人：大立绘、名字、现在走到哪一步（一句话说明）、勋章，常用的按钮一排，「离村」单独放在角上（先问一句）；
+   *   最底下一条是账号：绑定邮箱 / 用邮箱登录找回。一个人都没有时右边是欢迎页：创建，或者登录找回。
+   */
+  const SLOTS = 3;
+  let selId = null;
   const mineCards = () => {
     const box = q('.mcards'), list = residents();
+    if (!list.some((r) => r.p.id === selId)) selId = list[0]?.p.id ?? null;
     box.innerHTML = '';
-    box.append(acctBox());
+    const hub = document.createElement('div');
+    hub.className = 'hub';
+    // 左：居民位
+    const slots = document.createElement('div');
+    slots.className = 'slots';
     for (const r of list) {
+      const s = document.createElement('button');
+      s.className = `btn rslot${r.p.id === selId ? ' on' : ''}`;
+      s.dataset.sel = r.p.id;
+      s.innerHTML = `<span class="hd"></span><span class="tx"><b>${esc(pName(r.p))}</b><span class="badge ${STATUS_CLS[r.status]}">${esc(STATUS[r.status][0])}</span></span>`;
+      try { const c = crop(previewCanvas(r.p, 'front', 1)), k = 1; const o = document.createElement('canvas'); const hh = Math.ceil(c.height * 0.42); o.width = c.width; o.height = hh; o.getContext('2d').drawImage(c, 0, 0, c.width, hh, 0, 0, c.width, hh); o.style.height = 'calc(40 * var(--f))'; o.style.width = 'auto'; s.querySelector('.hd').append(o); } catch { /* 画不出来就空着 */ }
+      slots.append(s);
+    }
+    for (let i = list.length; i < SLOTS; i++) {
+      const s = document.createElement('button');
+      s.className = 'btn rslot empty';
+      s.dataset.act = 'new';
+      s.innerHTML = `<span class="plus">＋</span><span class="tx"><b>${tr('创建新居民', 'New resident')}</b><span class="dim">${tr('空位', 'Empty slot')}</span></span>`;
+      slots.append(s);
+    }
+    // 右：选中的人（或者欢迎页）
+    const stage = document.createElement('div');
+    stage.className = 'paper rstage';
+    const r = list.find((x) => x.p.id === selId);
+    if (!r) {
+      stage.innerHTML = `<div class="welcome"><h3>${tr('在村里安个家', 'Make a home in the village')}</h3>
+        <p>${tr('捏一个自己的居民，给他起名字、挑营生。他会从村口走进来，认人、找住处、开张做买卖，在大家共同的村子里过日子——关了网页也接着过。', 'Create your own villager, name them and pick a trade. They walk in from the bridge, meet everyone, find a home and start working in the shared village, and life goes on even when the page is closed.')}</p>
+        <div class="acts"><button class="btn on big" data-act="new">${tr('创建新居民', 'Create a resident')}</button></div>
+        <p class="dim">${tr('在别的电脑上建过？用底下的「用邮箱登录找回」。', 'Made residents on another computer? Use "Log in to recover" below.')}</p></div>`;
+    } else {
       const { p, status, owner, row } = r, [st, why0] = STATUS[status];
       const why = status === 'rejected' ? `${reason(row?.result)} ${tr('改好了点「修改」保存，会自动再提交。', 'Fix it via Edit; saving resubmits automatically.')}` : why0;
-      const card = document.createElement('div');
-      card.className = 'paper mcard';
-      card.dataset.id = p.id;
       const main = ['local', 'stale', 'changed'].includes(status) ? tr('提交到村子', 'Submit to village') : status === 'queued' ? tr('再试一次', 'Retry') : null;
       const viaIssue = ['local', 'queued', 'stale'].includes(status); // 连不上村子的服务器：还可以走 GitHub
       const asking = leaveAsk === p.id;
-      card.innerHTML = `<div class="mp"><div class="v"></div></div><div class="mt">
-          <div class="l1"><b>${esc(pName(p))}</b><span class="badge ${STATUS_CLS[status]}">${esc(st)}</span></div>
-          <div class="dim jb">${esc(pJob(p))}${owner && !owner.startsWith('sb:') ? ` · GitHub @${esc(owner)}` : ''}${r.badges ? ` · ${tr('勋章', 'Medals')} ${r.badges[0]}/${r.badges[1]}` : ''}</div>
-          <div class="why">${esc(why)}</div>
+      stage.innerHTML = `<div class="big-p"><div class="v"></div></div><div class="sinfo">
+          <div class="sname"><b>${esc(pName(p))}</b>${pNick(p) && pNick(p) !== pName(p) ? `<span class="dim">${esc(pNick(p))}</span>` : ''}</div>
+          <div class="dim">${esc(pJob(p))}${owner && !owner.startsWith('sb:') ? ` · GitHub @${esc(owner)}` : ''}</div>
+          <div class="sstat"><span class="badge ${STATUS_CLS[status]}">${esc(st)}</span><span class="why">${esc(why)}</span></div>
           ${notes[p.id] ? `<div class="okmsg">${esc(notes[p.id])}</div>` : ''}
-          ${asking ? `<div class="ask">${status === 'local' ? tr('他还没提交过，删掉就没了。确定？', 'They were never submitted; removing deletes them. Sure?') : tr('他会离开大家的村子（下次后台处理时）。确定让他走？', 'They will leave the shared village (at the next update). Let them go?')}
-            <span class="acts"><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button></span></div>`
-          : `<div class="acts">${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}
-            <button class="btn" data-act="detail">${tr('详情', 'Details')}</button><button class="btn" data-act="edit">${tr('修改', 'Edit')}</button>${p.met ? `<button class="btn" data-act="job">${tr('改行', 'New job')}</button>` : ''}
-            <button class="btn" data-act="find">${tr('去村里找', 'Find')}</button>${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 提交', 'Submit via GitHub')}</button>` : ''}
-            <button class="btn danger" data-act="leave">${tr('离村', 'Leave')}</button></div>`}
+          ${r.badges ? `<div class="smedal"><span class="k">${tr('勋章', 'Medals')}</span><span class="bar"><i style="width:${Math.round((r.badges[0] / r.badges[1]) * 100)}%"></i></span><b>${r.badges[0]}/${r.badges[1]}</b></div>` : ''}
+          <div class="acts main">${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}<button class="btn${main ? '' : ' on'}" data-act="detail">${tr('详情：勋章、好感度', 'Details: medals, affinity')}</button><button class="btn" data-act="find">${tr('去村里找', 'Find in village')}</button></div>
+          <div class="acts"><button class="btn" data-act="edit">${tr('修改样子和资料', 'Edit look & profile')}</button>${p.met ? `<button class="btn" data-act="job">${tr('改行', 'Change job')}</button>` : ''}${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 提交', 'Submit via GitHub')}</button>` : ''}</div>
+          <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr('他还没提交过，删掉就没了。确定？', 'They were never submitted; this deletes them. Sure?') : tr('他会离开大家的村子（下次村子更新时）。确定？', 'They will leave the shared village at the next update. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
+            : `<button class="btn danger small" data-act="leave">${tr('让他离村…', 'Leave village...')}</button>`}</div>
         </div>`;
-      draw(card.querySelector('.mp .v'), p, 'front', 136);
-      box.append(card);
+      draw(stage.querySelector('.big-p .v'), p, 'front', 230);
+      stage.dataset.id = p.id;
     }
-    const add = document.createElement('button');
-    add.className = 'btn mcard add';
-    add.dataset.act = 'new';
-    add.innerHTML = `<span class="plus">＋</span><span>${tr('再建一个居民', 'Create another resident')}</span>`;
-    box.append(add);
+    hub.append(slots, stage);
+    box.append(hub, acctBox());
   };
   /**
    * 「我的居民」顶上的账号框：没绑邮箱时劝绑（换电脑、清了浏览器也能找回）；还有「用邮箱登录找回」（在别的电脑上建过）。
@@ -388,7 +417,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     notes[p.id] = tr('正在提交……', 'Submitting...');
     sync();
     return Promise.resolve(share?.(p, leave)).then((r) => {
-      notes[p.id] = r === 'ok' ? tr('已提交。', 'Submitted.') : r === 'queued' ? '' : r || '';
+      notes[p.id] = r === 'ok' || r === 'queued' ? '' : r || ''; // 提交上了 / 排队了：状态那一栏已经写着，不再重复
       if (p === made) doneState = r;
       if (!el.hidden) sync();
       return r;
@@ -417,6 +446,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     for (const pg of ['mine', 'done', 'look', 'info', 'job']) q(`.${pg}-page`).hidden = page !== pg;
     const stepper = !changing && (page === 'look' || page === 'info' || page === 'job');
     q('.rhead .tabs').hidden = !stepper;
+    q('.rhead .tohub').hidden = !stepper || (!editing && !residents().length); // 创建、修改时：回到「我的居民」（一个都没有就没得回）
     q('.rhead .s3').hidden = q('.rhead .l2').hidden = !!editing; // 修改：只有 ①②（营生走「改行」）
     const n = PAGES.indexOf(page);
     el.querySelectorAll('.step').forEach((b, i) => b.classList.toggle('done', i < n));
@@ -429,7 +459,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     q('.foot .back').hidden = page === 'look' || !!changing;
     q('.foot .fwd').textContent = page === 'look' ? `${tr('下一步：填资料', 'Next: profile')} →` : `${tr('下一步：选营生', 'Next: work')} →`;
     q('.newonly .bring-h').hidden = q('.newonly .bring').hidden = q('.newonly .coin-h').hidden = q('.newonly .coin-f').hidden = !!editing; // 改的时候：本钱、带的东西不能改
-    q('.hint').textContent = page === 'mine' ? tr('在这个浏览器里建的居民。建好、改好都会自动提交到大家的村子，村子每小时收一次。', 'Residents you made in this browser. Creating or editing submits them to the shared village automatically; it updates every hour.')
+    q('.hint').textContent = page === 'mine' ? tr(`你在这台电脑上的居民（${residents().length}/${SLOTS}）：左边选一个，右边看他现在怎么样。建好、改好会自动提交到大家的村子，村子每小时更新一次。`, `Your residents on this computer (${residents().length}/${SLOTS}). Pick one on the left to see how they're doing. Creating or editing submits them to the shared village, which updates every hour.`)
       : page === 'done' ? ''
       : page === 'look' ? tr('先捏个样子：右边分组点选，也可以用人像底下的箭头一个个换；按住人拖动转着看，滚轮放大缩小', 'Shape their look: pick from the groups on the right, or step through with the arrows; drag to turn, scroll to zoom')
       : page === 'info' ? (editing ? tr('改好了点「保存修改」：这边马上换样子，也会自动提交到大家的村子', 'Press "Save changes": they change right away here and are submitted to the shared village') : tr('起个名字、说说会什么，再挑个住处', 'Give them a name, say what they can do'))
@@ -450,7 +480,8 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   el.addEventListener('click', (e) => {
     const t = e.target.closest('button');
     if (!t || t.disabled) return;
-    const act = t.dataset.act, card = t.closest('.mcard'), r = card && residents().find((x) => x.p.id === card.dataset.id);
+    const act = t.dataset.act, card = t.closest('.rstage'), r = card && residents().find((x) => x.p.id === card.dataset.id);
+    if (t.dataset.sel) { selId = t.dataset.sel; leaveAsk = null; sync(); return; } // 左边点一个居民位：右边换成他
     if (act) {
       q('.foot .err').textContent = '';
       if (act === 'new') { api.create(); return; }
@@ -469,7 +500,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       if (act === 'retryMade' && made) { send(made); return; }
       if (act === 'issueMade' && made) { viaGitHub('join', made); doneState = tr('已打开 GitHub 提交页：在那边点「Submit new issue」就行。', 'GitHub opened: press "Submit new issue" there.'); sync(); return; }
       if (act === 'watch') { api.close(); if (made) onFind?.(made.id); return; }
-      if (act === 'mine') { page = 'mine'; sync(); return; }
+      if (act === 'mine') { if (made) selId = made.id; editing = null; changing = null; page = 'mine'; sync(); return; }
     }
     if (t.dataset.page) { page = t.dataset.page; sync(); return; }
     if (t.dataset.cat) { cat = t.dataset.cat; sync(); return; }

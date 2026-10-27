@@ -283,3 +283,41 @@ html[lang=en] .scene-nav .label { letter-spacing: 0; }
 #newcomer .tabs[hidden] { display: none; }
 html[lang=en] #roster .badges { grid-template-columns: repeat(auto-fill, minmax(calc(112 * var(--f)), 1fr)); }
 html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 * var(--f)); }
+
+/* ---------------------------------------------------------------- 我的居民：选角色界面（左边居民位，右边选中的人，底下账号） */
+#newcomer .hub { display: grid; grid-template-columns: calc(190 * var(--f)) minmax(0, 1fr); gap: calc(4 * var(--p)); min-height: calc(300 * var(--f)); }
+#newcomer .slots { display: flex; flex-direction: column; gap: calc(2 * var(--p)); }
+#newcomer .rslot { display: flex; align-items: center; gap: calc(3 * var(--p)); padding: calc(2 * var(--p)); text-align: left; min-height: calc(56 * var(--f)); }
+#newcomer .rslot .hd { flex: none; width: calc(44 * var(--f)); height: calc(44 * var(--f)); display: grid; place-items: end center; overflow: hidden; background: var(--face-bg); box-shadow: 0 0 0 var(--f) var(--ink); }
+#newcomer .rslot .hd canvas { display: block; max-width: 100%; image-rendering: pixelated; }
+#newcomer .rslot .tx { display: flex; flex-direction: column; align-items: flex-start; gap: var(--f); min-width: 0; }
+#newcomer .rslot .tx b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#newcomer .rslot.on { --c: #6e5434; box-shadow: inset 0 0 0 calc(2 * var(--f)) var(--gold), 0 0 0 var(--f) var(--ink); }
+#newcomer .rslot.empty { --c: #2a2219; color: var(--dim); box-shadow: inset 0 0 0 var(--f) #5a4a36, 0 0 0 var(--f) var(--ink); }
+#newcomer .rslot.empty .plus { flex: none; width: calc(44 * var(--f)); text-align: center; font-size: calc(24 * var(--f)); line-height: calc(44 * var(--f)); color: var(--gold); }
+#newcomer .rslot.empty b { color: var(--text); }
+#newcomer .rstage { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: calc(5 * var(--p)); align-items: stretch; }
+#newcomer .rstage .big-p { width: calc(150 * var(--f)); height: calc(250 * var(--f)); display: grid; place-items: end center; overflow: hidden; padding-bottom: calc(8 * var(--f));
+  background: radial-gradient(ellipse 34% 4% at 50% 96.5%, rgba(74, 50, 28, .45), rgba(74, 50, 28, 0)), radial-gradient(ellipse 90% 70% at 50% 38%, #f4e8c8, #e4cf9f 58%, #c9ab77); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #7a6448; }
+#newcomer .rstage .big-p canvas { display: block; max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+#newcomer .rstage .sinfo { display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
+#newcomer .rstage .sname { display: flex; align-items: baseline; gap: calc(3 * var(--p)); flex-wrap: wrap; }
+#newcomer .rstage .sname b { font-size: calc(24 * var(--f)); line-height: calc(28 * var(--f)); }
+#newcomer .rstage .sstat { display: flex; flex-direction: column; align-items: flex-start; gap: var(--p); padding: calc(2 * var(--p)) calc(3 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--line); }
+#newcomer .rstage .smedal { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: calc(3 * var(--p)); }
+#newcomer .rstage .smedal .k { color: var(--dim); }
+#newcomer .rstage .smedal .bar { height: calc(6 * var(--f)); background: #3a3027; box-shadow: 0 0 0 var(--f) var(--ink); }
+#newcomer .rstage .smedal .bar i { display: block; height: 100%; background: var(--gold); }
+#newcomer .rstage .acts { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); }
+#newcomer .rstage .acts .btn { padding: 0 calc(4 * var(--p)); line-height: calc(26 * var(--f)); }
+#newcomer .rstage .leave { margin-top: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: calc(2 * var(--p)); padding-top: calc(2 * var(--p)); border-top: var(--f) solid var(--line); }
+#newcomer .rstage .leave .ask { color: var(--gold); flex: 1 1 100%; text-align: right; }
+#newcomer .rstage .leave .btn.small { line-height: calc(20 * var(--f)); --c: #4a2c26; color: #e0b0a0; }
+#newcomer .rstage .welcome { grid-column: 1 / -1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: calc(3 * var(--p)); padding: calc(6 * var(--p)); }
+#newcomer .rstage .welcome p { max-width: calc(380 * var(--f)); margin: 0; }
+#newcomer .rstage .welcome .btn.big { font-size: calc(16 * var(--f)); line-height: calc(36 * var(--f)); padding: 0 calc(10 * var(--p)); }
+#newcomer .acct { margin-top: calc(3 * var(--p)); }
+#newcomer .tohub { padding: 0 calc(4 * var(--p)); line-height: calc(28 * var(--f)); }
+#newcomer .tohub[hidden] { display: none; }
+#newcomer .mcards { display: block; } /* 里面是选角色界面（.hub）+ 账号条，不再是一格格卡片 */
+#newcomer .step[hidden], #newcomer .tabs .link[hidden] { display: none; } /* 修改时只有 ①② */

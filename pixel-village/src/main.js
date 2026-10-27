@@ -40,6 +40,8 @@ import { VILLAGE } from './residents.js';
 import { WEST_BOUNDS } from './west.js';
 
 const params = new URLSearchParams(location.search);
+// 缓存管家（sw.js）：以后每次打开都先问服务器代码有没有更新，不会新旧文件混用；无头检查时不装
+if ('serviceWorker' in navigator && !navigator.webdriver && !params.has('uicheck') && !params.has('sim')) navigator.serviceWorker.register('sw.js').catch(() => {});
 // ?world=world/state.json：读后台模拟（tools/sim.mjs）存下的村子接着过——季节、开局方式、第几天几点、经济、老宅、新居民都照存档
 // 村子存档：默认读仓库里的 world/state.json（GitHub Actions 每小时在后台把村子往前过一段、存回这里）；?world=别的.json 读别的；?world=0 不读存档（旧的整村、从下午开始）
 const worldUrl = params.get('world') ?? (['time', 'season', 'ruins', 'event', 'sim'].some((k) => params.has(k)) ? '0' : 'world/state.json'); // 指定了时间、季节这些的（截图、回归）照旧不读
@@ -1125,7 +1127,7 @@ if (params.has('uicheck')) {
     { name: 'new:done', open: () => { const n = document.querySelector('#newcomer [data-f=name]'); n.value = EN ? 'Hu Ergen' : '胡二根'; n.dispatchEvent(new Event('input')); document.querySelector('#newcomer .create').click(); } },
     { name: 'new:mine', open: () => { closeAll(); newcomerPanel.mine(); } },
     { name: 'detail', open: () => { closeAll(); const id = myIds().values().next().value; if (id) { roster.show(id); roster.layout(); } } }, // 自己的人的详情：勋章、好感度
-    { name: 'new:edit', open: () => { const b = document.querySelector('#newcomer .mcard [data-act=edit]'); b?.click(); } },
+    { name: 'new:edit', open: () => { closeAll(); newcomerPanel.mine(); document.querySelector('#newcomer .rstage [data-act=edit]')?.click(); } },
     { name: 'new:editinfo', open: () => { document.querySelector('#newcomer [data-page=info]')?.click(); } },
   ];
   const stop = params.get('uicheck'), upto = steps.findIndex((st) => st.name === stop); // ?uicheck=new:mine：走到这一步就停（截这一页的图）
