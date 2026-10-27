@@ -26,14 +26,17 @@ import { createMusic } from './music.js';
 import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 import { createSceneSwitch } from './scenes.js';
-import { setSeason, season, SEASONS, ORDER as SEASON_ORDER } from './season.js';
+import { setSeason, season, festival, SEASONS, ORDER as SEASON_ORDER } from './season.js';
 import { setRuins, ruinsMode } from './east.js';
 import { auditOverlaps } from './overlap.js';
+import { SAVE_KEYS, loadWorld, yearOf, yearLabel } from './world.js';
 
 const params = new URLSearchParams(location.search);
-setSeason(params.get('season') ?? 'autumn'); // ?season=spring|summer|autumn|winter：建场景之前定（见 season.js）
+// ?world=world/state.json：读后台模拟（tools/sim.mjs）存下的村子接着过——季节、开局方式、第几天几点、经济、老宅、新居民都照存档
+const saved = params.get('world') ? await fetch(params.get('world'), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null), () => null) : null;
+setSeason(saved?.season ?? params.get('season') ?? 'autumn'); // ?season=spring|summer|autumn|winter：建场景之前定（见 season.js）
 auditOverlaps(params.get('overlap') === '1'); // ?overlap=1：建村时按三角面查共面重叠（慢，调试用），结果在 data-audit / data-east / data-west 的 overlap 里
-setRuins(params.get('ruins') === '1'); // ?ruins=1：废墟开局（老村址没人住的老宅是塌的，新居民住进来才修好）；设置里的「老宅」按钮切换
+setRuins(saved ? saved.ruins : params.get('ruins') === '1'); // ?ruins=1：废墟开局（老村址没人住的老宅是塌的，新居民住进来才修好）；设置里的「老宅」按钮切换
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -89,7 +92,7 @@ function loaderFrames(M) {
   const c = voxelCharacter(p, M);
   c.setItem('peddler');
   c.object.rotation.y = Math.PI / 2 - 0.3; // 朝右走，稍微侧过来一点看得见脸
-  c.object.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  c.object.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } }); // 自己不接自己的影子：每帧姿势不同，身上的影子斑纹跟着变，看着像材质在闪
   S.add(c.object);
   const rt = new THREE.WebGLRenderTarget(W * dpr, H * dpr, { samples: 4 });
   rt.texture.colorSpace = THREE.SRGBColorSpace;
@@ -123,7 +126,7 @@ if (window.loader) window.loader.figure(loaderFrames(M0));
 window.loader?.set(0.38, '盖房子、种庄稼…', 0.86, lastBuild);
 await nextFrame();
 const t0 = performance.now();
-const village = buildVillage({ startHour: Number(params.get('time') ?? 15.5), event: params.get('event'), weather: params.get('weather'), M: M0 }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
+const village = buildVillage({ startHour: saved?.hour ?? Number(params.get('time') ?? 15.5), event: params.get('event'), weather: params.get('weather'), M: M0 }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
 document.documentElement.dataset.buildMs = String(Math.round(performance.now() - t0));
 try { localStorage.setItem('pvBuildMs', String(Math.round(performance.now() - t0))); } catch { /* 隐私模式存不了，下回按 5 秒估 */ }
 window.loader?.set(0.88, '村民起床…', 0.97, 2500);
@@ -445,10 +448,10 @@ function econOf(id) {
 
 // ---------------------------------------------------------------- 新来的人（「创建居民」卡片 → life/newcomers.js）：存在浏览器里，刷新后照旧在村里过
 
-const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'coins', 'goods', 'home', 'jobId', 'jobWhy', 'houseState', 'jobPicked', 'met', 'jobHistory'];
 const loadNewcomers = () => { try { return JSON.parse(localStorage.getItem('pv.newcomers') ?? '[]'); } catch { return []; } };
 const saveNewcomers = () => { try { localStorage.setItem('pv.newcomers', JSON.stringify(V.people.filter((v) => v.p.newcomer).map((v) => Object.fromEntries(SAVE_KEYS.map((k) => [k, v.p[k]]))))); } catch { /* 隐私窗口存不了：只在这次打开里有效 */ } };
-for (const p of params.has('nonew') || params.has('sim') ? [] : loadNewcomers()) { addNewcomer(V, p, { arriving: false }); addResident(p); } // ?nonew=1：不带存下的新人（截图、回归用）
+for (const p of params.has('nonew') || params.has('sim') || saved ? [] : loadNewcomers()) { addNewcomer(V, p, { arriving: false }); addResident(p); } // ?nonew=1：不带存下的新人（截图、回归用）；读村子存档时新人从存档里来
+if (saved) loadWorld(village, saved, { addNewcomer, onNewcomer: addResident });
 // ?addnew=胡二根:磨面|推磨@old3#miller;马翠:做饭 开局就放几个新人进村（名:手艺|手艺@住处#行当，后两段可省；不存档，无头快进测行当用）
 for (const s of (params.get('addnew') ?? '').split(';').filter(Boolean)) { const [rest, job] = s.split('#'), [who, home] = rest.split('@'), [name, sk = ''] = who.split(':'); const p = { name, nick: name, home: home || undefined, jobId: job || undefined, jobPicked: job ? true : undefined, age: 32, sex: '男', skills: sk.split('|').filter(Boolean), traits: ['勤快'], bio: '测试用的新人', likes: '——', body: 'man', skin: 'skin', hair: 'short', top: 'indigo', pants: 'black', coins: 60, goods: { grain: 10 } }; addNewcomer(V, p); addResident(p); }
 V.onRepaired = (v, plot) => { // 老宅修好了：存档，头顶冒一句
@@ -749,7 +752,7 @@ renderer.setAnimationLoop((_, frame) => {
     lastLabel = s.clock.label;
     const e = EVENTS[village.life.today()], w = village.life.weather();
     // 时钟栏：大号时间 + 右边日期天气（一行），下面一行今日活动
-    clockEl.innerHTML = `<div class="top"><span class="time">${lastLabel}</span><span class="date">${lunarLabel(s.clock.day)}<br>${s.clock.night ? '夜 · ' : ''}${WEATHER[w]}</span></div>`
+    clockEl.innerHTML = `<div class="top"><span class="time">${lastLabel}</span><span class="date">${yearLabel(yearOf(s.clock.day, festival().m, festival().d))} ${lunarLabel(s.clock.day)}<br>${s.clock.night ? '夜 · ' : ''}${WEATHER[w]}</span></div>`
       + `<div class="ev"><span class="name">${e.name}</span> <span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} ${e.place}`}</span></div>`;
     refreshCard();
     roster.refresh();

@@ -63,8 +63,13 @@ export function bodyCrop(atlas, cellW, cellH, frac, minW = 0) {
   let top = 0, bottom = cellH - 1;
   find: for (let y = 0; y < cellH; y++) for (let x = x0; x <= x1; x++) if (solid(x, y)) { top = y; break find; }
   feet: for (let y = cellH - 1; y > top; y--) for (let x = 0; x < cellW; x++) if (solid(x, y)) { bottom = y; break feet; }
-  const h = Math.max(4, Math.round((bottom - top + 1) * frac)) + 1, w = Math.min(cellW, Math.max(minW, h));
-  return { canvas: portrait(atlas, Math.floor((cellW - w) / 2), Math.max(0, top - 1), w, h, 1), w, h };
+  const h = Math.max(4, Math.round((bottom - top + 1) * frac)) + 1;
+  // 以头为中心截（头顶往下半截的左右边界：宽檐帽也算进去），宽度不小于高度
+  let l = cellW, r = -1;
+  for (let y = top; y < Math.min(cellH, top + Math.ceil(h * 0.6)); y++) for (let x = 0; x < cellW; x++) if (solid(x, y)) { l = Math.min(l, x); r = Math.max(r, x); }
+  const cx = r >= 0 ? (l + r + 1) / 2 : cellW / 2, w = Math.min(cellW, Math.max(minW, h, r - l + 3));
+  const sx = Math.max(0, Math.min(cellW - w, Math.round(cx - w / 2)));
+  return { canvas: portrait(atlas, sx, Math.max(0, top - 1), w, h, 1), w, h };
 }
 
 /** 把像素图（canvas 的一块）按整数倍放大画到新画布上，给头像用。 */

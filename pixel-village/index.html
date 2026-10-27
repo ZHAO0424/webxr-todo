@@ -107,8 +107,8 @@
     #roster .rel { width: calc(30 * var(--p)); display: flex; flex-direction: column; align-items: center; cursor: pointer; text-align: center; }
     #roster .rel .hd { width: calc(40 * var(--f)); height: calc(40 * var(--f)); overflow: hidden; background: var(--face-bg);
                        box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--rc), 0 0 0 calc(3 * var(--f)) var(--ink); }
-    #roster .rel .hd { display: grid; place-items: end center; }
-    #roster .rel .hd canvas { display: block; }
+    #roster .rel .hd { display: grid; place-items: end center; grid-template-columns: 100%; }
+    #roster .rel .hd canvas { display: block; max-width: 100%; height: auto; }
     #roster .rel .rn { margin-top: calc(2 * var(--f)); color: var(--text); white-space: nowrap; }
     #roster .rel .rt { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
     #roster .rel:hover .rn { color: var(--gold); }
@@ -271,8 +271,8 @@
     #roster .mk { display: flex; align-items: center; gap: calc(3 * var(--f)); cursor: pointer; }
     #roster .mk .hd { flex: none; width: calc(20 * var(--f)); height: calc(20 * var(--f)); overflow: hidden; background: var(--face-bg);
                       box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(2 * var(--f)) var(--jc, var(--line)), 0 0 0 calc(3 * var(--f)) var(--ink); }
-    #roster .mk .hd { display: grid; place-items: end center; }
-    #roster .mk .hd canvas { display: block; }
+    #roster .mk .hd { display: grid; place-items: end center; grid-template-columns: 100%; } /* 列宽固定：头像比框宽时两边平均裁（原来列跟着头像撑开、从左排，头偏右、右边出界） */
+    #roster .mk .hd canvas { display: block; max-width: 100%; height: auto; } /* 戴宽檐帽的头像比框宽：按比例缩进框里 */
     #roster .mk .t { display: flex; flex-direction: column; white-space: nowrap; line-height: calc(13 * var(--f));
                      text-shadow: var(--f) 0 0 #1c1611, calc(-1 * var(--f)) 0 0 #1c1611, 0 var(--f) 0 #1c1611, 0 calc(-1 * var(--f)) 0 #1c1611, var(--f) var(--f) 0 #1c1611; }
     #roster .mk .nm { color: #fff2cc; }
@@ -315,8 +315,9 @@
     #loader .ld-road::after { content: ''; position: absolute; left: 0; right: 0; bottom: 40px; height: 4px; background: repeating-linear-gradient(90deg, #7f9c44 0 4px, transparent 4px 10px, #5b7432 10px 12px, transparent 12px 20px); }
     #loader .ld-walker { position: absolute; left: 0; bottom: 24px; width: 180px; height: 150px; z-index: 1; transform: translateX(0); will-change: transform; opacity: 0; transition: opacity .3s; }
     #loader .ld-walker.on { opacity: 1; }
-    #loader .ld-walker canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; will-change: opacity; animation: ld-frame .8s linear infinite; }
-    @keyframes ld-frame { 0%, 12.4% { opacity: 1; } 12.5%, 100% { opacity: 0; } }
+    #loader .ld-walker { overflow: hidden; }
+    #loader .ld-walker canvas { position: absolute; left: 0; top: 0; width: 800%; height: 100%; will-change: transform; animation: ld-strip .8s steps(8) infinite; } /* 8 帧拼成一条，一格一格平移：同一时刻只有一帧（原来 8 张叠着轮流淡入淡出，换帧那一下会暗一闪） */
+    @keyframes ld-strip { from { transform: translateX(0); } to { transform: translateX(-100%); } }
     #loader .ld-bar { position: relative; height: 24px; background: #17120d; box-shadow: 0 0 0 4px #120e0a, inset 0 4px 0 #0e0b08; overflow: hidden; }
     #loader .ld-fill { position: absolute; inset: 0; transform-origin: 0 0; transform: scaleX(0); will-change: transform;
                        background: repeating-linear-gradient(90deg, #f0c060 0 12px, #d9a640 12px 16px); box-shadow: inset 0 -4px 0 #b88a30, inset 0 4px 0 #ffe08a; }
@@ -390,10 +391,10 @@
         },
         figure(frames) {
           if (!frames?.length) return;
-          frames.forEach((cv, i) => {
-            cv.style.animationDelay = `${(-((frames.length - i) % frames.length) * 0.8) / frames.length}s`; // 第 i 帧在一圈的第 i/8 处亮
-            walker.append(cv);
-          });
+          const strip = document.createElement('canvas'); // 8 帧横着拼成一条
+          strip.width = frames[0].width * frames.length; strip.height = frames[0].height;
+          frames.forEach((cv, i) => strip.getContext('2d').drawImage(cv, i * cv.width, 0));
+          walker.append(strip);
           walker.classList.add('on');
         },
         done() { go(1, 200); pct.textContent = '100%'; setTimeout(() => el.classList.add('out'), 240); setTimeout(() => el.remove(), 800); },

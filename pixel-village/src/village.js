@@ -554,10 +554,39 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     M, // 西沟和村子共用一套材质
     west,
     east,
-    update(t, viewerWorld) {
+    world: V, // 模拟的全部状态（人、动物、钟、经济、老宅……）：存档读档（world.js）、后台模拟用
+    /**
+     * 模拟一步（不碰画面）：钟、人、动物、经济、门开关（挡不挡路）、集市摊子挡路、散集搬凳子。
+     * 后台模拟（tools/sim.mjs，Node 里跑、没有画面）只调这个；网页里 update = step + present。
+     */
+    step(t) {
       const dt = Math.max(0, Math.min(0.1, t - last));
       last = t;
       life.update(t, dt);
+      const hour = life.clock.hour;
+      const sqC = C.square;
+      const marketOn = V.eventOn('market');
+      if (marketOn !== stallsUp) { stallsUp = marketOn; for (const st of sqC.market.stalls) st.obj.visible = marketOn; setStallBlock(marketOn); }
+      // 散了集，条凳还没摆回去：叫周六子（不在就叫小顺）来一条条搬回去（赶集前搬过去是他们俩在集市活动里的差事，见 life/events.js）
+      if (!benches.allAt('row') && !(V.today() === 'market' && hour < EVENT_DEFS.market.to + 0.2) && !benches.mover && hour > 5 && hour < 21) {
+        const v = ['xiao_liuzi', 'xiao_shun'].map((id) => V.byId[id]).find((p) => p && !p.inside && !p.errand && !String(p.doing).startsWith('market'));
+        if (v) { benches.mover = v; v.interrupt('moveBenches', 'row'); }
+      }
+      for (const g of gates) {
+        // 门：有人要过（走到门前推门）、人就在门口、被赶着的牲口还没过完，就开着；人走了顺手带上。
+        // 牲口也会把门拱开（ajar），但它们不会关——门就一直敞着，直到有人从门口过、顺手关上
+        g.state.want = Math.max(0, (g.state.want ?? 0) - dt);
+        const person = life.people.some((v) => !v.inside && Math.hypot(v.pos.x - g.at[0], v.pos.z - g.at[1]) < 1.6);
+        if (person && g.state.ajar && !life.beasts.some((b) => Math.hypot(b.pos.x - g.at[0], b.pos.z - g.at[1]) < 1.2)) g.state.ajar = false;
+        const near = g.state.want > 0 || person || g.state.ajar
+          || life.beasts.some((b) => b.follow && Math.hypot(b.pos.x - g.at[0], b.pos.z - g.at[1]) < 3.2);
+        g.open = Math.max(0, Math.min(1, g.open + (near ? dt * 2.2 : -dt * 1.2)));
+        g.state.open = g.open;
+      }
+      return dt;
+    },
+    /** 画一帧（只改画面，不改村子的状态）：灯火、窗户、烟、火苗、雨、门板转到几度、灯笼摆、石磨杆子转、精灵朝镜头。 */
+    present(t, viewerWorld, dt = 0) {
       // 走到西沟的人和动物挂到西沟那块沙盘下（两块坐标一样）：换场景时跟着那块一起显示 / 藏起来
       for (const a of life.people.concat(life.beasts)) {
         const host = a.pos.x < BOUNDS.x0 ? west.object : a.pos.x >= BOUNDS.x1 ? east.object : root;
@@ -605,15 +634,8 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
         for (const fm of sm.frames) fm.color.setScalar(1 - 0.6 * n);
       }
       for (const e of embers) e.update(dt);
-      // 今天的活动：场面道具（集市的摊子、电影幕布和放映机、土地庙的香火）
+      // 今天的活动：场面道具（电影幕布和放映机、土地庙的香火；集市的摊子在 step 里，挡路）
       const sqC = C.square;
-      const marketOn = V.eventOn('market');
-      if (marketOn !== stallsUp) { stallsUp = marketOn; for (const st of sqC.market.stalls) st.obj.visible = marketOn; setStallBlock(marketOn); }
-      // 散了集，条凳还没摆回去：叫周六子（不在就叫小顺）来一条条搬回去（赶集前搬过去是他们俩在集市活动里的差事，见 life/events.js）
-      if (!benches.allAt('row') && !(V.today() === 'market' && hour < EVENT_DEFS.market.to + 0.2) && !benches.mover && hour > 5 && hour < 21) {
-        const v = ['xiao_liuzi', 'xiao_shun'].map((id) => V.byId[id]).find((p) => p && !p.inside && !p.errand && !String(p.doing).startsWith('market'));
-        if (v) { benches.mover = v; v.interrupt('moveBenches', 'row'); }
-      }
       const movieOn = V.eventOn('movie');
       sqC.screen.visible = sqC.projector.visible = movieOn;
       if (movieOn) sqC.screen.userData.pic.material = hour >= EVENT_DEFS.movie.from ? M.movie[Math.floor(t / 2.2) % M.movie.length] : M.plaster; // 开演前是一块白布
@@ -622,16 +644,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
       fireflies.update(t);
       for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain' && is('summer'); // 萤火虫：夏夜
 
-      for (const g of gates) {
-        // 门：有人要过（走到门前推门）、人就在门口、被赶着的牲口还没过完，就开着；人走了顺手带上。
-        // 牲口也会把门拱开（ajar），但它们不会关——门就一直敞着，直到有人从门口过、顺手关上
-        g.state.want = Math.max(0, (g.state.want ?? 0) - dt);
-        const person = life.people.some((v) => !v.inside && Math.hypot(v.pos.x - g.at[0], v.pos.z - g.at[1]) < 1.6);
-        if (person && g.state.ajar && !life.beasts.some((b) => Math.hypot(b.pos.x - g.at[0], b.pos.z - g.at[1]) < 1.2)) g.state.ajar = false;
-        const near = g.state.want > 0 || person || g.state.ajar
-          || life.beasts.some((b) => b.follow && Math.hypot(b.pos.x - g.at[0], b.pos.z - g.at[1]) < 3.2);
-        g.open = Math.max(0, Math.min(1, g.open + (near ? dt * 2.2 : -dt * 1.2)));
-        g.state.open = g.open;
+      for (const g of gates) { // 门板转到几度（开没开在 step 里算）
         const a = Math.round((g.open * 1.65) / (Math.PI / 12)) * (Math.PI / 12); // 按 15° 一格转
         for (const lf of g.leaves) lf.pivot.rotation.y = lf.sign * a;
       }
@@ -648,6 +661,11 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
       }
       sprites.face(viewerWorld);
       return { hour, light: L, clock: life.clock };
+    },
+    /** 网页里每帧：先模拟一步，再画。 */
+    update(t, viewerWorld) {
+      const dt = this.step(t);
+      return this.present(t, viewerWorld, dt);
     },
   };
 }

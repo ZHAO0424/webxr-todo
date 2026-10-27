@@ -1,0 +1,9 @@
+{
+  "name": "pixel-village",
+  "private": true,
+  "type": "module",
+  "description": "像素村落。网页不需要安装任何东西；这里的依赖只给后台模拟（tools/sim.mjs，在 Node 里跑村子、不画画面）用。",
+  "dependencies": {
+    "three": "0.170.0"
+  }
+}
