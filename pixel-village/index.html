@@ -159,7 +159,10 @@
     #newcomer .portrait.three .v3 { position: absolute; inset: 0; overflow: hidden; } /* 钉死在画框里：不按画布大小撑开（否则屏幕缩放不是 100% 时一重设大小就撑大一圈，像镜头不停往前推） */
     #newcomer .portrait.three .v3 canvas { position: absolute; inset: 0; }
     #newcomer .turn { display: flex; align-items: center; gap: calc(3 * var(--p)); color: var(--dim); }
-    #newcomer .turn .arr { height: calc(32 * var(--f)); width: calc(40 * var(--f)); }
+    #newcomer .turn .arr { height: calc(44 * var(--f)); width: calc(40 * var(--f)); flex: none; }
+    #newcomer .turn .cur { flex: 1; min-width: calc(120 * var(--f)); display: flex; flex-direction: column; align-items: center; text-align: center; }
+    #newcomer .turn .cur i { font-style: normal; color: var(--dim); }
+    #newcomer .prow.cur > .k { color: var(--gold); }
     #newcomer .gtabs { display: flex; gap: var(--p); margin-bottom: calc(3 * var(--p)); }
     #newcomer .gtab { line-height: calc(30 * var(--f)); padding: 0 calc(6 * var(--p)); }
     #newcomer .prows { display: flex; flex-direction: column; gap: calc(3 * var(--p)); }

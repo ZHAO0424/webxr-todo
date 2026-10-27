@@ -50,7 +50,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
   el.hidden = true;
   const LOOK0 = { build: '', hair: 'short', hairRamp: 'hair', hat: '', top: 'teal', style: '', pattern: '', pants: 'black', skin: 'skin', extra: '', beard: false, mustache: false, blush: false, smile: false, legwrap: false };
   const form = { jobId: '', name: '', nick: '', age: 30, sex: '男', skills: new Set(), more: '', traits: new Set(), bio: '', likes: '', coins: 80, bring: new Set(['grain']), home: '', ...LOOK0 };
-  let page = 'look', group = 0, cat = JOB_CATS[0], changing = null, hover = null; // changing：改行的那个人（档案里点「改行」）；hover：鼠标停在哪一格营生上（右边先给看详细）
+  let page = 'look', group = 0, part = 'build', cat = JOB_CATS[0], changing = null, hover = null; // changing：改行的那个人（档案里点「改行」）；hover：鼠标停在哪一格营生上（右边先给看详细）
 
   const chips = (key, list) => list.map(([v, t]) => `<button class="btn chipbtn" data-k="${key}" data-v="${esc(v)}">${esc(t)}</button>`).join('');
   const portrait = (cls) => `<div class="portrait ${cls}"><div class="v"></div></div>`;
@@ -63,7 +63,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
         <div class="stagebox">
           <div class="portrait big three"><div class="v3"></div></div>
         </div>
-        <div class="turn"><button class="btn arr" data-turn="-1" title="往左转">←</button><span>按住人拖动，转着看</span><button class="btn arr" data-turn="1" title="往右转">→</button></div>
+        <div class="turn"><button class="btn arr" data-step="-1" title="上一个">←</button><span class="cur"><i class="pn"></i><b class="pv"></b><i class="pi"></i></span><button class="btn arr" data-step="1" title="下一个">→</button></div>
       </div>
       <div class="paper box partbox">
         <h3>基本</h3>
@@ -143,17 +143,20 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
   const views = () => { const p = person(); if (page === 'look') view3d.set(p); draw(q('.portrait.small .v'), p, 'front', 224); };
   /**
    * 第一步左边的 3D 小人：和村里同一套体素模型、同一个材质，单独一个小渲染器（只在换了样子、拖动的时候画一帧）。
-   * 按住拖动转身；两边的箭头一下转 45°。
+   * 只用鼠标转：按住拖动转身。正交相机（没有透视畸变），从 20° 往下看；人占画框九成多。
+   * 底下两个箭头换样貌：右边最后点的那一样（换组时是这一组的第一样），往前 / 往后换一个。
    */
   const view3d = (() => {
-    let r3 = null, scene, cam, fig = null, yaw = -0.5, drag = null, key = '', lastW = 0, lastH = 0;
+    let r3 = null, scene, cam, fig = null, yaw = -0.5, drag = null, key = '', lastW = 0, lastH = 0, half = 1;
+    const ELEV = THREE.MathUtils.degToRad(20);
+    const frame = () => { const a = lastW / lastH || 0.6; cam.left = -half * a; cam.right = half * a; cam.top = half; cam.bottom = -half; cam.updateProjectionMatrix(); };
     const box = () => q('.portrait.three .v3');
     const render = () => { if (!r3 || !fig) return; fig.object.rotation.y = yaw; r3.render(scene, cam); };
     const size = () => {
       const b = box(), w = b.clientWidth, h = b.clientHeight;
       if (!r3 || !w || !h || (w === lastW && h === lastH)) return; // 大小没变就不重设（ResizeObserver 也会因为重设画布再叫一次）
       lastW = w; lastH = h;
-      r3.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); render();
+      r3.setSize(w, h, false); frame(); render();
     };
     const init = () => {
       if (r3 || !M) return;
@@ -163,7 +166,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
       scene = new THREE.Scene();
       scene.add(new THREE.HemisphereLight('#fff4e4', '#8a6a48', 2.2));
       const sun = new THREE.DirectionalLight('#fff0d8', 2.4); sun.position.set(1.5, 3, 4); scene.add(sun);
-      cam = new THREE.PerspectiveCamera(10, 0.6, 0.1, 200); // 长焦：远远地看，头不会被透视放大
+      cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100); // 正交：没有透视畸变
       const c = r3.domElement;
       c.style.cssText = 'width:100%;height:100%;display:block;cursor:grab;touch-action:none';
       box().append(c);
@@ -184,12 +187,13 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
         fig = voxelCharacter({ ...p, item: null }, M);
         fig.pose('idle', 0);
         scene.add(fig.object);
+        fig.object.rotation.y = 0;
         const bb = new THREE.Box3().setFromObject(fig.object), h = bb.max.y - bb.min.y, cy = (bb.max.y + bb.min.y) / 2;
-        const d = (h * 0.56) / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)); // 人占画框高的九成
-        cam.position.set(0, cy + h * 0.25, d); cam.lookAt(0, cy, 0);
-        lastW = lastH = 0; size(); render();
+        const rxz = Math.max(...[bb.min.x, bb.max.x].flatMap((x) => [bb.min.z, bb.max.z].map((z) => Math.hypot(x, z)))); // 怎么转都不出框
+        half = ((h / 2) * Math.cos(ELEV) + rxz * Math.sin(ELEV)) * 1.05;
+        cam.position.set(0, cy + Math.sin(ELEV) * 10, Math.cos(ELEV) * 10); cam.lookAt(0, cy, 0);
+        lastW = lastH = 0; size(); frame(); render();
       },
-      turn(dir) { yaw += (dir * Math.PI) / 4; render(); },
     };
   })();
   /** 某一样换成 v 的样子（缩略图用）。 */
@@ -206,6 +210,12 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
     o.style.width = `calc(${(o.width * k).toFixed(1)} * var(--f))`; o.style.height = `calc(${(o.height * k).toFixed(1)} * var(--f))`;
     return o;
   };
+  /** 箭头中间写着：正在换哪一样、现在是什么、第几个。 */
+  const opts = () => {
+    const P = PARTS.find((x) => x.key === part), i = Math.max(0, P.list.findIndex(([v]) => v === valueOf(P)));
+    q('.turn .pn').textContent = P.name; q('.turn .pv').textContent = P.list[i][1]; q('.turn .pi').textContent = `${i + 1} / ${P.list.length}`;
+  };
+  const step = (d) => { const P = PARTS.find((x) => x.key === part), i = Math.max(0, P.list.findIndex(([v]) => v === valueOf(P))); setValue(P, P.list[(i + d + P.list.length) % P.list.length][0]); sync(); };
   /** 外观：当前这一组，一样一排。 */
   const partRows = () => {
     const box = q('.prows');
@@ -216,7 +226,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
         if (P.show === 'swatch') { const r = SWATCH(key, v); return `<button class="btn sw${on}" data-pk="${key}" data-pv="${esc(v)}" title="${esc(n)}"><span class="dot" style="background:linear-gradient(135deg, ${r[Math.min(3, r.length - 1)]}, ${r[2]} 55%, ${r[1]})"></span><i>${esc(n)}</i></button>`; }
         return `<button class="btn tile${on}" data-pk="${key}" data-pv="${esc(v)}" title="${esc(n)}"><span class="th"></span><i>${esc(n)}</i></button>`;
       }).join('');
-      return `<div class="prow"><span class="k">${P.name}</span><div class="tiles ${P.show === 'swatch' ? 'sws' : ''}">${items}</div></div>`;
+      return `<div class="prow${key === part ? ' cur' : ''}"><span class="k">${P.name}</span><div class="tiles ${P.show === 'swatch' ? 'sws' : ''}">${items}</div></div>`;
     }).join('');
     box.querySelectorAll('.tile').forEach((b) => { try { b.querySelector('.th').append(thumb(PARTS.find((x) => x.key === b.dataset.pk), b.dataset.pv)); } catch { /* 画不出来就空着 */ } });
   };
@@ -293,12 +303,12 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
     q('.foot .fwd').hidden = page === 'job';
     q('.foot .back').hidden = page === 'look' || !!changing;
     q('.foot .fwd').textContent = page === 'look' ? '下一步：填资料 →' : '下一步：选营生 →';
-    q('.hint').textContent = page === 'look' ? '先捏个样子：右边分组点选，左边的人按住拖动转着看' : page === 'info' ? '起个名字、说说会什么，再挑个住处' : changing ? `现在干的是${changing.job}；开张以来挣了 ${changing.earned ?? 0} 文` : '挑个营生点「进村」：他从村口的桥上走进来，先挨家认人，第二天开张';
+    q('.hint').textContent = page === 'look' ? '先捏个样子：右边分组点选，也可以用人像底下的箭头一个个换；按住人拖动转着看' : page === 'info' ? '起个名字、说说会什么，再挑个住处' : changing ? `现在干的是${changing.job}；开张以来挣了 ${changing.earned ?? 0} 文` : '挑个营生点「进村」：他从村口的桥上走进来，先挨家认人，第二天开张';
     q('.coinv').textContent = form.coins; q('.agev').textContent = form.age;
     const p = person();
     q('.info-page .who').innerHTML = `<b>${esc(p.name || '还没起名字')}</b><span>${p.age} 岁 · ${p.sex}</span>`;
     if (!changing) views();
-    if (page === 'look') partRows();
+    if (page === 'look') { partRows(); opts(); }
     if (page === 'job') jobCards();
     if (page === 'info') homeChips(); // 改了会什么、性格、喜好，看中的老宅跟着变
   };
@@ -309,9 +319,9 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
     if (t.dataset.page) { page = t.dataset.page; if (page === 'info') homeChips(); sync(); return; }
     if (t.dataset.cat) { cat = t.dataset.cat; sync(); return; }
     if (t.dataset.go) { page = PAGES[Math.max(0, Math.min(2, PAGES.indexOf(page) + Number(t.dataset.go)))]; if (page === 'info') homeChips(); sync(); return; }
-    if (t.dataset.group) { group = Number(t.dataset.group); sync(); return; }
-    if (t.dataset.pk) { setValue(PARTS.find((x) => x.key === t.dataset.pk), t.dataset.pv); sync(); return; }
-    if (t.dataset.turn) { view3d.turn(Number(t.dataset.turn)); return; }
+    if (t.dataset.group) { group = Number(t.dataset.group); part = GROUPS[group][1][0]; sync(); return; }
+    if (t.dataset.pk) { part = t.dataset.pk; setValue(PARTS.find((x) => x.key === t.dataset.pk), t.dataset.pv); sync(); return; }
+    if (t.dataset.step) { step(Number(t.dataset.step)); return; }
     if (t.classList.contains('random')) { for (const P of PARTS) if (P.key !== 'face' || form.sex === '男' || Math.random() < 0.5) setValue(P, P.list[Math.floor(Math.random() * P.list.length)][0]); if (form.sex === '女') { form.beard = form.mustache = false; } sync(); return; } // 随机：男女、年纪不动
     if (t.classList.contains('reset')) { Object.assign(form, LOOK0, form.sex === '女' ? { hair: 'bun', style: 'side' } : {}); sync(); return; }
     const k = t.dataset.k, v = t.dataset.v;
@@ -346,7 +356,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
     get open() { return !el.hidden; },
     /** 改行：p 是档案里那个人（name、job、jobId、earned、外观）。 */
     changeJob(p) { changing = p; form.jobId = ''; cat = JOBS.find((j) => j.id === p.jobId)?.cat ?? JOB_CATS[0]; page = 'job'; sync(); el.hidden = false; document.body.classList.add('roster-open'); },
-    show(which = 'look') { changing = null; if (PARTS.some((x) => x.key === which)) { group = Math.max(0, GROUPS.findIndex(([, ks]) => ks.includes(which))); which = 'look'; } page = which; if (page === 'info') homeChips(); if (page === 'job') { const c = JOBS.find((j) => j.id === form.jobId)?.cat; if (c) cat = c; } sync(); el.hidden = false; document.body.classList.add('roster-open'); },
+    show(which = 'look') { changing = null; if (PARTS.some((x) => x.key === which)) { group = Math.max(0, GROUPS.findIndex(([, ks]) => ks.includes(which))); part = which; which = 'look'; } page = which; if (page === 'info') homeChips(); if (page === 'job') { const c = JOBS.find((j) => j.id === form.jobId)?.cat; if (c) cat = c; } sync(); el.hidden = false; document.body.classList.add('roster-open'); },
     close() { el.hidden = true; document.body.classList.remove('roster-open'); },
   };
   return api;
