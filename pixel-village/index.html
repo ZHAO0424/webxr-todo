@@ -155,6 +155,23 @@
     #newcomer .portrait.big { width: calc(196 * var(--f)); height: calc(320 * var(--f)); padding-bottom: calc(10 * var(--f)); }
     #newcomer .portrait.small { width: calc(150 * var(--f)); height: calc(244 * var(--f)); padding-bottom: calc(8 * var(--f)); }
     #newcomer .portrait canvas { display: block; image-rendering: pixelated; }
+    #newcomer .portrait.three { padding: 0; height: calc(360 * var(--f)); width: calc(220 * var(--f)); }
+    #newcomer .portrait.three .v3 { width: 100%; height: 100%; }
+    #newcomer .turn { display: flex; align-items: center; gap: calc(3 * var(--p)); color: var(--dim); }
+    #newcomer .turn .arr { height: calc(32 * var(--f)); width: calc(40 * var(--f)); }
+    #newcomer .gtabs { display: flex; gap: var(--p); margin-bottom: calc(3 * var(--p)); }
+    #newcomer .gtab { line-height: calc(30 * var(--f)); padding: 0 calc(6 * var(--p)); }
+    #newcomer .prows { display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
+    #newcomer .prow { display: grid; grid-template-columns: calc(44 * var(--f)) minmax(0, 1fr); align-items: start; gap: calc(3 * var(--p)); }
+    #newcomer .prow > .k { color: var(--dim); padding-top: calc(6 * var(--f)); }
+    #newcomer .tiles { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); }
+    #newcomer .tile { display: flex; flex-direction: column; align-items: center; padding: calc(2 * var(--p)); min-width: calc(62 * var(--f)); }
+    #newcomer .tile .th { display: grid; place-items: center; width: calc(56 * var(--f)); height: calc(56 * var(--f)); background: radial-gradient(#f4e8c8, #dcc493 70%, #c4a674); box-shadow: inset 0 0 0 var(--f) var(--ink); }
+    #newcomer .tile .th canvas { image-rendering: pixelated; }
+    #newcomer .tile i, #newcomer .sw i { font-style: normal; font-size: calc(12 * var(--f)); line-height: calc(18 * var(--f)); color: var(--dim); }
+    #newcomer .tile.on i, #newcomer .sw.on i { color: #2a1a10; }
+    #newcomer .sw { display: flex; flex-direction: column; align-items: center; padding: calc(2 * var(--p)); min-width: calc(44 * var(--f)); }
+    #newcomer .sw .dot { width: calc(28 * var(--f)); height: calc(28 * var(--f)); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 calc(2 * var(--f)) 0 rgba(255, 255, 255, .25); }
     #newcomer .arr { width: calc(40 * var(--f)); height: calc(56 * var(--f)); padding: 0; font-size: calc(16 * var(--f)); }
     #newcomer .plaque { min-width: calc(196 * var(--f)); padding: var(--p) calc(4 * var(--p)); background: #5a442c; box-shadow: 0 0 0 var(--f) var(--ink), inset 0 var(--f) 0 #8a6a44, inset 0 calc(-2 * var(--f)) 0 #3c2c1c;
                         display: flex; flex-direction: column; align-items: center; text-align: center; }

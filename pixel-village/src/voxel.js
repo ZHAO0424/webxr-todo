@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { TPU, makeRng, block, prism } from './pixel.js';
 import { R } from './palette.js';
-import { restViews, itemGrid } from './characters.js';
+import { restViews, itemGrid, isGown } from './characters.js';
 import { animalGrids } from './animals.js';
 import { season } from './season.js';
 
@@ -167,7 +167,7 @@ export function voxelCharacter(p, M) {
   const at = (g, x, y) => g.get(x, y);
   // 图片坐标 (ix, iy) → 体素 (x = ix - CX, y = FEET - iy, z = 侧面列 - CX)
   const tx0 = CX - Math.floor(b.torsoW / 2), tx1 = tx0 + b.torsoW - 1;
-  const gown = p.style === 'gown';
+  const gown = isGown(p);
   const legStart = gown ? L.shoeTop : L.legTop + 2;
   const armTop = L.torsoTop + 1, armBottom = L.torsoTop + b.torsoH + 1;
   const isArm = (ix, iy) => iy >= armTop && iy <= armBottom && (ix < tx0 || ix > tx1) && ix >= tx0 - 2 && ix <= tx1 + 2;

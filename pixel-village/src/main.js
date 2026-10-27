@@ -467,6 +467,7 @@ V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一�
 const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
   econ: () => ECON,
   homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? h.name, n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
+  M: village.M, // 第一步的 3D 小人用村里同一套材质
   pickHome: (p) => pickOldHouse(p, east.houses), // 住哪儿不用选：他按会什么、性格、喜好挑老村址空着的老宅（卡片上先写出来会看中哪处）
   onChangeJob(id, jobId) { // 档案里点「改行」选好了：马上换过去
     const v = V.byId[id];
