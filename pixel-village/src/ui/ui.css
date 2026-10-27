@@ -244,3 +244,6 @@ html[lang=en] #newcomer .slot .tag { right: 0; } /* "Need" 比「缺」宽：别
 #clock .bgm { margin-top: var(--f); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 正在放的背景音乐 */
 #clock .bgm b { color: var(--text); text-shadow: none; }
 html[lang=en] #goLeft .label { transform: rotate(180deg); } /* 英文竖排：左边的字转过来，两边的字都朝外（中文字是正着立的，不用转） */
+/* 英文字距收紧：点阵字体的拉丁字母是按中文半格排的，字和字之间空得多，英文显得松散。每个字收一个点 */
+html[lang=en] .px, html[lang=en] .px *, html[lang=en] #newcomer, html[lang=en] #newcomer * { letter-spacing: calc(-1 * var(--f)); }
+html[lang=en] .scene-nav .label { letter-spacing: 0; }
