@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TPU, makeRng, block, prism } from './pixel.js';
+import { TPU, makeRng, block, prism, bakeStatic } from './pixel.js';
 import { R } from './palette.js';
 import { restViews, itemGrid, isGown } from './characters.js';
 import { animalGrids } from './animals.js';
@@ -362,6 +362,28 @@ export function voxelCharacter(p, M) {
     backs.get(name).visible = true;
   };
   const legLen = hipY * VOX;
+  // 蓑衣 + 斗笠：下雨天下地干活时披上（villager.js）。立体的挂件，和背篓一样挂在身子上：
+  // 三层草片从肩膀一层层往下张开到膝盖，前襟敞着，薄薄一层贴着身子；头上一顶尖尖的竹斗笠
+  let rain = null;
+  const makeRain = () => {
+    const g = new THREE.Group();
+    const headTop = (FEET - L.headTop) * VOX, hip = (FEET - L.legTop) * VOX;
+    const W = (b.torsoW * VOX) / 2 + 0.07, D = (3.5 * VOX) + 0.03; // 半宽刚盖住胳膊，半厚只比身子厚一点
+    [[sh + 0.06, sh - 0.2, 1.0], [sh - 0.14, hip, 1.04], [hip + 0.06, hip - legLen * 0.6, 1.08]].forEach(([y1, y0, k]) => {
+      const w = W * k, d = D * k, t = 0.03;
+      for (const [x0, x1, z0, z1] of [[-w, w, -d, -d + t], [-w, -w + t, -d, d], [w - t, w, -d, d], [-w, -0.08, d - t, d], [0.08, w, d - t, d]]) g.add(block(x0, y0, z0, x1, y1, z1, M.straw, { outline: false }));
+      g.add(block(-w - 0.005, y1 - 0.03, -d - 0.005, w + 0.005, y1, -d + t + 0.005, M.wood, { outline: false })); // 每层上沿一道麻绳
+    });
+    for (let i = 0; i < 9; i++) { const x = -W * 1.1 + i * ((W * 2.2) / 8), y0 = hip - legLen * 0.6; g.add(block(x - 0.02, y0 - 0.05 - (i % 2) * 0.04, -D * 1.12, x + 0.02, y0, -D * 1.12 + 0.03, M.straw, { outline: false })); } // 下摆一绺绺草须
+    const hat = prism(0.02, 0.62, 0.3, M.straw, 12); // 斗笠：尖顶大檐，罩住原来戴的帽子
+    hat.position.y = headTop + 0.22;
+    g.add(hat);
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    bakeStatic(g); // 二十来块草片按材质并成两三个网格（一人一套，不然下雨天 draw call 多出两百个）
+    body.add(g);
+    return g;
+  };
+  const setRain = (on) => { if (on && !rain) rain = makeRain(); if (rain) rain.visible = on; };
 
   const swing = p.body === 'child' ? 0.7 : 0.5;
   const rest = () => { legL.rotation.x = legR.rotation.x = armL.rotation.x = armR.rotation.x = 0; armR.rotation.z = armL.rotation.z = body.rotation.z = body.rotation.x = 0; rig.position.y = 0; body.position.y = body.position.z = 0; };
@@ -371,6 +393,7 @@ export function voxelCharacter(p, M) {
     get item() { return current; },
     setBack,
     get back() { return backCur; },
+    setRain,
     /** state：idle / walk / run / work / sit（坐凳子，seat = 凳面高）/ squat（蹲着端碗吃饭）/ talk / eat / scatter（撒食） */
     pose(state, t, phase = 0, { seat = 0.45, cadence = 1 } = {}) {
       const w = (state === 'run' ? 13 : 8 * cadence) * t + phase;

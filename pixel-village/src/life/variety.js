@@ -24,7 +24,8 @@ export const holiday = (day) => lunarOf(day).d % 10 === 0;
 export function variant(v, name, arg, day, idx) {
   const p = v.p, h = (tag) => hash(`${day}/${p.id}/${idx}/${tag}`);
   if (v.V.weather() === 'rain') {
-    if (OUTDOOR.has(name) || (name === 'work' && p.home === 'square')) return ['home', null]; // 剃头匠下雨不出摊
+    const hardy = name === 'field' && p.body !== 'child' && !p.elder && p.body !== 'elder' && ['spring', 'summer'].includes(season()) && h('rainwork') < 0.5; // 春夏抢农时：一半壮劳力披上蓑衣照样下地
+    if (!hardy && (OUTDOOR.has(name) || (name === 'work' && p.home === 'square'))) return ['home', null]; // 剃头匠下雨不出摊
   }
   if (holiday(day) && name === 'school') return ['play', null];
   if (holiday(day) && name === 'teach') return ['read', null];

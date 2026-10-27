@@ -29,14 +29,14 @@ const PARTS = [
   { key: 'hair', name: '发型', show: 'head', list: Object.entries(HAIRS) },
   { key: 'hairRamp', name: '发色', show: 'swatch', list: [['hair', '乌黑'], ['brown', '棕黑'], ['khaki', '焦黄'], ['grey', '花白'], ['white', '银白']] },
   { key: 'hat', name: '帽子', show: 'head', list: [['', '不戴'], ['skullcap', '瓜皮帽'], ['towel', '羊肚手巾'], ['felt', '毡帽'], ['scarf', '头巾'], ['straw', '草帽'], ['furcap', '棉帽'], ['douli', '斗笠'], ['veil', '蜂纱帽']] },
-  { key: 'style', name: '样式', show: 'full', list: [['', '短褂'], ['side', '大襟'], ['vest', '坎肩'], ['cotton', '棉袄'], ['zhongshan', '中山装'], ['overalls', '背带裤'], ['singlet', '白背心'], ['doudou', '红肚兜'], ['gown', '长衫'], ['magua', '长衫马褂'], ['sheepskin', '羊皮袄'], ['army', '军大衣'], ['raincoat', '蓑衣'], ['cape', '斗篷'], ['opera', '戏袍']] },
+  { key: 'style', name: '样式', show: 'full', list: [['', '短褂'], ['side', '大襟'], ['vest', '坎肩'], ['cotton', '棉袄'], ['zhongshan', '中山装'], ['overalls', '背带裤'], ['singlet', '白背心'], ['doudou', '红肚兜'], ['gown', '长衫'], ['magua', '长衫马褂'], ['sheepskin', '羊皮袄'], ['army', '军大衣'], ['cape', '斗篷'], ['opera', '戏袍']] },
   { key: 'top', name: '衣裳', show: 'swatch', list: COLORS },
   { key: 'pattern', name: '花样', show: 'body', list: [['', '素面'], ['floral', '碎花'], ['plaid', '格子'], ['stripe', '条纹'], ['patch', '补丁'], ['trim', '镶边']] },
   { key: 'pants', name: '裤子', show: 'swatch', list: COLORS.filter(([c]) => !['pink', 'red', 'white'].includes(c)) },
   { key: 'skin', name: '肤色', show: 'swatch', list: [['skin', '白净'], ['skinTan', '黝黑']] },
   { key: 'face', name: '脸面', show: 'head', list: [['', '平常'], ['beard', '山羊胡'], ['mustache', '八字胡'], ['blush', '红脸蛋'], ['smile', '笑模样']] },
   { key: 'legwrap', name: '绑腿', show: 'legs', list: [['', '不打'], ['1', '打绑腿']] },
-  { key: 'extra', name: '配饰', show: 'body', list: [['', '不系'], ['apron:indigo', '蓝围裙'], ['apron:black', '黑围裙'], ['apron:grey', '白围裙'], ['sash:red', '红腰带'], ['sash:black', '黑腰带'], ['sash:indigo', '蓝腰带']] },
+  { key: 'extra', name: '配饰', show: 'body', list: [['', '不戴'], ['apron:indigo', '围裙'], ['sash:red', '红腰带'], ['acc:dalian', '褡裢'], ['acc:satchel', '军挎包'], ['acc:scarf', '围巾'], ['acc:towel', '毛巾搭肩'], ['acc:lock', '长命锁'], ['acc:redscarf', '红领巾'], ['acc:beads', '念珠'], ['acc:pipe', '烟袋'], ['acc:glasses', '眼镜']] },
 ];
 /** 外观分四组，一组一页。 */
 const GROUPS = [['身形', ['build', 'skin']], ['头脸', ['hair', 'hairRamp', 'hat', 'face']], ['衣裳', ['style', 'top', 'pattern', 'pants']], ['配饰', ['extra', 'legwrap']]];
@@ -123,7 +123,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
       body: age >= 60 && man ? 'elder' : man ? 'man' : 'woman', build: f.build || undefined, elder: age >= 60 || undefined,
       hair: f.hair, hairRamp: f.hairRamp === 'hair' ? undefined : f.hairRamp, hat: f.hat || undefined, top: f.top, style: f.style || undefined, pattern: f.pattern || undefined, pants: f.pants, skin: f.skin,
       beard: f.beard || undefined, mustache: f.mustache || undefined, blush: f.blush || undefined, smile: f.smile || undefined, legwrap: f.legwrap || undefined,
-      apron: ek === 'apron' ? ev : undefined, sash: ek === 'sash' ? ev : undefined,
+      apron: ek === 'apron' ? ev : undefined, sash: ek === 'sash' ? ev : undefined, acc: ek === 'acc' ? ev : undefined,
       coins: f.coins, goods: Object.fromEntries(BRING.filter(([g]) => f.bring.has(g))),
       jobId: f.jobId || undefined, jobPicked: !!f.jobId || undefined,
     };
@@ -193,7 +193,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
       set(p) {
         init();
         if (!r3) return;
-        const k = JSON.stringify(p, ['age', 'sex', 'body', 'build', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pattern', 'pants', 'skin', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash']);
+        const k = JSON.stringify(p, ['age', 'sex', 'body', 'build', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pattern', 'pants', 'skin', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'acc']);
         if (k === key && fig) { render(); return; }
         key = k;
         if (fig) { scene.remove(fig.object); fig.object.traverse((o) => o.geometry?.dispose()); }

@@ -13,6 +13,9 @@ import { variant } from './variety.js';
 // ---------------------------------------------------------------- 村民
 
 
+/** 地里的活（下雨天干这些的披蓑衣、戴斗笠）。 */
+const FIELD_WORK = new Set(['field', 'sow', 'plowHoe', 'weed', 'reapWheat', 'reap', 'pickCorn', 'haulManure', 'garden']);
+
 export class Villager {
   constructor(p, V, rand) {
     this.p = p;
@@ -197,7 +200,9 @@ export class Villager {
     if (!this.perched && !['walk', 'run', 'sit', 'fiddle'].includes(this.state)) this.separate(dt); // 坐着的不挪（在凳子 / 石头上）
     present(this, dt, this.V.nav.heightAt(this.pos.x, this.pos.z) + 0.03 + this.lift);
     // 下雨天在外头：手上空着就撑一把油纸伞（干活、坐着时收起来）
-    const wet = this.V.weather() === 'rain' && !this.inside && !['work', 'sit', 'squat', 'fiddle', 'shave', 'strop', 'bow', 'scatter', 'wash'].includes(this.state);
+    const gear = this.V.weather() === 'rain' && !this.inside && FIELD_WORK.has(this.doing); // 冒雨下地：披蓑衣、戴斗笠，不打伞
+    this.char.setRain(gear);
+    const wet = !gear && this.V.weather() === 'rain' && !this.inside && !['work', 'sit', 'squat', 'fiddle', 'shave', 'strop', 'bow', 'scatter', 'wash'].includes(this.state);
     if (wet && !this.char.item) { this.char.setItem('umbrella'); this.umbrella = true; }
     else if (this.umbrella && !wet) { if (this.char.item === 'umbrella') this.char.setItem(null); this.umbrella = false; }
     this.char.pose(this.state, t, this.phase, { seat: this.seat ?? 0.45, cadence: this.state === 'walk' && this.hurry ? 1.4 : 1 });

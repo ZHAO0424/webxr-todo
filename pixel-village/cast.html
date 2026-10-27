@@ -51,6 +51,7 @@
     const list = only ? RESIDENTS.filter((p) => only.includes(p.id)) : RESIDENTS;
     list.forEach((p, i) => {
       const c = voxelCharacter(p, M);
+      if (q.has('rain')) c.setRain(true); // ?rain=1：披上蓑衣、戴上斗笠（下雨天下地的样子）
       if (only) c.object.position.set((i - (list.length - 1) / 2) * 2.2, 0, 8);
       else c.object.position.set((i % 14 - 6.5) * 1.6, 0, i < 14 ? -1.5 : 1.5);
       c.object.rotation.y = yaw;
