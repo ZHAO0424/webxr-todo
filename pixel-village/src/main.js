@@ -28,9 +28,11 @@ import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 import { createSceneSwitch } from './scenes.js';
 import { setSeason, season, SEASONS, ORDER as SEASON_ORDER } from './season.js';
 import { setRuins, ruinsMode } from './east.js';
+import { auditOverlaps } from './overlap.js';
 
 const params = new URLSearchParams(location.search);
 setSeason(params.get('season') ?? 'autumn'); // ?season=spring|summer|autumn|winter：建场景之前定（见 season.js）
+auditOverlaps(params.get('overlap') === '1'); // ?overlap=1：建村时按三角面查共面重叠（慢，调试用），结果在 data-audit / data-east / data-west 的 overlap 里
 setRuins(params.get('ruins') === '1'); // ?ruins=1：废墟开局（老村址没人住的老宅是塌的，新居民住进来才修好）；设置里的「老宅」按钮切换
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -886,8 +888,8 @@ scene.traverseVisible((o) => { // 只算当前这块沙盘（另一块藏着不�
 document.documentElement.dataset.tris = String(Math.round(tris)); // 三角面数（不含阴影那一遍）
 document.documentElement.dataset.graves = JSON.stringify(village.life.people[0].V.graves?.at ?? null); // 祖坟在哪（截图对镜头用）
 document.documentElement.dataset.calls = String(drawables); // 每只眼大约这么多 draw call（不含阴影）
-document.documentElement.dataset.east = JSON.stringify({ audit: east.object.userData.audit, bake: east.object.userData.bake, flora: east.object.userData.flora, floating: east.object.userData.floating, coplanar: { found: east.object.userData.coplanar.found, left: east.object.userData.coplanar.left }, things: east.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
-document.documentElement.dataset.west = JSON.stringify({ audit: west.object.userData.audit, pasture: V.pasture.length, work: { fieldWest: V.fields.fieldWest.length, woods: V.woods.filter((w) => w.at[0] < -45).length, mill: V.mill.at.map((v) => +v.toFixed(1)) }, bake: west.object.userData.bake, flora: west.object.userData.flora, floating: west.object.userData.floating, coplanar: { found: west.object.userData.coplanar.found, left: west.object.userData.coplanar.left, leftSamples: west.object.userData.coplanar.leftSamples }, bridges: west.terrain.bridges.length, things: west.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
+document.documentElement.dataset.east = JSON.stringify({ audit: east.object.userData.audit, bake: east.object.userData.bake, flora: east.object.userData.flora, floating: east.object.userData.floating, coplanar: { found: east.object.userData.coplanar.found, left: east.object.userData.coplanar.left }, overlap: east.object.userData.overlap, things: east.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
+document.documentElement.dataset.west = JSON.stringify({ audit: west.object.userData.audit, pasture: V.pasture.length, work: { fieldWest: V.fields.fieldWest.length, woods: V.woods.filter((w) => w.at[0] < -45).length, mill: V.mill.at.map((v) => +v.toFixed(1)) }, bake: west.object.userData.bake, flora: west.object.userData.flora, floating: west.object.userData.floating, coplanar: { found: west.object.userData.coplanar.found, left: west.object.userData.coplanar.left, leftSamples: west.object.userData.coplanar.leftSamples }, overlap: west.object.userData.overlap, bridges: west.terrain.bridges.length, things: west.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
 document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);
-document.documentElement.dataset.audit = JSON.stringify({ perchFix: village.object.userData.perchFix, coplanar: village.object.userData.coplanar, flora: village.object.userData.flora, floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
+document.documentElement.dataset.audit = JSON.stringify({ perchFix: village.object.userData.perchFix, coplanar: village.object.userData.coplanar, overlap: village.object.userData.overlap, flora: village.object.userData.flora, floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
 document.documentElement.dataset.ready = '1';

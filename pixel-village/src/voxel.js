@@ -656,11 +656,14 @@ export function voxelTree(kind, seed = 1, scale = 1) {
   });
   const noise = (x, y, z) => Math.sin(x * 0.9 + y * 0.3) * Math.sin(y * 0.7 + z * 1.1) * Math.sin(z * 0.8 + x * 0.5);
   const hash = (x, y, z) => { const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); };
+  // 树冠表面的起伏：大树冠（槐树）起伏放缓、团块放大——同样蓬松，台阶面少一半（原来一棵槐树近三万个三角面）
+  const big = s.blobs.some((b) => b[3] > 12);
+  const lump = big ? (x, y, z) => noise(x * 0.55, y * 0.55, z * 0.55) * 0.14 : (x, y, z) => noise(x, y, z) * 0.18;
   const crown = (x, y, z) => {
     let best = null;
     for (const b of blobs) {
       const d = Math.hypot((x - b[0]) / b[3], (y - b[1]) / b[4], (z - b[2]) / b[5]);
-      if (d < 1 + noise(x, y, z) * 0.18 && (!best || d < best.d)) best = { b, d };
+      if (d < 1 + lump(x, y, z) && (!best || d < best.d)) best = { b, d };
     }
     if (best && s.sparse && hash(x, y, z) < s.sparse && best.d > 0.75) return null; // 柿子树叶子稀
     if (best && s.bare && !(hash(x, y, z) < 0.07 && best.d > 0.4)) return null; // 落了叶：树冠里只剩零星的细枝

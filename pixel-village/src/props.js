@@ -540,7 +540,7 @@ export function peddlerCart(M) {
   piece(1.5, 0.42, 0.8, M.wood, 0, 0.6, 0); // 车厢
   piece(1.52, 0.05, 0.82, M.trayWood, 0, 0.58, 0, 0, { outline: false }); // 一道压条
   piece(1.5, 0.04, 0.22, M.wood, 0, 0.8, -0.51); // 前面的台面
-  for (const z of [-0.36, 0.36]) piece(0.08, 0.4, 0.08, M.wood, 0.65, 0.2, z); // 腿
+  for (const z of [-0.34, 0.34]) piece(0.08, 0.4, 0.08, M.wood, 0.65, 0.2, z); // 腿（缩进车厢一点，外侧面不和车厢齐平）
   for (const z of [-0.3, 0.3]) piece(0.4, 0.05, 0.05, M.wood, 0.95, 0.62, z); // 车把
   for (const sz of [-1, 1]) { // 大木轮：一圈轮辋 + 六根辐条 + 轮毂
     const R0 = 0.38, cx = -0.38, cz = sz * 0.47;

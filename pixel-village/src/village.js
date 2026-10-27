@@ -18,6 +18,7 @@ import { NavGrid } from './nav.js';
 import { buildFarmland } from './farmland.js';
 import { buildRoadside } from './roadside.js';
 import { fixCoplanar } from './coplanar.js';
+import { findOverlaps, overlapAuditOn } from './overlap.js';
 import { snapPerches, findFloating, markReachable, auditPaths } from './audit.js';
 import { daylight } from './daylight.js';
 import { Smoke, Embers, Fireflies, Rain } from './fx.js';
@@ -217,6 +218,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
 
   // 4.5 共面的面（z-fighting 闪烁）：门柱和墙、墙的拐角、压顶……把小的那个微微撑出来
   root.userData.coplanar = fixCoplanar(root, (o) => o === terrain.object || o.userData.tree || o.isSprite);
+  if (overlapAuditOn()) root.userData.overlap = findOverlaps(root, { skip: (o) => o.userData.tree, names: new Map(Object.entries(M).filter(([, v]) => v?.isMaterial).map(([k, v]) => [v, k])) }); // ?overlap=1：按三角面再查一遍（含地形、水面）
 
   // 4.6 猫、喜鹊蹲的高处贴到真实表面上（见 audit.js）
   root.userData.perchFix = snapPerches(root, terrain, C);

@@ -11,6 +11,7 @@ import { voxelTree, voxelGeometry } from './voxel.js';
 import { is } from './season.js';
 import { findFloating } from './audit.js';
 import { fixCoplanar } from './coplanar.js';
+import { findOverlaps, overlapAuditOn } from './overlap.js';
 import { Sprites } from './sprites.js';
 import { Smoke, Fireflies, Rain } from './fx.js';
 import { shrine, stoneTablet, floraGeometries } from './roadside.js';
@@ -451,7 +452,7 @@ function ruinPlot(M, spec) {
       if (gap !== null && Math.abs(tm - gap) < 0.7 / len + 0.05) continue; // 院门的口
       const fallen = rand() < 0.3, low = 0.45 + rand() * 0.55; // 每段都掷一样多的骰子
       if (s < 2 && fallen) continue;
-      g.add(wallSeg(M, x0 + (x1 - x0) * t0, z0 + (z1 - z0) * t0, x0 + (x1 - x0) * t1, z0 + (z1 - z0) * t1, { h: s >= 2 ? h : h * low, mat: wm, t, cap: s >= 2 && cap }));
+      g.add(wallSeg(M, x0 + (x1 - x0) * t0, z0 + (z1 - z0) * t0, x0 + (x1 - x0) * t1, z0 + (z1 - z0) * t1, { h: s >= 2 ? h : Math.round(h * low * 20) / 20 + 0.025, mat: wm, t, cap: s >= 2 && cap })); // 塌剩的墙头高度落在 x.x25 / x.x75：不会正好齐着旁边台地、街面（共面会闪）
     }
   };
   const ring = (h, wm, t, cap) => { run(-w / 2, -d / 2, w / 2, -d / 2, null, h, wm, t, cap); run(-w / 2, -d / 2, -w / 2, d / 2, null, h, wm, t, cap); run(w / 2, -d / 2, w / 2, d / 2, null, h, wm, t, cap); run(-w / 2, d / 2, w / 2, d / 2, gapAt, h, wm, t, cap); };
@@ -1074,6 +1075,11 @@ export function buildEast(M) {
     flora.add(mesh);
   };
   for (const [kind, list] of Object.entries(groves)) for (let v = 0; v < 2; v++) instance(kind, 800 + v * 17 + kind.length, list.filter((_, i) => i % 2 === v));
+  { // 林子里的大树：树冠八到十米宽，2 米一棵的网格上一处地面叠着十几层树冠，埋在里头的看不见、白费面数——隔开 3.4 米留一棵，树冠照样连成片
+    const kept = [];
+    for (const t of tall) if (kept.every((k) => Math.hypot(k[1] - t[1], k[2] - t[2]) > 2.8)) kept.push(t);
+    tall.length = 0; tall.push(...kept);
+  }
   for (const kind of ['pine', 'oak', 'locust']) for (let v = 0; v < 2; v++) instance(kind, 900 + v * 13 + kind.length, tall.filter((t, i) => t[0] === kind && i % 2 === v).map(([, x, z, s]) => [x, z, s]));
   for (let v = 0; v < 3; v++) { // 竹子三种长法，轮着用
     const list = bamboos.filter((_, i) => i % 3 === v);
@@ -1167,6 +1173,7 @@ export function buildEast(M) {
 
   // 5. 自检、导航障碍、物件包围盒；老宅一处一处单独合批（以后修房子要换掉一处），其余整体合批
   root.userData.coplanar = fixCoplanar(root, (o) => o === terrain.object || o.userData.tree || o.isSprite);
+  if (overlapAuditOn()) root.userData.overlap = findOverlaps(root, { skip: (o) => o.userData.tree, names: new Map(Object.entries(M).filter(([, v]) => v?.isMaterial).map(([k, v]) => [v, k])) }); // ?overlap=1：按三角面再查一遍（含地形、水面）
   root.updateMatrixWorld(true);
   const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const blockers = [];
@@ -1226,11 +1233,11 @@ export function buildEast(M) {
   const hang = (x, y, z, s0 = 0.8) => { const l = lantern(M, s0); l.position.set(x, y, z); root.add(l); lanterns.push(l); return l; };
   for (const [k, b] of Object.entries(homes)) {
     if (!b.home) continue;
-    const hp0 = b.object.position, ho = b.home.object.position, x = hp0.x + ho.x + b.home.door.x + 1.0, z = hp0.z + ho.z + b.home.door.z - 0.45, y = hp0.y;
+    const hp0 = b.object.position, ho = b.home.object.position, x = hp0.x + ho.x + b.home.door.x + 1.0, z = hp0.z + ho.z + b.home.door.z - 0.45, y = hp0.y; // door 是门外站人的地方（墙外 0.9 米）：杆子贴着墙立，横担朝外挑
     const pole = new THREE.Group();
-    pole.add(block(x - 0.06, y, z - 0.06, x + 0.06, y + 2.5, z + 0.06, M.wood), block(x - 0.06, y + 2.38, z - 0.55, x + 0.06, y + 2.48, z + 0.06, M.wood));
+    pole.add(block(x - 0.06, y, z - 0.06, x + 0.06, y + 2.5, z + 0.06, M.wood), block(x - 0.045, y + 2.38, z - 0.03, x + 0.045, y + 2.48, z + 0.55, M.wood)); // 横担比立杆细一圈、插进杆里（侧面不和立杆共面）
     root.add(pole);
-    hang(x, y + 2.38, z - 0.45, 0.65);
+    hang(x, y + 2.38, z + 0.45, 0.65); // 灯笼挑在墙外，不贴着窗户
   }
   for (const sx of [-1, 1]) hang(temple.object.position.x - 4.2 + sx * 1.1, temple.object.position.y + 2.6, temple.object.position.z + 0.55, 0.7);
   // 窗前的光晕（和村里一样）：原住户的屋子、有人住的老宅
@@ -1356,6 +1363,7 @@ export function buildEast(M) {
     root.remove(old);
     old.traverse((o) => o.geometry?.dispose());
     root.add(g);
+    fixCoplanar(g, (o) => o.isSprite); // 重搭的这一处也要错开共面的面（建村时那一遍管不到它）
     bakeStatic(g);
     g.userData.dynamic = true;
     plots[id] = g;

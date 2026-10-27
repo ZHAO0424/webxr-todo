@@ -12,6 +12,7 @@ import { fieldCrops } from './farmland.js';
 import { is } from './season.js';
 import { findFloating } from './audit.js';
 import { fixCoplanar } from './coplanar.js';
+import { findOverlaps, overlapAuditOn } from './overlap.js';
 import { Sprites } from './sprites.js';
 import { Smoke, Fireflies, Rain } from './fx.js';
 
@@ -373,7 +374,7 @@ function temple(M, face) {
   const deck0 = d / 2, deck1 = face + 1.0;
   g.add(block(-3.2, 0, deck0, 3.2, 0.15, deck1, M.wood)); // 栈台
   for (const x of [-2.4, -0.8, 0.8, 2.4]) { // 插进崖里的梁 + 斜撑
-    g.add(block(x - 0.1, -0.25, face - 0.6, x + 0.1, 0, deck1, M.wood));
+    g.add(block(x - 0.1, -0.25, face - 0.6, x + 0.1, -0.01, deck1, M.wood)); // 梁顶低 1 厘米：插进崖里那截不和龛底的地面共面
     const dz = deck1 - 0.15 - face, dy = 1.8;
     const strut = box(0.16, Math.hypot(dz, dy), 0.16, M.wood);
     strut.rotation.x = Math.atan2(dz, dy);
@@ -549,7 +550,7 @@ export function buildWest(M) {
   mill.object.position.set(W(MILL.u), millLevel, MILL.z);
   root.add(mill.object);
   const weirZ = WHEEL_Z; // 拦河坝：一道毛石坝横在溪上（这段河道是直的），坝顶比上游水面高一点
-  root.add(tag(block(W(WEIR_U), WATER_Y - 1.6, weirZ - STREAM_HALF - 0.3, W(WEIR_U) + 0.6, WATER_Y + 0.12, weirZ + STREAM_HALF + 0.3, M.rubble), 'weir'));
+  root.add(tag(block(W(WEIR_U) + 0.03, WATER_Y - 1.6, weirZ - STREAM_HALF - 0.3, W(WEIR_U) + 0.6, WATER_Y + 0.12, weirZ + STREAM_HALF + 0.3, M.rubble), 'weir'));
   root.add(P.firewood(M, W(MILL.u - 2.0), MILL.z - 2.6, 3.4).translateY(millLevel));
   root.add(P.vat(M, W(MILL.u - 4.0), MILL.z + 1.6).translateY(millLevel));
   for (const b of terrain.bridges) root.add(slabBridge(M, b));
@@ -717,6 +718,7 @@ export function buildWest(M) {
 
   // 6. 共面闪烁、悬空自检；记下要投影进导航网格的东西（合批会拆掉网格，所以先记），合批前收集点物件用的包围盒
   root.userData.coplanar = fixCoplanar(root, (o) => o === terrain.object || o.userData.tree || o.isSprite);
+  if (overlapAuditOn()) root.userData.overlap = findOverlaps(root, { skip: (o) => o.userData.tree, names: new Map(Object.entries(M).filter(([, v]) => v?.isMaterial).map(([k, v]) => [v, k])) }); // ?overlap=1：按三角面再查一遍（含地形、水面）
   root.updateMatrixWorld(true);
   const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const blockers = [];

@@ -196,7 +196,7 @@ export function doorLeaves(M, key, W, H, y, { single = false } = {}) {
   for (const [side, u0, u1] of parts) {
     const lw = single ? W : W / 2;
     const geo = new THREE.PlaneGeometry(lw, H);
-    geo.translate(-side * lw / 2, H / 2, 0);
+    geo.translate(-side * lw / 2, H / 2, 0.02); // 离转轴 2 厘米：推开到 90° 时不贴死在门垛内侧面上（共面会闪）
     const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setX(i, u0 + uv.getX(i) * (u1 - u0));
     const leaf = new THREE.Mesh(geo, M[`${key}Leaf`]);
