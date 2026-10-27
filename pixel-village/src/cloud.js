@@ -47,6 +47,7 @@ async function session() {
 export const cloud = {
   /** 存一个人：join 新来 / edit 改样子资料（也带营生）/ leave 离村。成功返回 true，连不上、被拒抛错。 */
   async save(kind, p) {
+    if (globalThis.PV_NO_CLOUD) throw Object.assign(new Error('cloud disabled'), { status: 0 }); // 记忆村庄（本地的另一个版本）在 index.html 里关掉：不往像素村落的村子里存
     const s = await session();
     const data = pickKeys(p, kind === 'join' ? JOIN_KEYS : EDIT_KEYS);
     await call('/rest/v1/residents?on_conflict=id', { method: 'POST', token: s.access_token, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: { id: p.id, kind, data } });
