@@ -146,12 +146,13 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
    * 按住拖动转身；两边的箭头一下转 45°。
    */
   const view3d = (() => {
-    let r3 = null, scene, cam, fig = null, yaw = -0.5, drag = null, key = '';
+    let r3 = null, scene, cam, fig = null, yaw = -0.5, drag = null, key = '', lastW = 0, lastH = 0;
     const box = () => q('.portrait.three .v3');
     const render = () => { if (!r3 || !fig) return; fig.object.rotation.y = yaw; r3.render(scene, cam); };
     const size = () => {
       const b = box(), w = b.clientWidth, h = b.clientHeight;
-      if (!r3 || !w || !h) return;
+      if (!r3 || !w || !h || (w === lastW && h === lastH)) return; // 大小没变就不重设（ResizeObserver 也会因为重设画布再叫一次）
+      lastW = w; lastH = h;
       r3.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); render();
     };
     const init = () => {
@@ -186,7 +187,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
         const bb = new THREE.Box3().setFromObject(fig.object), h = bb.max.y - bb.min.y, cy = (bb.max.y + bb.min.y) / 2;
         const d = (h * 0.56) / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)); // 人占画框高的九成
         cam.position.set(0, cy + h * 0.25, d); cam.lookAt(0, cy, 0);
-        size(); render();
+        lastW = lastH = 0; size(); render();
       },
       turn(dir) { yaw += (dir * Math.PI) / 4; render(); },
     };

@@ -155,8 +155,9 @@
     #newcomer .portrait.big { width: calc(196 * var(--f)); height: calc(320 * var(--f)); padding-bottom: calc(10 * var(--f)); }
     #newcomer .portrait.small { width: calc(150 * var(--f)); height: calc(244 * var(--f)); padding-bottom: calc(8 * var(--f)); }
     #newcomer .portrait canvas { display: block; image-rendering: pixelated; }
-    #newcomer .portrait.three { padding: 0; height: calc(360 * var(--f)); width: calc(220 * var(--f)); }
-    #newcomer .portrait.three .v3 { width: 100%; height: 100%; }
+    #newcomer .portrait.three { padding: 0; height: calc(360 * var(--f)); width: calc(220 * var(--f)); position: relative; }
+    #newcomer .portrait.three .v3 { position: absolute; inset: 0; overflow: hidden; } /* 钉死在画框里：不按画布大小撑开（否则屏幕缩放不是 100% 时一重设大小就撑大一圈，像镜头不停往前推） */
+    #newcomer .portrait.three .v3 canvas { position: absolute; inset: 0; }
     #newcomer .turn { display: flex; align-items: center; gap: calc(3 * var(--p)); color: var(--dim); }
     #newcomer .turn .arr { height: calc(32 * var(--f)); width: calc(40 * var(--f)); }
     #newcomer .gtabs { display: flex; gap: var(--p); margin-bottom: calc(3 * var(--p)); }
