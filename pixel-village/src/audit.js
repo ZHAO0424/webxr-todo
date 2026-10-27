@@ -35,10 +35,12 @@ export function snapPerches(root, terrain, C) {
   // 两个高处之间跳不跳得过去：沿途往下探最高的面（屋顶、墙头、树冠），弧线要从它上面过；
   // 要抬得太高才过得去的（中间隔着一整座房子）就不跳。结果挂在 a.hops[i] = [{ j, lift }]
   const down = new THREE.Vector3(0, -1, 0);
-  const topAt = (c, x, z, from) => { // 从弧线能到的最高处往下探（头顶上的树冠不算）
+  const isTree = (o) => { for (let p = o; p; p = p.parent) if (p.userData.tree) return true; return false; };
+  const noTrees = solid.filter((o) => !isTree(o)); // 鸟从树枝间穿过去（冬天光树枝密密麻麻，当成墙就哪儿也跳不过去）
+  const topAt = (c, x, z, from, bird) => { // 从弧线能到的最高处往下探（头顶上的树冠不算）
     ray.set(root.localToWorld(new THREE.Vector3(x, c.level + from, z)), down);
     ray.far = 20 * UNIT;
-    const hit = ray.intersectObjects(solid, false)[0];
+    const hit = ray.intersectObjects(bird ? noTrees : solid, false)[0];
     return hit ? root.worldToLocal(hit.point.clone()).y - c.level : -Infinity;
   };
   for (const c of Object.values(C)) for (const a of c.animals) {
@@ -50,7 +52,7 @@ export function snapPerches(root, terrain, C) {
       let need = 0;
       for (let k = 1; k < 20; k++) {
         const t = k / 20, [x, z] = c.at(P[i][0] + (P[j][0] - P[i][0]) * t, P[i][2] + (P[j][2] - P[i][2]) * t);
-        need = Math.max(need, (topAt(c, x, z, Math.max(P[i][1], P[j][1]) + most + 0.3) + 0.15 - (P[i][1] + (P[j][1] - P[i][1]) * t)) / Math.sin(Math.PI * t));
+        need = Math.max(need, (topAt(c, x, z, Math.max(P[i][1], P[j][1]) + most + 0.3, a.role === 'bird') + 0.15 - (P[i][1] + (P[j][1] - P[i][1]) * t)) / Math.sin(Math.PI * t));
       }
       if (need > most) continue;
       const lift = Math.max(base, need);

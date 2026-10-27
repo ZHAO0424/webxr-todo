@@ -29,7 +29,7 @@ const PARTS = [
   { key: 'hair', name: '发型', show: 'head', list: Object.entries(HAIRS) },
   { key: 'hairRamp', name: '发色', show: 'swatch', list: [['hair', '乌黑'], ['brown', '棕黑'], ['khaki', '焦黄'], ['grey', '花白'], ['white', '银白']] },
   { key: 'hat', name: '帽子', show: 'head', list: [['', '不戴'], ['skullcap', '瓜皮帽'], ['towel', '羊肚手巾'], ['felt', '毡帽'], ['scarf', '头巾'], ['straw', '草帽'], ['furcap', '棉帽'], ['douli', '斗笠'], ['veil', '蜂纱帽']] },
-  { key: 'style', name: '样式', show: 'full', list: [['', '短褂'], ['side', '大襟'], ['vest', '坎肩'], ['cotton', '棉袄'], ['gown', '长衫'], ['magua', '长衫马褂']] },
+  { key: 'style', name: '样式', show: 'full', list: [['', '短褂'], ['side', '大襟'], ['vest', '坎肩'], ['cotton', '棉袄'], ['zhongshan', '中山装'], ['overalls', '背带裤'], ['singlet', '白背心'], ['doudou', '红肚兜'], ['gown', '长衫'], ['magua', '长衫马褂'], ['sheepskin', '羊皮袄'], ['army', '军大衣'], ['raincoat', '蓑衣'], ['cape', '斗篷'], ['opera', '戏袍']] },
   { key: 'top', name: '衣裳', show: 'swatch', list: COLORS },
   { key: 'pattern', name: '花样', show: 'body', list: [['', '素面'], ['floral', '碎花'], ['plaid', '格子'], ['stripe', '条纹'], ['patch', '补丁'], ['trim', '镶边']] },
   { key: 'pants', name: '裤子', show: 'swatch', list: COLORS.filter(([c]) => !['pink', 'red', 'white'].includes(c)) },
@@ -140,14 +140,18 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
     return o;
   };
   const draw = (box, p, view, h, withItem = false) => { try { const c = crop(previewCanvas(p, view, 1, withItem)); c.style.height = `calc(${h} * var(--f))`; c.style.width = 'auto'; box.replaceChildren(c); } catch { box.textContent = ''; } }; // h：人有多高（画框高的九成多）
-  const views = () => { const p = person(); if (page === 'look') view3d.set(p); draw(q('.portrait.small .v'), p, 'front', 224); };
+  const views = () => { const p = person(); if (page === 'look') view3d.set(p); draw(q('.portrait.small .v'), p, 'front', 180); };
   /**
    * 第一步左边的 3D 小人：和村里同一套体素模型、同一个材质，单独一个小渲染器（只在换了样子、拖动的时候画一帧）。
-   * 只用鼠标转：按住拖动转身。正交相机（没有透视畸变），从 20° 往下看；人占画框九成多。
+   * 只用鼠标转：按住拖动转身，滚轮以鼠标所在处为中心放大缩小（1～4 倍），双击复原。正交相机（没有透视畸变），从 20° 往下看；人占画框九成多。
    * 底下两个箭头换样貌：右边最后点的那一样（换组时是这一组的第一样），往前 / 往后换一个。
    */
   const view3d = (() => {
-    let r3 = null, scene, cam, fig = null, yaw = -0.5, drag = null, key = '', lastW = 0, lastH = 0, half = 1;
+    let r3 = null, scene, cam, fig = null, yaw = -0.5, drag = null, key = '', lastW = 0, lastH = 0, half = 1, zoom = 1, panX = 0, panY = 0, cy0 = 0;
+    const place = () => { // 相机对着 (panX, cy0) 再往画面上方挪 panY
+      const up = new THREE.Vector3(0, Math.cos(ELEV), -Math.sin(ELEV)), t = new THREE.Vector3(panX, cy0, 0).addScaledVector(up, panY);
+      cam.position.set(t.x, t.y + Math.sin(ELEV) * 10, t.z + Math.cos(ELEV) * 10); cam.lookAt(t); cam.zoom = zoom; cam.updateProjectionMatrix();
+    };
     const ELEV = THREE.MathUtils.degToRad(20);
     const frame = () => { const a = lastW / lastH || 0.6; cam.left = -half * a; cam.right = half * a; cam.top = half; cam.bottom = -half; cam.updateProjectionMatrix(); };
     const box = () => q('.portrait.three .v3');
@@ -174,6 +178,15 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
       c.addEventListener('pointermove', (e) => { if (!drag) return; yaw = drag.yaw + (e.clientX - drag.x) * 0.012; render(); });
       const up = () => { drag = null; c.style.cursor = 'grab'; };
       c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
+      c.addEventListener('wheel', (e) => { // 滚轮缩放：鼠标指着的那一点不动
+        e.preventDefault();
+        const r = c.getBoundingClientRect(), a = r.width / r.height, nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = 1 - ((e.clientY - r.top) / r.height) * 2;
+        const z1 = Math.max(1, Math.min(4, zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+        panX += nx * half * a * (1 / zoom - 1 / z1); panY += ny * half * (1 / zoom - 1 / z1); zoom = z1;
+        const lim = half * (1 - 1 / zoom); panX = Math.max(-lim * a, Math.min(lim * a, panX)); panY = Math.max(-lim, Math.min(lim, panY));
+        place(); render();
+      }, { passive: false });
+      c.addEventListener('dblclick', () => { zoom = 1; panX = panY = 0; place(); render(); });
       new ResizeObserver(size).observe(box());
     };
     return {
@@ -191,7 +204,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
         const bb = new THREE.Box3().setFromObject(fig.object), h = bb.max.y - bb.min.y, cy = (bb.max.y + bb.min.y) / 2;
         const rxz = Math.max(...[bb.min.x, bb.max.x].flatMap((x) => [bb.min.z, bb.max.z].map((z) => Math.hypot(x, z)))); // 怎么转都不出框
         half = ((h / 2) * Math.cos(ELEV) + rxz * Math.sin(ELEV)) * 1.05;
-        cam.position.set(0, cy + Math.sin(ELEV) * 10, Math.cos(ELEV) * 10); cam.lookAt(0, cy, 0);
+        cy0 = cy; place();
         lastW = lastH = 0; size(); frame(); render();
       },
     };
@@ -206,7 +219,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
     const o = document.createElement('canvas');
     o.width = c.width; o.height = h;
     o.getContext('2d').drawImage(c, 0, y0, c.width, h, 0, 0, c.width, h);
-    const k = (P.show === 'full' ? 52 : 44) / Math.max(o.width, o.height);
+    const k = (P.show === 'full' ? 40 : 34) / Math.max(o.width, o.height);
     o.style.width = `calc(${(o.width * k).toFixed(1)} * var(--f))`; o.style.height = `calc(${(o.height * k).toFixed(1)} * var(--f))`;
     return o;
   };
@@ -274,7 +287,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
       if (cur) b.disabled = true;
       const slot = Object.assign(document.createElement('span'), { className: 'slot' });
       const c = icon(job, 56);
-      if (c) { fit(c, 44); slot.append(c); }
+      if (c) { fit(c, 34); slot.append(c); }
       if (r.short || r.match) slot.append(Object.assign(document.createElement('i'), { className: `tag ${r.short ? 'short' : 'match'}`, textContent: r.short ? '缺' : '对口' }));
       b.append(slot, Object.assign(document.createElement('span'), { className: 'jt', innerHTML: `<b>${esc(job.name.replace(/（.*）/, ''))}</b><span class="dim">${cur ? '现在干的' : `约 ${r.est} 文/天`}</span>` }));
       box.append(b);
@@ -287,7 +300,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
       <dl><dt>在哪儿干</dt><dd>${esc(j.where)}</dd><dt>谁买</dt><dd>${esc(j.buyers)}</dd><dt>要置办</dt><dd>${esc(j.setup)}</dd></dl>
       <div class="season"><span class="k">四季</span>${seasonBar(j)}</div>`;
     const big = icon(j, 84);
-    if (big) { fit(big, 64); d.querySelector('.slot.big').append(big); }
+    if (big) { fit(big, 50); d.querySelector('.slot.big').append(big); }
   };
   const sync = () => {
     el.querySelectorAll('.chipbtn[data-k]').forEach((b) => { const cur = form[b.dataset.k]; b.classList.toggle('on', cur instanceof Set ? cur.has(b.dataset.v) : String(cur) === b.dataset.v); });
@@ -303,7 +316,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pi
     q('.foot .fwd').hidden = page === 'job';
     q('.foot .back').hidden = page === 'look' || !!changing;
     q('.foot .fwd').textContent = page === 'look' ? '下一步：填资料 →' : '下一步：选营生 →';
-    q('.hint').textContent = page === 'look' ? '先捏个样子：右边分组点选，也可以用人像底下的箭头一个个换；按住人拖动转着看' : page === 'info' ? '起个名字、说说会什么，再挑个住处' : changing ? `现在干的是${changing.job}；开张以来挣了 ${changing.earned ?? 0} 文` : '挑个营生点「进村」：他从村口的桥上走进来，先挨家认人，第二天开张';
+    q('.hint').textContent = page === 'look' ? '先捏个样子：右边分组点选，也可以用人像底下的箭头一个个换；按住人拖动转着看，滚轮放大缩小' : page === 'info' ? '起个名字、说说会什么，再挑个住处' : changing ? `现在干的是${changing.job}；开张以来挣了 ${changing.earned ?? 0} 文` : '挑个营生点「进村」：他从村口的桥上走进来，先挨家认人，第二天开张';
     q('.coinv').textContent = form.coins; q('.agev').textContent = form.age;
     const p = person();
     q('.info-page .who').innerHTML = `<b>${esc(p.name || '还没起名字')}</b><span>${p.age} 岁 · ${p.sex}</span>`;

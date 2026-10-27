@@ -99,7 +99,15 @@ function shadedRect(g, x, y, w, h, r, base = 2, { round = false, light = true, c
  * - 春秋：照原样。
  */
 /** 长衫类（长衫、长衫外罩马褂）：下摆一直盖到脚面。 */
-export const isGown = (p) => p.style === 'gown' || p.style === 'magua';
+export const isGown = (p) => p.style === 'gown' || p.style === 'magua' || p.style === 'opera' || p.style === 'army';
+/** 短褂一类（四季换装只动这几样：冬天絮成棉袄、夏天短袖）；别的款式（羊皮袄、蓑衣、肚兜……）选了就照样穿。 */
+const basicStyle = (p) => !p.style || p.style === 'side';
+const FLEECE = ['#5a4e4a', '#a89a8a', '#d8ccb8', '#f0e6d4', '#fff8ec']; // 羊皮袄：毛朝外
+const STRAW = R.wheat; // 蓑衣
+/** 上身用什么颜色：马褂是外罩的颜色，军大衣草绿，羊皮袄羊毛色，白背心白，肚兜底下光着膀子。 */
+const upperRamp = (p) => p.style === 'magua' ? R[p.jacket ?? 'black'] : p.style === 'army' ? R.green : p.style === 'sheepskin' ? FLEECE : p.style === 'singlet' ? R.white : p.style === 'doudou' ? R[p.skin] : R[p.top];
+/** 长衫类的下摆颜色。 */
+const skirtRamp = (p) => p.style === 'army' ? R.green : R[p.top];
 const LIGHT_TOPS = new Set(['white', 'pink', 'gold', 'khaki', 'mud', 'cabbage', 'grey', 'wheat']);
 /**
  * 衣裳的花样，画在已经铺好底色的一块上（只改已经有颜色的格子）：
@@ -131,16 +139,16 @@ export function dress(p) {
   const q = { ...p, dressed: true };
   if (q.style === 'cotton') { q.style = undefined; q.padded = S !== 'summer'; } // 棉袄：除了夏天都穿着
   if (S === 'winter') {
-    q.padded = true;
     if (q.style === 'vest') q.style = undefined;
+    q.padded = basicStyle(q);
     if (kid) { q.top = man ? 'red' : 'pink'; q.hat = man ? 'furcap' : 'scarf'; q.scarfRamp = 'red'; }
     else if (man) { if (!q.hat || q.hat === 'straw') q.hat = 'furcap'; }
-    else { q.hat = 'scarf'; if (p.age < 50) { q.scarfRamp = 'red'; q.top = 'red'; } }
+    else { q.hat = 'scarf'; if (p.age < 50 && basicStyle(q)) { q.scarfRamp = 'red'; q.top = 'red'; } }
   } else if (S === 'summer') {
-    q.short = !isGown(q);
+    q.short = basicStyle(q) || q.style === 'vest' || q.style === 'zhongshan';
     q.legwrap = false;
     if (man && !kid && !isGown(q)) {
-      if (q.style !== 'vest') { q.top = 'grey'; q.style = undefined; q.pattern = undefined; }
+      if (basicStyle(q)) { q.top = 'grey'; q.style = undefined; q.pattern = undefined; }
       if ((!q.hat || q.hat === 'felt') && p.age < 65) q.hat = 'straw';
     }
   }
@@ -325,12 +333,13 @@ function hat(g, p, H, view) {
 
 /** 上衣（正面 / 背面）。返回袖子位置供手持物使用。 */
 function torso(g, p, b, L, view, pose) {
-  const top = p.style === 'magua' ? R[p.jacket ?? 'black'] : R[p.top]; // 马褂：上身是外罩的短褂
+  const top = upperRamp(p); // 马褂：上身是外罩的短褂；军大衣、羊皮袄、白背心、肚兜各有各的颜色
   const x0 = CX - Math.floor(b.torsoW / 2);
   const y0 = L.torsoTop;
   const w = b.torsoW, h = b.torsoH;
   shadedRect(g, x0, y0, w, h, top, 2, { round: true, collar: true });
-  if (p.style !== 'magua') pattern(g, p, x0, y0, w, h, top);
+  if (!['magua', 'army', 'sheepskin', 'singlet', 'doudou'].includes(p.style)) pattern(g, p, x0, y0, w, h, top);
+  const S0 = R[p.skin];
   // 立领
   g.rect(CX - 2, y0, 5, 1, top[1]);
   if (p.padded) { // 棉袄：一道道绗线，毛领子
@@ -350,6 +359,30 @@ function torso(g, p, b, L, view, pose) {
   } else {
     g.vline(CX, y0 + 3, y0 + h - 2, top[1]); // 后背中缝
   }
+  if (p.style === 'singlet' && view === 'front') g.rect(CX - 2, y0, 5, 2, S0[3]); // 白背心：领口开得低
+  if (p.style === 'doudou') { // 红肚兜：光膀子，胸前一块菱形红布，镶金边；背后两根带子
+    if (view === 'front') {
+      for (let j = 0; j < h - 1; j++) { const hw = Math.min(j + 1, h - 1 - j) + 1; for (let i = -hw; i <= hw; i++) g.px(CX + i, y0 + j + 1, Math.abs(i) === hw ? R.gold[3] : R.red[2 + (j === 2 && i === 0 ? 1 : 0)]); }
+      g.px(CX - 3, y0, R.red[1]); g.px(CX + 3, y0, R.red[1]);
+    } else { g.line(x0 + 1, y0 + 1, x0 + w - 2, y0 + 4, R.red[2]); g.line(x0 + w - 2, y0 + 1, x0 + 1, y0 + 4, R.red[2]); }
+  }
+  if (p.style === 'zhongshan' && view === 'front') { // 中山装：翻领、四个兜、一排扣子
+    for (const sx of [-1, 1]) { g.px(CX + sx, y0 + 1, top[4] ?? top[3]); g.px(CX + sx * 2, y0 + 1, top[4] ?? top[3]); g.px(CX + sx * 2, y0 + 2, top[3]); }
+    for (const [px, py] of [[x0 + 1, y0 + 3], [x0 + w - 4, y0 + 3], [x0 + 1, y0 + h - 4], [x0 + w - 4, y0 + h - 4]]) { g.hline(px, px + 2, py, top[1]); g.px(px + 1, py + 1, top[1]); }
+    for (let y = y0 + 2; y < y0 + h - 1; y += 2) g.px(CX, y, R.grey[3]);
+  }
+  if (p.style === 'overalls') { // 背带工装裤：护胸 + 两根背带
+    const P = R[p.pants];
+    if (view === 'front') { g.rect(CX - 3, y0 + 4, 7, h - 4, P[2]); g.hline(CX - 3, CX + 3, y0 + 4, P[3]); g.rect(CX - 1, y0 + 5, 3, 2, P[1]); }
+    for (const sx of [-3, 3]) g.vline(CX + sx, y0, y0 + 4, P[2]);
+    g.px(CX - 3, y0 + 4, R.gold[3]); g.px(CX + 3, y0 + 4, R.gold[3]);
+  }
+  if (p.style === 'army' && view === 'front') { // 军大衣：双排扣、腰带
+    for (let y = y0 + 3; y < y0 + h; y += 2) { g.px(CX - 2, y, R.gold[3]); g.px(CX + 2, y, R.gold[3]); }
+    g.hline(x0 + 1, x0 + w - 2, y0 + h - 3, top[1]);
+  }
+  if (p.style === 'sheepskin') for (let j = 1; j < h; j++) for (let i = (j % 2); i < w; i += 3) if (g.get(x0 + i, y0 + j)) g.px(x0 + i, y0 + j, FLEECE[j % 3 ? 3 : 1]); // 卷毛
+  if (p.style === 'opera') for (let j = 1; j < h - 1; j += 2) for (let i = 1 + (j % 4 === 1 ? 0 : 2); i < w - 1; i += 4) g.px(x0 + i, y0 + j, R.gold[3]); // 戏袍上绣的金花
   if (p.pattern === 'trim' && p.style !== 'vest') { // 镶边：领口、门襟、下摆一道对比色
     const t = LIGHT_TOPS.has(p.top) ? R.black : R.red;
     g.rect(CX - 2, y0, 5, 1, t[2]);
@@ -363,18 +396,21 @@ function torso(g, p, b, L, view, pose) {
     g.px(x0 + 2, y0 + 3, v[3]); g.px(x0 + w - 3, y0 + 3, v[3]);
   }
   // 袖子 + 手
-  const sleeve = p.style === 'vest' ? R[p.top] : top;
+  const sleeve = p.style === 'vest' ? R[p.top] : top, bare = p.style === 'singlet' || p.style === 'doudou'; // 白背心、肚兜：光着胳膊
   const trimC = p.pattern === 'trim' ? (LIGHT_TOPS.has(p.top) ? R.black : R.red)[2] : null; // 镶边的袖口
   const S = R[p.skin];
   const armH = h - 2;
   const arms = [];
   for (const [side, ax] of [[-1, x0 - 2], [1, x0 + w]]) {
     const dy = side < 0 ? pose.armL : pose.armR;
-    if (p.short) { // 短袖：袖子到胳膊肘，底下露着胳膊
+    if (bare) shadedRect(g, ax, y0 + 1 + dy, 2, armH, S, 3, { light: side < 0 });
+    else if (p.short) { // 短袖：袖子到胳膊肘，底下露着胳膊
       shadedRect(g, ax, y0 + 1 + dy, 2, 2, sleeve, 2, { light: side < 0 });
       shadedRect(g, ax, y0 + 3 + dy, 2, armH - 2, S, 3, { light: side < 0 });
     } else { shadedRect(g, ax, y0 + 1 + dy, 2, armH, sleeve, 2, { light: side < 0 }); if (p.style !== 'magua') pattern(g, p, ax, y0 + 1 + dy, 2, armH, sleeve); if (trimC) g.rect(ax, y0 + armH + dy, 2, 1, trimC); }
     g.rect(ax, y0 + 1 + armH + dy, 2, 2, side < 0 ? S[3] : S[2]);
+    if (p.style === 'opera') { g.rect(ax, y0 + armH + dy, 2, 6, R.white[3]); g.px(ax + (side < 0 ? 0 : 1), y0 + armH + 5 + dy, R.white[2]); } // 水袖：长长的白袖子垂过手
+    if (p.style === 'sheepskin') g.rect(ax, y0 + armH + dy, 2, 1, FLEECE[4]); // 羊毛袖口
     arms.push({ x: ax, y: y0 + 1 + armH + dy });
   }
   // 腰带 / 系绳
@@ -382,12 +418,41 @@ function torso(g, p, b, L, view, pose) {
   return { left: arms[0], right: arms[1], x0, w };
 }
 
+/**
+ * 外面罩着的（画在上身、胳膊上面）：羊皮袄的长下摆和毛领、蓑衣、斗篷、军大衣的毛领。
+ * 蓑衣、斗篷从肩膀往下张开，盖住胳膊，到膝盖；下摆一刀刀参差（蓑衣）或者齐的（斗篷）。
+ */
+function outer(g, p, b, L, view) {
+  const st = p.style, x0 = CX - Math.floor(b.torsoW / 2), w = b.torsoW, y0 = L.torsoTop, knee = L.legTop + Math.ceil(b.legH * 0.55);
+  if (st === 'sheepskin') {
+    for (let y = y0 + b.torsoH; y <= knee; y++) for (let i = -1; i <= w; i++) g.px(x0 + i, y, y === knee ? FLEECE[4] : (i + y) % 3 ? FLEECE[2] : FLEECE[3]);
+    for (let i = -1; i <= w; i += 2) g.px(x0 + i, knee + 1, FLEECE[4]); // 下摆一圈毛
+    g.rect(CX - 4, y0 - 1, 9, 2, FLEECE[4]); g.px(CX - 5, y0, FLEECE[3]); g.px(CX + 5, y0, FLEECE[3]); // 毛领
+    if (view === 'front') g.vline(CX, y0 + 1, knee, R.brown[2]); // 皮面的门襟
+  }
+  if (st === 'army') { g.rect(CX - 4, y0, 9, 2, R.brown[3]); g.px(CX - 3, y0 + 1, R.brown[2]); g.px(CX + 2, y0, R.brown[2]); } // 毛领子
+  if (st === 'raincoat' || st === 'cape') {
+    const C = st === 'cape' ? R[p.top] : STRAW;
+    for (let y = y0; y <= knee; y++) {
+      const half = Math.floor(w / 2) + 1 + Math.floor((y - y0) / 2);
+      for (let i = -half; i <= half; i++) {
+        if (st === 'raincoat' && y >= knee - 1 && (i + y) % 3 === 0) continue; // 蓑衣下摆参差不齐
+        const c = st === 'raincoat' ? STRAW[(i + 40) % 3 === 0 ? 1 : (i + 40) % 3 === 1 ? 2 : 3] : C[Math.abs(i) === half ? 1 : i < -half + 2 ? 3 : 2];
+        g.px(CX + i, y, c);
+      }
+    }
+    if (st === 'raincoat') { g.rect(CX - 4, y0 - 1, 9, 2, STRAW[3]); for (let i = -4; i <= 4; i += 2) g.px(CX + i, y0 + 1, STRAW[1]); } // 蓑衣领口一圈草
+    else if (view === 'front') { g.px(CX, y0 + 1, R.gold[3]); g.vline(CX, y0 + 2, knee, C[1]); } // 斗篷：领口一颗扣，前襟合着
+    else g.rect(CX - 3, y0 - 2, 7, 3, C[2]); // 背后耷拉着的风帽
+  }
+}
+
 /** 腿、长衫下摆、绑腿、白底布鞋（正 / 背面）。 */
 function legs(g, p, b, L, pose) {
   const pants = R[p.pants];
   const top = L.legTop + Math.min(0, pose.bob);
-  if (isGown(p)) { // 长衫一直盖到脚面（马褂底下也是长衫）
-    const t = R[p.top];
+  if (isGown(p)) { // 长衫一直盖到脚面（马褂底下也是长衫；戏袍、军大衣也到脚面）
+    const t = skirtRamp(p);
     const sway = pose.liftL ? -1 : pose.liftR ? 1 : 0;
     for (let y = top; y < L.shoeTop; y++) {
       const flare = Math.floor((y - top) / 4);
@@ -397,6 +462,8 @@ function legs(g, p, b, L, pose) {
       g.px(CX + 1, y, t[1]); // 开衩
     }
     if (p.style === 'gown') pattern(g, p, CX - 10, top, 21, L.shoeTop - top, t);
+    if (p.style === 'opera') for (let y = top + 1; y < L.shoeTop; y += 3) for (let x = CX - 6 + (y % 2) * 2; x <= CX + 6; x += 4) if (g.get(x, y)) g.px(x, y, R.gold[3]);
+    if (p.style === 'army') { g.vline(CX, top, L.shoeTop - 1, t[1]); }
   } else {
     for (const [side, lx] of [[-1, CX - 4], [1, CX + 1]]) {
       const lift = side < 0 ? pose.liftL : pose.liftR;
@@ -621,7 +688,7 @@ const ITEMS = {
 function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
   const L = layout(b, pose.bob);
   const S = R[p.skin];
-  const gownC = R[p.top], top = p.style === 'magua' ? R[p.jacket ?? 'black'] : gownC; // 马褂：上身外罩的颜色，下摆是长衫
+  const gownC = skirtRamp(p), top = upperRamp(p); // 马褂：上身外罩的颜色，下摆是长衫
   const pants = R[p.pants];
   // 腿：远侧那条暗一档，先画
   const legRows = L.shoeTop - L.legTop;
@@ -652,7 +719,19 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
   // 躯干（侧面更窄）
   const tx0 = CX - 3, tw = 7;
   shadedRect(g, tx0, L.torsoTop, tw, b.torsoH, top, 2, { round: true });
-  if (p.style !== 'magua') pattern(g, p, tx0, L.torsoTop, tw, b.torsoH, top);
+  if (!['magua', 'army', 'sheepskin', 'singlet', 'doudou'].includes(p.style)) pattern(g, p, tx0, L.torsoTop, tw, b.torsoH, top);
+  { // 侧面看得见的特别款式
+    const st = p.style, ty = L.torsoTop, knee = L.legTop + Math.ceil(b.legH * 0.55);
+    if (st === 'doudou') g.vline(tx0 + tw - 1, ty + 1, ty + b.torsoH - 1, R.red[2]);
+    if (st === 'overalls') g.rect(tx0 + tw - 2, ty + 4, 2, b.torsoH - 4, R[p.pants][2]);
+    if (st === 'sheepskin') { g.rect(tx0 - 1, ty + b.torsoH, tw + 2, knee - ty - b.torsoH + 1, FLEECE[2]); g.hline(tx0 - 1, tx0 + tw, knee, FLEECE[4]); g.rect(tx0, ty - 1, tw, 2, FLEECE[4]); }
+    if (st === 'army') g.rect(tx0, ty, tw, 2, R.brown[3]);
+    if (st === 'raincoat' || st === 'cape') {
+      const C = st === 'cape' ? R[p.top] : STRAW;
+      for (let y = ty; y <= knee; y++) { const back = 1 + Math.floor((y - ty) / 2); for (let x = tx0 - back; x < tx0 + tw + 1; x++) { if (st === 'raincoat' && y >= knee - 1 && (x + y) % 3 === 0) continue; g.px(x, y, st === 'raincoat' ? STRAW[(x + 40) % 3 + 1] : C[x === tx0 - back ? 1 : 2]); } }
+      if (st === 'cape') g.rect(tx0 - 2, ty - 2, 3, 3, C[2]);
+    }
+  }
   g.vline(tx0 + tw - 1, L.torsoTop + 1, L.torsoTop + b.torsoH - 1, top[1]);
   if (p.pattern === 'trim') g.hline(tx0, tx0 + tw - 1, L.torsoTop + b.torsoH - 1, (LIGHT_TOPS.has(p.top) ? R.black : R.red)[2]);
   if (p.style === 'vest') { const v = R[p.vest ?? 'black']; g.rect(tx0, L.torsoTop + 1, tw, b.torsoH - 1, v[2]); g.px(tx0 + 1, L.torsoTop + 2, v[3]); }
@@ -716,6 +795,7 @@ function frontOrBack(p, b, view, pose, work, { item = true } = {}) {
   legs(g, p, b, L, pose);
   const arms = torso(g, p, b, L, view, pose);
   apron(g, p, b, L, view);
+  outer(g, p, b, L, view);
   const H = head(g, p, b, L, view);
   hair(g, p, H, view);
   hat(g, p, H, view);
