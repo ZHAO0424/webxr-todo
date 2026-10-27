@@ -1,7 +1,8 @@
 # 像素村落后台模拟：每小时把村子往前过一段（现实过去多久，村里就走多久，跟网页开着一样），存档提交回仓库。
 # 网页（pixel-village/）默认读 pixel-village/world/state.json，所以关了网页，村子的日子也在往前走。
 # 每次先收新居民（tools/intake.mjs）：网页存到云端（Supabase）的、和走 GitHub Issue 提交的；再模拟、提交存档，最后回结果（写回云端 / 回帖关 Issue）。
-# 有人开了提交居民的 Issue 也马上跑一次。
+# 玩家在网页上存了居民（云端数据库的触发器通知过来）、有人开了提交居民的 Issue，都马上跑一次。
+# 定时两份：GitHub 自己的（常常不跑）+ 云端数据库的 pg_cron 每小时叫一次。
 # 也可以在 Actions 页面手动点「Run workflow」立刻跑一次。
 name: 像素村落后台模拟
 
@@ -9,6 +10,8 @@ on:
   schedule:
     - cron: '17 * * * *' # 每小时第 17 分（整点排队的人多，GitHub 会拖得更久）
   workflow_dispatch:
+  repository_dispatch: # 云端（Supabase）叫的：玩家一存居民就马上跑（pv-resident）；每小时也叫一次（pv-tick，GitHub 自己的定时常常不跑）
+    types: [pv-resident, pv-tick]
   issues:
     types: [opened, reopened]
 
