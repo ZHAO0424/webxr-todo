@@ -321,3 +321,4 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 #newcomer .tohub[hidden] { display: none; }
 #newcomer .mcards { display: block; } /* 里面是选角色界面（.hub）+ 账号条，不再是一格格卡片 */
 #newcomer .step[hidden], #newcomer .tabs .link[hidden] { display: none; } /* 修改时只有 ①② */
+#newcomer .hub { grid-template-columns: minmax(0, 1fr); min-height: 0; } /* 一个浏览器一个居民：不要左边的居民位 */

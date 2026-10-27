@@ -10,7 +10,7 @@
 //
 // 规矩：
 //   - 提交是谁都能发的，内容不可信：只认 src/residentSchema.js 列出来的字段和值（sanitize）。
-//   - 主人（owner）：Issue 的是发 Issue 的 GitHub 账号；云端的是 sb:匿名身份。改样子、离村只认主人。每个主人最多三个居民。
+//   - 主人（owner）：Issue 的是发 Issue 的 GitHub 账号；云端的是 sb:匿名身份。改样子、离村只认主人。每个主人只能有一个居民。
 //   - 名字不能和村里已有的人重。
 //   - 新来的标 pending：接下来的后台模拟（tools/sim.mjs）读档时让他从村口进村、自己找住处（和网页里「进村」一样）；
 //     改了营生的标 pendingJob，读档时换过去。离村的直接从存档里拿掉（他认领的老宅空出来，房子还是修好的样子）。
@@ -26,7 +26,7 @@ const [mode, out] = process.argv.slice(2);
 const arg = (k) => { const i = process.argv.indexOf(`--${k}`); return i < 0 ? null : process.argv[i + 1]; };
 const statePath = resolve(arg('state') ?? resolve(here, '../world/state.json'));
 const gh = (args) => execFileSync('gh', args, { encoding: 'utf8' });
-const MAX_PER_OWNER = 3;
+const MAX_PER_OWNER = 1; // 一个浏览器（一个身份 / 一个 GitHub 账号）一个居民
 const SB_URL = process.env.SUPABASE_URL ?? 'https://dfsdksfrrxutmfaysgxz.supabase.co', SB_KEY = process.env.SUPABASE_SERVICE_KEY;
 const sb = async (path, { method = 'GET', body } = {}) => {
   const r = await fetch(`${SB_URL}${path}`, { method, headers: { apikey: SB_KEY, ...(SB_KEY.startsWith('eyJ') ? { Authorization: `Bearer ${SB_KEY}` } : {}), 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: body && JSON.stringify(body) });
@@ -92,7 +92,7 @@ for (const { ref, owner, req, at } of queue.sort((a, b) => a.at.localeCompare(b.
 
   if (kind === 'join') {
     if (target) { say(false, '这个居民编号已经有人用了，请在网页上重新建一个。', 'That resident id is taken; please create the resident again on the page.'); continue; }
-    if (state.newcomers.filter((p) => p.owner === owner).length >= MAX_PER_OWNER) { say(false, `每人最多在村里放 ${MAX_PER_OWNER} 个居民。可以先让一个离村。`, `You can have at most ${MAX_PER_OWNER} residents. Let one leave first.`); continue; }
+    if (state.newcomers.filter((p) => p.owner === owner).length >= MAX_PER_OWNER) { say(false, '每人只能在村里放一个居民。让原来那个离村以后才能再建。', 'You can only have one resident. Let the current one leave first.'); continue; }
     const { data, errors } = sanitize(req.data, { join: true, jobs });
     if (errors.length) { say(false, `没收：${errors.join('、')}。`, 'Not accepted: the resident needs a name.'); continue; }
     if (taken(data.name)) { say(false, `村里已经有叫「${data.name}」的了，换个名字再提交吧。`, `Someone named "${data.name}" already lives here. Pick another name and submit again.`); continue; }

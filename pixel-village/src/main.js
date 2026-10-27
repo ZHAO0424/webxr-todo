@@ -559,7 +559,7 @@ const account = {
     try {
       await cloud.login(email, pw);
       const rows = await cloud.mine();
-      const list = mine.list().filter((p) => !rows.some((r) => r.id === p.id));
+      const list = []; // 一个身份一个居民：换成这个账号的（这台电脑上原来那个属于原来的匿名身份，已经提示过）
       for (const r of rows) {
         if (r.kind === 'leave') continue;
         const w = worldNewcomers.get(r.id);
@@ -585,7 +585,7 @@ async function share(p0, leave = false) {
     cloud.rows().then((r) => { if (r) cloudRows = r; });
     return 'ok';
   } catch (e) {
-    if (e.status >= 400 && e.status < 500 && /too many/.test(e.message)) return tr('一个浏览器最多三个居民：先让一个离村再建。', 'At most three residents per browser: let one leave first.');
+    if (e.status >= 400 && e.status < 500 && /too many/.test(e.message)) return tr('一个浏览器只能有一个居民：让原来那个离村以后才能再建。', 'One resident per browser: let the current one leave first.');
     markQueued(kind, p);
     return 'queued';
   } finally { updateNewBtn(); }

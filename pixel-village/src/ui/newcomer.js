@@ -319,12 +319,12 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   /** 退回的原因（后台回的是「中文\n\n英文」两段）：按界面语言取一段。 */
   const reason = (s) => { const parts = String(s ?? '').replace(/^[⚠️✅\s]+/, '').split(/\n\n/); return (EN ? parts[1] ?? parts[0] : parts[0]).trim(); };
   /**
-   * 「我的居民」：像游戏里的选角色界面——
-   *   左边一列居民位（一个浏览器最多 3 个：有人的是头像 + 名字 + 状态，空的是「＋ 创建新居民」）；
-   *   右边是选中的那个人：大立绘、名字、现在走到哪一步（一句话说明）、勋章，常用的按钮一排，「离村」单独放在角上（先问一句）；
-   *   最底下一条是账号：绑定邮箱 / 用邮箱登录找回。一个人都没有时右边是欢迎页：创建，或者登录找回。
+   * 「我的居民」：一个浏览器只能有一个居民（让他离村以后才能再建）。像游戏里的角色页——
+   *   有居民：大立绘、名字、现在走到哪一步（一句话说明）、勋章，常用的按钮一排，「离村」单独放在角上（先问一句）；
+   *   没有：欢迎页，一个大的「创建新居民」，或者用邮箱登录找回。最底下一条是账号：绑定邮箱 / 用邮箱登录找回。
+   * 建好以后创建的入口、步骤条都不再出现（create() 也挡着）。
    */
-  const SLOTS = 3;
+  const SLOTS = 1;
   let selId = null;
   const mineCards = () => {
     const box = q('.mcards'), list = residents();
@@ -332,25 +332,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     box.innerHTML = '';
     const hub = document.createElement('div');
     hub.className = 'hub';
-    // 左：居民位
-    const slots = document.createElement('div');
-    slots.className = 'slots';
-    for (const r of list) {
-      const s = document.createElement('button');
-      s.className = `btn rslot${r.p.id === selId ? ' on' : ''}`;
-      s.dataset.sel = r.p.id;
-      s.innerHTML = `<span class="hd"></span><span class="tx"><b>${esc(pName(r.p))}</b><span class="badge ${STATUS_CLS[r.status]}">${esc(STATUS[r.status][0])}</span></span>`;
-      try { const c = crop(previewCanvas(r.p, 'front', 1)), k = 1; const o = document.createElement('canvas'); const hh = Math.ceil(c.height * 0.42); o.width = c.width; o.height = hh; o.getContext('2d').drawImage(c, 0, 0, c.width, hh, 0, 0, c.width, hh); o.style.height = 'calc(40 * var(--f))'; o.style.width = 'auto'; s.querySelector('.hd').append(o); } catch { /* 画不出来就空着 */ }
-      slots.append(s);
-    }
-    for (let i = list.length; i < SLOTS; i++) {
-      const s = document.createElement('button');
-      s.className = 'btn rslot empty';
-      s.dataset.act = 'new';
-      s.innerHTML = `<span class="plus">＋</span><span class="tx"><b>${tr('创建新居民', 'New resident')}</b><span class="dim">${tr('空位', 'Empty slot')}</span></span>`;
-      slots.append(s);
-    }
-    // 右：选中的人（或者欢迎页）
+    // 这个人（或者欢迎页）
     const stage = document.createElement('div');
     stage.className = 'paper rstage';
     const r = list.find((x) => x.p.id === selId);
@@ -373,13 +355,13 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
           ${r.badges ? `<div class="smedal"><span class="k">${tr('勋章', 'Medals')}</span><span class="bar"><i style="width:${Math.round((r.badges[0] / r.badges[1]) * 100)}%"></i></span><b>${r.badges[0]}/${r.badges[1]}</b></div>` : ''}
           <div class="acts main">${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}<button class="btn${main ? '' : ' on'}" data-act="detail">${tr('详情：勋章、好感度', 'Details: medals, affinity')}</button><button class="btn" data-act="find">${tr('去村里找', 'Find in village')}</button></div>
           <div class="acts"><button class="btn" data-act="edit">${tr('修改样子和资料', 'Edit look & profile')}</button>${p.met ? `<button class="btn" data-act="job">${tr('改行', 'Change job')}</button>` : ''}${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 提交', 'Submit via GitHub')}</button>` : ''}</div>
-          <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr('他还没提交过，删掉就没了。确定？', 'They were never submitted; this deletes them. Sure?') : tr('他会离开大家的村子（下次村子更新时）。确定？', 'They will leave the shared village at the next update. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
+          <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr('他还没提交过，删掉就没了。确定？', 'They were never submitted; this deletes them. Sure?') : tr('他会离开大家的村子（下次村子更新时），之后可以再建一个新居民。确定？', 'They will leave the shared village at the next update; then you can create a new resident. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
             : `<button class="btn danger small" data-act="leave">${tr('让他离村…', 'Leave village...')}</button>`}</div>
         </div>`;
       draw(stage.querySelector('.big-p .v'), p, 'front', 230);
       stage.dataset.id = p.id;
     }
-    hub.append(slots, stage);
+    hub.append(stage);
     box.append(hub, acctBox());
   };
   /**
@@ -459,7 +441,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     q('.foot .back').hidden = page === 'look' || !!changing;
     q('.foot .fwd').textContent = page === 'look' ? `${tr('下一步：填资料', 'Next: profile')} →` : `${tr('下一步：选营生', 'Next: work')} →`;
     q('.newonly .bring-h').hidden = q('.newonly .bring').hidden = q('.newonly .coin-h').hidden = q('.newonly .coin-f').hidden = !!editing; // 改的时候：本钱、带的东西不能改
-    q('.hint').textContent = page === 'mine' ? tr(`你在这台电脑上的居民（${residents().length}/${SLOTS}）：左边选一个，右边看他现在怎么样。建好、改好会自动提交到大家的村子，村子每小时更新一次。`, `Your residents on this computer (${residents().length}/${SLOTS}). Pick one on the left to see how they're doing. Creating or editing submits them to the shared village, which updates every hour.`)
+    q('.hint').textContent = page === 'mine' ? (residents().length ? tr('你在村里的居民（一个浏览器一个）。改好会自动提交到大家的村子，村子每小时更新一次。', 'Your resident in the village (one per browser). Edits are submitted to the shared village, which updates every hour.') : tr('你还没有自己的居民：建一个，他就住进大家的村子（一个浏览器一个）。', 'You have no resident yet. Create one to move into the shared village (one per browser).'))
       : page === 'done' ? ''
       : page === 'look' ? tr('先捏个样子：右边分组点选，也可以用人像底下的箭头一个个换；按住人拖动转着看，滚轮放大缩小', 'Shape their look: pick from the groups on the right, or step through with the arrows; drag to turn, scroll to zoom')
       : page === 'info' ? (editing ? tr('改好了点「保存修改」：这边马上换样子，也会自动提交到大家的村子', 'Press "Save changes": they change right away here and are submitted to the shared village') : tr('起个名字、说说会什么，再挑个住处', 'Give them a name, say what they can do'))
@@ -562,7 +544,8 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     /** 改样子、资料：p 是村里那个人。 */
     edit(p) { changing = null; editing = p; form = formOf(p); group = 0; part = 'build'; page = 'look'; sync(); open(); },
     /** 新建一个（which：直接到哪一页 / 哪一样，截图检查用）。 */
-    create(which = 'look') { changing = null; editing = null; if (made) { form = FORM0(); made = null; } if (PARTS.some((x) => x.key === which)) { group = Math.max(0, GROUPS.findIndex(([, , ks]) => ks.includes(which))); part = which; which = 'look'; } page = which; if (page === 'job') { const c = JOBS.find((j) => j.id === form.jobId)?.cat; if (c) cat = c; } sync(); open(); },
+    create(which = 'look') { if (residents().length) { api.mine(); return; } // 已经有自己的居民了：一个浏览器只能有一个
+      changing = null; editing = null; if (made) { form = FORM0(); made = null; } if (PARTS.some((x) => x.key === which)) { group = Math.max(0, GROUPS.findIndex(([, , ks]) => ks.includes(which))); part = which; which = 'look'; } page = which; if (page === 'job') { const c = JOBS.find((j) => j.id === form.jobId)?.cat; if (c) cat = c; } sync(); open(); },
     /** 左下角按钮：有自己的人先看「我的居民」，一个都没有直接新建。 */
     show(which) { if (which) { api.create(which); return; } changing = null; editing = null; leaveAsk = null; page = 'mine'; sync(); open(); }, // 一个都没有也先到「我的居民」：有「新建」那一格，也能用邮箱登录找回
     mine() { changing = null; editing = null; page = 'mine'; sync(); open(); },
