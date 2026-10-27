@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { buildVillage } from './village.js';
 import { BOUNDS } from './layout.js';
@@ -57,7 +56,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.shadowMap.autoUpdate = false; // 阴影隔一帧重画一次（每帧重画要把三百来个投影的东西再画一遍；人走得慢，看不出差别）
 renderer.xr.enabled = true;
-document.body.append(renderer.domElement, VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking'] })); // 手部追踪：双手捏合握住沙盘（xr.js）
+document.body.append(renderer.domElement); // 进入 VR 的按钮在设置里（下面 vrBtn）
 
 const scene = new THREE.Scene();
 let sky = skyTexture();
@@ -832,6 +831,31 @@ const langBtn = document.getElementById('lang'); // 设置里切中英文（记�
 if (langBtn) { langBtn.textContent = EN ? 'Language: English' : '语言：中文'; langBtn.title = EN ? '切换到中文' : 'Switch to English'; langBtn.addEventListener('click', (e) => { e.stopPropagation(); setLang(EN ? 'zh' : 'en'); }); }
 nextBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.next(); syncSoundBtn(); lastLabel = null; }); // 跳过这一首
 syncSoundBtn(); // 按钮上的字按当前语言写一遍
+// 进入 VR（设置里第一个）：先要 immersive-vr，不支持再试 immersive-ar（有的光学透视眼镜只给 AR）。
+// three 自带的 VRButton 进不去时什么都不说，这里把原因写在按钮下面。手部追踪：双手捏合握住沙盘（xr.js）
+const vrBtn = document.getElementById('vrBtn'), vrMsg = document.getElementById('vrMsg');
+const XR_INIT = { optionalFeatures: ['local-floor', 'bounded-floor', 'layers', 'hand-tracking'] };
+const vrSay = (msg) => { vrMsg.textContent = msg ?? ''; vrMsg.hidden = !msg; };
+const syncVR = () => { vrBtn.textContent = inXR() ? tr('退出 VR', 'Exit VR') : tr('进入 VR', 'Enter VR'); };
+vrBtn?.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (inXR()) { renderer.xr.getSession()?.end(); return; }
+  if (!navigator.xr) { vrSay(window.isSecureContext ? tr('这个浏览器不支持 WebXR。', 'This browser has no WebXR.') : tr('要用 https 打开才能进 VR。', 'Open the page over https to use VR.')); return; }
+  vrSay(tr('正在进入……', 'Starting...'));
+  let err = null;
+  for (const mode of ['immersive-vr', 'immersive-ar']) { // 直接要，不先问 isSessionSupported：多等一下，点击的「用户操作」就可能过期了
+    if (err && err.name !== 'NotSupportedError') break;
+    try {
+      const session = await navigator.xr.requestSession(mode, XR_INIT);
+      session.addEventListener('end', () => { syncVR(); }, { once: true });
+      await renderer.xr.setSession(session);
+      vrSay(null); syncVR(); showSettings(false);
+      return;
+    } catch (x) { err = x; }
+  }
+  vrSay(err.name === 'NotSupportedError' ? tr('没找到 VR 设备（眼镜连上了吗？连上后再点一次）。', 'No VR device found (is the headset connected? Try again once it is).') : tr(`进不去 VR：${err.name} ${err.message}`, `Could not enter VR: ${err.name} ${err.message}`));
+});
+if (vrBtn) syncVR();
 // 设置按钮：点一下往上弹出声音、音乐、季节，再点（或点场景）收起
 const settingsEl = document.getElementById('settings'), settingsBtn = document.getElementById('settingsBtn');
 const showSettings = (on) => { if (!settingsEl) return; settingsEl.hidden = !on; settingsBtn.classList.toggle('on', on); if (on) showDebug(false); };

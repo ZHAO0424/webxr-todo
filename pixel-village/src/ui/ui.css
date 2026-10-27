@@ -322,3 +322,5 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 #newcomer .mcards { display: block; } /* 里面是选角色界面（.hub）+ 账号条，不再是一格格卡片 */
 #newcomer .step[hidden], #newcomer .tabs .link[hidden] { display: none; } /* 修改时只有 ①② */
 #newcomer .hub { grid-template-columns: minmax(0, 1fr); min-height: 0; } /* 一个浏览器一个居民：不要左边的居民位 */
+#newcomer .hub .extra { display: flex; flex-wrap: wrap; align-items: center; gap: calc(2 * var(--p)); padding: calc(2 * var(--p)) calc(3 * var(--p)); }
+#newcomer .hub .extra .dim { flex: 1 1 100%; color: var(--gold); }

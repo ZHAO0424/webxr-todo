@@ -35,6 +35,7 @@
     #settings { position: absolute; left: 0; bottom: calc(100% + 3 * var(--p)); display: flex; flex-direction: column; gap: calc(3 * var(--p)); padding: calc(3 * var(--p)); }
     #settings[hidden] { display: none; }
     #settings .btn { text-align: left; white-space: nowrap; }
+    #vrMsg { max-width: calc(220 * var(--f)); color: var(--gold); white-space: normal; } /* 进不去 VR 的原因 */
     #debug { position: absolute; left: 0; bottom: calc(100% + 3 * var(--p)); padding: calc(3 * var(--p)) calc(4 * var(--p)); white-space: pre; line-height: calc(14 * var(--f)); min-width: calc(110 * var(--p)); }
     #debug[hidden] { display: none; }
     #debug b { color: var(--gold); font-weight: normal; }
@@ -47,7 +48,7 @@
     /* 村民档案：页面里的横板大卡，四边各留一点，和屏幕一样的比例（版式参考星露谷的村民关系页、牧场物语的村民资料页） */
     #roster { position: fixed; inset: 6vh 5vw; display: flex; flex-direction: column; gap: calc(3 * var(--p)); z-index: 5; }
     #roster[hidden] { display: none; }
-    body.roster-open #clock, body.roster-open #card, body.roster-open .scene-nav, body.roster-open #VRButton { visibility: hidden; } /* 档案打开时右上角日期栏、卡片、换场景按钮先藏起来 */
+    body.roster-open #clock, body.roster-open #card, body.roster-open .scene-nav { visibility: hidden; } /* 档案打开时右上角日期栏、卡片、换场景按钮先藏起来 */
     #roster [hidden] { display: none !important; }
     #roster .rhead { display: flex; align-items: center; flex-wrap: wrap; gap: calc(2 * var(--p)); padding-right: calc(10 * var(--p)); }
     #roster .rhead .title { color: var(--gold); margin-right: calc(3 * var(--p)); font-family: 'PixelZh', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
@@ -413,7 +414,7 @@
     loader.set(0.02, PV_EN ? 'Downloading...' : '正在下载…', 0.35, 6000);
   </script>
   <div id="hint">
-    <div id="settings" class="dark px" hidden><button id="sound" class="btn">声音：关</button><button id="music" class="btn">音乐：关</button><button id="nextTrack" class="btn">下一首</button><button id="lang" class="btn">语言：中文</button><button id="debugBtn" class="btn">调试</button></div>
+    <div id="settings" class="dark px" hidden><button id="vrBtn" class="btn">进入 VR</button><div id="vrMsg" hidden></div><button id="sound" class="btn">声音：关</button><button id="music" class="btn">音乐：关</button><button id="nextTrack" class="btn">下一首</button><button id="lang" class="btn">语言：中文</button><button id="debugBtn" class="btn">调试</button></div>
     <div id="debug" class="dark px" hidden></div>
     <div class="bar px"><button id="settingsBtn" class="btn">设置</button><button id="rosterBtn" class="btn">村民档案</button><button id="newBtn" class="btn">创建居民</button></div>
   </div>

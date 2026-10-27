@@ -361,6 +361,13 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       draw(stage.querySelector('.big-p .v'), p, 'front', 230);
       stage.dataset.id = p.id;
     }
+    if (list.length > SLOTS) { // 旧版能建好几个：现在只能留一个，让玩家挑出多余的删掉
+      const pick = document.createElement('div');
+      pick.className = 'paper extra';
+      pick.innerHTML = `<span class="dim">${tr(`这个浏览器上有 ${list.length} 个居民（以前建的），现在只能留一个。选中多余的，点右下角「让他离村」：`, `This browser has ${list.length} residents from before; only one is allowed now. Pick the extra one and use "Leave village":`)}</span>
+        ${list.map((x) => `<button class="btn${x.p.id === selId ? ' on' : ''}" data-sel="${esc(x.p.id)}">${esc(pName(x.p))}</button>`).join('')}`;
+      hub.append(pick);
+    }
     hub.append(stage);
     box.append(hub, acctBox());
   };
