@@ -242,7 +242,7 @@ function hair(g, p, H, view) {
   if (style === 'twinbuns') for (const bx of [x0, x0 + w - 3]) { g.rect(bx, y0 - 2, 3, 3, r[1]); g.px(bx + 1, y0 - 2, r[2]); } // 双丫髻
   if (style === 'long') { g.vline(x0 - 1, side, side + 4, r[1]); g.vline(x0 + w, side, side + 4, r[1]); } // 披发：垂到肩上
   if (style === 'bun') { g.rect(CX - 2, y0 - 2, 5, 3, r[1]); g.hline(CX - 1, CX + 1, y0 - 2, r[2]); g.px(CX + 2, y0 - 1, R.gold[3]); } // 发髻 + 簪
-  if (style === 'braids') { // 两条辫子 + 红头绳
+  if (style === 'braids' && !p.carve) { // 两条辫子 + 红头绳
     for (const sx of [x0 - 1, x0 + w]) { g.vline(sx, side, side + 9, r[1]); g.px(sx, side + 10, R.red[3]); g.px(sx, side + 11, R.red[2]); }
   }
   if (back) {
@@ -252,8 +252,8 @@ function hair(g, p, H, view) {
     }
     if (style === 'short' || style === 'white') g.hline(x0 + 1, x0 + w - 2, y0 + h - 1, R[p.skin][2]);
     if (style === 'bun') { g.rect(CX - 2, y0 + 1, 5, 3, r[0]); g.hline(CX - 1, CX + 1, y0 + 1, r[2]); }
-    if (style === 'queue') { g.vline(CX, y0 + h - 1, y0 + h + 9, r[1]); g.vline(CX + 1, y0 + h - 1, y0 + h + 7, r[2]); g.px(CX, y0 + h + 10, R.red[2]); } // 长辫：从后脑垂到腰
-    if (style === 'ponytail') { g.rect(CX - 1, y0 + h - 2, 3, 6, r[1]); g.px(CX, y0 + h - 3, R.red[3]); } // 马尾：后脑扎一把
+    if (style === 'queue' && !p.carve) { g.vline(CX, y0 + h - 1, y0 + h + 9, r[1]); g.vline(CX + 1, y0 + h - 1, y0 + h + 7, r[2]); g.px(CX, y0 + h + 10, R.red[2]); } // 长辫：从后脑垂到腰
+    if (style === 'ponytail' && !p.carve) { g.rect(CX - 1, y0 + h - 2, 3, 6, r[1]); g.px(CX, y0 + h - 3, R.red[3]); } // 马尾：后脑扎一把
     if (style === 'long' || style === 'fringe') g.rect(x0, y0 + h - 1, w, style === 'long' ? 4 : 2, r[1]); // 披发、齐刘海：后面垂过脖子
   }
 }
@@ -458,7 +458,8 @@ function outer(g, p, b, L, view) {
 function accessory(g, p, b, L, view) {
   const a = p.acc, x0 = CX - Math.floor(b.torsoW / 2), w = b.torsoW, y0 = L.torsoTop, h = b.torsoH;
   if (!a) return;
-  if (a === 'dalian') for (let j = 0; j < 6; j++) for (let i = 0; i < 3; i++) g.px(x0 + 1 + i, y0 + j - 1, j === 5 ? R.khaki[1] : j % 2 ? R.red[2] : R.khaki[3]); // 褡裢：红道道的长布袋，前后各耷拉一截
+  const mx = (x, wd = 1) => view === 'back' ? 2 * CX - x - (wd - 1) : x; // 背面是从后面看：左右反过来，挂在同一边
+  if (a === 'dalian') for (let j = 0; j < 6; j++) for (let i = 0; i < 3; i++) g.px(mx(x0 + 1 + i), y0 + j - 1, j === 5 ? R.khaki[1] : j % 2 ? R.red[2] : R.khaki[3]); // 褡裢：红道道的长布袋，前后各耷拉一截
   if (a === 'satchel') { // 军挎包：一根带子斜挎，左胯一个草绿布包，盖上一颗红五星
     if (view === 'front') g.line(x0 + w - 2, y0, x0 + 1, y0 + h - 3, R.khaki[2]); else g.line(x0 + 1, y0, x0 + w - 2, y0 + h - 3, R.khaki[2]);
     const bx = view === 'front' ? x0 - 2 : x0 + w - 2;
@@ -469,20 +470,21 @@ function accessory(g, p, b, L, view) {
     g.rect(CX - 4, y0 - 1, 9, 2, R.red[2]); for (let i = -4; i <= 4; i += 2) g.px(CX + i, y0, R.red[3]);
     if (view === 'front') { g.rect(x0 + 2, y0 + 1, 2, 4, R.red[2]); g.px(x0 + 2, y0 + 5, R.red[1]); g.px(x0 + 3, y0 + 5, R.red[3]); }
   }
-  if (a === 'towel') { g.rect(x0 + w - 3, y0 - 1, 4, 2, R.white[3]); g.rect(x0 + w - 2, y0 + 1, 2, 4, R.white[3]); g.hline(x0 + w - 2, x0 + w - 1, y0 + 3, R.blue[3]); } // 白毛巾搭在右肩，一道蓝边
+  if (a === 'towel') { g.rect(mx(x0 + w - 3, 4), y0 - 1, 4, 2, R.white[3]); g.rect(mx(x0 + w - 2, 2), y0 + 1, 2, 4, R.white[3]); g.hline(mx(x0 + w - 2), mx(x0 + w - 1), y0 + 3, R.blue[3]); } // 白毛巾搭在右肩，一道蓝边
   if (a === 'lock' && view === 'front') { g.px(CX - 2, y0 + 1, R.grey[3]); g.px(CX + 2, y0 + 1, R.grey[3]); g.px(CX - 1, y0 + 2, R.grey[3]); g.px(CX + 1, y0 + 2, R.grey[3]); g.rect(CX - 1, y0 + 3, 3, 2, R.grey[4]); g.px(CX, y0 + 4, R.grey[2]); g.px(CX, y0 + 5, R.red[3]); } // 长命锁：银锁 + 红穗
   if (a === 'redscarf') { // 红领巾：前面一个结两根尖，背后一个三角
     if (view === 'front') { g.hline(CX - 2, CX + 2, y0, R.red[3]); g.rect(CX - 1, y0 + 1, 3, 1, R.red[2]); g.px(CX - 1, y0 + 2, R.red[3]); g.px(CX + 1, y0 + 2, R.red[3]); g.px(CX - 2, y0 + 3, R.red[2]); g.px(CX + 2, y0 + 3, R.red[2]); }
     else { g.hline(CX - 2, CX + 2, y0, R.red[3]); g.hline(CX - 1, CX + 1, y0 + 1, R.red[2]); g.px(CX, y0 + 2, R.red[2]); }
   }
-  if (a === 'pipe') { g.vline(x0 + w - 1, y0 + h - 5, y0 + h, R.wood[3]); g.px(x0 + w - 1, y0 + h - 6, R.gold[3]); g.rect(x0 + w - 2, y0 + h, 2, 2, R.brown[2]); g.px(x0 + w - 2, y0 + h, R.red[2]); } // 烟袋锅：铜锅、长杆、烟荷包
+  if (a === 'pipe') { g.vline(mx(x0 + w - 1), y0 + h - 5, y0 + h, R.wood[3]); g.px(mx(x0 + w - 1), y0 + h - 6, R.gold[3]); g.rect(mx(x0 + w - 2, 2), y0 + h, 2, 2, R.brown[2]); g.px(mx(x0 + w - 2), y0 + h, R.red[2]); } // 烟袋锅：铜锅、长杆、烟荷包
   if (a === 'beads' && view === 'front') [[-3, 1], [-3, 2], [-2, 3], [-1, 4], [0, 4], [1, 4], [2, 3], [3, 2], [3, 1]].forEach(([dx, dy], i) => g.px(CX + dx, y0 + dy, i % 2 ? R.redwood[3] : R.wood[3])); // 念珠
 }
 
 /** 眼镜：两个圆框 + 鼻梁（画在脸上，帽子下面）。 */
 function glasses(g, p, H, view) {
-  if (p.acc !== 'glasses' || view !== 'front') return;
-  const c = R.black[1];
+  if ((p.acc !== 'glasses' && p.acc !== 'shades') || view !== 'front') return;
+  const c = p.acc === 'shades' ? R.black[1] : R.gold[2]; // 眼镜：铜丝圆框，看得见眼睛；墨镜：黑的
+  if (p.acc === 'shades') { for (const ex of [CX - 3, CX + 3]) { g.rect(ex - 1, H.ey - 1, 3, 2, R.black[0]); g.px(ex - 1, H.ey - 1, R.slate[3]); } g.hline(CX - 1, CX + 1, H.ey - 1, c); return; } // 墨镜：两片纯黑镜片，左上角一点反光
   for (const ex of [CX - 3, CX + 3]) { g.vline(ex - 1, H.ey - 1, H.ey, c); g.vline(ex + 1, H.ey - 1, H.ey, c); g.px(ex, H.ey + 1, c); g.px(ex, H.ey - 2, c); }
   g.px(CX - 1, H.ey - 1, c); g.px(CX, H.ey - 1, c); g.px(CX + 1, H.ey - 1, c);
 }
@@ -811,14 +813,17 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
     for (let j = 3; j < ey - hy0; j++) for (let i = 0; i < hw - 4; i++) g.px(hx0 + i, hy0 + j, j === 3 && i > hw - 6 ? r[2] : r[1]); // 两鬓：盖到耳朵上面
     const long = p.hair !== 'short';
     for (let j = ey - hy0; j < ey - hy0 + (long ? 4 : 2); j++) for (let i = 0; i < (long ? 4 : 3); i++) g.px(hx0 + i, hy0 + j, r[1]); // 后脑勺；长头发再往下盖过耳朵
-    if (p.hair === 'bun') g.rect(hx0 - 2, hy0 + 1, 3, 3, r[1]);
-    if (p.hair === 'braids') { g.vline(hx0, hy0 + 6, hy0 + 15, r[1]); g.px(hx0, hy0 + 16, R.red[3]); }
-    if (p.hair === 'queue') { g.vline(hx0 - 1, ey, ey + 12, r[1]); g.px(hx0 - 1, ey + 13, R.red[2]); }
-    if (p.hair === 'ponytail') { g.rect(hx0 - 2, ey - 2, 2, 5, r[1]); }
+    if (!p.carve) { // 侧面伸到后脑勺外面的（雕 3D 时交叉出一整块，所以 3D 里单独搭）
+      if (p.hair === 'bun') g.rect(hx0 - 2, hy0 + 1, 3, 3, r[1]);
+      if (p.hair === 'braids') { g.vline(hx0, hy0 + 6, hy0 + 15, r[1]); g.px(hx0, hy0 + 16, R.red[3]); }
+      if (p.hair === 'queue') { g.vline(hx0 - 1, ey, ey + 12, r[1]); g.px(hx0 - 1, ey + 13, R.red[2]); }
+      if (p.hair === 'ponytail') { g.rect(hx0 - 2, ey - 2, 2, 5, r[1]); }
+    }
     if (p.hair === 'topknot') g.rect(hx0 + 3, hy0 - 2, 3, 2, r[1]);
     if (p.hair === 'twinbuns') g.rect(hx0 + 1, hy0 - 2, 3, 3, r[1]);
     if (p.hair === 'long') g.rect(hx0, ey + 2, 3, 4, r[1]);
   }
+  if (p.acc === 'glasses' || p.acc === 'shades') { g.hline(hx0 + 3, hx0 + hw - 2, ey - 1, p.acc === 'shades' ? R.black[1] : R.gold[2]); if (p.acc === 'shades') g.rect(hx0 + hw - 2, ey - 1, 2, 2, R.black[0]); } // 眼镜腿（墨镜侧面也看得见镜片）
   const H = { x0: hx0, y0: hy0, w: hw, h: hh, ey };
   hat(g, p, H, 'side');
   // 近侧手臂：随步伐前后摆
@@ -830,6 +835,7 @@ function sideView(g, p, b, pose, { item = true, nose = true } = {}) {
   }
   const hand = { x: ax, y: armTop + b.torsoH - 2 };
   g.rect(hand.x, hand.y, 2, 2, S[3]);
+  if (p.style === 'cape') { const C = R[p.top], ty = L.torsoTop, tx0 = CX - 3, tw = 7, knee = L.legTop + Math.ceil(b.legH * 0.55); for (let y = ty; y <= knee; y++) { const back = Math.floor((y - ty) / 3); for (let x = tx0 - back; x < tx0 + tw; x++) g.px(x, y, C[x === tx0 - back ? 1 : 2]); } } // 斗篷罩在胳膊外面（侧面不露手）
   if (item && p.item && ITEMS[p.item] && !['cane', 'kite'].includes(p.item)) ITEMS[p.item](g, hand, 0, 'side');
   if (item && p.item === 'cane') ITEMS.cane(g, { x: hand.x + 1, y: hand.y }, 0);
 }
@@ -921,7 +927,7 @@ export function characterAtlas(p) {
  * voxel.js 用它们做"视觉外壳雕刻"：正面轮廓 ∩ 侧面轮廓 = 人的体积，表面取对应视角的像素颜色。
  */
 export function restViews(p) {
-  p = dress(p);
+  p = { ...dress(p), carve: true }; // carve：给体素雕刻用，伸出头外的辫子、马尾、发髻不画（3D 里单独搭）
   const b = bodyOf(p);
   const front = frontOrBack(p, b, 'front', IDLE[0], 0, { item: false });
   const back = frontOrBack(p, b, 'back', IDLE[0], 0, { item: false });

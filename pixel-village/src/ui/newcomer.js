@@ -36,7 +36,7 @@ const PARTS = [
   { key: 'skin', name: '肤色', show: 'swatch', list: [['skin', '白净'], ['skinTan', '黝黑']] },
   { key: 'face', name: '脸面', show: 'head', list: [['', '平常'], ['beard', '山羊胡'], ['mustache', '八字胡'], ['blush', '红脸蛋'], ['smile', '笑模样']] },
   { key: 'legwrap', name: '绑腿', show: 'legs', list: [['', '不打'], ['1', '打绑腿']] },
-  { key: 'extra', name: '配饰', show: 'body', list: [['', '不戴'], ['apron:indigo', '围裙'], ['sash:red', '红腰带'], ['acc:dalian', '褡裢'], ['acc:satchel', '军挎包'], ['acc:scarf', '围巾'], ['acc:towel', '毛巾搭肩'], ['acc:lock', '长命锁'], ['acc:redscarf', '红领巾'], ['acc:beads', '念珠'], ['acc:pipe', '烟袋'], ['acc:glasses', '眼镜']] },
+  { key: 'extra', name: '配饰', show: 'body', list: [['', '不戴'], ['apron:indigo', '围裙'], ['sash:red', '红腰带'], ['acc:dalian', '褡裢'], ['acc:satchel', '军挎包'], ['acc:scarf', '围巾'], ['acc:towel', '毛巾搭肩'], ['acc:lock', '长命锁'], ['acc:redscarf', '红领巾'], ['acc:beads', '念珠'], ['acc:pipe', '烟袋'], ['acc:glasses', '眼镜'], ['acc:shades', '墨镜']] },
 ];
 /** 外观分四组，一组一页。 */
 const GROUPS = [['身形', ['build', 'skin']], ['头脸', ['hair', 'hairRamp', 'hat', 'face']], ['衣裳', ['style', 'top', 'pattern', 'pants']], ['配饰', ['extra', 'legwrap']]];

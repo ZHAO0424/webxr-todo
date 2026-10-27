@@ -178,19 +178,59 @@ export function voxelCharacter(p, M) {
     if (iy >= legStart) return ix < CX ? 'legL' : 'legR';
     return 'body';
   };
+  // 头发的立体部分：后脑勺鼓出来一层（不再是平的、横着截断）、马尾往后翘、长辫垂到腰、两条辫子从耳边搭到胸前、发髻、披发垂过肩。
+  // 单独搭，不靠正面、侧面两张图交叉雕（交叉雕的话，侧面图里伸到后背外面的辫子会和正面图的上身交出一整块"衣服"）
+  const hv = new Map(); // 并进身子那块网格里一起画（单独一个网格的话，每个梳辫子的人多一个 draw call）
+  {
+    const put = (x, y, z, c) => hv.set(`${x},${y},${z}`, c);
+    const r = R[p.hairRamp ?? 'hair'], st = p.hair, covered = ['scarf', 'veil', 'furcap'].includes(p.hat);
+    const hw = b.headW, hh = b.headH, hx = -Math.floor(hw / 2), top = FEET - L.headTop, ey = top - Math.floor(hh * 0.55);
+    const waist = FEET - (L.torsoTop + b.torsoH), chest = FEET - L.torsoTop;
+    const BK = -6; // 后脑勺外面那一层（侧面图里后脑勺在 z = -5）
+    const shade = (x, y) => ((x + y) % 3 ? r[1] : r[2]);
+    if (!['shaved', 'tuft', 'crew'].includes(st) && !covered) {
+      const low = ['short', 'part', 'queue', 'topknot'].includes(st) ? ey - 1 : st === 'long' ? top - hh + 1 : ey - 3;
+      for (let y = top - 1; y >= low; y--) for (let x = hx + 1; x <= hx + hw - 2; x++) if (!((y === top - 1 || y === low) && (x === hx + 1 || x === hx + hw - 2))) put(x, y, BK, shade(x, y));
+      if (st === 'long') for (let y = top - hh; y >= chest - 3; y--) for (let x = hx + 2; x <= hx + hw - 3; x++) put(x, y, -4, y === chest - 3 && (x % 2) ? r[2] : shade(x, y)); // 披发：垂过脖子，搭在背上
+    }
+    if (st === 'ponytail') { // 马尾：后脑扎一把，往后翘出去再垂下来
+      for (let y = ey + 1; y >= ey - 1; y--) for (let x = -1; x <= 1; x++) put(x, y, -7, shade(x, y));
+      for (let x = -1; x <= 1; x++) put(x, ey + 1, -8, r[2]);
+      put(0, ey + 2, -7, R.red[3]); put(0, ey + 2, -6, R.red[3]);
+      for (let k = 0; k < 7; k++) { const z = k < 2 ? -8 : k < 5 ? -7 : -6; for (let x = 0; x < (k < 4 ? 2 : 1); x++) put(x, ey - 2 - k, z, (x + k) % 2 ? r[2] : r[1]); }
+    }
+    if (st === 'queue') { // 长辫：后脑勺垂下来，贴着后背到腰，辫梢红头绳
+      for (let y = ey - 2; y >= waist; y--) { const z = y > top - hh ? BK : -4; put(0, y, z, (y % 2) ? r[1] : r[2]); put(1, y, z, (y % 2) ? r[2] : r[1]); }
+      put(0, waist - 1, -4, R.red[2]); put(1, waist - 1, -4, R.red[3]); put(0, waist - 2, -4, R.red[2]);
+    }
+    if (st === 'braids') { // 两条辫子：从耳边垂下来，搭在胸前，辫梢红头绳
+      const cx = Math.floor(b.torsoW / 2) - 1;
+      for (const sx of [-1, 1]) {
+        const ex = sx < 0 ? hx - 1 : hx + hw;
+        for (let y = ey; y > top - hh; y--) put(ex, y, 0, (y % 2) ? r[1] : r[2]);
+        put(ex - sx, top - hh, 1, r[1]); put(ex - sx, top - hh, 2, r[1]); // 绕过肩膀搭到前面
+        for (let y = top - hh - 1; y >= chest - 6; y--) put(sx * cx, y, 4, (y % 2) ? r[1] : r[2]);
+        put(sx * cx, chest - 7, 4, R.red[3]); put(sx * cx, chest - 8, 4, R.red[2]);
+      }
+    }
+    if (st === 'bun' && !covered) { for (let y = top - 1; y >= top - 3; y--) for (let x = -2; x <= 2; x++) for (const z of [-7, -8]) if (!(z === -8 && (Math.abs(x) === 2 || y !== top - 2))) put(x, y, z, shade(x, y)); put(3, top - 2, -7, R.gold[3]); } // 发髻挽在后脑勺上，插一根簪
+  }
   const solidFor = (name) => (x, y, z) => {
+    if (name === 'body' && hv.has(`${x},${y},${z}`)) return true;
     const ix = x + CX, iy = FEET - y;
     if (part(ix, iy) !== name) return false;
     if (name.startsWith('arm')) return z === -1 || z === 0; // 胳膊 2 像素厚
     return !!at(S, z + CX, iy);
   };
   const colorFor = (x, y, z, f) => {
+    const hc = hv.get(`${x},${y},${z}`);
+    if (hc) return hc;
     const ix = x + CX, iy = FEET - y;
     if (f === FACE.nz) return at(K, ix, iy) ?? at(F, ix, iy);
     if ((f === FACE.px || f === FACE.nx) && !isArm(ix, iy)) return at(S, z + CX, iy) ?? at(F, ix, iy);
     return at(F, ix, iy);
   };
-  const box = [[-CX, 0, -CX], [CX, FEET + 1, CX]];
+  const box = [[-CX, 0, -CX], [CX, FEET + 8, CX]];
   const build = (name, pivotY = 0) => {
     const geo = voxelGeometry(box[0], box[1], solidFor(name), colorFor, VOX, [0, -pivotY * VOX, 0]);
     const g = new THREE.Group();
