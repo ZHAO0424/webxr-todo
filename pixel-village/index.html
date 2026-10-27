@@ -149,10 +149,11 @@
     /* 立绘：竖着的框，人站在地上；两边一对大箭头；底下一块木牌 */
     #newcomer .pcol { display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--p)); }
     #newcomer .stagebox { display: flex; align-items: center; gap: calc(3 * var(--p)); }
-    #newcomer .portrait { background: linear-gradient(#7d9bab, #b9c9c4 76%, #8a7350 76%, #6b5638); display: grid; place-items: end center; overflow: hidden;
+    #newcomer .portrait { background: radial-gradient(ellipse 34% 4% at 50% 96.5%, rgba(74, 50, 28, .45), rgba(74, 50, 28, 0)), radial-gradient(ellipse 90% 70% at 50% 38%, #f4e8c8, #e4cf9f 58%, #c9ab77); /* 暖色画纸 + 脚下一团影子 */
+                          display: grid; place-items: end center; overflow: hidden;
                           box-shadow: 0 0 0 var(--f) var(--ink), 0 0 0 calc(4 * var(--f)) #7a6448, 0 0 0 calc(5 * var(--f)) var(--ink), inset 0 calc(2 * var(--f)) 0 rgba(0, 0, 0, .25); margin: calc(5 * var(--f)); } /* 木头画框 */
-    #newcomer .portrait.big { width: calc(196 * var(--f)); height: calc(320 * var(--f)); padding-bottom: calc(22 * var(--f)); }
-    #newcomer .portrait.small { width: calc(150 * var(--f)); height: calc(244 * var(--f)); padding-bottom: calc(16 * var(--f)); }
+    #newcomer .portrait.big { width: calc(196 * var(--f)); height: calc(320 * var(--f)); padding-bottom: calc(10 * var(--f)); }
+    #newcomer .portrait.small { width: calc(150 * var(--f)); height: calc(244 * var(--f)); padding-bottom: calc(8 * var(--f)); }
     #newcomer .portrait canvas { display: block; image-rendering: pixelated; }
     #newcomer .arr { width: calc(40 * var(--f)); height: calc(56 * var(--f)); padding: 0; font-size: calc(16 * var(--f)); }
     #newcomer .plaque { min-width: calc(196 * var(--f)); padding: var(--p) calc(4 * var(--p)); background: #5a442c; box-shadow: 0 0 0 var(--f) var(--ink), inset 0 var(--f) 0 #8a6a44, inset 0 calc(-2 * var(--f)) 0 #3c2c1c;
@@ -177,6 +178,9 @@
     #newcomer .in::placeholder { color: #7d6d58; }
     #newcomer input[type=range].in { padding: 0; height: calc(28 * var(--f)); accent-color: var(--gold); background: none; box-shadow: none; }
     #newcomer .chips { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); }
+    #newcomer .homes .sub { color: var(--dim); }
+    #newcomer .homes .pick { margin-top: calc(2 * var(--p)); padding: calc(2 * var(--p)) calc(4 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--line); }
+    #newcomer .homes .pick b { color: var(--gold); margin: 0 calc(2 * var(--f)); }
     #newcomer .chips .sub { flex-basis: 100%; margin: calc(2 * var(--p)) 0 0; color: var(--dim); }
     #newcomer .chipbtn { padding: 0 calc(4 * var(--p)); line-height: calc(28 * var(--f)); }
     #newcomer .chipbtn[disabled] { opacity: .45; cursor: default; }

@@ -9,7 +9,7 @@ import { GOODS } from '../life/economy.js';
  *      右边「基本」（男女、年纪）和「外观」一格格按钮（身材、头发、发色、帽子、衣裳、样式、裤子、肤色、脸面、绑腿、配饰，格子上写着现在选的），
  *      点哪一格，两边的箭头就换哪一样（同一套箭头）
  *   ② 资料：左边还是立绘框（小一点）和名牌；中间名字、会什么、性格、喜欢、来历；右边住哪儿、带什么来、本钱
- *      住哪儿：让他自己找 / 借住在哪一家（看那家几口人）/ 老村址的一处老宅
+ *      住哪儿：不用选——进村时自己找（老村址空着的老宅优先，挑会什么、什么性子、喜欢什么合得来的；都住满了才借住人家），这里只写他会看中哪处
  *   ③ 营生：左边一格格营生（像背包格子：每格画着这一行的家伙，下面名字、一天约挣几文，正缺 / 对口的角上标出来），
  *      右边详细（大图标、干什么、在哪儿干、谁买、要置办、四季旺淡）；也可以「先不定」
  * 底下一条底栏：上一步 / 下一步 / 进村。点「进村」，他从村口的桥上走进来，先挨家认人，再按选的营生开张（life/newcomers.js）。
@@ -37,7 +37,7 @@ const PARTS = [
 const BRING = [['grain', 10], ['flour', 5], ['cloth', 10], ['wood', 5]];
 const PAGES = ['look', 'info', 'job'];
 
-export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, plots = () => [] }) {
+export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pickHome = () => null }) {
   el.className = 'panel px';
   el.id = 'newcomer';
   el.hidden = true;
@@ -85,7 +85,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pl
         <textarea class="in wide" data-f="bio" maxlength="80" rows="2" placeholder="一两句来历（可以不填），比如 山外胡家庄人，家里的磨坊叫水冲了，出来找营生"></textarea>
       </div>
       <div class="paper box">
-        <h3>住哪儿</h3><div class="chips homes"></div>
+        <h3>住哪儿<small>他自己找</small></h3><div class="homes"></div>
         <h3>带着什么来</h3><div class="chips">${chips('bring', BRING.map(([g, q]) => [g, `${GOODS[g].name} ${q}${GOODS[g].unit}`]))}</div>
         <h3>本钱</h3>
         <div class="field nok"><input class="in" data-f="coins" type="range" min="0" max="200" step="10" value="80"><span class="val"><b class="coinv">80</b> 文</span></div>
@@ -118,12 +118,23 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pl
       hair: f.hair, hairRamp: f.hairRamp === 'hair' ? undefined : f.hairRamp, hat: f.hat || undefined, top: f.top, style: f.style || undefined, pants: f.pants, skin: f.skin,
       beard: f.beard || undefined, mustache: f.mustache || undefined, blush: f.blush || undefined, smile: f.smile || undefined, legwrap: f.legwrap || undefined,
       apron: ek === 'apron' ? ev : undefined, sash: ek === 'sash' ? ev : undefined,
-      coins: f.coins, goods: Object.fromEntries(BRING.filter(([g]) => f.bring.has(g))), home: f.home || undefined,
+      coins: f.coins, goods: Object.fromEntries(BRING.filter(([g]) => f.bring.has(g))),
       jobId: f.jobId || undefined, jobPicked: !!f.jobId || undefined,
     };
   };
-  const draw = (box, p, view, k, withItem = false) => { try { const c = previewCanvas(p, view, 1, withItem); c.style.width = `calc(${24 * k} * var(--f))`; box.replaceChildren(c); } catch { box.textContent = ''; } };
-  const views = () => { const p = person(); draw(q('.portrait.big .v'), p, 'front', 7); draw(q('.portrait.small .v'), p, 'front', 5); };
+  /** 裁掉立绘四周的空白（只留人），这样放大以后人几乎占满画框。 */
+  const crop = (c) => {
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    if (x1 < 0) return c;
+    const o = document.createElement('canvas');
+    o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+    o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+    return o;
+  };
+  const draw = (box, p, view, h, withItem = false) => { try { const c = crop(previewCanvas(p, view, 1, withItem)); c.style.height = `calc(${h} * var(--f))`; c.style.width = 'auto'; box.replaceChildren(c); } catch { box.textContent = ''; } }; // h：人有多高（画框高的九成多）
+  const views = () => { const p = person(); draw(q('.portrait.big .v'), p, 'front', 296); draw(q('.portrait.small .v'), p, 'front', 224); };
   /** 一类现在选的是第几个（脸面是几样里挑一样：山羊胡、八字胡……）。 */
   const valueOf = (P) => P.key === 'face' ? (['beard', 'mustache', 'blush', 'smile'].find((k) => form[k]) ?? '') : P.key === 'legwrap' ? (form.legwrap ? '1' : '') : String(form[P.key]);
   const setValue = (P, v) => {
@@ -138,13 +149,13 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pl
     el.querySelectorAll('.ptab').forEach((b) => { const Q = PARTS.find((x) => x.key === b.dataset.part); b.querySelector('i').textContent = Q.list.find(([v]) => v === valueOf(Q))?.[1] ?? Q.list[0][1]; });
   };
   const step = (d) => { const P = PARTS.find((x) => x.key === part), i = Math.max(0, P.list.findIndex(([v]) => v === valueOf(P))); setValue(P, P.list[(i + d + P.list.length) % P.list.length][0]); sync(); };
-  const homeChips = () => {
-    const list = homes();
-    const old = plots();
-    q('.homes').innerHTML = [`<button class="btn chipbtn" data-k="home" data-v="">让他自己找</button>`, ...list.map((h) => `<button class="btn chipbtn" data-k="home" data-v="${esc(h.id)}">借住${esc(h.name)}（${h.n} 口人）</button>`)].join('')
-      + `<div class="sub">老村址的空房子：往东，大水以后没人住的老宅。住进去不交房钱，攒够石灰、条石和柴就能请葛石头帮着修</div>`
-      + old.map((h) => `<button class="btn chipbtn" data-k="home" data-v="${esc(h.id)}"${h.taken ? ' disabled' : ''} title="${esc(h.story)}">${esc(h.name)}（${h.taken ? `${esc(h.taken)}住着` : esc(h.state)}）</button>`).join('');
+  const homeChips = () => { // 按现在填的会什么、性格、喜好，他会看中哪处
+    const o = pickHome(person());
+    const host = homes()[0];
+    q('.homes').innerHTML = `<div class="sub">进村以后自己找：老村址空着的老宅优先（不交房钱，攒够料请葛石头来修），挑和自己合得来的；都有人住了才借住人家。</div>`
+      + (o ? `<div class="pick">按现在填的，他会看中<b>${esc(o.who)}老宅</b>：${esc(o.why)}</div>` : `<div class="pick">老宅都有人住了，他会借住<b>${esc(host?.name ?? '村里人家')}</b></div>`);
   };
+
   /** 一样家伙的图标（缓存起来：切一下分类就重画太慢）。 */
   const icons = new Map();
   const icon = (job, px) => {
@@ -157,6 +168,8 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pl
     c.getContext('2d').drawImage(src, 0, 0);
     return c;
   };
+  /** 图标按原来的长宽比放进 n×n（随界面缩放）的方框里：格子四周留出空隙，不拉伸、不顶满。 */
+  const fit = (c, n) => { const k = n / Math.max(c.width, c.height); c.style.width = `calc(${(c.width * k).toFixed(1)} * var(--f))`; c.style.height = `calc(${(c.height * k).toFixed(1)} * var(--f))`; };
   const seasonBar = (j) => ['spring', 'summer', 'autumn', 'winter'].map((s, i) => { const v = j.season[s], lv = v >= 1.2 ? 'hi' : v <= 0.6 ? 'lo' : 'mid'; return `<span class="sz ${lv}"><b>${'春夏秋冬'[i]}</b>${lv === 'hi' ? '旺' : lv === 'lo' ? '淡' : '平'}</span>`; }).join('');
   /** ③ 营生：左边这一类的格子——每格画着这一行的家伙、名字、一天约挣几文，角上标正缺 / 对口；右边选中那一行的详细。 */
   const jobCards = () => {
@@ -173,7 +186,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pl
       if (cur) b.disabled = true;
       const slot = Object.assign(document.createElement('span'), { className: 'slot' });
       const c = icon(job, 56);
-      if (c) slot.append(c);
+      if (c) { fit(c, 44); slot.append(c); }
       if (r.short || r.match) slot.append(Object.assign(document.createElement('i'), { className: `tag ${r.short ? 'short' : 'match'}`, textContent: r.short ? '缺' : '对口' }));
       b.append(slot, Object.assign(document.createElement('span'), { className: 'jt', innerHTML: `<b>${esc(job.name.replace(/（.*）/, ''))}</b><span class="dim">${cur ? '现在干的' : `约 ${r.est} 文/天`}</span>` }));
       box.append(b);
@@ -186,7 +199,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pl
       <dl><dt>在哪儿干</dt><dd>${esc(j.where)}</dd><dt>谁买</dt><dd>${esc(j.buyers)}</dd><dt>要置办</dt><dd>${esc(j.setup)}</dd></dl>
       <div class="season"><span class="k">四季</span>${seasonBar(j)}</div>`;
     const big = icon(j, 84);
-    if (big) d.querySelector('.slot.big').append(big);
+    if (big) { fit(big, 64); d.querySelector('.slot.big').append(big); }
   };
   const sync = () => {
     el.querySelectorAll('.chipbtn[data-k]').forEach((b) => { const cur = form[b.dataset.k]; b.classList.toggle('on', cur instanceof Set ? cur.has(b.dataset.v) : String(cur) === b.dataset.v); });
@@ -209,6 +222,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pl
     if (!changing) views();
     if (page === 'look') opts();
     if (page === 'job') jobCards();
+    if (page === 'info') homeChips(); // 改了会什么、性格、喜好，看中的老宅跟着变
   };
 
   el.addEventListener('click', (e) => {
@@ -232,7 +246,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, econ, homes, pl
   el.querySelectorAll('[data-f]').forEach((i) => i.addEventListener('input', () => {
     form[i.dataset.f] = i.type === 'range' || i.type === 'number' ? Number(i.value) : i.value;
     if (i.dataset.f === 'age' && form.age >= 60 && form.hairRamp === 'hair') form.hairRamp = 'grey'; // 上了年纪：头发先给白了（还能再改）
-    if (['name', 'more', 'bio', 'likes'].includes(i.dataset.f)) { const p = person(); q('.info-page .who b').textContent = p.name || '还没起名字'; return; } // 打字时不重画立绘
+    if (['name', 'more', 'bio', 'likes'].includes(i.dataset.f)) { const p = person(); q('.info-page .who b').textContent = p.name || '还没起名字'; homeChips(); return; } // 打字时不重画立绘（看中的老宅跟着变）
     sync();
   }));
   q('.close').addEventListener('click', () => api.close());

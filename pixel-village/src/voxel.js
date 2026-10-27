@@ -487,7 +487,7 @@ export function voxelCharacter(p, M) {
 
 const PLUMP = { boar: 4, dog: 3, dogBlack: 3, cat: 2, hen: 2, henBrown: 2, rooster: 2, duck: 2, goose: 3, pig: 4, sheep: 4, donkey: 4, ox: 6, magpie: 2, pigeon: 1 };
 // 人是 Q 版大头，动物也按同样的夸张程度放大，不然站在人旁边像玩具
-const ANIMAL_SCALE = { boar: 1.4, dog: 1.6, dogBlack: 1.6, cat: 1.6, hen: 1.7, henBrown: 1.7, rooster: 1.7, duck: 1.7, goose: 1.5, pig: 1.4, sheep: 1.4, donkey: 1.2, ox: 1.35, magpie: 1.7, pigeon: 1.6 };
+const ANIMAL_SCALE = { boar: 1.4, dog: 1.6, dogBlack: 1.6, cat: 1.6, hen: 1.7, henBrown: 1.7, rooster: 1.7, duck: 1.7, goose: 1.4, pig: 1.4, sheep: 1.4, donkey: 1.2, ox: 1.35, magpie: 1.7, pigeon: 1.6 };
 
 /*
  * 猪和牛照"我的世界"的样子用方块拼：身子一块、头一块、鼻子一块、四条方腿，配色沿用原来的黄牛 / 黑猪。
@@ -538,7 +538,28 @@ BOXY.boar = (step) => { // 野猪：比家猪瘦长，棕黑，脊背一道硬�
     [8, 12, -3, 10, 14, -1, P], [8, 12, 1, 10, 14, 3, P], // 耳朵
   ];
 };
-const BOXY_SCALE = { ox: 1.15, pig: 1.0, boar: 1.05 };
+/**
+ * 狗（照我的世界的狼）：方头、正脸上一对白眼圈黑眼珠、往前伸的浅色嘴筒 + 黑鼻头、竖着的耳朵、胸前一块浅毛、卷在背上的尾巴。
+ * 原来按侧影充气，头只有四五格厚，正面看不出脸。c：身上、深一档、爪子、嘴筒和胸口、耳朵、眼珠的颜色。
+ */
+const dogBoxes = (c) => (step) => {
+  const { y, Y, d, m, e, k, w } = c;
+  return [
+    ...legs([-6, 3], [-3, 1], 6, 2, Y, d, step),
+    [-7, 6, -3, 4, 12, 3, (x, yy) => (yy === 6 ? Y : y)], // 身子
+    [2, 5, -4, 7, 13, 4, (x, yy) => (x === 6 && yy < 10 ? m : y)], // 前胸（比身子粗一圈），胸口一块浅毛
+    [-9, 11, -1, -7, 13, 1, y], [-9, 13, -1, -8, 16, 1, y], [-8, 15, -1, -6, 17, 1, m], // 卷尾巴，尾梢浅
+    [6, 9, -3, 11, 15, 3, y], // 头
+    [11, 9, -2, 14, 12, 2, (x, yy) => (yy === 9 ? Y : m)], // 嘴筒（下巴一道深）
+    [13, 11, -1, 14, 12, 1, R.slate[0]], // 鼻头
+    [6, 15, -3, 8, 17, -1, e], [6, 15, 1, 8, 17, 3, e], [7, 17, -3, 8, 18, -2, e], [7, 17, 2, 8, 18, 3, e], // 竖耳朵
+    [10, 13, -3, 11, 14, -2, w], [10, 13, 2, 11, 14, 3, w], [10, 13, -2, 11, 14, -1, k], [10, 13, 1, 11, 14, 2, k], // 正脸：白眼圈 + 眼珠
+    [9, 13, -3, 10, 14, -2, k], [9, 13, 2, 10, 14, 3, k], // 侧脸也看得见眼睛
+  ];
+};
+BOXY.dog = dogBoxes({ y: R.loess[4], Y: R.loess[3], d: R.loess[1], m: R.loess[5], e: R.loess[2], k: R.slate[0], w: R.white[3] }); // 中华田园犬（黄）
+BOXY.dogBlack = dogBoxes({ y: R.slate[2], Y: R.slate[1], d: R.slate[0], m: R.white[3], e: R.slate[1], k: R.gold[4], w: R.white[3] }); // 黑狗：白胸口、白嘴筒，金眼珠（黑脸上看得清）
+const BOXY_SCALE = { ox: 1.15, pig: 1.0, boar: 1.05, dog: 1.15, dogBlack: 1.15 };
 
 function boxyFrames(kind, M) {
   return [0, 1].map((step) => {

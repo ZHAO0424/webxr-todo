@@ -124,6 +124,56 @@ export function rankJobs(p, econ, V = econ.V) {
   }).sort((a, b) => b.score - a.score);
 }
 
+/*
+ * 新来的住哪儿：自己找，不用在卡片上选。老村址空着的老宅优先（住进去不交房钱），
+ * 挑和自己合得来的那处——会什么（磨坊给会磨面的、铁匠炉给会打铁的、羊圈给赶牲口的……）、
+ * 什么性子（爱热闹的住老街边上，性子静的住西头窑洞、崖边、北坡）、喜欢什么（院里有柿子树、枣树）。
+ * 老宅都有人住了，才去借住人家（pickHost）。
+ */
+const QUIET = ['文静', '寡言', '孤僻', '话少', '闷葫芦', '腼腆', '斯文', '好读书', '胆小', '老实', '憨厚', '念旧'];
+const SOCIAL = ['热心', '嗓门洪亮', '爱笑', '爱吆喝', '爱说笑', '健谈', '能说会道', '消息灵通', '嘴甜', '笑脸迎人', '和气', '爽利', '豪爽', '好动', '嘴巧', '唠叨', '嘴碎'];
+const PROUD = ['好面子', '讲究', '稳重', '严厉', '爱整洁', '精明'];
+const THRIFT = ['勤快', '埋头苦干', '实在', '精打细算', '会持家', '能干', '早起', '力大', '力气大', '能吃苦'];
+/** 每处老宅：合什么手艺 / 喜好（关键词）、看中它的理由、在哪一片（street 老街边上、far 偏一点）、是不是大院。 */
+const PLOT_FIT = {
+  old1: { keys: ['赶牲口', '牛', '种地', '庄稼'], what: '院里有牛棚', street: true, big: true },
+  old2: { keys: ['算账', '买卖', '做生意', '卖', '货', '吆喝', '铺'], what: '临街的老铺面', street: true },
+  old3: { keys: ['磨面', '磨', '豆腐', '面', '烙饼', '鸡'], what: '院里有石磨', street: true },
+  old4: { keys: ['杀猪', '猪', '柿'], what: '有猪圈、柿子树', big: true },
+  old5: { keys: ['种地', '种菜', '挑担', '力气', '帮工'], what: '北坡上清静的小院', far: true, small: true },
+  old6: { keys: ['鸡', '种地', '槐'], what: '西头石头院，墙外老槐树', far: true },
+  old7: { keys: ['木工', '木匠', '木', '梁'], what: '院里码着木料', street: true },
+  old8: { keys: ['打铁', '铁', '锻', '力气大'], what: '院里有铁匠炉' },
+  old9: { keys: ['医', '药', '采山货', '采药', '识字', '枣'], what: '老药铺，院里有枣树', big: true, far: true },
+  old10: { keys: ['赶牲口', '放羊', '羊', '牲口'], what: '门前有羊圈的窑洞', far: true },
+  old11: { keys: ['剃头', '针线', '裁缝', '说书'], what: '场院跟前的小屋', street: true, small: true },
+  old12: { keys: ['识字', '教', '书', '说书', '柿'], what: '崖边的石头房，院里柿子树', far: true },
+};
+
+/** 老村址哪处空着的老宅最合他：返回 { id, who, why }；都有人住了返回 null。 */
+export function pickOldHouse(p, houses) {
+  const free = houses.filter((h) => !h.owner);
+  if (!free.length) return null;
+  const text = [...(p.skills ?? []), p.more ?? '', p.likes ?? '', p.bio ?? '', p.jobId ? jobById[p.jobId]?.name ?? '' : ''].join(' ');
+  const traits = p.traits ?? [];
+  const has = (list) => traits.filter((t) => list.includes(t)).length;
+  const quiet = has(QUIET), social = has(SOCIAL), proud = has(PROUD), thrift = has(THRIFT);
+  const ranked = free.map((h) => {
+    const f = PLOT_FIT[h.id] ?? { keys: [], what: '' };
+    const hits = f.keys.filter((k) => text.includes(k));
+    const why = [];
+    let s = hits.length * 6 + hash(`${p.name ?? ""}/${h.id}/plot`) * 2 + (h.state ?? 2) * 0.4;
+    if (hits.length) why.push(`会${hits[0]}`);
+    if (f.street) { s += social * 3 - quiet * 2; if (social) why.push('爱热闹'); }
+    if (f.far) { s += quiet * 3 - social * 1.5; if (quiet) why.push('性子静'); }
+    if (f.big) { s += proud * 3 - thrift; if (proud) why.push('讲体面'); }
+    if (f.small) { s += thrift * 2; if (thrift) why.push('过日子实在'); }
+    return { h, s, why: why.length ? `${why.slice(0, 2).join('、')}；那儿${f.what}` : f.what };
+  }).sort((a, b) => b.s - a.s);
+  const best = ranked[0];
+  return { id: best.h.id, who: best.h.who, why: best.why };
+}
+
 /** 借住哪家：人口少（住得下）、和他合得来的（固定随机数 + 同样的手艺）。 */
 export function pickHost(p, V) {
   const homes = ['school', 'doctor', 'shepherd', 'store', 'carpenter', 'farmA', 'farmB', 'tofu', 'smith', 'headman', 'farmC'];
@@ -147,7 +197,8 @@ export function scheduleFor(job, met = true) {
 export function addNewcomer(V, p, { arriving = true } = {}) {
   p.id ??= `new_${Date.now().toString(36)}${(V.newcomerCount = (V.newcomerCount ?? 0) + 1)}`; // 同一毫秒加好几个人也不撞
   p.newcomer = true;
-  const plot = p.home && V.C[p.home]?.plot ? V.east.claim(p.home, p) : null; // 选了老村址的一处老宅：自己住（不交房钱），塌了的先苫半边顶
+  if (arriving && !p.home) { const o = V.east && pickOldHouse(p, V.east.houses); if (o) { p.home = o.id; p.homeWhy = o.why; } } // 自己找住处：空着的老宅优先
+  const plot = p.home && V.C[p.home]?.plot ? V.east.claim(p.home, p) : null; // 住进老村址的一处老宅：自己住（不交房钱），塌了的先苫半边顶
   if (plot) { p.oldHouse = p.home; p.houseState = plot.state; p.household = `老村址·${plot.who}老宅`; }
   p.home ??= pickHost(p, V);
   p.sleepAt = p.home;

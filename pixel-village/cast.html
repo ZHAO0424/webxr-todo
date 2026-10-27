@@ -61,9 +61,12 @@
       scene.add(c.object);
     });
     if (only) { const z = q.get('zoom') ? Number(q.get('zoom')) : 17; camera.position.set(0, 1.2 + z * 0.12, 8 + z * 0.55); controls.target.set(0, 0.9, 8); controls.update(); }
-    ANIMAL_NAMES.forEach((k, i) => {
+    // ?animals=dog,goose,duck：只看这几样动物（排一排、放大，村民藏起来）
+    const onlyA = q.get('animals')?.split(',');
+    if (onlyA) { scene.children.filter((o) => o.isGroup || o.isObject3D && o.type === 'Object3D').forEach((o) => { o.visible = false; }); camera.position.set(0, 3.2, 17); controls.target.set(0, 0.5, 8); controls.update(); }
+    (onlyA ?? ANIMAL_NAMES).forEach((k, i, all) => {
       const m = voxelAnimalFrames(k, M)[0];
-      m.position.set((i - ANIMAL_NAMES.length / 2) * 1.8, 0, 5);
+      m.position.set(onlyA ? (i - (all.length - 1) / 2) * 2.4 : (i - ANIMAL_NAMES.length / 2) * 1.8, 0, onlyA ? 8 : 5);
       m.rotation.y = yaw - Math.PI / 2;
       scene.add(m);
     });
