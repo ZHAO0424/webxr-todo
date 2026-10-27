@@ -1,5 +1,6 @@
 import { ACTIVITIES, R, kinOf, toStool } from './activities.js';
 import { season, is, festival } from '../season.js';
+import { EN } from '../i18n.js';
 
 /*
  * 每天一样全村的活动，有白天的也有晚上的：
@@ -68,6 +69,21 @@ export const EVENTS = {
     prob: (p) => (kid(p) ? 0.95 : elder(p) ? 0.85 : 0.75),
   },
 };
+// 英文界面：活动名、地点（只是显示用；中文名不参与逻辑）
+const EVENTS_EN = {
+  opera: ['Opera night', 'Square stage'],
+  market: ['Market day', 'Village Square'],
+  bonfire: ['Bonfire tales', 'Square fire pit'],
+  harvest: [() => (is('summer') ? 'Wheat threshing' : 'Threshing'), 'Threshing floor'],
+  movie: ['Open-air film', 'Square stage'],
+  shrine: ['Earth God rite', 'Earth God Shrine'],
+  meeting: ['Village meeting', 'Square stage'],
+  chunjie: ['New Year visits', 'Door to door'],
+  qingming: ['Qingming', 'West slope graves'],
+  duanwu: ['Duanwu zongzi', 'Village Square'],
+  zhongqiu: ['Mid-Autumn moon', 'Village Square'],
+};
+if (EN) for (const [k, [name, place]] of Object.entries(EVENTS_EN)) Object.defineProperties(EVENTS[k], { name: { get: typeof name === 'function' ? name : () => name, configurable: true }, place: { value: place, writable: true, configurable: true } });
 export const ORDER = ['opera', 'market', 'bonfire', 'harvest', 'movie', 'shrine', 'meeting'];
 export const EVENT_NAMES = new Proxy({}, { get: (_, k) => EVENTS[k]?.name }); // 名字跟季节走（打麦 / 打场）
 export const fmt = (h) => `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
@@ -91,6 +107,7 @@ export function lunarOf(day) {
 const CN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 export function lunarLabel(day) {
   const { m, d } = lunarOf(day);
+  if (EN) return `Month ${m}, Day ${d}`; // 不断行：时钟栏窄
   const month = m === 1 ? '正月' : m === 11 ? '冬月' : m === 12 ? '腊月' : `${CN[m]}月`;
   const dd = d <= 10 ? `初${CN[d]}` : d < 20 ? `十${CN[d - 10]}` : d === 20 ? '二十' : d < 30 ? `廿${CN[d - 20]}` : '三十';
   return month + dd;
@@ -108,8 +125,8 @@ export function eventOf(day, forced) {
 }
 
 // 冬天的 'rain' 是下雪：活动照样按"下雨"处理（户外的事改天），只是画面是雪花、叫"小雪"
-const WEATHER_NAMES = { sunny: '晴', cloudy: '阴', rain: '小雨' };
-export const WEATHER = new Proxy(WEATHER_NAMES, { get: (o, k) => (k === 'rain' && is('winter') ? '小雪' : o[k]) });
+const WEATHER_NAMES = EN ? { sunny: 'Sunny', cloudy: 'Cloudy', rain: 'Light rain' } : { sunny: '晴', cloudy: '阴', rain: '小雨' };
+export const WEATHER = new Proxy(WEATHER_NAMES, { get: (o, k) => (k === 'rain' && is('winter') ? (EN ? 'Light snow' : '小雪') : o[k]) });
 const WET = { spring: 0.12, summer: 0.2, autumn: 0.15, winter: 0.18 }; // 下雨（雪）的几率：夏天雨多
 /** 这天的天气：头一天晴，之后晴、阴、雨（雪）按季节的几率。 */
 export function weatherOf(day, forced) {

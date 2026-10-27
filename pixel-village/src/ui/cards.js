@@ -1,7 +1,9 @@
 import { characterAtlas, CELL_W, CELL_H } from '../characters.js';
 import { animalAtlas } from '../animals.js';
 import { LABELS } from '../labels.js';
-import { friendsOf, RESIDENTS } from '../residents.js';
+import { friendsOf, RESIDENTS, HOUSEHOLDS } from '../residents.js';
+import { EN, tr } from '../i18n.js';
+import { pName, pNick, pJob, pRelation, pHousehold, pBio, pLikes, pSkills, pTraits, pOwns } from '../names.js';
 import { portrait, bodyCrop } from './frame.js';
 
 /*
@@ -14,11 +16,13 @@ import { portrait, bodyCrop } from './frame.js';
 
 const BYID = new Proxy({}, { get: (_, id) => RESIDENTS.find((p) => p.id === id) }); // 实时查（新来的人随时会加进名册）
 const hm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60) % 60).padStart(2, '0')}`;
-const label = (a, arg) => (LABELS[a] ?? a) + (arg && LABELS[`${a}:${arg}`] ? `（${LABELS[`${a}:${arg}`]}）` : '');
+const label = (a, arg) => (LABELS[a] ?? a) + (arg && LABELS[`${a}:${arg}`] ? (EN ? ` (${LABELS[`${a}:${arg}`]})` : `（${LABELS[`${a}:${arg}`]}）`) : '');
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 
 const JOB_COLOR = (p) => (p.body === 'child' ? 'var(--c-child)' : /匠|郎中|掌柜|剃头|货郎|先生|伙计|徒弟|豆腐/.test(p.job) ? 'var(--c-craft)' : /村长/.test(p.job) ? 'var(--c-chief)' : 'var(--c-farm)');
-const SEGS = [[0, '清早'], [7, '上午'], [11.5, '中午'], [13.5, '下午'], [18, '晚上']];
+const SEGS = [[0, tr('清早', 'Early')], [7, tr('上午', 'Morning')], [11.5, tr('中午', 'Noon')], [13.5, tr('下午', 'Afternoon')], [18, tr('晚上', 'Evening')]];
+const CLOSE = tr('关闭', 'Close');
+const list = (a) => a.join(tr('、', ', '));
 
 /** 村民头像：正面待机帧的头和上半身。 */
 function residentFace(p) {
@@ -54,27 +58,27 @@ export function residentCard(p, { live = true, onPick, onClose } = {}) {
   const el = document.createElement('div');
   el.className = 'panel card px';
   el.style.position = 'relative';
-  const close = onClose ? '<button class="btn close" title="关闭">×</button>' : '';
+  const close = onClose ? `<button class="btn close" title="${CLOSE}">×</button>` : '';
   const friends = friendsOf(p.id).map((id) => BYID[id]).filter(Boolean);
   const family = RESIDENTS.filter((o) => o.home === p.home && o.id !== p.id);
-  const chips = (list, color) => list.map((o) => `<span class="chip ${onPick ? 'link' : ''}" style="--c:${color}" data-id="${o.id}">${esc(o.name)}<span style="opacity:.8">·${esc(o.nick)}</span></span>`).join('');
+  const chips = (list, color) => list.map((o) => `<span class="chip ${onPick ? 'link' : ''}" style="--c:${color}" data-id="${o.id}">${esc(pName(o))}<span style="opacity:.8">·${esc(pNick(o))}</span></span>`).join('');
   el.innerHTML = `${close}
     <div class="head"><div class="facecol"><div class="face"></div></div><div class="who">
-      <div class="name">${esc(p.name)}<span class="nick">${esc(p.nick)}</span></div>
-      <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.job)}</span><span class="chip soft">${p.age}岁 · ${p.sex}</span><span class="chip soft">${esc(p.household)}</span><span class="chip soft">${esc(p.relation)}</span></div>
+      <div class="name">${esc(pName(p))}<span class="nick">${esc(pNick(p))}</span></div>
+      <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(pJob(p))}</span><span class="chip soft">${EN ? `Age ${p.age} · ${p.sex === '女' ? 'F' : 'M'}` : `${p.age}岁 · ${p.sex}`}</span><span class="chip soft">${esc(pHousehold(p, HOUSEHOLDS))}</span><span class="chip soft">${esc(pRelation(p))}</span></div>
     </div></div>
     ${live ? '<div class="paper now"><span class="dot"></span><span class="doing"></span></div><div class="next"></div><div class="deal"></div>' : ''}
-    <p style="margin-top:calc(3 * var(--p))">${esc(p.bio)}</p>
-    <details class="fold"><summary>性格 · 喜好</summary><div>
-      <div class="row">${p.traits.map((t) => `<span class="chip" style="--c:var(--c-plum)">${esc(t)}</span>`).join('')}</div>
-      <div class="row"><b>喜欢</b>${esc(p.likes)}</div></div></details>
-    <details class="fold"><summary>手艺 · 家当</summary><div>
-      <div class="row"><b>手艺</b>${esc(p.skills.join('、'))}</div>
-      ${p.owns.length ? `<div class="row"><b>家当</b>${esc(p.owns.join('、'))}</div>` : ''}</div></details>
-    <details class="fold"><summary>亲友<span class="count">${family.length + friends.length}</span></summary><div>
-      ${family.length ? `<div class="row"><b>家人</b></div><div class="row">${chips(family, 'var(--c-craft)')}</div>` : ''}
-      ${friends.length ? `<div class="row"><b>好友</b></div><div class="row">${chips(friends, 'var(--c-child)')}</div>` : ''}</div></details>
-    <details class="fold"><summary>${live ? '今日安排' : '日常安排'}<span class="count">${p.day.length} 项</span></summary><div><ul class="plan">${planHTML(p.day, -1)}</ul></div></details>`;
+    <p style="margin-top:calc(3 * var(--p))">${esc(pBio(p))}</p>
+    <details class="fold"><summary>${tr('性格 · 喜好', 'Traits · Likes')}</summary><div>
+      <div class="row">${pTraits(p).map((t) => `<span class="chip" style="--c:var(--c-plum)">${esc(t)}</span>`).join('')}</div>
+      <div class="row"><b>${tr('喜欢', 'Likes')}</b>${esc(pLikes(p))}</div></div></details>
+    <details class="fold"><summary>${tr('手艺 · 家当', 'Skills · Belongings')}</summary><div>
+      <div class="row"><b>${tr('手艺', 'Skills')}</b>${esc(list(pSkills(p)))}</div>
+      ${pOwns(p).length ? `<div class="row"><b>${tr('家当', 'Owns')}</b>${esc(list(pOwns(p)))}</div>` : ''}</div></details>
+    <details class="fold"><summary>${tr('亲友', 'Family & friends')}<span class="count">${family.length + friends.length}</span></summary><div>
+      ${family.length ? `<div class="row"><b>${tr('家人', 'Family')}</b></div><div class="row">${chips(family, 'var(--c-craft)')}</div>` : ''}
+      ${friends.length ? `<div class="row"><b>${tr('好友', 'Friends')}</b></div><div class="row">${chips(friends, 'var(--c-child)')}</div>` : ''}</div></details>
+    <details class="fold"><summary>${live ? tr('今日安排', 'Today') : tr('日常安排', 'Daily routine')}<span class="count">${EN ? p.day.length : `${p.day.length} 项`}</span></summary><div><ul class="plan">${planHTML(p.day, -1)}</ul></div></details>`;
   el.querySelector('.face').append(residentFace(p));
   el.querySelector('.close')?.addEventListener('click', onClose);
   if (onPick) el.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => onPick(c.dataset.id)));
@@ -99,11 +103,11 @@ export function animalCard(info, kind, { onClose, onPick, ownerId } = {}) {
   el.className = 'panel card px';
   el.style.position = 'relative';
   const owner = ownerId && BYID[ownerId];
-  el.innerHTML = `${onClose ? '<button class="btn close" title="关闭">×</button>' : ''}
+  el.innerHTML = `${onClose ? `<button class="btn close" title="${CLOSE}">×</button>` : ''}
     <div class="head"><div class="facecol"><div class="face"></div></div><div class="who">
       <div class="name">${esc(info.name)}</div>
       <div><span class="chip" style="--c:var(--c-craft)">${esc(info.kind)}</span><span class="chip soft">${esc(info.owner)}</span>
-      ${owner ? `<span class="chip link" style="--c:var(--c-child)" data-id="${owner.id}">主人 · ${esc(owner.nick)}</span>` : ''}</div>
+      ${owner ? `<span class="chip link" style="--c:var(--c-child)" data-id="${owner.id}">${tr('主人', 'Owner')} · ${esc(pNick(owner))}</span>` : ''}</div>
     </div></div>
     <div class="paper now"><span class="dot"></span><span class="doing"></span></div>
     <p style="margin-top:calc(3 * var(--p))">${esc(info.about)}</p>`;
@@ -129,13 +133,13 @@ export function thingCard(info, { onClose, onPick } = {}) {
   el.className = 'panel card thing px';
   el.style.position = 'relative';
   const chips = (list, color) => list.map((o) => `<span class="chip ${onPick ? 'link' : ''}" style="--c:${color}" data-id="${o.id}">${esc(o.name)}</span>`).join('');
-  el.innerHTML = `${onClose ? '<button class="btn close" title="关闭">×</button>' : ''}
+  el.innerHTML = `${onClose ? `<button class="btn close" title="${CLOSE}">×</button>` : ''}
     <div class="name">${esc(info.name)}</div>
     <div>${info.household ? `<span class="chip" style="--c:var(--c-craft)">${esc(info.household.name)}</span>` : ''}${info.tags.map((t) => `<span class="chip soft">${esc(t)}</span>`).join('')}</div>
     <div class="paper now"><span class="dot"></span><span class="doing"></span></div>
     <div class="who-now row"></div>
     ${info.about ? `<p style="margin-top:calc(3 * var(--p))">${esc(info.about)}</p>` : ''}
-    ${info.people?.length ? `<details class="fold" open><summary>住户<span class="count">${info.people.length}</span></summary><div><div class="row">${chips(info.people, 'var(--c-farm)')}</div></div></details>` : ''}`;
+    ${info.people?.length ? `<details class="fold" open><summary>${tr('住户', 'Residents')}<span class="count">${info.people.length}</span></summary><div><div class="row">${chips(info.people, 'var(--c-farm)')}</div></div></details>` : ''}`;
   el.querySelector('.close')?.addEventListener('click', onClose);
   const bind = (root) => { if (onPick) root.querySelectorAll('[data-id]').forEach((c) => c.addEventListener('click', () => onPick(c.dataset.id))); };
   bind(el);

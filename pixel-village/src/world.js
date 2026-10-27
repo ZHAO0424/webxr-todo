@@ -9,15 +9,17 @@
  * 人和动物这一刻走到哪一步不存：每天凌晨四点半大家本来就回到床边重新开始，读档后各人按日程从家门口出发。
  */
 
+import { EN } from './i18n.js';
+
 export const ERA = '石峪'; // 纪年：从「石峪元年」算起（石峪村重新住人那年）
 const CN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const cnNum = (n) => (n < 10 ? CN[n] : n < 20 ? `十${CN[n - 10]}` : `${CN[Math.floor(n / 10)]}十${CN[n % 10]}`);
 /** 第几年（0 = 元年）：开局那个月起，每过一个正月初一加一年。 */
 export const yearOf = (day, startMonth, startDate) => Math.floor((startMonth - 1 + Math.floor((startDate + day - 2) / 30)) / 12) - Math.floor((startMonth - 1) / 12);
-export const yearLabel = (n) => `${ERA}${n ? cnNum(n + 1) : '元'}年`;
+export const yearLabel = (n) => (EN ? `Shiyu Year ${n + 1}` : `${ERA}${n ? cnNum(n + 1) : '元'}年`); // 英文：Shiyu Year 1、2……（Node 里总是中文）
 
 /** 新居民存档的字段（网页存在浏览器里的、后台存档里的，都是这一份）。 */
-export const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pattern', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'acc', 'coins', 'goods', 'home', 'homeWhy', 'jobId', 'jobWhy', 'houseState', 'jobPicked', 'met', 'jobHistory'];
+export const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pattern', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'acc', 'coins', 'goods', 'home', 'homeWhy', 'jobId', 'jobWhy', 'houseState', 'jobPicked', 'met', 'jobHistory', 'owner']; // owner：提交这个人的 GitHub 账号（tools/intake.mjs）
 /** 写文件用：账本里偶尔挂着村民、动物对象（顺手记的），存档只要普通数据。 */
 export const toJSON = (state) => JSON.stringify(state, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) !== Object.prototype ? undefined : v));
 export const newcomerData = (p) => Object.fromEntries(SAVE_KEYS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]));
@@ -51,13 +53,21 @@ export function saveWorld(village, { season, ruins, savedAt = Date.now() }) {
 
 /**
  * 读档：村子已经按存档的季节、开局方式建好（见 ruins / season），这里把新居民放回去、钟拨到存档的钟点、经济和老宅照存档摆好。
- * addNewcomer：life/newcomers.js 的同名函数（从外面传，免得这个文件牵扯一大串 import）；onNewcomer(p)：网页里顺手把新人加进档案。
+ * addNewcomer、setJob：life/newcomers.js 的同名函数（从外面传，免得这个文件牵扯一大串 import）；onNewcomer(p)：网页里顺手把新人加进档案。
+ * 刚从 GitHub 收进来的新人（tools/intake.mjs 标了 pending）：和网页里点「进村」一样，从村口的桥上走进来、自己找住处；
+ * 提交了改营生的（pendingJob）：读进来就换过去。
  */
-export function loadWorld(village, s, { addNewcomer, onNewcomer = () => {} }) {
+export function loadWorld(village, s, { addNewcomer, setJob, onNewcomer = () => {} }) {
   const V = village.world, clock = village.life.clock;
   clock.day = s.day;
   clock.hour = s.hour;
-  for (const p of s.newcomers ?? []) { if (V.byId[p.id]) continue; addNewcomer(V, { ...p }, { arriving: false }); onNewcomer(p); } // 住老宅的会在这里认领那处老宅
+  for (const p0 of s.newcomers ?? []) {
+    if (V.byId[p0.id]) continue;
+    const { pending, pendingJob, ...p } = p0;
+    const v = addNewcomer(V, p, { arriving: !!pending }); // 住老宅的会在这里认领那处老宅
+    if (pendingJob && setJob) { setJob(v, pendingJob, { picked: true }); v.finish?.(); }
+    onNewcomer(p);
+  }
   for (const pl of s.plots ?? []) if (V.east?.plotState(pl.id) !== pl.state) V.east.setPlotState(pl.id, pl.state, true);
   V.repairs = s.repairs ?? [];
   const E = V.econ, e = s.econ;

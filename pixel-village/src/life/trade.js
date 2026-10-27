@@ -1,6 +1,8 @@
 import { ACTIVITIES } from './activities.js';
 import { hash } from './events.js';
-import { GOODS, unitOf } from './economy.js';
+import { GOODS, unitOf, goodName, reasonText } from './economy.js';
+import { EN } from '../i18n.js';
+import { pNick } from '../names.js';
 
 /*
  * 看得见的买卖：经济（economy.js）每天凌晨给各户列好"想买什么"，这里派人去买——照剃头挑子那套临时差事：
@@ -17,6 +19,9 @@ const REMOTE = new Set(['lime', 'stone', 'duckEgg', 'coal']); // 只有老村址
 /** 拿着什么回家。 */
 const CARRY = { tofu: ['tray'], veg: ['basket'], egg: ['basket'], salt: ['basket'], match: ['basket'], cloth: ['basket'], pill: ['basket'], honey: ['basket'], pickle: ['basket'], flour: [null, 'sack'], grain: [null, 'sack'], soy: [null, 'sack'], wood: [null, 'firewood'], tool: ['hoe'], wooden: ['box'], iron: ['box'], basket: ['basket'], wool: [null, 'sack'], lime: [null, 'sack'], stone: [null, 'sack'], duckEgg: ['basket'], fish: ['basket'], pork: ['basket'], wildfood: ['basket'], game: ['basket'], charcoal: [null, 'sack'], seed: [null, 'sack'], relic: ['box'], coal: [null, 'basket:coal'] };
 const PLACE = { headman: '王家', school: '学堂', shepherd: '马家', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', zheng_laotou: '剃头挑子', qian_xiaoer: '货郎那儿', riverTemple: '柳婆婆家', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '凤仙嫂家' };
+/** 英文界面的同一张表（卡片上的差事：Off to Sun's Store for Salt）。 */
+const PLACE_EN = { headman: "the Wangs'", school: 'the school', shepherd: "the Mas'", farmA: "the Chens'", farmB: "the Yangs'", farmC: "the Wus'", carpenter: "Liu's Carpentry", store: "Sun's Store", doctor: "Zhou's Pharmacy", smith: "Zhang's Smithy", tofu: "Zhao's Tofu Shop", zheng_laotou: "the barber's stall", qian_xiaoer: 'the peddler', riverTemple: "Granny Liu's", mason: "Ge's Mason Yard", limeKiln: "Bai's Lime Kiln", duckYard: "Sister Fengxian's" };
+const placeOf = (id, who) => (EN ? PLACE_EN[id] ?? (who ? pNick(who.p) : '') : PLACE[id] ?? who?.p.nick ?? '');
 const STALL_SELLER = { tofu: 'tofu', goods: 'qian_xiaoer', veg: 'farmC' }; // 集上三个摊子各是谁家的
 
 /** v 今天闲着的时段 [[开始, 结束], …]：日程里不是放不下的事（放羊、做饭、上课、吃饭、歇晌……）、白天 7 点到傍晚 6 点之间、至少半个钟点。赶集日上午都在集上，不算。 */
@@ -142,7 +147,7 @@ function runFor(v, o) {
   const seller = econ.sellersFor(o.unit, o.good, o.qty, o.v).find((u) => u.id !== 'qian_xiaoer') ?? econ.unit('qian_xiaoer');
   if (!seller || seller === o.unit) return false;
   const from = V.C[seller.members[0].home] ?? V.C.square, to = V.C[o.unit.members[0].sleepAt ?? o.unit.members[0].home] ?? V.C[o.unit.members[0].home];
-  v.errandText = `给${PLACE[o.unit.id] ?? o.v.p.nick}代买${GOODS[o.good].name}`;
+  v.errandText = EN ? `Buying ${goodName(o.good).toLowerCase()} for ${placeOf(o.unit.id, o.v)}` : `给${PLACE[o.unit.id] ?? o.v.p.nick}代买${GOODS[o.good].name}`;
   if (seller.id !== 'qian_xiaoer') { v.go(from.gateOut()); v.do('talk', 4, { face: from.gateOut() }); } // 去卖家门口取货（自己担子里有的就不用跑）
   v.go(to.gateOut());
   v.do('talk', 4, { face: to.gateOut() });
@@ -167,7 +172,7 @@ ACTIVITIES.buy = (v, o) => {
   const sellers = econ.sellersFor(o.unit, o.good, o.qty, v);
   if (!sellers.length) { econ.miss(o.good); econ.fail(v, o.good, '村里没人有富余'); v.finish(); return; } // 村里没人有富余：今天买不着
   const seller = sellers[0], c = T.counter(seller, v);
-  v.errandText = `去${PLACE[seller.id] ?? c.who?.p.nick ?? ''}买${GOODS[o.good].name}`;
+  v.errandText = EN ? `Off to ${placeOf(seller.id, c.who)} for ${goodName(o.good).toLowerCase()}` : `去${PLACE[seller.id] ?? c.who?.p.nick ?? ''}买${GOODS[o.good].name}`;
   v.char.setItem(o.good === 'tofu' ? 'bowl' : 'basket');
   v.go(c.to);
   v.call(() => {
@@ -190,7 +195,7 @@ ACTIVITIES.buy = (v, o) => {
 /** 手艺活（修农具、修家什）：拿着坏了的家伙走到铁匠 / 木匠跟前，等他拾掇好，给钱，拿回家。 */
 function fix(v, o) {
   const T = v.V.trade, econ = T.econ, shop = econ.unit(o.to), c = T.counter(shop, v);
-  v.errandText = `去${PLACE[o.to] ?? ''}${o.service}`;
+  v.errandText = EN ? `${reasonText(o.service)} at ${placeOf(o.to)}` : `去${PLACE[o.to] ?? ''}${o.service}`;
   v.char.setItem(o.service === '修农具' ? 'hoe' : o.service === '錾磨盘' ? null : 'box');
   v.go(c.to);
   v.call(() => {
@@ -209,7 +214,7 @@ function fix(v, o) {
 
 /** 卖的人：转向买家，说两句（递东西、收钱），回去接着干。 */
 ACTIVITIES.serve = (v, buyer) => {
-  v.errandText = `招呼${buyer.p.nick}`;
+  v.errandText = EN ? `Serving ${pNick(buyer.p)}` : `招呼${buyer.p.nick}`;
   v.do('talk', 5, { face: [buyer.pos.x, buyer.pos.z] });
   v.call(() => v.finish());
 };

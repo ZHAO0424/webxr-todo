@@ -31,7 +31,7 @@ setSeason(season);
 const { setRuins } = await import('../src/east.js');
 setRuins(ruins);
 const { buildVillage } = await import('../src/village.js');
-const { addNewcomer } = await import('../src/life/newcomers.js');
+const { addNewcomer, setJob } = await import('../src/life/newcomers.js');
 const { addResident } = await import('../src/residents.js');
 const { saveWorld, loadWorld, toJSON, yearOf, yearLabel } = await import('../src/world.js');
 const { lunarLabel, lunarOf } = await import('../src/life/events.js');
@@ -39,7 +39,7 @@ const { festival } = await import('../src/season.js');
 
 const t0 = performance.now();
 const village = buildVillage({ startHour: saved?.hour ?? 6 });
-if (saved) loadWorld(village, saved, { addNewcomer, onNewcomer: addResident });
+if (saved) loadWorld(village, saved, { addNewcomer, setJob, onNewcomer: addResident });
 const built = performance.now() - t0;
 const clock = village.life.clock;
 const when = () => { const F = festival(); return `${yearLabel(yearOf(clock.day, F.m, F.d))} ${lunarLabel(clock.day)} ${clock.label}`; };

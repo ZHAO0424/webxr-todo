@@ -1,4 +1,5 @@
 import { ACTIVITIES, R as pick } from './activities.js';
+import { EN, tr } from '../i18n.js';
 
 const R = (a, v) => (a?.length ? pick(a) : v.home.spot('yard')); // 河滩上的点都走不到时：在自家院里
 
@@ -57,7 +58,7 @@ ACTIVITIES.tendDucks = (v) => { // 放鸭：鸭棚里撒食、捡蛋，再到河
 /** 修房子：在老宅院里干一天——和泥、砌墙、苫草顶（葛石头帮工）。plot：哪处老宅。 */
 ACTIVITIES.repair = (v, plot) => {
   const c = v.V.C[plot], h = v.V.east.houses.find((x) => x.id === plot);
-  v.errandText = v.p.id === 'ge_shitou' ? `帮${h?.ownerName ?? ''}修房子` : '请葛石头帮着修房子';
+  v.errandText = v.p.id === 'ge_shitou' ? (EN ? `Fixing ${h?.ownerEn ?? h?.ownerName ?? ''}'s house` : `帮${h?.ownerName ?? ''}修房子`) : tr('请葛石头帮着修房子', 'Repairs with Stonemason Ge');
   v.char.setItem(v.p.id === 'ge_shitou' ? 'hammer' : 'hoe');
   v.loop = () => { v.go(c.randomPoint()); v.do('work', 8, { face: c.at(-1.04, 0) }); };
 };

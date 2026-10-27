@@ -182,3 +182,64 @@ details.fold > div { padding: calc(2 * var(--p)) 0 0 calc(6 * var(--p)); }
 .card.thing .now .what { flex-basis: 100%; }
 .card .who-now:empty { display: none; }
 .card .who-now { margin-top: var(--p); }
+
+/* ---------------------------------------------------------------- 我的居民（创建居民面板的第一页）、进村了、档案里的三块地图 */
+#newcomer .mine-page { display: block; overflow: auto; scrollbar-width: thin; }
+#newcomer .mcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(300 * var(--f)), 1fr)); gap: calc(3 * var(--p)); }
+#newcomer .mcard { display: flex; gap: calc(4 * var(--p)); align-items: stretch; min-width: 0; }
+#newcomer .mcard .mp { flex: none; width: calc(72 * var(--f)); height: calc(120 * var(--f)); display: grid; place-items: end center; overflow: hidden;
+  background: radial-gradient(ellipse 90% 70% at 50% 38%, #f4e8c8, #e4cf9f 58%, #c9ab77); box-shadow: 0 0 0 var(--f) var(--ink), inset 0 0 0 var(--f) #7a6448; }
+#newcomer .mcard .mp canvas { display: block; max-width: 100%; height: auto !important; max-height: 96%; image-rendering: pixelated; }
+#newcomer .mcard .mt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--p); }
+#newcomer .mcard .l1 { display: flex; align-items: center; gap: calc(2 * var(--p)); flex-wrap: wrap; }
+#newcomer .mcard .l1 b { font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); }
+#newcomer .mcard .jb { overflow-wrap: anywhere; }
+#newcomer .mcard .why { color: var(--text); overflow-wrap: anywhere; }
+#newcomer .mcard .acts { margin-top: auto; display: flex; flex-wrap: wrap; gap: var(--p); padding-top: var(--p); }
+#newcomer .mcard .acts .btn { padding: 0 calc(3 * var(--p)); line-height: calc(22 * var(--f)); }
+#newcomer .mcard .ask { margin-top: auto; color: var(--gold); overflow-wrap: anywhere; }
+#newcomer .mcard .ask .acts { margin-top: var(--p); }
+#newcomer .mcard.add { flex-direction: column; justify-content: center; align-items: center; min-height: calc(120 * var(--f)); gap: var(--p); color: var(--dim); }
+#newcomer .mcard.add .plus { font-size: calc(24 * var(--f)); line-height: calc(28 * var(--f)); color: var(--gold); }
+#newcomer .btn.danger { --c: #7a3a30; }
+.px .badge { display: inline-block; padding: 0 calc(2 * var(--p)); line-height: calc(16 * var(--f)); color: #1c140c; background: var(--dim); box-shadow: 0 0 0 var(--f) var(--ink); white-space: nowrap; }
+.px .badge.ok { background: var(--green); }
+.px .badge.wait { background: var(--blue); }
+.px .badge.warn { background: var(--gold); }
+.px .badge.off { background: #8a7a6a; }
+#newcomer .done-page { grid-template-columns: auto minmax(0, 1fr); }
+#newcomer .donebox { overflow: auto; }
+#newcomer .donebox p { margin: 0 0 calc(3 * var(--p)); }
+#newcomer .donebox .note { padding: calc(3 * var(--p)) calc(4 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--line); margin-bottom: calc(3 * var(--p)); }
+#newcomer .donebox .note b { display: block; margin-bottom: var(--p); }
+#newcomer .donebox ol { margin: calc(2 * var(--p)) 0 0; padding-left: calc(10 * var(--p)); }
+#newcomer .donebox li { margin-bottom: var(--p); }
+#newcomer .donebox .okmsg { color: var(--green); }
+#newcomer .donebox .acts { display: flex; flex-wrap: wrap; gap: calc(2 * var(--p)); }
+#newcomer .donebox .acts .btn { padding: 0 calc(4 * var(--p)); line-height: calc(28 * var(--f)); }
+#newcomer .foot[hidden] { display: none; }
+#roster .btabs { display: flex; gap: calc(2 * var(--p)); }
+#roster .btabs[hidden] { display: none; }
+#roster .chip.mine { --c: var(--gold); color: #2a1a10; }
+#roster .mini .acts { display: inline-flex; gap: var(--p); margin-left: var(--p); }
+#roster .mapempty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #fff2cc; padding: calc(3 * var(--p)) calc(5 * var(--p)); background: rgba(28, 22, 17, .8); box-shadow: 0 0 0 var(--f) var(--line); }
+
+/* ---------------------------------------------------------------- 英文界面（<html lang="en">，见 i18n.js）：英文比中文长，这些地方放宽、改成可以折行 */
+html[lang=en] #clock .top { flex-wrap: wrap; row-gap: 0; }
+html[lang=en] #clock .ev { white-space: normal; overflow: visible; }
+html[lang=en] .card .name { white-space: normal; overflow: visible; }
+html[lang=en] .card .name .nick { display: block; margin-left: 0; }
+html[lang=en] #roster .bar { grid-template-columns: calc(32 * var(--p)) 1fr auto; }
+html[lang=en] #roster .rel { width: calc(48 * var(--p)); }
+html[lang=en] #roster .rel .rn { white-space: normal; line-height: calc(13 * var(--f)); }
+html[lang=en] #roster .tile .l1 .nk { display: none; } /* 卡片太窄：英文只写名字，叫法点开看 */
+html[lang=en] #roster .tile .l1 .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; margin-right: var(--p); }
+html[lang=en] #roster .tile .tr { display: flex; flex-wrap: wrap; height: calc(18 * var(--f)); overflow: hidden; white-space: normal; } /* 一行放不下的性格整个藏起来，不切半截 */
+html[lang=en] #newcomer .prow { grid-template-columns: calc(66 * var(--f)) minmax(0, 1fr); }
+html[lang=en] #newcomer .field { grid-template-columns: calc(40 * var(--f)) minmax(0, 1fr) auto; }
+html[lang=en] #roster .tile .l1 .chip:not(.mine), html[lang=en] #roster .tile .now .loc { display: none; } /* 英文卡片：户名、在哪儿让给名字和此刻（点开看全的） */
+html[lang=en] #roster .tile .l1 .nm { flex: 1; }
+html[lang=en] #clock .ev .sub { white-space: nowrap; } /* 时间和地点一行，不在 19:00- 中间断开 */
+html[lang=en] #newcomer .slot .tag { right: 0; } /* "Need" 比「缺」宽：别挂出格子 */
+#clock .bgm { margin-top: var(--f); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* 正在放的背景音乐 */
+#clock .bgm b { color: var(--text); text-shadow: none; }

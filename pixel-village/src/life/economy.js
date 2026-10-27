@@ -2,6 +2,8 @@ import { hash, lunarOf } from './events.js';
 import { season } from '../season.js';
 import { friendsOf } from '../residents.js';
 import { PLACES } from '../labels.js';
+import { EN } from '../i18n.js';
+import { pNick } from '../names.js';
 
 /*
  * 村里的买卖（设计见 wikigarden efforts/creative-coding/像素村落-经济与交易系统设计.md）。
@@ -19,39 +21,73 @@ import { PLACES } from '../labels.js';
 
 /** 东西：底价（文）、单位；decay：每天放坏的比例；outside：只能从村外进；export：骡帮收。 */
 export const GOODS = {
-  grain: { name: '粮食', unit: '升', price: 6 },
-  flour: { name: '白面', unit: '升', price: 10 },
-  soy: { name: '豆子', unit: '升', price: 5 },
-  tofu: { name: '豆腐', unit: '块', price: 2, decay: 1 },
-  veg: { name: '青菜', unit: '斤', price: 1, decay: 0.5 },
-  pickle: { name: '咸菜', unit: '坛', price: 8 },
-  egg: { name: '鸡蛋', unit: '个', price: 1, decay: 0.12 },
-  wood: { name: '柴', unit: '捆', price: 3 },
-  salt: { name: '盐', unit: '斤', price: 12, outside: true },
-  match: { name: '洋火', unit: '盒', price: 2, outside: true },
-  cloth: { name: '布', unit: '尺', price: 6, outside: true },
-  iron: { name: '铁料', unit: '斤', price: 8, outside: true },
-  tool: { name: '铁农具', unit: '件', price: 80 },
-  wooden: { name: '木器', unit: '件', price: 50 },
-  pill: { name: '丸药', unit: '丸', price: 5 },
-  honey: { name: '蜂蜜', unit: '斤', price: 15, export: true },
-  wool: { name: '羊毛', unit: '斤', price: 10, export: true },
-  basket: { name: '筐', unit: '个', price: 8, export: true },
-  bun: { name: '烧饼', unit: '个', price: 3, decay: 1 }, // 卖吃食的（村里特意留的空缺）
-  clothes: { name: '衣裳', unit: '件', price: 40 }, // 裁缝做的（空缺）
-  lime: { name: '石灰', unit: '斤', price: 3 }, // 老村址白家石灰窑：盘炕、刷墙、修房子（太沉，骡帮不收）
-  stone: { name: '条石', unit: '块', price: 6 }, // 老村址葛家石匠院：砌墙基、修猪圈、盘灶台
-  duckEgg: { name: '鸭蛋', unit: '个', price: 2, decay: 0.05 }, // 老村址凤仙嫂的鸭蛋（腌成咸鸭蛋放得住）
+  grain: { name: '粮食', unit: '升', en: { name: 'Grain', unit: '' }, price: 6 },
+  flour: { name: '白面', unit: '升', en: { name: 'Wheat flour', unit: '' }, price: 10 },
+  soy: { name: '豆子', unit: '升', en: { name: 'Soybeans', unit: '' }, price: 5 },
+  tofu: { name: '豆腐', unit: '块', en: { name: 'Tofu', unit: 'cake' }, price: 2, decay: 1 },
+  veg: { name: '青菜', unit: '斤', en: { name: 'Greens', unit: '' }, price: 1, decay: 0.5 },
+  pickle: { name: '咸菜', unit: '坛', en: { name: 'Pickles', unit: 'jar' }, price: 8 },
+  egg: { name: '鸡蛋', unit: '个', en: { name: 'Eggs', unit: '' }, price: 1, decay: 0.12 },
+  wood: { name: '柴', unit: '捆', en: { name: 'Firewood', unit: 'bundle' }, price: 3 },
+  salt: { name: '盐', unit: '斤', en: { name: 'Salt', unit: '' }, price: 12, outside: true },
+  match: { name: '洋火', unit: '盒', en: { name: 'Matches', unit: 'box' }, price: 2, outside: true },
+  cloth: { name: '布', unit: '尺', en: { name: 'Cloth', unit: '' }, price: 6, outside: true },
+  iron: { name: '铁料', unit: '斤', en: { name: 'Pig iron', unit: '' }, price: 8, outside: true },
+  tool: { name: '铁农具', unit: '件', en: { name: 'Iron tools', unit: '' }, price: 80 },
+  wooden: { name: '木器', unit: '件', en: { name: 'Woodenware', unit: '' }, price: 50 },
+  pill: { name: '丸药', unit: '丸', en: { name: 'Pills', unit: '' }, price: 5 },
+  honey: { name: '蜂蜜', unit: '斤', en: { name: 'Honey', unit: '' }, price: 15, export: true },
+  wool: { name: '羊毛', unit: '斤', en: { name: 'Wool', unit: '' }, price: 10, export: true },
+  basket: { name: '筐', unit: '个', en: { name: 'Baskets', unit: '' }, price: 8, export: true },
+  bun: { name: '烧饼', unit: '个', en: { name: 'Flatbread', unit: '' }, price: 3, decay: 1 }, // 卖吃食的（村里特意留的空缺）
+  clothes: { name: '衣裳', unit: '件', en: { name: 'Clothes', unit: 'set' }, price: 40 }, // 裁缝做的（空缺）
+  lime: { name: '石灰', unit: '斤', en: { name: 'Lime', unit: '' }, price: 3 }, // 老村址白家石灰窑：盘炕、刷墙、修房子（太沉，骡帮不收）
+  stone: { name: '条石', unit: '块', en: { name: 'Stone blocks', unit: '' }, price: 6 }, // 老村址葛家石匠院：砌墙基、修猪圈、盘灶台
+  duckEgg: { name: '鸭蛋', unit: '个', en: { name: 'Duck eggs', unit: '' }, price: 2, decay: 0.05 }, // 老村址凤仙嫂的鸭蛋（腌成咸鸭蛋放得住）
   // 新来的人的行当（newcomers.js 的 JOBS）：村里原来没人做的东西
-  fish: { name: '鱼', unit: '条', price: 3, decay: 0.5 },
-  pork: { name: '猪肉', unit: '斤', price: 4, decay: 0.3 },
-  wildfood: { name: '山货', unit: '斤', price: 3, decay: 0.1, export: true }, // 野菜、蘑菇、核桃（核桃骡帮收）
-  game: { name: '野味', unit: '只', price: 6, decay: 0.3 },
-  charcoal: { name: '木炭', unit: '斤', price: 4 },
-  seed: { name: '良种', unit: '升', price: 30 }, // 农技员育的谷种：换上的农户这一季多打一成半粮
-  relic: { name: '老物件', unit: '件', price: 25, export: true }, // 老村址废墟里挖出来的（骡帮收）
-  coal: { name: '煤', unit: '斤', price: 2, export: true }, // 老村址煤窑挖的（骡帮也收）
+  fish: { name: '鱼', unit: '条', en: { name: 'Fish', unit: '' }, price: 3, decay: 0.5 },
+  pork: { name: '猪肉', unit: '斤', en: { name: 'Pork', unit: '' }, price: 4, decay: 0.3 },
+  wildfood: { name: '山货', unit: '斤', en: { name: 'Wild produce', unit: '' }, price: 3, decay: 0.1, export: true }, // 野菜、蘑菇、核桃（核桃骡帮收）
+  game: { name: '野味', unit: '只', en: { name: 'Game', unit: '' }, price: 6, decay: 0.3 },
+  charcoal: { name: '木炭', unit: '斤', en: { name: 'Charcoal', unit: '' }, price: 4 },
+  seed: { name: '良种', unit: '升', en: { name: 'Seed grain', unit: '' }, price: 30 }, // 农技员育的谷种：换上的农户这一季多打一成半粮
+  relic: { name: '老物件', unit: '件', en: { name: 'Relics', unit: '' }, price: 25, export: true }, // 老村址废墟里挖出来的（骡帮收）
+  coal: { name: '煤', unit: '斤', en: { name: 'Coal', unit: '' }, price: 2, export: true }, // 老村址煤窑挖的（骡帮也收）
 };
+
+/** 界面上东西的名字（英文界面读 GOODS[g].en）。 */
+export const goodName = (g) => (EN ? GOODS[g]?.en?.name : GOODS[g]?.name) ?? g;
+/** 单位：直接接在数量后面写——中文「升」「捆」；英文带前导空格、配单复数（" bundles"），没有量词的返回 ''。 */
+export const goodUnit = (g, n = 2) => {
+  if (!EN) return GOODS[g]?.unit ?? '';
+  const u = GOODS[g]?.en?.unit;
+  return u ? ` ${n === 1 ? u : /(x|ch|sh|s)$/.test(u) ? `${u}es` : `${u}s`}` : '';
+};
+/** 「柴 11捆」/「Firewood 11 bundles」。 */
+export const goodQty = (g, n) => `${goodName(g)} ${n}${goodUnit(g, n)}`;
+
+/*
+ * 账上存的字（成交记录的 service / place、想买的 why）一律存中文（存档是中文的 Node 模拟写的，英文网页也读这份），
+ * 显示时用 reasonText 翻：查不到的（比如 place 里存的卖家名字）原样返回。
+ */
+export const REASON_EN = {
+  // service：手艺活、工钱、房钱……（成交记录里 good 为空时的那件事）
+  房钱: 'Rent', 工钱: 'Wages', 帮工修房: 'Help with house repairs', 地租: 'Land rent', 学费: 'School fees', 钉马掌: 'Shoeing mules', 牵线: 'Brokerage',
+  修农具: 'Tool mending', 修家什: 'Furniture mending', 錾磨盘: 'Millstone dressing', 修房盘炕: 'House and kang repairs', 送水: 'Water delivery', 照看: 'Caregiving',
+  杀猪: 'Pig slaughtering', 传话: 'Passing on notices', 喝茶: 'Tea', 剃头: 'Haircut', 看病: "Doctor's visit", 跑腿: 'Errand fee',
+  // place：在哪儿 / 怎么成交的
+  接济: 'Neighbourly help', 骡帮: 'Mule caravan', 集上: 'At the market', 货郎代买: 'Bought by the peddler',
+  // why：为什么想买
+  锄头用坏了: 'The hoe wore out', '板凳、犁把子坏了': 'A stool or plough handle broke', 筐漏了: 'The basket has a hole in it', 衣裳穿破了: 'Clothes worn through',
+  '赶集、看戏饿了想吃个烧饼': 'Hungry at the market or the opera, fancies a flatbread', 想吃白面: 'Craving white flour', 烧炭引窑火: 'To fire up the charcoal kiln',
+  有人病了: 'Someone is ill', 修房子: 'To fix up the house', 想吃咸鸭蛋: 'Craving salted duck eggs', 想吃条鱼: 'Fancies a fish', 割二斤肉: 'A couple of jin of pork',
+  尝个鲜野菜: 'A taste of fresh wild greens', 买点核桃蘑菇: 'Some walnuts and mushrooms', 买只野味: 'Some game for the pot', '烤火（炭没烟）': 'For the brazier (charcoal gives no smoke)',
+  '烧水、熨衣裳': 'Boiling water, pressing clothes', '烧炕、烤火': 'Heating the kang, keeping warm', 换新谷种: 'New seed grain', 蒸白面馍: 'Steaming white buns',
+  添置家具: 'Some new furniture', 做身新衣裳: 'A new set of clothes', 扯布做新衣裳: 'Cloth for new clothes', '盘炕、刷墙': 'Building a kang, whitewashing walls',
+  '修猪圈、垒灶台': 'Mending the pigsty, building a stove',
+};
+/** 账上的中文字 → 当前界面语言（中文原样；英文查 REASON_EN，查不到原样）。 */
+export const reasonText = (s) => (EN && s ? REASON_EN[s] ?? s : s);
 
 /** 哪户算哪户：村口的几个人各自一户；骡帮是村外的。 */
 export const unitOf = (p) => p.unit ?? (p.caravan ? 'caravan' : p.home === 'square' ? p.id : p.home); // 新来的人自己一户（p.unit）
@@ -292,7 +328,7 @@ export class Economy {
     const add = (job, u, service, price, dur) => {
       if (!have.has(job)) { this.missing[`job:${job}`] = (this.missing[`job:${job}`] ?? 0) + 0.3; return; }
       const home = u.members[0].sleepAt ?? u.members[0].home;
-      (this.calls[job] ??= []).push({ job, unit: u, home, place: PLACES[home] ?? `${u.members[0].nick}那儿`, service, price, dur });
+      (this.calls[job] ??= []).push({ job, unit: u, home, place: PLACES[home] ?? (EN ? `${pNick(u.members[0])}'s place` : `${u.members[0].nick}那儿`), service, price, dur });
     };
     for (const u of this.units.values()) {
       if (u.id === 'caravan' || !u.members.length) continue;

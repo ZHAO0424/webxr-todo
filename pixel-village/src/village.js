@@ -13,6 +13,7 @@ import { Sprites } from './sprites.js';
 import { RESIDENTS } from './residents.js';
 import { populate, EVENTS as EVENT_DEFS } from './life/index.js';
 import { PLACES } from './labels.js';
+import { EN } from './i18n.js';
 import { voxelTree } from './voxel.js';
 import { NavGrid } from './nav.js';
 import { buildFarmland } from './farmland.js';
@@ -539,13 +540,14 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
   }) ?? null;
   const whereAt = (x, z) => {
     if (x >= BOUNDS.x1) return east.whereAt(x, z); // 老村址
-    if (x < BOUNDS.x0) return Math.hypot(x - V.mill.at[0], z - V.mill.at[1]) < 6 ? '水磨坊' : Math.hypot(x - V.temple.at[0], z - V.temple.at[1]) < 4 ? '山神庙' : west.placeAt(x, z).name; // 西沟
+    if (x < BOUNDS.x0) return Math.hypot(x - V.mill.at[0], z - V.mill.at[1]) < 6 ? (EN ? 'Watermill' : '水磨坊') : Math.hypot(x - V.temple.at[0], z - V.temple.at[1]) < 4 ? (EN ? 'Mountain Shrine' : '山神庙') : west.placeAt(x, z).name; // 西沟
     const c = compoundAt(x, z);
     if (c) return PLACES[c.id];
-    if (shrine && Math.hypot(x - shrine.at[0], z - shrine.at[1]) < 4) return '桥头土地庙';
-    if (terrain.bridge && Math.hypot(x - terrain.bridge.x, z - terrain.bridge.z) < terrain.bridge.len / 2) return '石拱桥上';
+    if (shrine && Math.hypot(x - shrine.at[0], z - shrine.at[1]) < 4) return EN ? 'Earth God Shrine' : '桥头土地庙';
+    if (terrain.bridge && Math.hypot(x - terrain.bridge.x, z - terrain.bridge.z) < terrain.bridge.len / 2) return EN ? 'On the stone bridge' : '石拱桥上';
     const t = terrain.typeAt(x, z);
-    if (t === 'stream' || terrain.isWater(x, z + 1.5) || terrain.isWater(x, z - 1.5)) return '溪边';
+    if (t === 'stream' || terrain.isWater(x, z + 1.5) || terrain.isWater(x, z - 1.5)) return EN ? 'By the stream' : '溪边';
+    if (EN) return { field: 'In the fields', path: 'On the road', pad: 'In the village', grass: 'On the hillside' }[t] ?? 'In the village';
     return { field: '地里', path: '路上', pad: '村里', grass: '山坡上' }[t] ?? '村里';
   };
 

@@ -70,7 +70,7 @@ export function createXRCard() {
       measure.replaceChildren(clone);
       const w = Math.ceil(clone.offsetWidth), h = Math.ceil(clone.offsetHeight);
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">`
-        + `<div xmlns="http://www.w3.org/1999/xhtml" class="xr"><style>${cssText.replace(/</g, '\\3c ')}</style>${html}</div></foreignObject></svg>`;
+        + `<div xmlns="http://www.w3.org/1999/xhtml" class="xr" lang="${document.documentElement.lang || 'zh-CN'}"><style>${cssText.replace(/</g, '\\3c ')}</style>${html}</div></foreignObject></svg>`;
       const img = new Image();
       img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
       await img.decode();

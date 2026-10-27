@@ -12,9 +12,9 @@ import { setupPixelUI } from './ui/frame.js';
 import { residentCard, animalCard, thingCard, hm, label } from './ui/cards.js';
 import { createRoster } from './ui/roster.js';
 import { createXRCard } from './ui/xrCard.js';
-import { createTradeBubbles } from './ui/tradeBubble.js';
-import { GOODS } from './life/economy.js';
-import { addNewcomer, jobById, setJob, RELICS, pickOldHouse } from './life/newcomers.js';
+import { createTradeBubbles, coinText } from './ui/tradeBubble.js';
+import { GOODS, goodName, goodUnit, reasonText } from './life/economy.js';
+import { addNewcomer, jobById, setJob, relicText, pickOldHouse } from './life/newcomers.js';
 import { createNewcomerPanel } from './ui/newcomer.js';
 import { addResident } from './residents.js';
 import { pickThing, describe, YARDS } from './things.js';
@@ -27,9 +27,15 @@ import { animalDoing } from './animalInfo.js';
 import { EVENTS, WEATHER, fmt, lunarLabel } from './life/index.js';
 import { createSceneSwitch } from './scenes.js';
 import { setSeason, season, festival, SEASONS, ORDER as SEASON_ORDER } from './season.js';
-import { setRuins, ruinsMode } from './east.js';
+import { setRuins, ruinsMode, EAST_BOUNDS } from './east.js';
 import { auditOverlaps } from './overlap.js';
 import { SAVE_KEYS, loadWorld, yearOf, yearLabel } from './world.js';
+import { mine, statusOf } from './mine.js';
+import { signature, pickKeys, EDIT_KEYS } from './residentSchema.js';
+import { EN, tr, plural } from './i18n.js';
+import { villageName, hhName, hhField, word, pName, pNick, pJob } from './names.js';
+import { VILLAGE } from './residents.js';
+import { WEST_BOUNDS } from './west.js';
 
 const params = new URLSearchParams(location.search);
 // ?world=world/state.json：读后台模拟（tools/sim.mjs）存下的村子接着过——季节、开局方式、第几天几点、经济、老宅、新居民都照存档
@@ -125,13 +131,13 @@ const nextFrame = () => new Promise((r) => { requestAnimationFrame(() => request
 const lastBuild = (() => { try { return Number(localStorage.getItem('pvBuildMs')) || 5000; } catch { return 5000; } })();
 const M0 = buildMaterials();
 if (window.loader) window.loader.figure(loaderFrames(M0));
-window.loader?.set(0.38, '盖房子、种庄稼…', 0.86, lastBuild);
+window.loader?.set(0.38, tr('盖房子、种庄稼…', 'Raising houses, sowing fields...'), 0.86, lastBuild);
 await nextFrame();
 const t0 = performance.now();
 const village = buildVillage({ startHour: saved?.hour ?? Number(params.get('time') ?? 15.5), event: params.get('event'), weather: params.get('weather'), M: M0 }); // ?time=6 从早上六点开始；?event=opera|market|bonfire|harvest|movie|shrine|meeting 指定今天的活动
 document.documentElement.dataset.buildMs = String(Math.round(performance.now() - t0));
 try { localStorage.setItem('pvBuildMs', String(Math.round(performance.now() - t0))); } catch { /* 隐私模式存不了，下回按 5 秒估 */ }
-window.loader?.set(0.88, '村民起床…', 0.97, 2500);
+window.loader?.set(0.88, tr('村民起床…', 'Villagers waking up...'), 0.97, 2500);
 await nextFrame();
 const west = village.west; // 西沟：接在村子西边的另一块沙盘（village.js 里一起建，共用导航网格和村民）
 const east = village.east; // 老村址：接在村子东边
@@ -141,9 +147,9 @@ const world = new THREE.Group();
 world.add(village.object, west.object, east.object);
 stage.add(world, backdrop.object);
 const SCENES = [
-  { id: 'east', name: '老村址', object: east.object, things: east.things, shift: -90 },
-  { id: 'village', name: '村子', object: village.object, things: village.things, shift: 0 },
-  { id: 'west', name: '西沟', object: west.object, things: west.things, shift: 90 },
+  { id: 'east', name: tr('老村址', 'Old Site'), object: east.object, things: east.things, shift: -90 },
+  { id: 'village', name: tr('村子', 'Village'), object: village.object, things: village.things, shift: 0 },
+  { id: 'west', name: tr('西沟', 'West Gully'), object: west.object, things: west.things, shift: 90 },
 ];
 
 const sun = new THREE.DirectionalLight('#ffb27a', 3.4);
@@ -223,6 +229,11 @@ addEventListener('resize', () => {
 // ---------------------------------------------------------------- 桌面：时钟 + 点村民 / 小动物看卡片
 
 setupPixelUI();
+if (EN) { // index.html 里写死的中文按钮、提示：英文界面换掉（声音、音乐、季节、老宅按钮下面按状态写）
+  const set = (id, text, title) => { const el = document.getElementById(id); if (!el) return; if (text) el.textContent = text; if (title) el.title = title; };
+  set('settingsBtn', 'Settings'); set('debugBtn', 'Debug'); set('rosterBtn', 'Villagers');
+  set('goLeft', null, 'Go west (←)'); set('goRight', null, 'Go east (→)');
+}
 const clockEl = document.getElementById('clock');
 const host = document.getElementById('card');
 const ray = new THREE.Raycaster();
@@ -303,7 +314,7 @@ function show(card, obj, h) {
   if (sel?.v || sel?.b) { // 人和动物的卡片上有"跟随"：镜头平移着把它留在画面中间（距离、角度不变）
     const b = document.createElement('button');
     b.className = 'btn follow';
-    const label = () => { b.textContent = follow ? '跟随中' : '跟随'; b.classList.toggle('on', follow); };
+    const label = () => { b.textContent = follow ? tr('跟随中', 'Following') : tr('跟随', 'Follow'); b.classList.toggle('on', follow); };
     b.addEventListener('click', () => { follow = !follow; label(); });
     label();
     card.el.querySelector('.facecol')?.append(b); // 放在头像正下方
@@ -316,14 +327,14 @@ village.object.add(spot);
 
 const pick = (id) => selectPerson(V.byId[id]);
 const homeOf = (cid) => HOUSEHOLDS.find((h) => h.id === cid);
-const residentsOf = (cid) => village.life.people.filter((v) => v.p.home === cid).map((v) => ({ id: v.p.id, name: v.p.name }));
+const residentsOf = (cid) => village.life.people.filter((v) => v.p.home === cid).map((v) => ({ id: v.p.id, name: pName(v.p) }));
 const doingOf = (v) => (v.inside ? '' : LABELS[v.doing] ?? LABELS[v.doing?.split(':')[0]] ?? '');
 
 function selectThing(t) {
   const place = t.cid ? PLACES[t.cid] : null;
   const d = describe(t, place);
   const h = t.thing === 'house' ? homeOf(t.cid) : null;
-  const card = thingCard({ ...d, household: h && { name: h.name }, people: t.thing === 'house' ? residentsOf(t.cid) : [] }, { onClose: closeCard, onPick: pick });
+  const card = thingCard({ ...d, household: h && { name: hhName(h, true) }, people: t.thing === 'house' ? residentsOf(t.cid) : [] }, { onClose: closeCard, onPick: pick });
   sel = { t, card };
   scenes.current.object.add(spot);
   spot.position.set((t.box.min.x + t.box.max.x) / 2, t.box.max.y, (t.box.min.z + t.box.max.z) / 2);
@@ -333,7 +344,7 @@ function selectThing(t) {
 
 function selectYard(c) {
   const h = homeOf(c.id), y = YARDS[c.id];
-  const card = thingCard({ name: h?.name ?? PLACES[c.id], tags: [h?.kind ?? y?.kind].filter(Boolean), about: h?.note ?? y?.note ?? '', people: residentsOf(c.id) }, { onClose: closeCard, onPick: pick });
+  const card = thingCard({ name: h ? hhName(h, true) : PLACES[c.id], tags: [(h && hhField(h, 'kind')) ?? y?.kind].filter(Boolean), about: (h && hhField(h, 'note')) ?? y?.note ?? '', people: residentsOf(c.id) }, { onClose: closeCard, onPick: pick });
   sel = { c, card };
   village.object.add(spot);
   spot.position.set(c.object.position.x, c.object.position.y + 1.5, c.object.position.z);
@@ -344,20 +355,20 @@ function selectYard(c) {
 /** 房子 / 院子 / 物件卡片的"此刻"。 */
 function refreshPlace() {
   const people = village.life.people;
-  const who = (list) => list.map((v) => ({ id: v.p.id, name: `${v.p.name}${doingOf(v) ? ' · ' + doingOf(v) : ''}` }));
+  const who = (list) => list.map((v) => ({ id: v.p.id, name: `${pName(v.p)}${doingOf(v) ? ' · ' + doingOf(v) : ''}` }));
   const night = village.life.clock.night;
   if (sel.w) { // 西沟的一片地方：附近有没有人
     const [x, z] = sel.at;
     const near = people.filter((v) => !v.inside && Math.hypot(v.pos.x - x, v.pos.z - z) < 10);
-    sel.card.update({ lines: [near.length ? `附近 ${near.length} 人` : '四下无人'], kind: near.length ? '' : 'rest', who: who(near) });
+    sel.card.update({ lines: [near.length ? (EN ? `${plural(near.length, 'person', 'people')} nearby` : `附近 ${near.length} 人`) : tr('四下无人', 'Nobody around')], kind: near.length ? '' : 'rest', who: who(near) });
     return;
   }
   if (sel.c) {
     const c = sel.c;
     const here = people.filter((v) => village.compoundAt(v.pos.x, v.pos.z) === c);
     const out = here.filter((v) => !v.inside), inn = here.filter((v) => v.inside);
-    const lines = [here.length ? `院中 ${out.length} 人 · 屋内 ${inn.length} 人` : '院中无人'];
-    if (c.lit !== undefined && night) lines.push(c.lit ? '灯火未熄' : '灯火已熄');
+    const lines = [here.length ? (EN ? `Yard: ${out.length} · Indoors: ${inn.length}` : `院中 ${out.length} 人 · 屋内 ${inn.length} 人`) : tr('院中无人', 'Yard is empty')];
+    if (c.lit !== undefined && night) lines.push(c.lit ? tr('灯火未熄', 'Lamps still lit') : tr('灯火已熄', 'Lamps out'));
     sel.card.update({ lines, kind: here.length ? '' : 'rest', who: who(here) });
     return;
   }
@@ -366,13 +377,13 @@ function refreshPlace() {
   if (t.thing === 'house') {
     const inn = people.filter((v) => v.inside && dist(v) < 1.6);
     const c = village.C[t.cid];
-    const lines = [inn.length ? `屋内 ${inn.length} 人` : '屋内无人'];
-    if (c?.lit !== undefined && night) lines.push(c.lit ? '灯火未熄' : '灯火已熄，主人已歇下');
+    const lines = [inn.length ? (EN ? `${plural(inn.length, 'person', 'people')} inside` : `屋内 ${inn.length} 人`) : tr('屋内无人', 'Nobody inside')];
+    if (c?.lit !== undefined && night) lines.push(c.lit ? tr('灯火未熄', 'Lamps still lit') : tr('灯火已熄，主人已歇下', 'Lamps out, all asleep'));
     sel.card.update({ lines, kind: inn.length ? (night ? 'sleep' : 'rest') : '', who: who(inn) });
     return;
   }
   const near = people.filter((v) => !v.inside && dist(v) < 0.9);
-  sel.card.update({ lines: [near.length ? `${near.length} 人正在使用` : '暂无人使用'], kind: near.length ? '' : 'rest', who: who(near) });
+  sel.card.update({ lines: [near.length ? (EN ? `In use by ${plural(near.length, 'person', 'people')}` : `${near.length} 人正在使用`) : tr('暂无人使用', 'Not in use')], kind: near.length ? '' : 'rest', who: who(near) });
 }
 
 function selectPerson(v) {
@@ -412,10 +423,10 @@ function personStatus(v, hour = village.life.clock.hour) {
   const night = village.life.clock.night || cur < 0;
   const key = v.doing.split(':')[0];
   return {
-    doing: v.inside ? (night ? '已入睡' : '屋内') : v.errandText ?? LABELS[v.doing] ?? v.doing,
+    doing: v.inside ? (night ? tr('已入睡', 'Asleep') : tr('屋内', 'Indoors')) : v.errandText ?? LABELS[v.doing] ?? v.doing,
     where: v.inside ? (v.pos.x < BOUNDS.x0 ? village.whereAt(v.pos.x, v.pos.z) : PLACES[v.p.sleepAt ?? v.p.home] ?? village.whereAt(v.pos.x, v.pos.z)) : village.whereAt(v.pos.x, v.pos.z), // 在西沟的磨坊、山神庙里过夜的，写那个地方
     kind: v.inside && night ? 'sleep' : EVENTS[key] ? 'event' : REST.has(v.doing) || v.inside ? 'rest' : '',
-    nextText: nxt ? `下一项 ${hm(nxt[0])}　${label(nxt[1], nxt[2])}` : '今日安排已全部完成',
+    nextText: nxt ? (EN ? `Next ${hm(nxt[0])}  ${label(nxt[1], nxt[2])}` : `下一项 ${hm(nxt[0])}　${label(nxt[1], nxt[2])}`) : tr('今日安排已全部完成', 'All done for today'),
     dealText: dealLine(v),
     cur,
   };
@@ -427,14 +438,24 @@ const ECON = village.life.econ;
 if (params.has('debug')) { window.__life = village.life; window.__village = village; } // 调试：控制台里能看经济（__life.econ / __life.trade）、导航（__village.nav）
 const bubbles = createTradeBubbles();
 if (!params.has('sim')) V.onTrade = (t) => { bubbles.show(t, V.byId); document.documentElement.dataset.trade = `${t.buyer}:${t.good ?? t.service}`; if (params.has('followtrade') && !sel) { const b = V.byId[t.buyer]; selectPerson(b); host.querySelector('.follow')?.click(); const p = b.object.getWorldPosition(new THREE.Vector3()); controls.target.copy(p); camera.position.set(p.x, p.y + 0.09, p.z + 0.13); } }; // ?followtrade=1：第一笔成交时选中买家、镜头跟过去（截图检查用） // 无头快进时不画气泡；data-trade 给无头截图等成交用
-V.onRun = (pd, t) => bubbles.say(pd.object, [['代买 ', '#e0d4bf'], [`${GOODS[t.good].name}×${t.qty}`, '#ffcc66']]); // 货郎代买：头顶冒一句
-const nameOf = (id) => V.byId[id]?.p.nick ?? (id === 'niu_wanshan' ? '骡帮' : id);
-const goodText = (t) => (t.good ? `${GOODS[t.good].name}×${t.qty}` : t.service);
-const payText = (t) => (t.place === '货郎代买' ? `${t.price}文，货郎代买` : t.kind === 'gift' ? '人情，不要钱' : t.kind === 'barter' ? `拿${GOODS[t.swap.good].name}×${t.swap.qty}换的` : t.kind === 'credit' ? `赊了${t.price}文` : `${t.price}文`);
+V.onRun = (pd, t) => bubbles.say(pd.object, [[tr('代买 ', 'Errand: '), '#e0d4bf'], [`${goodName(t.good)}×${t.qty}`, '#ffcc66']]); // 货郎代买：头顶冒一句
+const nameOf = (id) => (V.byId[id] ? pNick(V.byId[id].p) : id === 'niu_wanshan' ? tr('骡帮', 'the mule train') : id);
+/** 英文句子中间的词：首字母小写（Tofu → tofu；两个大写字母开头的缩写、专名不动）。 */
+const mid = (s) => (EN && /^[A-Z][a-z]/.test(s ?? '') ? s[0].toLowerCase() + s.slice(1) : s);
+const goodText = (t) => (t.good ? (EN ? `${mid(goodName(t.good))} ×${t.qty}` : `${goodName(t.good)}×${t.qty}`) : EN ? mid(reasonText(t.service)) : t.service);
+const payText = (t) => (EN
+  ? (t.place === '货郎代买' ? `${coinText(t.price)}, via the peddler` : t.kind === 'gift' ? 'a gift, free' : t.kind === 'barter' ? `traded for ${mid(goodName(t.swap.good))} ×${t.swap.qty}` : t.kind === 'credit' ? `${coinText(t.price)} on credit` : coinText(t.price))
+  : (t.place === '货郎代买' ? `${t.price}文，货郎代买` : t.kind === 'gift' ? '人情，不要钱' : t.kind === 'barter' ? `拿${goodName(t.swap.good)}×${t.swap.qty}换的` : t.kind === 'credit' ? `赊了${t.price}文` : `${t.price}文`));
+/** 账本里的一户 / 一个人叫什么。 */
+const unitName = (id) => PLACES[id] ?? nameOf(id);
 /** 卡片上：今天最近一笔和他有关的买卖。 */
 function dealLine(v) {
   const t = ECON.trades.findLast((x) => x.day === ECON.day && (x.buyer === v.p.id || x.seller === v.p.id));
   if (!t) return '';
+  if (EN) {
+    if (t.kind === 'gift') return t.buyer === v.p.id ? `Today: ${nameOf(t.seller)}'s family sent ${goodText(t)} (a gift)` : `Today: sent ${goodText(t)} to ${nameOf(t.buyer)}'s family (a gift)`;
+    return t.buyer === v.p.id ? `Today: ${t.service ? '' : 'bought '}${goodText(t)} (${payText(t)})` : `Today: ${t.service ? `${goodText(t)} for ${nameOf(t.buyer)}` : `sold ${nameOf(t.buyer)} ${goodText(t)}`} (${payText(t)})`;
+  }
   if (t.kind === 'gift') return t.buyer === v.p.id ? `今天：${nameOf(t.seller)}家送来${goodText(t)}（接济）` : `今天：给${nameOf(t.buyer)}家送去${goodText(t)}（接济）`;
   return t.buyer === v.p.id ? `今天：${t.service ? '' : '买了'}${goodText(t)}（${payText(t)}）` : `今天：${t.service ? `给${nameOf(t.buyer)}${t.service}` : `卖给${nameOf(t.buyer)}${goodText(t)}`}（${payText(t)}）`;
 }
@@ -442,41 +463,103 @@ function dealLine(v) {
 function econOf(id) {
   const v = V.byId[id], u = v && ECON.unitOfV(v);
   if (!u) return null;
-  const stock = Object.entries(u.stock).filter(([g, q]) => q >= 1 && GOODS[g]).sort((a, b) => b[1] * GOODS[b[0]].price - a[1] * GOODS[a[0]].price).map(([g, q]) => [GOODS[g].name, Math.floor(q), GOODS[g].unit]);
-  const owe = [...Object.entries(u.owe).map(([o, n]) => `${PLACES[o] ?? nameOf(o)} 欠这家 ${n} 文`), ...[...ECON.units.values()].filter((x) => x.owe[u.id]).map((x) => `欠 ${PLACES[x.id] ?? nameOf(x.id)} ${x.owe[u.id]} 文`)];
-  const log = u.log.slice(-6).reverse().map((t) => t.kind === 'gift' ? `${hm(t.hour)} ${t.from === u.id ? `${nameOf(t.seller)}家送来${goodText(t)}（接济）` : `给${PLACES[t.from] ?? nameOf(t.buyer)}送去${goodText(t)}（接济）`}` : `${hm(t.hour)} ${nameOf(t.buyer)}${t.service ? (t.from === u.id ? `付${t.service}` : `来${t.service}`) : t.from === u.id ? `买${goodText(t)}` : `从这家买${goodText(t)}`}（${payText(t)}）`);
-  return { unit: PLACES[u.id] ?? nameOf(u.id), coins: u.coins, stock, owe, log };
+  const stock = Object.entries(u.stock).filter(([g, q]) => q >= 1 && GOODS[g]).sort((a, b) => b[1] * GOODS[b[0]].price - a[1] * GOODS[a[0]].price).map(([g, q]) => [goodName(g), Math.floor(q), goodUnit(g, Math.floor(q))]);
+  const owedBy = Object.entries(u.owe), owedTo = [...ECON.units.values()].filter((x) => x.owe[u.id]);
+  const owe = EN
+    ? [...owedBy.map(([o, n]) => `${unitName(o)} owes this family ${coinText(n)}`), ...owedTo.map((x) => `Owes ${unitName(x.id).replace(/^The /, 'the ')} ${coinText(x.owe[u.id])}`)]
+    : [...owedBy.map(([o, n]) => `${unitName(o)} 欠这家 ${n} 文`), ...owedTo.map((x) => `欠 ${unitName(x.id)} ${x.owe[u.id]} 文`)];
+  const logEN = (t) => (t.kind === 'gift'
+    ? (t.from === u.id ? `${nameOf(t.seller)}'s family sent ${goodText(t)} (a gift)` : `Sent ${goodText(t)} to ${(PLACES[t.from] ?? nameOf(t.buyer)).replace(/^The /, 'the ')} (a gift)`)
+    : `${nameOf(t.buyer)} ${t.service ? (t.from === u.id ? `paid for ${goodText(t)}` : `came for ${goodText(t)}`) : t.from === u.id ? `bought ${goodText(t)}` : `bought ${goodText(t)} here`} (${payText(t)})`);
+  const logZH = (t) => (t.kind === 'gift' ? `${t.from === u.id ? `${nameOf(t.seller)}家送来${goodText(t)}（接济）` : `给${PLACES[t.from] ?? nameOf(t.buyer)}送去${goodText(t)}（接济）`}` : `${nameOf(t.buyer)}${t.service ? (t.from === u.id ? `付${t.service}` : `来${t.service}`) : t.from === u.id ? `买${goodText(t)}` : `从这家买${goodText(t)}`}（${payText(t)}）`);
+  const log = u.log.slice(-6).reverse().map((t) => `${hm(t.hour)} ${EN ? logEN(t) : logZH(t)}`);
+  return { unit: unitName(u.id), coins: u.coins, stock, owe, log };
 }
 
 // ---------------------------------------------------------------- 新来的人（「创建居民」卡片 → life/newcomers.js）：存在浏览器里，刷新后照旧在村里过
 
-const loadNewcomers = () => { try { return JSON.parse(localStorage.getItem('pv.newcomers') ?? '[]'); } catch { return []; } };
-const saveNewcomers = () => { try { localStorage.setItem('pv.newcomers', JSON.stringify(V.people.filter((v) => v.p.newcomer).map((v) => Object.fromEntries(SAVE_KEYS.map((k) => [k, v.p[k]]))))); } catch { /* 隐私窗口存不了：只在这次打开里有效 */ } };
-if (saved) loadWorld(village, saved, { addNewcomer, onNewcomer: addResident }); // 存档里的新人先住进去
-// 自己在这台电脑上建的新人（存在浏览器里，还没进村子的存档）：接着放进来；?nonew=1 不带（截图、回归用）
-for (const p of params.has('nonew') || params.has('sim') ? [] : loadNewcomers()) {
-  if (V.byId[p.id]) continue; // 存档里已经有了
+// 我的居民（src/mine.js）：这台电脑上自己建的人。?nonew=1 不带（截图、回归用）
+const noMine = params.has('nonew') || params.has('sim');
+const myList = noMine ? [] : mine.list();
+const myIds = () => (noMine ? new Set() : mine.ids());
+/** 存档里的新人（读进来之前的原样，「我的居民」拿来对比：改了没提交、提交了生效没有）。 */
+const worldNewcomers = new Map((saved?.newcomers ?? []).map((p) => [p.id, structuredClone(p)]));
+const saveNewcomers = () => { // 自己的人：照村里此刻的样子存一份（只存自己的，存档里别人的不存）
+  if (noMine) return;
+  const ids = myIds();
+  mine.save(mine.list().map((p) => (ids.has(p.id) && V.byId[p.id] ? Object.fromEntries(SAVE_KEYS.filter((k) => V.byId[p.id].p[k] !== undefined).map((k) => [k, V.byId[p.id].p[k]])) : p)));
+};
+if (saved) {
+  const meta = mine.meta();
+  for (const p of myList) { // 提交的已经处理过了（存档比提交新）：本地这份照存档对齐（后台会把名字截短、补默认值）；离村的从本地拿掉
+    const w = worldNewcomers.get(p.id), m = meta[p.id], done = m?.sent && (saved.savedAt ?? 0) > m.sent.at;
+    if (m?.left && !w && done) mine.remove(p.id);
+    else if (w && done && !m.left && m.sent.sig === signature(p)) { Object.assign(p, pickKeys(w, EDIT_KEYS)); for (const k of EDIT_KEYS) if (w[k] === undefined) delete p[k]; mine.setMeta(p.id, { sent: undefined }); }
+  }
+  if (!noMine) mine.save(myList.filter((p) => mine.ids().has(p.id)));
+  const mineNow = new Map(mine.list().map((p) => [p.id, p])), metaNow = mine.meta();
+  saved.newcomers = (saved.newcomers ?? []).filter((w) => !metaNow[w.id]?.left) // 提交了离村的：这边先不显示
+    .map((w) => (mineNow.has(w.id) ? { ...w, ...pickKeys(mineNow.get(w.id), EDIT_KEYS.filter((k) => k !== 'jobId')) } : w)); // 自己改了样子、资料还没提交：这边先照改过的显示
+  loadWorld(village, saved, { addNewcomer, setJob, onNewcomer: addResident }); // 存档里的新人先住进去
+}
+// 自己建的、还没进村子存档的：接着放进来
+for (const p of noMine ? [] : mine.list()) {
+  if (V.byId[p.id] || mine.meta()[p.id]?.left) continue; // 存档里已经有了 / 提交了离村
   if (V.C[p.home]?.plot && V.east.houses.find((h) => h.id === p.home)?.owner) { const o = pickOldHouse(p, V.east.houses); p.home = o?.id; p.homeWhy = o?.why; } // 看中的老宅在存档里已经有人住了：另找一处空的，都住满了就借住村里人家
   addNewcomer(V, p, { arriving: false }); addResident(p);
 }
+saveNewcomers();
 // ?addnew=胡二根:磨面|推磨@old3#miller;马翠:做饭 开局就放几个新人进村（名:手艺|手艺@住处#行当，后两段可省；不存档，无头快进测行当用）
 for (const s of (params.get('addnew') ?? '').split(';').filter(Boolean)) { const [rest, job] = s.split('#'), [who, home] = rest.split('@'), [name, sk = ''] = who.split(':'); const p = { name, nick: name, home: home || undefined, jobId: job || undefined, jobPicked: job ? true : undefined, age: 32, sex: '男', skills: sk.split('|').filter(Boolean), traits: ['勤快'], bio: '测试用的新人', likes: '——', body: 'man', skin: 'skin', hair: 'short', top: 'indigo', pants: 'black', coins: 60, goods: { grain: 10 } }; addNewcomer(V, p); addResident(p); }
 V.onRepaired = (v, plot) => { // 老宅修好了：存档，头顶冒一句
   if (!v) return;
   saveNewcomers();
-  if (!params.has('sim')) bubbles.say(v.object, [['房子修好了', '#ffcc66'], [' 搬进新屋', '#e0d4bf']]);
+  if (!params.has('sim')) bubbles.say(v.object, [[tr('房子修好了', 'House repaired'), '#ffcc66'], [tr(' 搬进新屋', ', moving in'), '#e0d4bf']]);
 };
 V.onRelic = (v, n) => { // 挖到一件老东西：头顶冒一句（村史馆第几件）
-  if (!params.has('sim')) bubbles.say(v.object, [[`挖到${RELICS[(n - 1) % RELICS.length]}`, '#ffcc66'], [` 村史馆第${n}件`, '#e0d4bf']]);
+  const relic = relicText(n);
+  if (!params.has('sim')) bubbles.say(v.object, EN ? [[`Found ${relic}`, '#ffcc66'], [` museum piece #${n}`, '#e0d4bf']] : [[`挖到${relic}`, '#ffcc66'], [` 村史馆第${n}件`, '#e0d4bf']]);
 };
 V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一句，档案重建
   saveNewcomers();
-  bubbles.say(v.object, [[`当${v.p.job}`, '#ffcc66'], [' 开张了', '#e0d4bf']]);
+  bubbles.say(v.object, EN ? [[pJob(v.p), '#ffcc66'], [' open for business', '#e0d4bf']] : [[`当${v.p.job}`, '#ffcc66'], [' 开张了', '#e0d4bf']]);
   roster = makeRoster();
 };
+/** 「我的居民」里每个人：本地那份（村里有就用村里活着的那个）、走到哪一步、主人是谁。 */
+const myResidents = () => noMine ? [] : mine.list().filter((p) => !mine.meta()[p.id]?.left).map((p0) => {
+  const live = V.byId[p0.id]?.p, w = worldNewcomers.get(p0.id);
+  return { p: live ?? p0, status: statusOf(live ?? p0, w), owner: w?.owner };
+});
+/** 自己的人走了（离村、或者删掉没提交的）：这次打开里先让他进屋不出来（模拟里别人可能正跟他打交道，不直接拿掉），档案里不再列。 */
+function dropResident(id) {
+  const v = V.byId[id];
+  if (v) v.gone = true;
+  const i = RESIDENTS.findIndex((p) => p.id === id);
+  if (i >= 0) RESIDENTS.splice(i, 1);
+  for (const h of HOUSEHOLDS) { const j = h.people.findIndex((p) => p.id === id); if (j >= 0) h.people.splice(j, 1); }
+  roster = makeRoster();
+  updateNewBtn();
+}
+const newBtn = document.getElementById('newBtn');
+const updateNewBtn = () => { if (newBtn) newBtn.textContent = myResidents().length ? tr('我的居民', 'My residents') : tr('创建居民', 'New resident'); };
 const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
+  residents: myResidents,
+  onFind: (id) => { const v = V.byId[id]; if (!v) return; if (v.object.parent !== scenes.current.object && !scenes.busy) goToBoard(v.object.parent); selectPerson(v); host.querySelector('.follow')?.click(); },
+  onEdit(id, look) { // 改了样子、资料：村里这个人马上换样子，本地存一份（提交以后大家才看得见）
+    const v = V.byId[id];
+    if (!v) return;
+    for (const k of EDIT_KEYS) if (k !== 'jobId' && k in v.p && !(k in look)) delete v.p[k]; // 摘掉的帽子、配饰
+    Object.assign(v.p, Object.fromEntries(Object.entries(look).filter(([, x]) => x !== undefined)));
+    v.restyle();
+    saveNewcomers();
+    roster = makeRoster();
+  },
+  onLeave(id, status) { // 离村：没进大家村子的直接删；进了的已经打开了 GitHub 提交页（mine.js 记下 left）
+    if (!['in', 'changed', 'editing'].includes(status)) mine.remove(id);
+    dropResident(id);
+  },
   econ: () => ECON,
-  homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? h.name, n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
+  homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? hhName(h), n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
   M: village.M, // 第一步的 3D 小人用村里同一套材质
   pickHome: (p) => pickOldHouse(p, east.houses), // 住哪儿不用选：他按会什么、性格、喜好挑老村址空着的老宅（卡片上先写出来会看中哪处）
   onChangeJob(id, jobId) { // 档案里点「改行」选好了：马上换过去
@@ -486,21 +569,26 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
     v.finish();
     saveNewcomers();
     roster = makeRoster();
-    bubbles.say(v.object, [['改行', '#e0d4bf'], [` 当${v.p.job}`, '#ffcc66']]);
+    bubbles.say(v.object, EN ? [['New job: ', '#e0d4bf'], [pJob(v.p), '#ffcc66']] : [['改行', '#e0d4bf'], [` 当${v.p.job}`, '#ffcc66']]);
   },
   onCreate(p) {
+    p.id = `new_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`; // 大家的村子里不撞号
     const v = addNewcomer(V, p);
     addResident(p);
+    mine.save([...mine.list(), Object.fromEntries(SAVE_KEYS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]))]);
     saveNewcomers();
+    updateNewBtn();
     roster = makeRoster();
     if (scenes.current.object !== village.object) goToBoard(village.object);
     selectPerson(v);
     host.querySelector('.follow')?.click();
     if (params.has('closeup')) { const p = v.object.getWorldPosition(new THREE.Vector3()); controls.target.copy(p); camera.position.set(p.x, p.y + 0.06, p.z + 0.09); } // ?closeup=1：镜头推到新人跟前（截图检查用）
+    return p;
   },
 });
+updateNewBtn();
 if (params.has('newcomer')) setTimeout(() => newcomerPanel.show(['look', 'info', 'job'].includes(params.get('newcomer')) || /^(build|hair|hairRamp|hat|top|style|pants|skin|face|extra)$/.test(params.get('newcomer')) ? params.get('newcomer') : 'look'), 0); // ?newcomer=1 / info / hair……：一打开就是「创建居民」的那一页（截图检查用）
-document.getElementById('newBtn')?.addEventListener('click', (e) => { e.stopPropagation(); if (newcomerPanel.open) newcomerPanel.close(); else { roster.close(); newcomerPanel.show(); showSettings(false); showDebug(false); } });
+newBtn?.addEventListener('click', (e) => { e.stopPropagation(); if (newcomerPanel.open) newcomerPanel.close(); else { roster.close(); newcomerPanel.show(); showSettings(false); showDebug(false); } });
 
 // 村民档案：左下角按钮打开页面里的横板大卡；详情里"去村里找"= 关掉档案、选中这个人并跟着他
 const makeRoster = () => createRoster(document.getElementById('roster'), {
@@ -519,32 +607,60 @@ const makeRoster = () => createRoster(document.getElementById('roster'), {
     host.querySelector('.follow')?.click();
   },
   onClose: () => rosterBtn?.classList.remove('on'),
-  // 档案里的地图：真实场景从正上方看下去的截图；居民按户标在自家院子上
-  map: {
-    bounds: BOUNDS,
-    homeAt: (id) => { const c = village.C[id]; return c ? (c.east ? [BOUNDS.x1 - 3, Math.max(-20, Math.min(24, c.object.position.z))] : [c.object.position.x, c.object.position.z]) : null; }, // 老村址的几户：地图上标在东边沿（往东就是老村址）
-    image: () => (mapImage ??= mapSnapshot()),
-  },
+  mine: (id) => myIds().has(id),
+  onEdit: (id) => { const v = V.byId[id]; if (v) newcomerPanel.edit(v.p); },
+  // 档案里的地图：三块沙盘各一张真实场景从正上方看下去的截图；村子、老村址的居民按户标在自家院子上，西沟按"谁到这儿干活"标
+  map: { boards: mapBoards() },
 });
-let mapImage = null;
+const mapImages = {};
 let roster = makeRoster();
 
 /**
  * 村子的俯视图：正交相机从正上方往下拍一张（每米 8 个像素），颜色就是场景里的颜色。
  * 拍的时候光线固定成中午、人和动物先藏起来（地图上另外标头像）、远山和天空不画；拍完下一帧照常。
  */
-function mapSnapshot() {
+/**
+ * 档案地图的三块沙盘：村子、西沟、老村址。groups()：这块图上标哪些人（每组 { key, name, at, ids, role? }）。
+ *   村子、老村址：按户（住老村址老宅的新人一处老宅算一户）；西沟没人住：按日程里谁来这儿干活（梯田、水磨坊、山神庙、崖顶草坡、水潭）。
+ */
+function mapBoards() {
+  const idsOf = (h) => h.people.map((p) => p.id).filter((id) => RESIDENTS.some((p) => p.id === id));
+  const homes = (east) => HOUSEHOLDS.filter((h) => { const c = village.C[h.id]; return c && !c.plot && !!c.east === east; }).map((h) => ({ key: h.id, name: hhName(h), at: [village.C[h.id].object.position.x, village.C[h.id].object.position.z], ids: idsOf(h) })).filter((g) => g.ids.length);
+  const avg = (pts) => pts.length ? [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length] : null;
+  const doesIn = (p, test) => (p.day ?? []).some(([, a, arg]) => test(a, arg));
+  const WEST = [ // 西沟干活的地方：在哪、日程里哪一项算来这儿（新来的人按营生）
+    { key: 'fieldWest', name: tr('西沟梯田', 'West Gully terraces'), at: avg(west.work.fieldWest), test: (a, arg) => a === 'field' && arg === 'fieldWest', act: 'field:fieldWest' },
+    { key: 'mill', name: tr('水磨坊', 'Watermill'), at: west.work.mill.at, test: (a, arg) => a === 'mill' || (a === 'newJob' && arg === 'miller'), act: 'mill' },
+    { key: 'temple', name: tr('山神庙', 'Mountain Shrine'), at: west.work.temple.at, test: (a) => a === 'worship', act: 'worship' },
+    { key: 'pasture', name: tr('崖顶草坡', 'Clifftop pasture'), at: V.pasture[0]?.[0] < BOUNDS.x0 ? avg(V.pasture) : null, test: (a) => a === 'herd', act: 'herd' },
+    { key: 'pool', name: tr('瀑布水潭', 'Waterfall pool'), at: avg(west.work.pool.map((p) => p.at ?? p)), test: (a, arg) => a === 'fish' && arg === 'pool', act: 'fish:pool' },
+  ];
+  const plots = () => east.houses.filter((h) => h.owner).map((h) => ({ key: h.id, name: EN ? `${word(h.who)} old house` : `${h.who}老宅`, at: [village.C[h.id].object.position.x, village.C[h.id].object.position.z], ids: RESIDENTS.filter((p) => p.oldHouse === h.id).map((p) => p.id) })).filter((g) => g.ids.length);
+  const sub = (gs, n, what) => EN ? `${gs} ${what ?? 'homes'} · ${n} people` : `${gs} ${what ?? '户'} · ${n} 口人`;
+  return [
+    { id: 'village', name: villageName(VILLAGE), bounds: BOUNDS, image: () => (mapImages.village ??= mapSnapshot(village.object, BOUNDS)), groups: () => homes(false), sub(n) { return sub(this.groups().length, n); } },
+    { id: 'west', name: tr('西沟', 'West Gully'), bounds: WEST_BOUNDS, image: () => (mapImages.west ??= mapSnapshot(west.object, WEST_BOUNDS)), empty: tr('这几天没人来西沟干活', 'Nobody works in West Gully these days'),
+      groups: () => WEST.filter((w) => w.at).map((w) => ({ ...w, ids: RESIDENTS.filter((p) => doesIn(p, w.test)).map((p) => p.id), role: () => LABELS[w.act.split(':')[0]] && (LABELS[w.act] ?? LABELS[w.act.split(':')[0]]) })).filter((g) => g.ids.length),
+      sub: (n) => (EN ? `Nobody lives here · ${n} people come to work` : `没人住 · ${n} 人来这儿干活`) },
+    { id: 'east', name: tr('老村址', 'Old Site'), bounds: EAST_BOUNDS, image: () => (mapImages.east ??= mapSnapshot(east.object, EAST_BOUNDS)), groups: () => [...homes(true), ...plots()], sub(n) { return sub(this.groups().length, n); } },
+  ];
+}
+/** 一块沙盘从正上方看下去的截图（中午的光、不带人和牲口、不带别的沙盘和背景）：obj 那块沙盘，B 它的范围。 */
+function mapSnapshot(obj = village.object, B = BOUNDS) {
   if (inXR()) return null;
-  const B = BOUNDS, PX = 8, W = Math.round((B.x1 - B.x0) * PX), H = Math.round((B.z1 - B.z0) * PX);
-  village.object.updateMatrixWorld(true);
-  const s = village.object.getWorldScale(new THREE.Vector3()).x;
-  const c = village.object.localToWorld(new THREE.Vector3((B.x0 + B.x1) / 2, 0, (B.z0 + B.z1) / 2));
+  const PX = 8, W = Math.round((B.x1 - B.x0) * PX), H = Math.round((B.z1 - B.z0) * PX);
+  const boardsAll = [village.object, west.object, east.object];
+  const wasOn = boardsAll.map((o) => o.visible);
+  boardsAll.forEach((o) => { o.visible = o === obj; });
+  obj.updateMatrixWorld(true);
+  const s = obj.getWorldScale(new THREE.Vector3()).x;
+  const c = obj.localToWorld(new THREE.Vector3((B.x0 + B.x1) / 2, 0, (B.z0 + B.z1) / 2));
   const cam = new THREE.OrthographicCamera((-(B.x1 - B.x0) / 2) * s, ((B.x1 - B.x0) / 2) * s, ((B.z1 - B.z0) / 2) * s, (-(B.z1 - B.z0) / 2) * s, 0.01, 20);
   cam.up.set(0, 0, -1); // 图的上边是北（-z），和村子坐标一致
   cam.position.set(c.x, c.y + 5, c.z);
   cam.lookAt(c);
   cam.updateMatrixWorld();
-  const hide = [backdrop.object, west.object, east.object, marker, ...village.life.people.map((v) => v.object), ...village.life.beasts.map((b) => b.object)].filter((o) => o?.visible);
+  const hide = [backdrop.object, marker, ...village.life.people.map((v) => v.object), ...village.life.beasts.map((b) => b.object)].filter((o) => o?.visible);
   hide.forEach((o) => { o.visible = false; });
   applyLight(daylight(11), true); // 中午的光（会顺手换天空，所以先调光再去掉背景；下一帧 applyLight 照村里的钟换回来）
   const bg = scene.background;
@@ -563,6 +679,7 @@ function mapSnapshot() {
   rt.dispose();
   scene.background = bg;
   hide.forEach((o) => { o.visible = true; });
+  boardsAll.forEach((o, i) => { o.visible = wasOn[i]; });
   renderer.shadowMap.needsUpdate = true;
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
@@ -573,7 +690,8 @@ function mapSnapshot() {
 }
 const rosterBtn = document.getElementById('rosterBtn');
 rosterBtn?.addEventListener('click', (e) => { e.stopPropagation(); if (roster.open) roster.close(); else { roster.show(); rosterBtn.classList.add('on'); showSettings(false); showDebug(false); } });
-if (params.has('roster')) { roster.show(params.get('roster') || null); rosterBtn?.classList.add('on');  if (params.get('rpick')) roster.pick(params.get('rpick')); } // ?roster=1 打开档案（地图），&rpick=村民id 在地图上点中这个人；?roster=村民id 直接看这个人的详情（截图检查用）
+if (params.has('roster')) { roster.show(params.get('roster') === '1' ? null : params.get('roster') || null, params.get('rboard') || undefined); // &rboard=west|east：地图看哪一块
+  rosterBtn?.classList.add('on');  if (params.get('rpick')) roster.pick(params.get('rpick')); if (params.get('rview') === 'list') document.querySelector('#roster [data-v=list]')?.click(); } // &rview=list：卡片页 // ?roster=1 打开档案（地图），&rpick=村民id 在地图上点中这个人；?roster=村民id 直接看这个人的详情（截图检查用）
 
 // ?pick=村民id 或 ?pick=beast:序号：一打开就弹出这张卡（截图检查用）；?unfold=1 把折叠的都展开
 // 收集到的物件按种类计数（无头检查看有没有漏标）；?click=x,y 模拟在屏幕这一点点一下
@@ -610,7 +728,8 @@ let lastT = 0;
 const sound = createSound(village, () => (inXR() ? renderer.xr.getCamera() : camera));
 const soundBtn = document.getElementById('sound');
 // 背景音乐：按时辰轮换，唱戏时让路（见 music.js）
-const music = createMusic({ hour: () => village.life.clock.hour, busy: () => village.life.people.some((v) => v.state === 'fiddle') });
+let lastLabel = ''; // 时钟栏上次写的钟点（换了曲子置空，下一帧重写）
+const music = createMusic({ hour: () => village.life.clock.hour, busy: () => village.life.people.some((v) => v.state === 'fiddle'), onChange: () => { lastLabel = null; } }); // 换了曲子：时钟栏马上重写（上面写着正在放哪一首）
 const musicBtn = document.getElementById('music');
 // ?sound=1：直接打开声音，定时把统计写到 data-sound（无头检查：各种声音有没有触发、有没有报错）
 // &soundsim=秒：等音效都加载完，把村子快进这么多秒（配合 ?cam= 把镜头放近，测"凑近了才响"）
@@ -630,10 +749,14 @@ if (params.has('sound')) {
   }
 }
 function syncSoundBtn() {
-  if (soundBtn) { soundBtn.textContent = sound.on ? '声音：开' : '声音：关'; soundBtn.classList.toggle('on', sound.on); }
-  if (musicBtn) { musicBtn.textContent = music.on ? '音乐：开' : '音乐：关'; musicBtn.classList.toggle('on', music.on); }
+  if (soundBtn) { soundBtn.textContent = EN ? `Sound: ${sound.on ? 'on' : 'off'}` : sound.on ? '声音：开' : '声音：关'; soundBtn.classList.toggle('on', sound.on); }
+  if (musicBtn) { musicBtn.textContent = EN ? `Music: ${music.on ? 'on' : 'off'}` : music.on ? '音乐：开' : '音乐：关'; musicBtn.classList.toggle('on', music.on); }
 }
-musicBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.toggle(); syncSoundBtn(); });
+musicBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.toggle(); syncSoundBtn(); lastLabel = null; });
+const nextBtn = document.getElementById('nextTrack');
+if (nextBtn) nextBtn.textContent = tr('下一首', 'Next track');
+nextBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.next(); syncSoundBtn(); lastLabel = null; }); // 跳过这一首
+syncSoundBtn(); // 按钮上的字按当前语言写一遍
 // 设置按钮：点一下往上弹出声音、音乐、季节，再点（或点场景）收起
 const settingsEl = document.getElementById('settings'), settingsBtn = document.getElementById('settingsBtn');
 const showSettings = (on) => { if (!settingsEl) return; settingsEl.hidden = !on; settingsBtn.classList.toggle('on', on); if (on) showDebug(false); };
@@ -665,7 +788,7 @@ const gpuName = (() => {
   const soft = /swiftshader|llvmpipe|software|basic render/i.test(name);
   const parts = name.replace(/^ANGLE \(|\)$/g, '').split(','); // ANGLE (厂商, 型号 (0x…) Direct3D11 …, D3D11)：只留型号
   const short = (parts[1] ?? parts[0]).replace(/\(0x[0-9A-F]+\)|Direct3D.*|vs_.*/gi, '').trim();
-  return soft ? `<span style="color:var(--red)">软件渲染（${short}）——浏览器没用上显卡，重启浏览器或打开硬件加速</span>` : short;
+  return soft ? `<span style="color:var(--red)">${EN ? `Software rendering (${short}): no GPU in use.\nRestart the browser or turn on hardware acceleration` : `软件渲染（${short}）——浏览器没用上显卡，重启浏览器或打开硬件加速`}</span>` : short;
 })();
 function debugTick() { // 每帧记一下，半秒刷新一次面板
   const now = performance.now(), d = now - dbg.last;
@@ -674,20 +797,20 @@ function debugTick() { // 每帧记一下，半秒刷新一次面板
   const info = renderer.info, life = village.life, out = life.people.filter((v) => !v.inside).length;
   const row = (k, v) => `${k}  <b>${v}</b>`;
   debugEl.innerHTML = [
-    row('帧率', `${Math.round((dbg.frames * 1000) / (now - dbg.t))} fps`),
-    row('帧间隔', `${(dbg.ms / dbg.frames).toFixed(1)} ms（最慢 ${dbg.worst.toFixed(0)}）`),
-    row('CPU', `${(dbg.cpu / dbg.frames).toFixed(1)} ms / 帧`), // 更新 + 提交渲染真正花的时间；90 帧要压在 11 ms 以内（CPU、GPU 各自）
-    row('GPU', timer ? (dbg.gpuMs === null ? '…' : `${dbg.gpuMs.toFixed(1)} ms / 帧`) : '浏览器不支持计时'),
+    row(tr('帧率', 'FPS'), `${Math.round((dbg.frames * 1000) / (now - dbg.t))} fps`),
+    row(tr('帧间隔', 'Frame time'), EN ? `${(dbg.ms / dbg.frames).toFixed(1)} ms (worst ${dbg.worst.toFixed(0)})` : `${(dbg.ms / dbg.frames).toFixed(1)} ms（最慢 ${dbg.worst.toFixed(0)}）`),
+    row('CPU', `${(dbg.cpu / dbg.frames).toFixed(1)} ms / ${tr('帧', 'frame')}`), // 更新 + 提交渲染真正花的时间；90 帧要压在 11 ms 以内（CPU、GPU 各自）
+    row('GPU', timer ? (dbg.gpuMs === null ? tr('…', '...') : `${dbg.gpuMs.toFixed(1)} ms / ${tr('帧', 'frame')}`) : tr('浏览器不支持计时', 'No timer support')),
     row('Draw call', info.render.calls),
-    row('三角面', `${(info.render.triangles / 10000).toFixed(1)} 万`),
-    row('着色器', info.programs.length),
-    row('贴图 / 几何体', `${info.memory.textures} / ${info.memory.geometries}`),
-    row('显卡', gpuName),
-    row('像素比', renderer.getPixelRatio().toFixed(2)),
-    row('XR', renderer.xr.isPresenting ? `是 · ${renderer.xr.getSession()?.frameRate ?? '?'} Hz（可选 ${renderer.xr.getSession()?.supportedFrameRates?.join(' / ') ?? '未知'}）` : '否'),
-    row('在外面', `${out} 人 · ${life.beasts.filter((b) => !b.home).length} 只`),
-    row('时钟', `${life.clock.label}（1 秒 = ${(life.clock.rate).toFixed(2)} 分钟）`),
-    row('场景', scenes.current.name),
+    row(tr('三角面', 'Triangles'), EN ? `${(info.render.triangles / 1000).toFixed(0)}k` : `${(info.render.triangles / 10000).toFixed(1)} 万`),
+    row(tr('着色器', 'Shaders'), info.programs.length),
+    row(tr('贴图 / 几何体', 'Textures / geoms'), `${info.memory.textures} / ${info.memory.geometries}`),
+    row(tr('显卡', 'GPU name'), gpuName),
+    row(tr('像素比', 'Pixel ratio'), renderer.getPixelRatio().toFixed(2)),
+    row('XR', renderer.xr.isPresenting ? (EN ? `Yes · ${renderer.xr.getSession()?.frameRate ?? '?'} Hz (options ${renderer.xr.getSession()?.supportedFrameRates?.join(' / ') ?? 'unknown'})` : `是 · ${renderer.xr.getSession()?.frameRate ?? '?'} Hz（可选 ${renderer.xr.getSession()?.supportedFrameRates?.join(' / ') ?? '未知'}）`) : tr('否', 'No')),
+    row(tr('在外面', 'Outdoors'), EN ? `${plural(out, 'person', 'people')} · ${plural(life.beasts.filter((b) => !b.home).length, 'animal')}` : `${out} 人 · ${life.beasts.filter((b) => !b.home).length} 只`),
+    row(tr('时钟', 'Clock'), EN ? `${life.clock.label} (1 s = ${(life.clock.rate).toFixed(2)} min)` : `${life.clock.label}（1 秒 = ${(life.clock.rate).toFixed(2)} 分钟）`),
+    row(tr('场景', 'Scene'), scenes.current.name),
   ].join('\n');
   dbg.frames = 0; dbg.ms = 0; dbg.worst = 0; dbg.cpu = 0; dbg.t = now;
 }
@@ -698,7 +821,7 @@ if (params.has('settings')) showSettings(true); // ?settings=1：一打开就展
 // 季节按钮：春 → 夏 → 秋 → 冬，换季节要重建整个场景，带着新参数重新加载页面（其余参数保留）
 const seasonBtn = document.getElementById('season');
 if (seasonBtn) {
-  seasonBtn.textContent = `季节：${SEASONS[season()].name}`;
+  seasonBtn.textContent = EN ? `Season: ${SEASONS[season()].en ?? season()}` : `季节：${SEASONS[season()].name}`;
   seasonBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     const q = new URLSearchParams(location.search);
@@ -709,7 +832,7 @@ if (seasonBtn) {
 // 老宅按钮：完好开局 ⇄ 废墟开局（要重建场景，带着新参数重新加载页面）
 const ruinsBtn = document.getElementById('ruins');
 if (ruinsBtn) {
-  ruinsBtn.textContent = `老宅：${ruinsMode() ? '废墟开局' : '完好'}`;
+  ruinsBtn.textContent = EN ? `Old houses: ${ruinsMode() ? 'ruins' : 'intact'}` : `老宅：${ruinsMode() ? '废墟开局' : '完好'}`;
   ruinsBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     const q = new URLSearchParams(location.search);
@@ -720,7 +843,7 @@ if (ruinsBtn) {
 if (params.has('music')) { music.toggle(); setInterval(() => { document.documentElement.dataset.music = `${music.title}|${music.on}`; }, 500); } // ?music=1：直接放（无头检查用）
 soundBtn?.addEventListener('click', (e) => { e.stopPropagation(); sound.toggle(); syncSoundBtn(); });
 const viewer = new THREE.Vector3();
-let lastLabel = '';
+lastLabel = '';
 let shadowFrame = 1;
 const first = village.update(0, camera.position);
 applyLight(first.light, true);
@@ -761,8 +884,9 @@ renderer.setAnimationLoop((_, frame) => {
     lastLabel = s.clock.label;
     const e = EVENTS[village.life.today()], w = village.life.weather();
     // 时钟栏：大号时间 + 右边日期天气（一行），下面一行今日活动
-    clockEl.innerHTML = `<div class="top"><span class="time">${lastLabel}</span><span class="date">${yearLabel(yearOf(s.clock.day, festival().m, festival().d))} ${lunarLabel(s.clock.day)}<br>${s.clock.night ? '夜 · ' : ''}${WEATHER[w]}</span></div>`
-      + `<div class="ev"><span class="name">${e.name}</span> <span class="sub">${w === 'rain' ? '因雨延期' : `${fmt(e.from)}–${fmt(e.to)} ${e.place}`}</span></div>`;
+    clockEl.innerHTML = `<div class="top"><span class="time">${lastLabel}</span><span class="date">${yearLabel(yearOf(s.clock.day, festival().m, festival().d))} ${lunarLabel(s.clock.day)}<br>${s.clock.night ? tr('夜 · ', 'Night · ') : ''}${WEATHER[w]}</span></div>`
+      + `<div class="ev"><span class="name">${e.name}</span> <span class="sub">${w === 'rain' ? tr('因雨延期', 'Rained off') : `${fmt(e.from)}–${fmt(e.to)} ${e.place}`}</span></div>`
+      + (music.title ? `<div class="bgm">${tr('乐曲', 'Music')} <b>${music.title}</b> <span class="sub">${music.file}</span></div>` : ''); // 正在放的背景音乐（设置里「下一首」可以换）
     refreshCard();
     roster.refresh();
   }
@@ -906,3 +1030,29 @@ document.documentElement.dataset.west = JSON.stringify({ audit: west.object.user
 document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);
 document.documentElement.dataset.audit = JSON.stringify({ perchFix: village.object.userData.perchFix, coplanar: village.object.userData.coplanar, overlap: village.object.userData.overlap, flora: village.object.userData.flora, floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
 document.documentElement.dataset.ready = '1';
+
+// ?uicheck=1：一个个打开界面，量哪里的字出了框（src/uicheck.js；英文比中文长，换语言后用 ?lang=en&uicheck=1 跑一遍）
+if (params.has('uicheck')) {
+  const { uiCheck } = await import('./uicheck.js');
+  renderer.setAnimationLoop(() => {}); // 只量界面，不画村子：无头里一帧要画好久；留一个空循环，requestAnimationFrame 照样走
+  const closeAll = () => { closeCard(); roster.close(); newcomerPanel.close(); showSettings(false); showDebug(false); };
+  const thing = (k) => [...village.things, ...west.things, ...east.things].find((t) => t.thing === k);
+  const steps = [
+    { name: 'hud', open: closeAll },
+    { name: 'settings', open: () => { closeAll(); showSettings(true); } },
+    { name: 'debug', open: () => { closeAll(); showDebug(true); } },
+    ...['wang_xiaomei', 'zheng_laotou', 'miao_fengxian', 'niu_wanshan'].map((id) => ({ name: `person:${id}`, open: () => { closeAll(); if (V.byId[id]) selectPerson(V.byId[id]); } })),
+    { name: 'beast', open: () => { closeAll(); selectBeast(village.life.beasts[0]); } },
+    ...['house', 'gate', 'oldBridge', 'ruin'].map((k) => ({ name: `thing:${k}`, open: () => { closeAll(); const t = thing(k); if (t) selectThing(t); } })),
+    ...['village', 'west', 'east'].map((b) => ({ name: `roster:${b}`, open: () => { closeAll(); roster.show(null, b); roster.layout(); } })),
+    { name: 'roster:cards', open: () => { closeAll(); roster.show(); document.querySelector('#roster [data-v=list]')?.click(); } },
+    ...[0, 1, 2, 3].map((g) => ({ name: `new:look${g}`, open: () => { closeAll(); newcomerPanel.create('look'); document.querySelector(`#newcomer [data-group="${g}"]`)?.click(); } })),
+    { name: 'new:info', open: () => { closeAll(); newcomerPanel.create('info'); } },
+    ...[0, 1, 2, 3, 4].map((c) => ({ name: `new:job${c}`, open: () => { closeAll(); newcomerPanel.create('job'); document.querySelectorAll('#newcomer .jcats button')[c]?.click(); document.querySelector('#newcomer .jcard')?.dispatchEvent(new Event('pointerover', { bubbles: true })); } })),
+    { name: 'new:done', open: () => { const n = document.querySelector('#newcomer [data-f=name]'); n.value = EN ? 'Hu Ergen' : '胡二根'; n.dispatchEvent(new Event('input')); document.querySelector('#newcomer .create').click(); } },
+    { name: 'new:mine', open: () => { closeAll(); newcomerPanel.mine(); } },
+    { name: 'new:edit', open: () => { const b = document.querySelector('#newcomer .mcard [data-act=edit]'); b?.click(); } },
+    { name: 'new:editinfo', open: () => { document.querySelector('#newcomer [data-page=info]')?.click(); } },
+  ];
+  await uiCheck(steps);
+}

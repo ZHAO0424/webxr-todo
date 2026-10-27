@@ -15,6 +15,7 @@ import { fixCoplanar } from './coplanar.js';
 import { findOverlaps, overlapAuditOn } from './overlap.js';
 import { Sprites } from './sprites.js';
 import { Smoke, Fireflies, Rain } from './fx.js';
+import { EN } from './i18n.js';
 
 const P = tagged(PROPS);
 
@@ -768,6 +769,13 @@ export function buildWest(M) {
     stream: { name: '山溪', tags: [], about: '瀑布下的深潭漫出来，顺着山沟一路跌跌撞撞流到南边，和村里流过来的小溪汇在一起。' },
     slope: { name: '西沟', tags: [], about: '出了村西口、翻过山梁就是西沟：北边是红石崖，崖腰有一条挂壁古道，沟里是梯田和山林。' },
   };
+  if (EN) Object.assign(PLACE, {
+    forest: { name: 'West Gully woods', tags: ['Pine', 'Smoke tree', 'Oak'], about: 'Mixed woods at the foot of the cliff. In autumn the smoke trees turn deep red against the dark green pines. Villagers come here to cut firewood and gather herbs.' },
+    field: { name: 'West Gully terraces', tags: ['Millet', 'Sorghum', 'Corn'], about: 'Dry terraces stacked up the hillside, living on whatever the sky gives. It is harvest time: some plots are already cut, with millet sheaves standing in the stubble to dry.' },
+    cliff: { name: 'Red Cliff', tags: ['Red sandstone'], about: 'A red sandstone cliff, typical of the Taihang Mountains, layered like stacked pages. Above it roll stony hills, with pines, cypress and smoke trees in the cracks; when the wind blows, red leaves drift down the cliff.' },
+    stream: { name: 'Mountain creek', tags: [], about: 'Overflow from the deep pool below the falls, tumbling down the gully southward to join the stream that runs through the village.' },
+    slope: { name: 'West Gully', tags: [], about: 'Out the west end of the village and over the ridge lies West Gully: the Red Cliff to the north with a cliff road cut halfway up, and terraces and woods in the valley.' },
+  });
   const placeAt = (x, z) => {
     const t = terrain.typeAt(x, z), u = x - OX;
     if (t === 'stream') return PLACE.stream;

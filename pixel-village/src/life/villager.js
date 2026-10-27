@@ -50,6 +50,20 @@ export class Villager {
   do(state, dur, opts = {}) { this.tasks.push({ type: 'do', state, dur, ...opts }); }
   enter(c, which = 'house') { this.go(c.door(which)); this.tasks.push({ type: 'inside' }); }
   call(fn) { this.tasks.push({ type: 'call', fn }); }
+  /** 换了样子（自己建的人在「我的居民」里改了长相）：照新样子重搭体素小人；位置、朝向、手里拿的、背上背的、选中的光圈都接着用。 */
+  restyle() {
+    const old = this.object, ch = voxelCharacter(this.p, this.V.M);
+    ch.object.position.copy(old.position); ch.object.quaternion.copy(old.quaternion); ch.object.scale.copy(old.scale);
+    ch.object.visible = old.visible;
+    ch.object.userData = old.userData;
+    if (this.halo?.parent === old) ch.object.add(this.halo);
+    old.parent?.add(ch.object);
+    old.removeFromParent();
+    ch.setItem(this.char.item ?? null);
+    ch.setBack(this.char.back ?? null);
+    this.char = ch;
+    this.object = ch.object;
+  }
   item(name) { this.tasks.push({ type: 'call', fn: () => this.char.setItem(name) }); }
   back(name) { this.tasks.push({ type: 'call', fn: () => this.char.setBack(name) }); } // 背上背的东西（背篓、柴捆、麦个子、粮袋）
   /** 走直线爬上 / 下到导航网格管不到的地方（戏台台阶、石凳）。pts：[[x, z, 离地高], …]，down：下来时怎么走。 */
@@ -178,6 +192,7 @@ export class Villager {
   }
 
   update(t, dt, hour) {
+    if (this.gone) { this.inside = true; this.object.visible = false; return; } // 离村了（「我的居民」里让他走的）：这次打开里待在屋里不出来，下回读档就没有他了
     this.dt = dt;
     this.madeWay = Math.max(0, (this.madeWay ?? 0) - dt);
     this.schedule(hour); // 日程排满一整天：第一项之前、最后一项（回屋）之后都在屋里睡觉

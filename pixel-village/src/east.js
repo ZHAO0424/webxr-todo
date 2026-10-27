@@ -16,6 +16,8 @@ import { Sprites } from './sprites.js';
 import { Smoke, Fireflies, Rain } from './fx.js';
 import { shrine, stoneTablet, floraGeometries } from './roadside.js';
 import { fieldCrops, gardenShapes } from './farmland.js';
+import { EN } from './i18n.js';
+import { word, pName, pNick } from './names.js';
 
 const P = tagged(PROPS);
 
@@ -147,7 +149,24 @@ const HOMES = {
   limeKiln: { u: 23.5, z: -6.8, w: 9, d: 7 }, // 白家石灰窑：东头，挨着煤窑和青石崖（烧石灰的青石就从崖上撬）
   duckYard: { u: -30, z: 27, w: 8, d: 6 }, // 苗家鸭棚：湖西头、小溪边上
 };
-const HOME_NAMES = { riverTemple: '河神庙', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '苗家鸭棚' };
+const HOME_NAMES = EN ? { riverTemple: 'River God Temple', mason: "Ge's Mason Yard", limeKiln: "Bai's Lime Kiln", duckYard: "Miao's Duck Shed" } : { riverTemple: '河神庙', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '苗家鸭棚' };
+/** 老宅来历的英文（键是 HOUSES 的 id）。 */
+const STORY_EN = {
+  old1: "Headman Wang's grandfather's generation lived here, one of the finest compounds in Old Shiyu: brick and tile, a main house with a side wing, a gatehouse at the gate and a cowshed by the west wall. The year of the flood the family moved downstream, and it has stood empty ever since.",
+  old2: "Shopkeeper Sun's family's old shopfront on the old street: two joined brick-and-tile rooms, one the shop (plank doors, a counter), the other for living, with a flagstone yard out front.",
+  old3: "The Zhaos' old mill, built of bluestone. The flood burst in through the door and swept the millstone out through the door; a yellow mud line still marks the wall. There is a chicken coop in the yard.",
+  old4: "Old Chen was born here. He says he was only eight or nine when the flood came, and his father carried him out on his shoulders through waist-deep water. The old persimmon tree still fruits every year; the pigsty stands empty.",
+  old5: "The little yard the Yangs lived in as hired hands for landlord Tang: one adobe hut with a thatch roof, a ring of wattle fence, and nothing else.",
+  old6: "The Wus' old house, built of stone with a slate roof. An old locust tree outside the yard wall, a chicken coop by the wall.",
+  old7: "Carpenter Liu's family's adobe hut with a thatch roof and a fenced yard. A carpenter's house has the thickest beams, and the yard still holds timber he never used.",
+  old8: "The first Zhang blacksmith worked here: a single stone room, a forge in the yard, and charred slag buried in the ground.",
+  old9: "Zhou's Pharmacy used to be here, shop in front and yard behind, with a cowshed in the yard. The medicine cabinet is long gone, but the outlines of its little drawers still show on the wall.",
+  old10: "The cliff cave the Mas lived in while herding sheep, dug into the loess at the foot of the west hill: warm in winter, cool in summer, with a stone sheepfold in front.",
+  old11: "Barber Zheng's family's old house, just one room with a fenced yard, south of the old street by the threshing floor. He says as a boy he burrowed into the straw stacks there every autumn.",
+  old12: "A stone house said to have belonged to a schoolteacher long ago, on the cliff edge south of the gully, with a persimmon tree in the yard. The flood never reached it; it simply stood empty too long.",
+};
+/** 老宅的叫法：英文 “Zhao old house”，有人住了 “Shitou's place (Zhao old house)”。 */
+const plotName = (p) => EN ? (p.owner ? `${p.ownerEn ?? p.ownerName ?? ''}'s place (${word(p.who)} old house)` : `${word(p.who)} old house`) : (p.owner ? `${p.ownerName ?? ''}家（${p.who}老宅）` : `${p.who}老宅`);
 /** 各行当的地方：煤窑口、培育田、山货收购棚、进山口、蜂场、放牛草场；石潭边的亭子。 */
 const MINE = { u: 36, z: -9.1, w: 13, d: 9 }; // 煤窑口前的大场子（后沿贴着青石崖）
 const TRIAL = { u0: -5, u1: 5, z0: -21, z1: -15 };
@@ -1193,9 +1212,18 @@ export function buildEast(M) {
   for (const k of root.children) collect(k);
   root.userData.floating = findFloating(root, terrain);
   const things = collectThings(root, {});
-  const plotCard = (p) => p.owner
+  const plotCardZh = (p) => p.owner
     ? { name: `${p.ownerName}家（${p.who}老宅）`, tags: [['塌了', '先苫了半边顶', '囫囵的'][p.state], `${p.ownerName}住着`], about: `${p.story}${p.state < 2 ? `如今${p.ownerName}住了进来，正攒石灰、条石和柴火，等着请葛石头来帮着修。` : `如今${p.ownerName}住了进来：扫了院子、通了烟囱，晚上窗户又亮了。`}`, plot: p.id }
     : { name: `${p.who}老宅`, tags: [['塌了', '能遮雨', '囫囵的'][p.state], '空着'], about: `${p.story}（空着：「创建居民」时可以选这儿住）`, plot: p.id };
+  const plotCard = (p) => { // 英文放在 en 里（things.js 的 describe 按语言取）
+    const c = plotCardZh(p);
+    if (!EN) return c;
+    const who = p.ownerEn ?? p.ownerName ?? '', story = STORY_EN[p.id] ?? p.story;
+    c.en = p.owner
+      ? { name: plotName(p), tags: [['Collapsed', 'Half re-roofed', 'Intact'][p.state], `${who} lives here`], about: `${story} ${p.state < 2 ? `Now ${who} has moved in and is saving up lime, stone blocks and firewood until Stonemason Ge can come help with repairs.` : `Now ${who} has moved in: the yard is swept, the chimney cleared, and the windows glow again at night.`}` }
+      : { name: plotName(p), tags: [['Collapsed', 'Keeps the rain out', 'Intact'][p.state], 'Empty'], about: `${story} (Empty: you can choose to live here when you create a resident.)` };
+    return c;
+  };
   for (const t of things) { // 老宅的卡片：谁家的、怎么塌的、现在谁住着
     const p = HOUSES.find((h) => h.id === (t.obj.userData.plot ?? t.obj.parent?.userData.plot));
     if (p && (t.thing === 'ruin' || t.thing === 'house')) { t.thing = 'ruin'; t.spec = plotCard(p); }
@@ -1276,6 +1304,19 @@ export function buildEast(M) {
     slope: { name: '老石峪', tags: ['老村址'], about: '石峪村原来就在这面坡上。大水以后大半人家搬去了下游，留下一坡塌了的老宅。地是好地，就是好些年没人种了。' },
     south: { name: '溪南草滩', tags: [], about: '小溪南边的一溜草滩，和村口那边连着。' },
   };
+  const PLACE_EN = {
+    oldbed: { name: 'Loess gully', tags: ['Earth cliffs', 'Willows'], about: 'Sixty-some years ago a flash flood roared down from the eastern pass and gouged this gully five or six metres deep into the loess slope, all the way to the big lake below. Steep loess cliffs line both sides; the floor is grassy, with a few willows and a footpath, and the old street crosses on an earth arch bridge. After a summer downpour, water still runs through it.' },
+    beach: { name: 'Riverbank', tags: ['Pebbles', 'Willows'], about: "The pebble beach on the stream's north bank. Shuisheng often fishes driftwood out here to dry and sell as firewood, and Miao's ducks are in the shallows first thing in the morning." },
+    lake: { name: 'Big Lake', tags: ['Bamboo', 'Willows'], about: 'A broad lake below the slope, where the gully runs down from the northeast. A row of willows on the north shore, bamboo groves at either end; anglers like to sit on the bank.' },
+    stone: { name: 'Bluestone Cliff', tags: ['Coal seams'], about: "A bluestone cliff in the Old Site's northeast corner, its layers streaked with shiny black coal seams and old forest on top. A big coal pit is cut into its foot, and the village's winter coal is carried out from there; Old Lime Bai pries the bluestone for his kiln from this cliff too." },
+    forest: { name: 'East Hill Forest', tags: ['Pine', 'Oak', 'Wild boar'], about: 'The old forest behind the Old Site, tall and dense. North of the stone archway at the mountain gate, stone steps disappear into the trees. Foragers and hunters go up this way, and the edge of the woods is often churned up by wild boar.' },
+    field: { name: 'Seed trial plots', tags: ['Seed grain'], about: 'A row of five trial beds, one crop each, with wooden signs saying the variety and when it was sown. The farm technician picks the fullest ears here for seed.' },
+    fallow: { name: 'Fallow terraces', tags: ['Wasteland'], about: 'Before the flood these terraces grew wheat. Once the people left they went to waste; the ridges are still there, but the plots are all grass. A newcomer who wants to farm just has to turn the soil.' },
+    pasture: { name: 'Cattle pasture', tags: ['Oxen'], about: 'A big flat pasture east of the old riverbed, ringed with a wooden fence. A few families board their cattle here to graze by day, with a herder watching them.' },
+    slope: { name: 'Old Shiyu', tags: ['Old Site'], about: "Shiyu Village used to stand on this slope. After the flood most families moved downstream, leaving a hillside of fallen houses. The land is good; it just hasn't been farmed in years." },
+    south: { name: 'South meadow', tags: [], about: 'A strip of meadow south of the stream, running on to the Village Square.' },
+  };
+  if (EN) Object.assign(PLACE, PLACE_EN);
   const placeAt = (x, z) => {
     const u = x - OX, t = terrain.typeAt(x, z);
     if (quay(u, z)) return PLACE.lake;
@@ -1321,8 +1362,8 @@ export function buildEast(M) {
     forest: forestEdge, // 林子边：采山货、下套子
   };
   const animals = [ // 林子边的野猪、草场上的牛（village.js 放进 extraAnimals）
-    ...[[-26, -14], [-2, 10], [16, 24]].map(([u0, u1]) => ({ kind: 'boar', role: 'boar', worldArea: [W(u0), Math.min(forestZ(u0), forestZ(u1)) - 5, W(u1), Math.max(forestZ(u0), forestZ(u1)) + 2], ownerText: '东山上的野物' })),
-    ...Array.from({ length: 4 }, () => ({ kind: 'ox', role: 'cow', worldArea: [W(PASTURE.u0 + 1.5), PASTURE.z0 + 1.5, W(PASTURE.u1 - 1.5), PASTURE.z1 - 1.5], ownerText: '老村址草场（各家寄养）', about: '村里几家寄养在草场上的黄牛，白天在栅栏里低头吃草，放牛的人看着；农忙时各家牵回去犁地、拉车。' })),
+    ...[[-26, -14], [-2, 10], [16, 24]].map(([u0, u1]) => ({ kind: 'boar', role: 'boar', worldArea: [W(u0), Math.min(forestZ(u0), forestZ(u1)) - 5, W(u1), Math.max(forestZ(u0), forestZ(u1)) + 2], ownerText: '东山上的野物', ownerTextEn: 'Wild, from East Hill' })),
+    ...Array.from({ length: 4 }, () => ({ kind: 'ox', role: 'cow', worldArea: [W(PASTURE.u0 + 1.5), PASTURE.z0 + 1.5, W(PASTURE.u1 - 1.5), PASTURE.z1 - 1.5], ownerText: '老村址草场（各家寄养）', ownerTextEn: 'Old Site pasture (boarded)', aboutEn: 'Oxen a few village families board on the pasture. By day they graze inside the fence with a herder watching; in the busy season each family leads theirs home to plough and pull carts.', about: '村里几家寄养在草场上的黄牛，白天在栅栏里低头吃草，放牛的人看着；农忙时各家牵回去犁地、拉车。' })),
   ];
 
   // 老村址的鸡狗鹅鸭、树上的喜鹊、马家老窑羊圈里寄养的羊
@@ -1335,16 +1376,16 @@ export function buildEast(M) {
     if (mine.length < 2) return null;
     const perches = mine.map(([x, y, z]) => [x, y - 0.05, z]);
     const hops = perches.map((a, ia) => perches.map((b, ib) => ({ j: ib, d: Math.hypot(a[0] - b[0], a[2] - b[2]) })).filter((o) => o.j !== ia && o.d < 40).map(({ j, d }) => ({ j, lift: 1.5 + d * 0.1 })));
-    return { kind: 'magpie', role: 'bird', perches, hops, ownerText: '老村址的喜鹊', about: '在老村址的树梢之间飞来飞去，喳喳地叫。村里人说喜鹊登枝，好事将至。' };
+    return { kind: 'magpie', role: 'bird', perches, hops, ownerText: '老村址的喜鹊', ownerTextEn: 'Old Site magpies', aboutEn: 'Flits between the treetops of the Old Site, chattering. Villagers say a magpie on the branch means good news is coming.', about: '在老村址的树梢之间飞来飞去，喳喳地叫。村里人说喜鹊登枝，好事将至。' };
   };
   const extra = [
-    { kind: 'dog', role: 'dog', worldArea: [W(-30), -2, W(-6), 5], ownerText: '葛石头家的大黄', about: '葛石头家的黄狗，白天在老街上溜达，见了生人先叫两声，再摇着尾巴凑过去闻。' },
-    { kind: 'dogBlack', role: 'dog', worldArea: [W(18), -9, W(34), -1], ownerText: '白家看石灰窑的黑子', about: '白家的黑狗，守着石灰窑和煤窑口那一片，夜里有点动静就叫。' },
-    ...Array.from({ length: 4 }, () => ({ kind: 'goose', role: 'goose', worldArea: swimmers, swim: true, ownerText: '苗家鸭棚的大白鹅', about: '苗家养的大白鹅，一早从鸭棚出来，顺着小溪游过石坝下到湖里，比狗还会看门。' })),
-    ...Array.from({ length: 6 }, () => ({ kind: 'duck', role: 'duck', worldArea: swimmers, swim: true, ownerText: '苗家鸭棚的鸭子', about: '苗家放的鸭子，白天在小溪和湖西头的浅水里找吃的，傍晚一赶就排着队回棚。' })),
+    { kind: 'dog', role: 'dog', worldArea: [W(-30), -2, W(-6), 5], ownerText: '葛石头家的大黄', ownerTextEn: "Stonemason Ge's dog", aboutEn: "Stonemason Ge's yellow dog. By day he wanders the old street; he barks twice at strangers, then wags over for a sniff.", about: '葛石头家的黄狗，白天在老街上溜达，见了生人先叫两声，再摇着尾巴凑过去闻。' },
+    { kind: 'dogBlack', role: 'dog', worldArea: [W(18), -9, W(34), -1], ownerText: '白家看石灰窑的黑子', ownerTextEn: "Old Lime Bai's kiln dog", aboutEn: "Old Lime Bai's black dog, guarding the lime kiln and the coal pit. He barks at the slightest sound in the night.", about: '白家的黑狗，守着石灰窑和煤窑口那一片，夜里有点动静就叫。' },
+    ...Array.from({ length: 4 }, () => ({ kind: 'goose', role: 'goose', worldArea: swimmers, swim: true, ownerText: '苗家鸭棚的大白鹅', ownerTextEn: "Miao's Duck Shed", aboutEn: "Miao's big white geese. Each morning they leave the shed, swim down the stream over the dam into the lake, and guard the place better than a dog.", about: '苗家养的大白鹅，一早从鸭棚出来，顺着小溪游过石坝下到湖里，比狗还会看门。' })),
+    ...Array.from({ length: 6 }, () => ({ kind: 'duck', role: 'duck', worldArea: swimmers, swim: true, ownerText: '苗家鸭棚的鸭子', ownerTextEn: "Miao's Duck Shed", aboutEn: "Miao's ducks forage by day in the stream and the shallows at the lake's west end; at dusk one shout sends them home in a line.", about: '苗家放的鸭子，白天在小溪和湖西头的浅水里找吃的，傍晚一赶就排着队回棚。' })),
     ...[0, 1, 2, 3].map(magpie).filter(Boolean),
-    ...Array.from({ length: 3 }, () => ({ kind: 'sheep', role: 'sheep', worldArea: [Math.min(pen[0][0], pen[1][0]), Math.min(pen[0][1], pen[1][1]), Math.max(pen[0][0], pen[1][0]), Math.max(pen[0][1], pen[1][1])], ownerText: '寄养在马家老窑羊圈的羊', about: '村里羊倌寄养在马家老窑羊圈里的几只绵羊。马家搬走以后羊圈空了好些年，如今又有羊在里头咩咩叫。' })),
-    ...['hen', 'henBrown', 'rooster'].map((kind) => ({ kind, role: 'chicken', worldArea: [W(HOMES.riverTemple.u + 2.4), HOMES.riverTemple.z - 1, W(HOMES.riverTemple.u + 6.2), HOMES.riverTemple.z + 3], ownerText: '柳婆婆家的鸡', about: '柳婆婆养的几只鸡，在河神庙东边的小院里刨食。' })),
+    ...Array.from({ length: 3 }, () => ({ kind: 'sheep', role: 'sheep', worldArea: [Math.min(pen[0][0], pen[1][0]), Math.min(pen[0][1], pen[1][1]), Math.max(pen[0][0], pen[1][0]), Math.max(pen[0][1], pen[1][1])], ownerText: '寄养在马家老窑羊圈的羊', ownerTextEn: "Boarded at Ma's old fold", aboutEn: "A few sheep the shepherd boards in the fold at the Mas' old cave. The fold sat empty for years after the Mas moved away; now there is bleating in it again.", about: '村里羊倌寄养在马家老窑羊圈里的几只绵羊。马家搬走以后羊圈空了好些年，如今又有羊在里头咩咩叫。' })),
+    ...['hen', 'henBrown', 'rooster'].map((kind) => ({ kind, role: 'chicken', worldArea: [W(HOMES.riverTemple.u + 2.4), HOMES.riverTemple.z - 1, W(HOMES.riverTemple.u + 6.2), HOMES.riverTemple.z + 3], ownerText: '柳婆婆家的鸡', ownerTextEn: "Granny Liu's hens", aboutEn: "Granny Liu's few chickens, scratching in the little yard east of the River God Temple.", about: '柳婆婆养的几只鸡，在河神庙东边的小院里刨食。' })),
   ];
   animals.push(...extra);
 
@@ -1375,7 +1416,7 @@ export function buildEast(M) {
     lightIncense(hour) { litAt = hour; },
     setPlotState,
     /** 新来的人住进一处老宅：记下是谁，塌了的先苫上半边顶。 */
-    claim(id, p) { const h = HOUSES.find((x) => x.id === id); if (!h) return null; h.owner = p.id; h.ownerName = p.nick || p.name; for (const t of things) if (t.spec?.plot === id) t.spec = plotCard(h); setPlotState(id, RUINS ? 2 : Math.max(h.state, p.houseState ?? 1), true); return h; }, // 有人住了：整处重搭（废墟开局：修成囫囵的），晚上点灯
+    claim(id, p) { const h = HOUSES.find((x) => x.id === id); if (!h) return null; h.owner = p.id; h.ownerName = p.nick || p.name; h.ownerEn = pNick(p) || pName(p); for (const t of things) if (t.spec?.plot === id) t.spec = plotCard(h); setPlotState(id, RUINS ? 2 : Math.max(h.state, p.houseState ?? 1), true); return h; }, // 有人住了：整处重搭（废墟开局：修成囫囵的），晚上点灯
     plotState: (id) => HOUSES.find((x) => x.id === id)?.state,
     object: root,
     terrain,
@@ -1387,8 +1428,8 @@ export function buildEast(M) {
       const u = x - OX;
       for (const [k, h] of Object.entries(HOMES)) if (Math.abs(u - h.u) < h.w / 2 + 0.5 && Math.abs(z - h.z) < h.d / 2 + 0.5) return HOME_NAMES[k];
       const p = HOUSES.find((h) => Math.hypot(u - h.u, z - h.z) < Math.max(h.w, h.d) / 2 + 0.6);
-      if (p) return p.owner ? `${p.ownerName ?? ''}家（${p.who}老宅）` : `${p.who}老宅`;
-      for (const [s, name] of [[MINE, '煤窑口'], [SHED, '山货场'], [MGATE, '进山口'], [APIARY, '蜂场'], [ANCESTRAL, '老祠堂遗址'], [THRESH, '场院'], [ORCH, '果园'], [GRAVE, '祖坟']]) if (Math.abs(u - s.u) < s.w / 2 + 1 && Math.abs(z - s.z) < s.d / 2 + 1) return name;
+      if (p) return plotName(p);
+      for (const [s, name] of EN ? [[MINE, 'Coal pit'], [SHED, 'Forage yard'], [MGATE, 'Mountain gate'], [APIARY, 'Apiary'], [ANCESTRAL, 'Old ancestral hall'], [THRESH, 'Threshing floor'], [ORCH, 'Orchard'], [GRAVE, 'Family graves']] : [[MINE, '煤窑口'], [SHED, '山货场'], [MGATE, '进山口'], [APIARY, '蜂场'], [ANCESTRAL, '老祠堂遗址'], [THRESH, '场院'], [ORCH, '果园'], [GRAVE, '祖坟']]) if (Math.abs(u - s.u) < s.w / 2 + 1 && Math.abs(z - s.z) < s.d / 2 + 1) return name;
       return placeAt(x, z).name;
     },
     work,

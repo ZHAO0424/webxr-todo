@@ -1,5 +1,6 @@
 # 像素村落后台模拟：每小时把村子往前过一段（现实过去多久，村里就走多久，跟网页开着一样），存档提交回仓库。
 # 网页（pixel-village/）默认读 pixel-village/world/state.json，所以关了网页，村子的日子也在往前走。
+# 有人在网页「我的居民」里点「提交到村子」开了 Issue，也马上跑一次：先收新居民（tools/intake.mjs），再模拟、提交，最后回帖关 Issue。
 # 也可以在 Actions 页面手动点「Run workflow」立刻跑一次。
 name: 像素村落后台模拟
 
@@ -7,9 +8,12 @@ on:
   schedule:
     - cron: '17 * * * *' # 每小时第 17 分（整点排队的人多，GitHub 会拖得更久）
   workflow_dispatch:
+  issues:
+    types: [opened, reopened]
 
 permissions:
   contents: write # 把存档提交回仓库（提交了 Pages 会自己重新发布）
+  issues: write # 收新居民：回帖、关 Issue
 
 concurrency:
   group: pixel-village-sim
@@ -17,11 +21,16 @@ concurrency:
 
 jobs:
   sim:
+    # 别的 Issue 不管；提交居民的 Issue 正文里有 pv-resident 代码块（网页 src/mine.js 生成）
+    if: github.event_name != 'issues' || contains(github.event.issue.body, 'pv-resident')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:
         working-directory: pixel-village
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +39,8 @@ jobs:
           cache: npm
           cache-dependency-path: pixel-village/package-lock.json
       - run: npm ci
+      - name: 收新居民
+        run: node tools/intake.mjs apply "$RUNNER_TEMP/intake.json"
       # 一次最多补现实 3 小时（村里约三天半，跑三四分钟）；停了更久的话多出来的那段当村子睡着了
       - run: node tools/sim.mjs --catchup --max 10800
       - name: 存档提交回仓库
@@ -40,3 +51,6 @@ jobs:
           if git diff --cached --quiet; then exit 0; fi
           git commit -q -m "像素村落：后台模拟存档"
           for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
+          git diff --quiet origin/main HEAD -- world/state.json # 三回都没推上去：这一步算失败，下面不回帖（下回重跑会再收一遍，收过的不会重复）
+      - name: 回帖、关 Issue
+        run: node tools/intake.mjs close "$RUNNER_TEMP/intake.json"

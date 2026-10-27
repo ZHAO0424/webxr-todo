@@ -3,18 +3,23 @@ import { characterAtlas, CELL_W, CELL_H } from '../characters.js';
 import { animalAtlas } from '../animals.js';
 import { LABELS } from '../labels.js';
 import { portrait, bodyCrop } from './frame.js';
+import { EN, tr } from '../i18n.js';
+import { villageName, pName, pNick, pJob, pRelation, pHousehold, pTraits, pSkills, pLikes, pOwns, pStory, pSex, pAge } from '../names.js';
 
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
- *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），左上角是地名；每户一列小头像（右边小字名字、职业）竖排在自家院子上、左上角院子名，
- *         挤在一起的推开、用虚线连回院子；右边是点中的人（默认第一个）的全部资料：小卡（半身像、身份、此刻、喜好手艺家当）+ 背景故事、一天（时间条 + 各类时长）、
+ *   地图（默认）：真实场景从正上方看下去的截图（main.js 渲染一次），左上角是地名；三块沙盘各一张（村子 / 西沟 / 老村址，标题栏里切换）。
+ *         每一组一列小头像（右边小字名字、职业）竖排在那个地方上、左上角是地方名，挤在一起的推开、用虚线连回去：
+ *         村子、老村址按户标在自家院子上（老村址的老宅住了新人也算一户）；西沟没人住，按"谁到这儿干活"标在梯田、水磨坊、山神庙、崖顶草坡、水潭上。
+ *         右边是点中的人（默认第一个）的全部资料：小卡（半身像、身份、此刻、喜好手艺家当）+ 背景故事、一天（时间条 + 各类时长）、
  *         家人好友（头像）和牲口。← → 在筛选出来的人里翻；
  *   卡片：一格一格的人物卡铺满整面（宽屏 5 列 × 6 行正好 30 人）：全身像 | 名字、身份、哪家、此刻在干什么、性格、喜欢；点了回到地图看这个人。
  * status(id) 给出这个人此刻的状态（和村子里点人看到的同一份），beasts(home) 给出这家的牲口，hour() 是村里的钟，onFind(id) = 关掉档案、在村里选中并跟着这个人。
+ * mine(id)：是不是自己建的居民（档案里标「我的」，多一个「修改」按钮 → onEdit(id)）。
  */
 
 const BYID = new Proxy({}, { get: (_, id) => RESIDENTS.find((p) => p.id === id) }); // 实时查（新来的人随时会加进名册）
-const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const JOB_COLOR = (p) => (p.body === 'child' ? 'var(--c-child)' : /匠|郎中|掌柜|剃头|货郎|先生|伙计|徒弟|豆腐/.test(p.job) ? 'var(--c-craft)' : /村长/.test(p.job) ? 'var(--c-chief)' : 'var(--c-farm)');
 
 const FILTERS = {
@@ -24,22 +29,23 @@ const FILTERS = {
   孩子: (p) => p.body === 'child',
   手艺人: (p) => /匠|郎中|掌柜|剃头|货郎|伙计|徒弟|豆腐/.test(p.job),
   种地的: (p) => /种地|种田|庄稼|羊倌|喂|农/.test(p.job + p.skills.join()),
-  外来的: (p) => p.relation.includes('外村') || p.relation.includes('寄住') || p.relation.includes('住铺里'),
+  外来的: (p) => p.newcomer || p.relation.includes('外村') || p.relation.includes('寄住') || p.relation.includes('住铺里'),
 };
+const FILTER_EN = { 全部: 'All', 大人: 'Adults', 老人: 'Elders', 孩子: 'Kids', 手艺人: 'Crafts', 种地的: 'Farmers', 外来的: 'Outsiders' };
 
 // 一天的时间花在哪儿：日程里的活动分五类（时间条和下面的柱条用同一套颜色）
 const KINDS = [
-  { k: 'work', name: '干活', color: 'var(--c-farm)' },
-  { k: 'chore', name: '家务', color: 'var(--c-craft)' },
-  { k: 'school', name: '上学', color: 'var(--c-child)' },
-  { k: 'rest', name: '歇着', color: 'var(--blue)' },
-  { k: 'home', name: '回屋', color: '#3d3125' },
+  { k: 'work', name: tr('干活', 'Work'), color: 'var(--c-farm)' },
+  { k: 'chore', name: tr('家务', 'Chores'), color: 'var(--c-craft)' },
+  { k: 'school', name: tr('上学', 'School'), color: 'var(--c-child)' },
+  { k: 'rest', name: tr('歇着', 'Leisure'), color: 'var(--blue)' },
+  { k: 'home', name: tr('回屋', 'Indoors'), color: '#3d3125' },
 ];
 const CHORE = new Set(['cook', 'chore', 'yardWork', 'fetchWater', 'feedChickens', 'feedPigs', 'feedRabbits', 'garden', 'shopping', 'gatherDucks', 'herdHome', 'oxHome']);
 const REST = new Set(['dinner', 'evening', 'play', 'sitGate', 'read', 'chess', 'visit', 'fish', 'worship', 'peddlerChat', 'idle', 'chat']);
 const kindOf = (a) => (a === 'home' ? 'home' : a === 'school' ? 'school' : CHORE.has(a) ? 'chore' : REST.has(a) ? 'rest' : 'work');
 const DAY0 = 5, DAY1 = 22; // 时间条从清早五点画到夜里十点
-const actLabel = (a, arg) => (LABELS[a] ?? a) + (arg && LABELS[`${a}:${arg}`] ? `（${LABELS[`${a}:${arg}`]}）` : '');
+const actLabel = (a, arg) => (LABELS[a] ?? a) + (arg && LABELS[`${a}:${arg}`] ? (EN ? ` (${LABELS[`${a}:${arg}`]})` : `（${LABELS[`${a}:${arg}`]}）`) : '');
 const hm = (h) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 
 /** 全身像，一个像素 = k 个字点。 */
@@ -79,24 +85,31 @@ function dayHTML(day) {
   const color = (k) => KINDS.find((x) => x.k === k).color;
   return `<div class="tl">${segs.map((s) => `<span class="sg" style="left:${pct(s.t0)}%;width:${pct(s.t1) - pct(s.t0)}%;background:${color(s.kind)}" title="${hm(s.t0)}–${hm(s.t1)} ${esc(actLabel(s.a, s.arg))}"></span>`).join('')}<span class="now-line"></span></div>
     <div class="ticks">${[6, 9, 12, 15, 18, 21].map((h) => `<span style="left:${pct(h)}%">${h}</span>`).join('')}</div>
-    <div class="bars">${KINDS.filter(({ k }) => sum[k] > 0).map(({ k, name }) => `<div class="bar"><span class="bn"><i style="background:${color(k)}"></i>${name}</span><span class="bt"><i style="width:${(sum[k] / max) * 100}%;background:${color(k)}"></i></span><span class="bh">${sum[k].toFixed(1)} 时</span></div>`).join('')}</div>`;
+    <div class="bars">${KINDS.filter(({ k }) => sum[k] > 0).map(({ k, name }) => `<div class="bar"><span class="bn"><i style="background:${color(k)}"></i>${name}</span><span class="bt"><i style="width:${(sum[k] / max) * 100}%;background:${color(k)}"></i></span><span class="bh">${sum[k].toFixed(1)}${tr(' 时', 'h')}</span></div>`).join('')}</div>`;
 }
 
-export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, onClose, map, hour }) {
+/**
+ * map：{ boards: [{ id, name, sub, bounds, image(), groups() }] }——每块沙盘一张俯视图；groups() 给出这块图上的一组组人：
+ *   [{ key, name, at: [x, z], ids: [村民 id…] }]（at 是那块沙盘的坐标）。
+ */
+export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, onEdit, mine = () => false, onClose, map, hour }) {
   el.className = 'panel px';
   el.id = 'roster';
   el.hidden = true;
+  const boards = map?.boards ?? [];
   el.innerHTML = `<div class="rhead">
-      <span class="title">${esc(VILLAGE.name)} · 村民档案</span>
-      <span class="chip soft">${HOUSEHOLDS.length} 户</span><span class="chip soft">${RESIDENTS.length} 口人</span>
-      <span class="tabs"><button class="btn on" data-v="map">地图</button><button class="btn" data-v="list">卡片</button></span>
-      <span class="filters">${Object.keys(FILTERS).map((k, i) => `<button class="btn${i ? '' : ' on'}" data-f="${k}">${k}</button>`).join('')}</span>
-      <button class="btn close" title="关闭（Esc）">×</button>
+      <span class="title">${esc(villageName(VILLAGE))} · ${tr('村民档案', 'Villagers')}</span>
+      <span class="chip soft">${EN ? `${HOUSEHOLDS.length} homes` : `${HOUSEHOLDS.length} 户`}</span><span class="chip soft">${EN ? `${RESIDENTS.length} people` : `${RESIDENTS.length} 口人`}</span>
+      <span class="tabs"><button class="btn on" data-v="map">${tr('地图', 'Map')}</button><button class="btn" data-v="list">${tr('卡片', 'Cards')}</button></span>
+      <span class="btabs">${boards.map((b, i) => `<button class="btn${i ? '' : ' on'}" data-b="${b.id}">${esc(b.name)}</button>`).join('')}</span>
+      <span class="filters">${Object.keys(FILTERS).map((k, i) => `<button class="btn${i ? '' : ' on'}" data-f="${k}">${EN ? FILTER_EN[k] : k}</button>`).join('')}</span>
+      <button class="btn close" title="${tr('关闭（Esc）', 'Close (Esc)')}">×</button>
     </div>
     <div class="rbody"><div class="rmap"><div class="mapwrap"></div><div class="mapside"></div></div><div class="rlist" hidden></div></div>`;
-  const list = el.querySelector('.rlist'), filters = el.querySelector('.filters'), tabs = el.querySelector('.tabs');
+  const list = el.querySelector('.rlist'), filters = el.querySelector('.filters'), tabs = el.querySelector('.tabs'), btabs = el.querySelector('.btabs');
   const rmap = el.querySelector('.rmap'), wrap = el.querySelector('.mapwrap'), side = el.querySelector('.mapside');
-  let order = RESIDENTS.map((p) => p.id), view = 'map', filter = FILTERS.全部, picked = null;
+  let order = RESIDENTS.map((p) => p.id), view = 'map', filter = FILTERS.全部, picked = null, board = boards[0];
+  const mineTag = (p) => (mine(p.id) ? `<span class="chip mine">${tr('我的', 'Mine')}</span>` : '');
 
   // 卡片：每人一张横的小卡
   for (const p of RESIDENTS) {
@@ -104,11 +117,11 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
     t.className = 'paper tile';
     t.dataset.id = p.id;
     t.innerHTML = `<div class="stage"></div><div class="txt">
-        <div class="l1"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household.replace(/（.*）/, ''))}</span></div>
-        <div class="jb">${esc(p.job)} · ${p.age}岁</div>
+        <div class="l1"><span class="nm">${esc(pName(p))}</span><span class="nk">${esc(pNick(p))}</span>${mineTag(p)}<span class="chip" style="--c:${JOB_COLOR(p)}">${esc(pHousehold(p, HOUSEHOLDS).replace(/（.*）|\s*\(.*\)/, ''))}</span></div>
+        <div class="jb">${esc(pJob(p))} · ${pAge(p)}</div>
         <div class="now"></div>
-        <div class="tr">${p.traits.slice(0, 3).map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</div>
-        <div class="lk"><b>喜欢</b>${esc(p.likes)}</div>
+        <div class="tr">${pTraits(p).slice(0, 3).map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</div>
+        <div class="lk"><b>${tr('喜欢', 'Likes')}</b>${esc(pLikes(p))}</div>
       </div>`;
     t.querySelector('.stage').append(body(p, 2));
     t.addEventListener('click', () => openPerson(p.id));
@@ -125,54 +138,60 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
     if (view === 'map') { layout(); sideHTML(); }
   }));
 
-  // ---------------------------------------------------------------- 地图：真实场景的俯视截图，每户一列小头像标在自家院子上
-  const B = map?.bounds, groups = [], markers = {};
+  // ---------------------------------------------------------------- 地图：真实场景的俯视截图，每组一列小头像标在那个地方上
+  let groups = [], markers = {}, drawnFor = null;
   const lines = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   lines.classList.add('leaders');
-  if (map) {
-    const title = document.createElement('div');
-    title.className = 'maptitle';
-    title.innerHTML = `${esc(VILLAGE.name)}<span>${HOUSEHOLDS.length} 户 · ${RESIDENTS.length} 口人</span>`;
-    wrap.append(lines, title);
-    for (const h of HOUSEHOLDS) {
-      const at = map.homeAt(h.id);
-      if (!at) continue;
+  const title = document.createElement('div');
+  title.className = 'maptitle';
+  /** 换一块沙盘：换俯视图，按这块的分组重新摆头像。 */
+  function buildBoard() {
+    if (!board) return;
+    wrap.replaceChildren(lines, title);
+    drawnFor = null;
+    groups = []; markers = {};
+    const gs = board.groups();
+    const n = new Set(gs.flatMap((g) => g.ids)).size;
+    title.innerHTML = `${esc(board.name)}<span>${esc(board.sub(n))}</span>`;
+    for (const gr of gs) {
       const g = document.createElement('div');
       g.className = 'hh';
-      g.innerHTML = `<div class="yn">${esc(h.name.replace(/（.*）/, ''))}</div><div class="ms"></div>`;
+      g.innerHTML = `<div class="yn">${esc(gr.name)}</div><div class="ms"></div>`;
       const ms = g.querySelector('.ms');
-      for (const p0 of h.people) {
-        const p = BYID[p0.id];
+      for (const id of gr.ids) {
+        const p = BYID[id];
+        if (!p) continue;
         const m = document.createElement('div');
         m.className = 'mk';
         m.dataset.id = p.id;
         m.style.setProperty('--jc', JOB_COLOR(p));
-        m.innerHTML = `<span class="hd"></span><span class="t"><span class="nm">${esc(p.name)}</span><span class="jb">${esc(p.job)}</span></span>`;
+        m.innerHTML = `<span class="hd"></span><span class="t"><span class="nm">${esc(pName(p))}</span><span class="jb">${esc(gr.role?.(p) ?? pJob(p))}</span></span>`;
         m.querySelector('.hd').append(head(p, 1));
         m.addEventListener('click', (e) => { e.stopPropagation(); pick(p.id); });
         ms.append(m);
-        markers[p.id] = m;
+        (markers[p.id] ??= []).push(m);
       }
       const pin = document.createElement('span');
       pin.className = 'home-pin';
       wrap.append(pin, g);
-      groups.push({ h, el: g, pin, x0: at[0], z0: at[1], x: 0, y: 0 });
+      groups.push({ el: g, pin, x0: gr.at[0], z0: gr.at[1], x: 0, y: 0 });
     }
-    addEventListener('resize', () => layout());
+    if (!gs.length) { const e = document.createElement('div'); e.className = 'mapempty'; e.textContent = board.empty ?? ''; wrap.append(e); }
   }
-  let drawn = false;
+  if (map) addEventListener('resize', () => layout());
 
-  /** 摆每户那一列：先放在自家院子正中，挤在一起的按矩形往两边推开；推远了的用一根虚线连回院子。 */
+  /** 摆每组那一列：先放在那个地方正中，挤在一起的按矩形往两边推开；推远了的用一根虚线连回去。 */
   function layout() {
-    if (!map || el.hidden || view !== 'map') return;
-    if (!drawn) {
-      const img = map.image();
+    if (!board || el.hidden || view !== 'map') return;
+    if (drawnFor !== board.id) {
+      const img = board.image();
       if (!img) return;
-      drawn = true;
+      drawnFor = board.id;
+      wrap.querySelector(':scope > canvas')?.remove();
       wrap.prepend(img);
       wrap.style.aspectRatio = `${img.width} / ${img.height}`;
     }
-    const W = wrap.clientWidth || 1, H = wrap.clientHeight || 1, gap = 4;
+    const B = board.bounds, W = wrap.clientWidth || 1, H = wrap.clientHeight || 1, gap = 4;
     lines.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const live = groups.filter((g) => {
       let any = false;
@@ -203,15 +222,28 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
       if (Math.hypot(g.x - g.hx, g.y - g.hy) > Math.min(g.w, g.hgt) / 2) svg += `<line x1="${g.hx}" y1="${g.hy}" x2="${g.x}" y2="${g.y}"/>`;
     }
     lines.innerHTML = svg;
-    for (const [id, m] of Object.entries(markers)) m.classList.toggle('on', id === picked);
+    mark();
   }
+  const mark = () => { for (const [id, ms] of Object.entries(markers)) for (const m of ms) m.classList.toggle('on', id === picked); };
+  function setBoard(id) {
+    const b = boards.find((x) => x.id === id);
+    if (!b) return;
+    board = b;
+    btabs.querySelectorAll('[data-b]').forEach((x) => x.classList.toggle('on', x.dataset.b === id));
+    buildBoard();
+    const here = b.groups().flatMap((g) => g.ids); // 点中的人不在这块图上：换成这块的第一个
+    if (here.length && !here.includes(picked)) picked = here[0];
+    if (view === 'map') sideHTML();
+    requestAnimationFrame(() => layout());
+  }
+  btabs.querySelectorAll('[data-b]').forEach((b) => b.addEventListener('click', () => setBoard(b.dataset.b)));
 
   /**
    * 地图右边：点中的人（默认第一个）的全部资料——
    *   上面小卡：半身像 | 名字、身份、哪家和性格、此刻、喜欢 / 手艺 / 家当、去村里找；
    *   下面资料：背景故事、一天（时间条 + 各类时长，代替长长的今日安排）、家人好友（头像，点了换人）| 家里的牲口。
    */
-  function pick(id) { picked = id ?? picked; sideHTML(); for (const [k, m] of Object.entries(markers)) m.classList.toggle('on', k === picked); }
+  function pick(id) { picked = id ?? picked; sideHTML(); mark(); }
   function sideHTML() {
     if (!map) return;
     const p = BYID[picked] ?? RESIDENTS.find(filter) ?? RESIDENTS[0];
@@ -219,22 +251,27 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
     const friends = friendsOf(p.id).map((i) => BYID[i]).filter(Boolean);
     const family = RESIDENTS.filter((o) => o.home === p.home && o.id !== p.id);
     // 关系从这个人的角度说：对方是"王德山的媳妇"就写"媳妇"、是户主就写"户主"，说不清的写村里怎么叫（杨二嫂）
-    const relOf = (o) => (o.relation.startsWith(`${p.name}的`) ? o.relation.slice(p.name.length + 1) : o.relation === '户主' ? '户主' : o.nick);
-    const rel = (o, tag, color) => `<div class="rel" data-id="${o.id}" style="--rc:${color}"><span class="hd"></span><span class="rn">${esc(o.name)}</span><span class="rt">${esc(tag === '家人' ? relOf(o) : '好友')}</span></div>`;
+    const relOf = (o) => {
+      const r = pRelation(o), pre = EN ? `${pName(p)}'s ` : `${p.name}的`;
+      const t = r.startsWith(pre) ? r.slice(pre.length) : o.relation === '户主' ? r : pNick(o);
+      return EN ? t.replace(/\s*\(.*\)/, '') : t; // 头像底下地方小：英文去掉括号里的补充
+    };
+    const rel = (o, fam, color) => `<div class="rel" data-id="${o.id}" style="--rc:${color}"><span class="hd"></span><span class="rn">${esc(pName(o))}</span><span class="rt">${esc(fam ? relOf(o) : tr('好友', 'Friend'))}</span></div>`;
+    const owns = pOwns(p);
     side.innerHTML = `<div class="paper box mini"><div class="row1"><span class="hd big"></span><div class="t">
-        <div class="l1"><span class="nm">${esc(p.name)}</span><span class="nk">${esc(p.nick)}</span><button class="btn find">去村里找</button>${p.newcomer && p.met ? '<button class="btn chjob">改行</button>' : ''}</div>
-        <div class="jb">${esc(p.job)} · ${p.age}岁 · ${p.sex} · ${esc(p.relation)}</div>
-        <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(p.household)}</span>${p.traits.map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</div>
+        <div class="l1"><span class="nm">${esc(pName(p))}</span><span class="nk">${esc(pNick(p))}</span>${mineTag(p)}<span class="acts"><button class="btn find">${tr('去村里找', 'Find')}</button>${mine(p.id) ? `<button class="btn edit">${tr('修改', 'Edit')}</button>` : ''}${p.newcomer && p.met && mine(p.id) ? `<button class="btn chjob">${tr('改行', 'New job')}</button>` : ''}</span></div>
+        <div class="jb">${esc(pJob(p))} · ${pAge(p)} · ${pSex(p)} · ${esc(pRelation(p))}</div>
+        <div><span class="chip" style="--c:${JOB_COLOR(p)}">${esc(pHousehold(p, HOUSEHOLDS))}</span>${pTraits(p).map((x) => `<span class="chip" style="--c:var(--c-plum)">${esc(x)}</span>`).join('')}</div>
         <div class="now"></div>
-        <div class="kv"><b>喜欢</b><span>${esc(p.likes)}</span><b>手艺</b><span>${esc(p.skills.join('、'))}</span><b>家当</b><span>${esc(p.owns.length ? p.owns.join('、') : '——')}</span></div>
+        <div class="kv"><b>${tr('喜欢', 'Likes')}</b><span>${esc(pLikes(p))}</span><b>${tr('手艺', 'Skills')}</b><span>${esc(pSkills(p).join(tr('、', ', ')))}</span><b>${tr('家当', 'Owns')}</b><span>${esc(owns.length ? owns.join(tr('、', ', ')) : '——')}</span></div>
       </div></div></div>
       <div class="paper box info">
-        <div class="sec"><div class="lbl">背景故事</div><p class="story">${esc(p.story ?? p.bio)}</p></div>
-        <div class="sec"><div class="lbl">一天<span class="count">${p.day.length} 项安排</span></div>${dayHTML(p.day)}</div>
-        <div class="sec econ-sec"><div class="lbl">家当和账<span class="count"></span></div><div class="econ"></div></div>
+        <div class="sec"><div class="lbl">${tr('背景故事', 'Story')}</div><p class="story">${esc(pStory(p))}</p></div>
+        <div class="sec"><div class="lbl">${tr('一天', 'A day')}<span class="count">${EN ? `${p.day.length} activities` : `${p.day.length} 项安排`}</span></div>${dayHTML(p.day)}</div>
+        <div class="sec econ-sec"><div class="lbl">${tr('家当和账', 'Money & goods')}<span class="count"></span></div><div class="econ"></div></div>
         <div class="two">
-          <div class="sec"><div class="lbl">家人 · 好友</div><div class="rels">${family.map((o) => rel(o, '家人', 'var(--c-craft)')).join('')}${friends.map((o) => rel(o, '好友', 'var(--c-child)')).join('')}</div></div>
-          <div class="sec pets-sec"><div class="lbl">家里的牲口</div><div class="pets"></div></div>
+          <div class="sec"><div class="lbl">${tr('家人 · 好友', 'Family · friends')}</div><div class="rels">${family.map((o) => rel(o, true, 'var(--c-craft)')).join('')}${friends.map((o) => rel(o, false, 'var(--c-child)')).join('')}</div></div>
+          <div class="sec pets-sec"><div class="lbl">${tr('家里的牲口', 'Animals')}</div><div class="pets"></div></div>
         </div>
       </div>`;
     side.querySelector('.hd.big').append(bust(p));
@@ -251,6 +288,7 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
     }
     if (!animals.length) side.querySelector('.pets-sec').remove();
     side.querySelector('.find').addEventListener('click', () => { close(); onFind?.(p.id); });
+    side.querySelector('.edit')?.addEventListener('click', () => { close(); onEdit?.(p.id); }); // 自己建的人：改样子、改资料
     side.querySelector('.chjob')?.addEventListener('click', () => { close(); onChangeJob?.(p.id); }); // 新来的人：换个营生
     nowHTMLs();
   }
@@ -260,10 +298,10 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
     const box = side.querySelector('.econ'), e = econ?.(p.id);
     if (!box) return;
     if (!e) { side.querySelector('.econ-sec')?.remove(); return; }
-    side.querySelector('.econ-sec .count').textContent = `${e.unit} · ${e.coins} 文`;
-    box.innerHTML = `<div class="stock">${e.stock.map(([n, q, u]) => `<span class="chip soft">${esc(n)} ${q}${esc(u)}</span>`).join('') || '<span class="dim">家里没什么存货</span>'}</div>`
+    side.querySelector('.econ-sec .count').textContent = EN ? `${e.unit} · ${e.coins} ${e.coins === 1 ? 'coin' : 'coins'}` : `${e.unit} · ${e.coins} 文`;
+    box.innerHTML = `<div class="stock">${e.stock.map(([n, q, u]) => `<span class="chip soft">${esc(n)} ${q}${esc(u)}</span>`).join('') || `<span class="dim">${tr('家里没什么存货', 'Nothing in store')}</span>`}</div>`
       + (e.owe.length ? `<div class="owe">${e.owe.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : '')
-      + `<ul class="deals">${e.log.map((x) => `<li>${esc(x)}</li>`).join('') || '<li class="dim">这几天还没有买卖</li>'}</ul>`;
+      + `<ul class="deals">${e.log.map((x) => `<li>${esc(x)}</li>`).join('') || `<li class="dim">${tr('这几天还没有买卖', 'No trades these days')}</li>`}</ul>`;
   }
 
   /** 小卡上会变的：此刻在干什么、在哪儿，时间条上此刻的竖线。 */
@@ -281,15 +319,23 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
   function showView(v = view) {
     view = v;
     tabs.querySelectorAll('[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
-    list.hidden = v !== 'list'; rmap.hidden = v !== 'map';
-    if (v === 'map') { sideHTML(); requestAnimationFrame(() => layout()); }
+    list.hidden = v !== 'list'; rmap.hidden = v !== 'map'; btabs.hidden = v !== 'map';
+    if (v === 'map') { if (!groups.length && board) buildBoard(); sideHTML(); requestAnimationFrame(() => layout()); }
     refresh();
   }
   tabs.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => showView(b.dataset.v)));
-  if (!map) { tabs.remove(); view = 'list'; rmap.remove(); list.hidden = false; }
+  if (!map) { tabs.remove(); btabs.remove(); view = 'list'; rmap.remove(); list.hidden = false; }
 
-  /** 卡片页点一个人：回到地图，右边换成这个人。 */
-  function openPerson(id) { if (!map || !BYID[id]) return; picked = id; showView('map'); pick(id); }
+  /** 这个人标在哪块图上（看他的那块先，不在就找有他的那块）。 */
+  const boardOf = (id) => (board && board.groups().some((g) => g.ids.includes(id)) ? board : boards.find((b) => b.groups().some((g) => g.ids.includes(id))));
+  /** 卡片页点一个人：回到地图（换到标着他的那块），右边换成这个人。 */
+  function openPerson(id) {
+    if (!map || !BYID[id]) return;
+    picked = id;
+    const b = boardOf(id);
+    if (b && b !== board) setBoard(b.id);
+    showView('map'); pick(id);
+  }
   const step = (d) => { const ids = order.length ? order : RESIDENTS.map((o) => o.id); pick(ids[(ids.indexOf(picked) + d + ids.length) % ids.length]); };
 
   /** 此刻：卡片列表每张一行、地图右边小卡上的此刻和接下来。村里每过一分钟刷一次。 */
@@ -309,9 +355,10 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
 
   return {
     get open() { return !el.hidden; },
-    show(id) { el.hidden = false; document.body.classList.add('roster-open'); if (id && BYID[id]) picked = id; showView(); },
+    show(id, which) { el.hidden = false; document.body.classList.add('roster-open'); if (which && which !== board?.id) setBoard(which); if (id && BYID[id]) { picked = id; const b = !which && boardOf(id); if (b && b !== board) setBoard(b.id); } showView(); },
     close,
     refresh,
     pick: (id) => { if (view === 'map') pick(id); },
+    layout: () => layout(), // 马上把地图上的头像摆好（平时等下一帧；无头检查用）
   };
 }

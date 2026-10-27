@@ -14,10 +14,10 @@ import { R } from './palette.js';
  */
 
 export const SEASONS = {
-  spring: { name: '春', month: 3 },
-  summer: { name: '夏', month: 6 },
-  autumn: { name: '秋', month: 9 },
-  winter: { name: '冬', month: 12 },
+  spring: { name: '春', en: 'Spring', month: 3 },
+  summer: { name: '夏', en: 'Summer', month: 6 },
+  autumn: { name: '秋', en: 'Autumn', month: 9 },
+  winter: { name: '冬', en: 'Winter', month: 12 },
 };
 export const ORDER = ['spring', 'summer', 'autumn', 'winter'];
 
@@ -27,10 +27,10 @@ export const ORDER = ['spring', 'summer', 'autumn', 'winter'];
 //   秋·中秋（八月十五）：村口石桌上摆月饼瓜果拜月，晚上赏月，孩子提灯笼；天上一轮大圆月
 //   冬·春节（正月初一）：对联、红灯笼、福字、门口一地鞭炮碎屑，天亮放鞭炮，上午穿新衣挨家拜年
 export const FESTIVALS = {
-  spring: { key: 'qingming', name: '清明', m: 3, d: 5 },
-  summer: { key: 'duanwu', name: '端午', m: 5, d: 5 },
-  autumn: { key: 'zhongqiu', name: '中秋', m: 8, d: 15 },
-  winter: { key: 'chunjie', name: '春节', m: 1, d: 1 },
+  spring: { key: 'qingming', name: '清明', en: 'Qingming', m: 3, d: 5 },
+  summer: { key: 'duanwu', name: '端午', en: 'Duanwu', m: 5, d: 5 },
+  autumn: { key: 'zhongqiu', name: '中秋', en: 'Mid-Autumn', m: 8, d: 15 },
+  winter: { key: 'chunjie', name: '春节', en: 'Spring Festival', m: 1, d: 1 },
 };
 
 let cur = 'autumn';

@@ -6,20 +6,23 @@
  * - 加载失败 / 被浏览器暂停时自动接着放，不会停在半路。
  * - 两个 <audio> 交替用，换曲时淡入淡出。音量本身就压得很低（BASE）。
  * - 和音效一样，浏览器要先有一次点击才能放：第一次点页面时自动打开（除非点过"音乐"按钮关掉）。
+ * - 正在放哪一首写在右上角时钟栏里（title）；设置里「下一首」跳过当前这首（next），?bgm=文件名 只放这一首（试听用）。
  */
+import { EN } from './i18n.js';
 
 const TRACKS = [
-  { file: 'chenwu', title: '晨雾炊起', from: 5, to: 10 }, // 笙 + 低音箫：清晨
-  { file: 'jinyun', title: '晋韵小院', from: 8, to: 17 }, // 坠胡 + 扬琴低音：白天
-  { file: 'shiyuan', title: '石院暮色', from: 9, to: 18 }, // 二胡 + 古筝：白天到傍晚
-  { file: 'chuiyan', title: '傍晚炊烟', from: 16.5, to: 21 }, // 二胡 + 古筝：傍晚
-  { file: 'qiuye', title: '秋夜檐下', from: 19, to: 29 }, // 中胡 + 古筝 + 大提琴：夜里（29 = 次日 5 点）
+  { file: 'chenwu', title: '晨雾炊起', en: 'Morning Mist', from: 5, to: 10 }, // 笙 + 低音箫：清晨
+  { file: 'jinyun', title: '晋韵小院', en: 'Shanxi Courtyard', from: 8, to: 17 }, // 坠胡 + 扬琴低音：白天
+  { file: 'shiyuan', title: '石院暮色', en: 'Stone Yard at Dusk', from: 9, to: 18 }, // 二胡 + 古筝：白天到傍晚
+  { file: 'chuiyan', title: '傍晚炊烟', en: 'Evening Smoke', from: 16.5, to: 21 }, // 二胡 + 古筝：傍晚
+  { file: 'qiuye', title: '秋夜檐下', en: 'Autumn Night, Under the Eaves', from: 19, to: 29 }, // 中胡 + 古筝 + 大提琴：夜里（29 = 次日 5 点）
 ];
 const BASE = 0.32; // 音乐音量（0–1）
 const FADE = 4; // 淡入淡出秒数
 const DUCK = 0.3; // 唱戏时压到多少
 
-export function createMusic({ hour, busy }) {
+export function createMusic({ hour, busy, onChange = () => {} }) {
+  const only = typeof location !== 'undefined' && TRACKS.find((t) => t.file === new URLSearchParams(location.search).get('bgm')); // ?bgm=chenwu：只放这一首
   let on = false, muted = false, last = null, cur = null, duck = 1;
   const els = [new Audio(), new Audio()];
   for (const a of els) { a.preload = 'auto'; a.volume = 0; }
@@ -27,6 +30,7 @@ export function createMusic({ hour, busy }) {
 
   const fits = (t, h) => (h >= t.from && h < t.to) || (h + 24 >= t.from && h + 24 < t.to);
   function pick() {
+    if (only) return only;
     const h = hour();
     const ok = TRACKS.filter((t) => fits(t, h) && t !== last);
     const pool = ok.length ? ok : TRACKS.filter((t) => t !== last);
@@ -42,11 +46,15 @@ export function createMusic({ hour, busy }) {
     a.volume = 0;
     a.play().catch(() => {});
     cur = { a, t, fadeIn: 0 };
+    onChange(t);
   }
 
   return {
     get on() { return on; },
-    get title() { return cur?.t.title ?? ''; },
+    get title() { return cur && on ? (EN ? cur.t.en : cur.t.title) : ''; },
+    get file() { return cur?.t.file ?? ''; },
+    /** 跳过这一首：淡出，换下一首。 */
+    next() { if (!on) this.toggle(); else start(); },
     toggle() {
       on = !on;
       muted = !on;

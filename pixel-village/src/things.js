@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EN } from './i18n.js';
 
 /*
  * 房子、家具、物件的"身份证"：点它们弹出卡片用。
@@ -105,6 +106,109 @@ export const THINGS = {
   oldWillow: { name: '歪脖子老柳', about: '河滩上的一棵老柳树，大水里硬是没倒，只是从此歪着脖子。树干上一人多高的地方有一道刻痕，是柳婆婆的男人当年刻的水印。' },
 };
 
+/** 英文界面的名字和介绍（键和 THINGS 一样；缺的退回中文）。 */
+const THINGS_EN = {
+  house: { name: 'House', about: '' },
+  gate: { name: 'Gate', about: '' },
+  screenWall: { name: 'Screen wall', about: 'A brick wall facing the gate that keeps outsiders from looking into the yard. Its centre is whitewashed, and at New Year a "Fu" (good fortune) character goes up.' },
+  haystack: { name: 'Straw stack', about: 'Straw left after threshing, piled into a round stack with a mud cap against the rain. All winter it feeds the animals, lights the stove and goes into the mud plaster.' },
+  cornCrib: { name: 'Corn crib', about: 'A round crib woven from stalks, packed with husked corncobs that dry in the breeze to last the winter.' },
+  firewood: { name: 'Woodpile', about: 'Wood cut on the hills, split and stacked neatly; it heats the kang and cooks every meal. Nothing shows a hardworking household like a tidy woodpile.' },
+  vat: { name: 'Water vat', about: 'Filled from the well every morning: the day\'s drinking, cooking and washing water all comes from here. In winter it is wrapped in straw mats so it won\'t crack in the frost.' },
+  well: { name: 'Well', about: 'The old well the whole village shares, with a windlass over the platform. It is busiest morning and evening, and it is where the village swaps its news.' },
+  millstone: { name: 'Millstone', about: 'Two stone wheels turned by a blindfolded donkey. Soaked soybeans go in through the hole on top, and soy milk runs out along the groove.' },
+  roller: { name: 'Stone roller', about: 'The stone roller in the middle of the threshing floor. The ox drags it round and round over wheat and millet heads to press out the grain.' },
+  forge: { name: 'Forge', about: 'A brick hearth; one push of the bellows and the flames leap. Red-hot iron is hammered into shape on the anvil, then quenched in a burst of white steam.' },
+  lumber: { name: 'Lumber pile', about: 'Logs and boards left to season. Timber must dry a year or two before it stops splitting and warping.' },
+  workbench: { name: 'Workbench', about: 'A carpenter\'s bench with planes, chisels and an ink line, and timber waiting on the sawhorses.' },
+  wheel: { name: 'Cart wheel', about: 'A cart wheel, newly made or mended, leaning on the wall until its owner comes for it.' },
+  cart: { name: 'Cart', about: 'A wooden cart; hitch an animal to it and it hauls a full load of crops. At harvest the families take turns borrowing it.' },
+  fence: { name: 'Fence', about: 'A pen ringed by a wooden fence, with a gate that swings open.' },
+  pigsty: { name: 'Pigsty', about: 'A pigsty walled with low brick, half roofed against the rain. The pig is raised until year\'s end, just in time for the New Year feast.' },
+  coop: { name: 'Chicken coop', about: 'The hens head home by themselves after dark. At dawn the rooster climbs onto the roof to crow.' },
+  stoneTable: { name: 'Stone table', about: 'A stone table and stools under the big locust tree. The old men play chess here every day, and the onlookers usually outnumber the players.' },
+  herbRacks: { name: 'Herb racks', about: 'Bamboo trays of freshly gathered herbs: bupleurum, skullcap, forsythia. Doctor Zhou likes to say good medicine is "three parts picking, seven parts drying."' },
+  stage: { name: 'Opera stage', about: 'The stage at the Village Square. At festivals and celebrations a troupe is hired to sing bangzi opera, and benches fill the ground in front.' },
+  firePit: { name: 'Fire pit', about: 'A fire pit ringed with stones. At night a bonfire is lit, and the villagers sit around it to keep warm and hear Barber Zheng\'s old tales.' },
+  seatStone: { name: 'Seat stone', about: 'A stone by the fire pit used as a seat, worn smooth over the years.' },
+  bench: { name: 'Stone bench', about: 'A long stone bench for resting, watching opera or listening to lessons.' },
+  trough: { name: 'Trough', about: 'A feed trough for the animals. Pour in the fodder and they all crowd around.' },
+  stove: { name: 'Stove', about: 'A big stove under the shed with an iron wok. The ground soy milk is boiled and set here, and the steam never clears all day.' },
+  torch: { name: 'Torch', about: 'A torch at the crossroads, lit at nightfall to light the way for late walkers and put out one by one at dawn.' },
+  scarecrow: { name: 'Scarecrow', about: 'A scarecrow in a torn straw hat and blue cloth, set up to scare off the sparrows stealing millet. The sparrows stopped caring long ago.' },
+  beehive: { name: 'Beehives', about: 'A stack of wooden hives; the little black slots are the bees\' doors. Honey is taken once a year, in autumn.' },
+  shed: { name: 'Animal shed', about: 'An open shed on four posts under a sloping thatch roof, with a trough inside, where the animals eat and spend the night.' },
+  hutch: { name: 'Rabbit hutch', about: 'A rabbit hutch on a wooden stand, with wire mesh in front. The children cut grass for it every day.' },
+  duckHouse: { name: 'Duck shed', about: 'A low shed of adobe bricks where the ducks and geese are shut in at night.' },
+  fieldHut: { name: 'Field hut', about: 'An A-frame straw hut at the edge of the field. When the crop is nearly ripe someone sleeps here to guard it from wild boar and thieves.' },
+  cornRack: { name: 'Corn rack', about: 'A rack of wooden poles hung with strings of golden corn, the most common colour in the village in autumn.' },
+  barberStand: { name: 'Barber\'s load', about: 'A barber\'s carrying-pole load: one end holds a washbasin stand and a small stove, the other a stool and drawers. The old saying "a barber\'s load is hot at one end only" comes from it.' },
+  stall: { name: 'Stall', about: 'A stall set up for market day and packed away the rest of the time.' },
+  peddlerCart: { name: 'Peddler\'s cart', about: 'The little cart the peddler Qian Xiaoer pushes in on market day: two big wooden wheels, loaded with needles and thread, hair ties, cloth scraps and candy, with straw hats and baskets under the awning. Other days he carries his wares on a shoulder pole from village to village.' },
+  movieScreen: { name: 'Film screen', about: 'A white screen put up at the Village Square on film nights. Young and old bring their stools and sit around to watch.' },
+  sheaf: { name: 'Sheaves', about: 'Cut and bundled crops, stood up in the field to dry before going to the threshing floor.' },
+  compost: { name: 'Manure heap', about: 'Animal dung, rotten vegetable leaves and plant ash composted together. Spread on the fields in spring, it makes good fertiliser for the crops.' },
+  shrine: { name: 'Earth God Shrine', about: 'A little shrine at the bridgehead to the Earth God and his wife. On the 1st and 15th of each month people burn incense and pray for good weather.' },
+  stoneTablet: { name: 'Guardian stone', about: 'A stone tablet at a T-junction carved "Mount Tai Stone Dares to Stand," said to block evil spirits charging up the road.' },
+  woodBench: { name: 'Wooden benches', about: 'Rows of wooden benches at the Village Square facing the stage, for resting and watching opera. On market day, with all the stalls, they get stacked in pairs on the east side to make room.' },
+  dryingMat: { name: 'Drying mat', about: 'Reed mats spread on the threshing floor: wheat in summer; corn, millet and red chilies in autumn. Every so often someone turns them with a wooden rake.' },
+  grainHeap: { name: 'Grain heap', about: 'Threshed and winnowed grain is heaped on the floor with a wooden shovel stuck in it, then bagged and stored once dry.' },
+  sacks: { name: 'Grain sacks', about: 'Tied cloth sacks: new grain in summer and autumn, waiting to be carried home; seed saved for sowing in spring.' },
+  winnower: { name: 'Winnowing basket', about: 'A willow winnowing basket, used to toss grain and shake out the chaff and dirt.' },
+  graves: { name: 'Family graves', about: 'A row of grave mounds with small headstones on the west slope. At Qingming each family comes to add earth, weigh down paper and burn spirit money, and kowtow to the ancestors.' },
+  moonOffering: { name: 'Moon altar', about: 'On Mid-Autumn night offerings go on the stone table: a stack of mooncakes, a plate of apples and pomegranates, a watermelon cut like a lotus, and a burner of incense. When the moon rises, the eldest in the village leads the moon rite.' },
+  zongziPlate: { name: 'Zongzi', about: 'Reed leaves are soaked the night before Duanwu, and in the morning everyone wraps zongzi at the Village Square: sticky rice with red dates, folded into triangles and tied with grass.' },
+  snowman: { name: 'Snowman', about: 'A snowman the children built after the snow: coal-ball eyes, a carrot nose, a red cloth scarf and a broken winnowing basket for a hat.' },
+  bridge: { name: 'Stone arch bridge', about: 'The only way into the village: a single-arch stone bridge over the stream. The water below runs clear and shallow, and ducks and geese often paddle through.' },
+  watermill: { name: 'Watermill', about: 'A thatched plank house on the north bank of the stream. Upstream a stone weir holds back the water, which spills down to turn the big wheel, and the millstone inside turns with it. The flat roof of the adobe wing to the east is covered in dried persimmons and hawthorn slices, strings of persimmons and chilies hang under the eaves, and old worn-out millstones lean in the yard.' },
+  logPile: { name: 'Log pile', about: 'Logs cut to length and stacked three high, three on the bottom and one on top, held by stakes at each end. They season all winter, then go to the carpenter in spring for beams and purlins.' },
+  stump: { name: 'Stump', about: 'A stump left from woodcutting, its growth rings still clear on the cut face.' },
+  log: { name: 'Log', about: 'A freshly felled log with its branches not yet trimmed, waiting to be dragged back to the carpenter in the village.' },
+  weir: { name: 'Stone weir', about: 'A low weir of rubble stone that raises the stream. The water spills over the top and falls right onto the watermill\'s wheel.' },
+  waterfall: { name: 'Red Cliff Falls', about: 'Spring water from the back hills runs to the edge and drops some twenty metres off the red cliff into a deep pool. From there it tumbles down the gully step by step into the stream to the south.' },
+  cliffRoad: { name: 'Cliff road', about: 'A road cut into the cliff halfway up, blow by blow with hammer and chisel. One stretch tunnels through the rock, with a row of window holes on the outside for light. Mule trains carry mountain goods along it; it is the short way from West Gully to the outside.' },
+  mountainTemple: { name: 'Mountain Shrine', about: 'A deep niche cut into the cliff holds a little wooden shrine: red pillars, a grey tile roof, upturned eaves. A plank platform juts out over the cliff road, with a bell at its west end. It honours the Mountain God; woodcutters and herb gatherers climb the stone steps to pay their respects.' },
+  slabBridge: { name: 'Slab bridge', about: 'A few bluestone slabs laid across the creek on stone piers, wide enough to cross with a loaded shoulder pole.' },
+  ruin: { name: 'Old house', about: '' },
+  riverTemple: { name: 'River God Temple', about: 'A small brick temple on the edge of the loess bank, red doors and grey tiles, honouring the River God. It was built after the flood, its door facing the old riverbed the water carved. Granny Liu comes every morning to burn incense and sweep.' },
+  floodStele: { name: 'Flood stele', about: 'A stone stele before the temple with a red line painted across it: how high the flood rose that year, a head taller than a man. It is carved with the date and the words "Let those who come after not forget."' },
+  stonePile: { name: 'Stone blocks', about: 'Blocks Stonemason Ge quarried from the east hill and dressed square one by one, stacked in his yard. Levees, wall footings and houses all need them.' },
+  millstoneBlank: { name: 'Unfinished millstone', about: 'A millstone Stonemason Ge is still carving, its grooves only half cut. When the millstones at the tofu shop or the watermill wear smooth, he is the one they call.' },
+  limeKiln: { name: 'Lime kiln', about: 'A round kiln of rubble stone. Bluestone and firewood are packed in layers and burned three days and nights, and out comes snow-white lime. Plastering, pointing and whitewashing all depend on it.' },
+  limePile: { name: 'Quicklime', about: 'Fresh quicklime from the kiln, piled up; it steams the moment it touches water. Old Lime Bai says: a house is three parts brick and tile, seven parts lime.' },
+  oldStage: { name: 'Old stage base', about: 'The old Shiyu opera stage, knocked down in the flood. All that is left is a rubble base and one charred pillar stump. Barber Zheng watched opera here as a boy.' },
+  oldBridge: { name: 'Old broken bridge', about: 'The old stone bridge over the stream. The flood took the deck, leaving two piers leaning in the water. A single log lies across now, and only the bold kids walk it.' },
+  driftwood: { name: 'Driftwood pile', about: 'Driftwood Shuisheng fished out of the river, stacked on the bank to dry, then split and sold as firewood. Every flood brings another load down from upstream.' },
+  coalMine: { name: 'Coal pit', about: 'A big pit mouth cut into the foot of the bluestone cliff in the northeast corner, taller than a man. Three wooden props run deeper and deeper; red cloth and two lanterns hang from the outermost beam, and beyond it is black as night. A pair of rails runs out of the hole: miners load coal into carts, push it out and tip it onto the heap to the east. Charcoal makers come here too, for coal to light their kilns.' },
+  coalHeap: { name: 'Coal heap', about: 'Coal fresh out of the pit, black and gleaming. In winter many families come here to carry coal home for the kang and the stove.' },
+  mineCart: { name: 'Mine cart', about: 'A wooden cart that runs on the little rails, holding two or three hundred jin of coal.' },
+  mountainGate: { name: 'Mountain gate', about: 'A stone archway: two pillars, a stone beam and a plaque. North of it, stone steps vanish into tall, dense old forest; foragers and hunters all go up the mountain this way. The boundary stone beside it reads "The forest belongs to all. Spare the young trees."' },
+  smallDam: { name: 'Small dam', about: 'A low stone dam where the stream enters the lake: a row of blocks with a few gaps, and the water pours through into the lake with a rush. The water above is a bit deeper, and Miao\'s ducks love to dive here.' },
+  lakeSteps: { name: 'Stone landing', about: 'A few stone steps down into the lake. In the morning the village women beat laundry and draw water here; at dusk the anglers sit on the bottom step.' },
+  gatherPoint: { name: 'Forage yard', about: 'A yard below the mountain gate: drying racks hung with mushrooms, hawthorns and walnuts, bamboo trays on the ground, a heap of logs dragged down from the hill, a sawhorse, a chopping block, a timber cart and a row of back baskets. Foragers pick up their gear here before heading into the woods, and on market days the mule train comes to buy.' },
+  trialField: { name: 'Seed trial plots', about: 'A row of five trial beds: millet, corn, sorghum and wheat, one crop to a bed, each with a wooden sign saying the variety, when it was sown and how it is doing. The farm technician picks the fullest ears here for seed.' },
+  apiary: { name: 'Apiary', about: 'Two rows of hives on a sunny slope ringed with wildflowers. The beekeeper opens them in a veil with a smoker to cut the comb; the mule train loves to buy the honey.' },
+  lake: { name: 'Lake', about: 'A pond below the slope where the rainwater from the gully collects, draining south into the stream. Willows and bamboo line the bank; women squat on the stones doing laundry, and anglers like to sit under the willows.' },
+  oldThresh: { name: 'Threshing floor', about: 'A rolled-flat threshing floor south of the old street. In autumn the families bring their millet and sorghum to dry, the roller goes round and round, the winnowing basket tosses and the chaff blows away; two straw stacks stand at the edge.' },
+  oldGraves: { name: 'Family graves', about: 'The family graves of Old Shiyu at the edge of the woods: a few mounds and a stone stele. At Qingming the families come up from downstream to burn paper and add earth.' },
+  veggie: { name: 'Vegetable plot', about: 'A small vegetable plot fenced off by the yard, rows of cabbage and radish, with a scarecrow at the end to scare off the birds.' },
+  earthBridge: { name: 'Earth arch bridge', about: 'Where the old street crosses the gully: a raised earth bank faced on both sides with loess arches, so it looks like an arch bridge. The rail is a low earth wall; looking down, the willow tops in the gully only reach your feet.' },
+  ancestralRuin: { name: 'Old ancestral hall', about: 'Old Shiyu\'s ancestral hall. After the flood the families moved their tablets to the Wang ancestral hall downstream. Only a stone base, two rows of pillar bases and half a stele remain, with weeds in every crack.' },
+  eastFall: { name: 'Cliff falls', about: 'A mountain creek on top of the bluestone cliff in the northeast drops some ten metres from a notch into a deep pool below; you can hear it from far away. The water steps down the terraces into the big lake below the slope. The miners wash their faces at the pool during the midday break.' },
+  oldShrine: { name: 'Old Earth God Shrine', about: 'A little Earth God shrine at the Old Site\'s crossroads, older than the one at the Village Square. The flood knocked half of it crooked, and Granny Liu still burns a stick of incense here on the 1st and 15th.' },
+  oldTablet: { name: 'Guardian stone', about: 'A guardian stone at the old street\'s corner; the red paint on top faded long ago.' },
+  oldWillow: { name: 'Crooked old willow', about: 'An old willow on the riverbank that stood through the flood, though its neck has been crooked ever since. Head-high on the trunk is a notch Granny Liu\'s husband cut to mark the water line.' },
+};
+const ROLE_EN = { 正房: 'main house', 厢房: 'side house', 屋子: 'cottage' };
+const ROLE_ABOUT_EN = {
+  正房: 'The main house on the north side of the yard, facing south, where the head of the family lives. The central hall holds the ancestral tablets and the square table; bedrooms on either side have a kang joined to the stove.',
+  厢房: 'A side house flanking the main house, for the younger generation, or used as a kitchen, granary or tool room.',
+  屋子: 'A small three-bay house: the middle room doubles as the kitchen, with bedrooms on either side. The kang is joined to the stove, so one fire in winter warms the whole house.',
+};
+const WALL_EN = { brick: 'Brick walls', rubble: 'Rubble walls', adobe: 'Adobe walls', loess: 'Loess walls', stone: 'Stone walls' };
+const ROOF_EN = { gable: 'Tile roof', flat: 'Flat roof', shed: 'Lean-to roof', thatch: 'Thatch roof' };
+const GATE_EN = { grand: 'grand gate', wall: 'wall gate', brush: 'brushwood gate', plank: 'plank gate' };
+
 const ROLE_ABOUT = {
   正房: '院中坐北朝南的正房，由一家之主居住。中间为堂屋，供奉祖先牌位、摆放八仙桌；两侧是卧房，土炕与灶台相连。',
   厢房: '正房两侧的厢房，供晚辈居住，也用作灶房、粮仓或农具房。',
@@ -115,10 +219,15 @@ const ROOF = { gable: '瓦顶', flat: '平顶', shed: '单坡顶', thatch: '草�
 const GATE = { grand: '广亮大门', wall: '墙门', brush: '柴门', plank: '板门' };
 
 /** 院子本身（打在院子地上、没碰到东西时）：没有住户的公共地方的介绍。 */
-export const YARDS = {
+const YARDS_ZH = {
   square: { kind: '村口空场', note: '过了石桥便是村口：大槐树、戏台、火塘与石桌都在这里。白天有人对弈、剃头，夜晚则唱戏、放电影、开村会。' },
   threshing: { kind: '打谷场', note: '全村共用的场院，地面夯得平整坚实。秋收时各家轮流在此碾场、扬场、晾晒粮食。' },
 };
+const YARDS_EN = {
+  square: { kind: 'Open square', note: 'Across the stone bridge is the Village Square: the big locust tree, the opera stage, the fire pit and the stone table are all here. By day people play chess and get haircuts; at night there is opera, open-air film and village meetings.' },
+  threshing: { kind: 'Threshing floor', note: 'The threshing floor the whole village shares, its ground tamped flat and hard. At harvest the families take turns rolling, winnowing and drying their grain here.' },
+};
+export const YARDS = EN ? YARDS_EN : YARDS_ZH;
 
 /** 打标签：obj 可以是 Object3D 或 { object }。 */
 export function tag(obj, thing, spec) {
@@ -187,8 +296,20 @@ export function pickThing(list, p) {
 
 /** 卡片上的标题和标签（不含"此刻"）。 */
 export function describe(t, place) {
-  const base = THINGS[t.thing];
-  if (t.spec?.name) return { name: t.spec.name, tags: t.spec.tags ?? [], about: t.spec.about ?? base.about }; // 自己带着名字和介绍的（老村址的老宅、原住户的家）
+  const base = (EN && THINGS_EN[t.thing]) || THINGS[t.thing];
+  if (t.spec?.name) { // 自己带着名字和介绍的（老村址的老宅、原住户的家）；英文放在 spec.en 里
+    const s = (EN && t.spec.en) || t.spec;
+    return { name: s.name ?? t.spec.name, tags: s.tags ?? t.spec.tags ?? [], about: s.about ?? t.spec.about ?? base.about };
+  }
+  if (EN && t.thing === 'house') {
+    const s = t.spec, role = t.role ?? '屋子';
+    const nm = ROLE_EN[role] ?? 'cottage';
+    return { name: place ? `${place} ${nm}` : nm[0].toUpperCase() + nm.slice(1), tags: [WALL_EN[s.wall] ?? 'Brick walls', ROOF_EN[s.roof] ?? 'Tile roof', s.porch ? 'Front porch' : null, s.chimney ? 'Chimney' : null].filter(Boolean), about: ROLE_ABOUT_EN[role] ?? ROLE_ABOUT_EN.屋子 };
+  }
+  if (EN && t.thing === 'gate') {
+    const nm = GATE_EN[t.spec.type] ?? 'gate';
+    return { name: place ? `${place} ${nm}` : nm[0].toUpperCase() + nm.slice(1), tags: [], about: t.spec.type === 'grand' ? 'The gatehouse is set back into the wall, with steps in front and a pair of brass knockers on the doors. Only well-off families in the village can afford one.' : t.spec.type === 'brush' ? 'A gate woven from branches; one push opens it, and the animals can nose it open too.' : 'Two wooden doors, left ajar by day and barred at night.' };
+  }
   if (t.thing === 'house') {
     const s = t.spec;
     return { name: `${place ?? ''}${t.role ?? '屋子'}`, tags: [WALL[s.wall] ?? '青砖墙', ROOF[s.roof] ?? '瓦顶', s.porch ? '带前廊' : null, s.chimney ? '有烟囱' : null].filter(Boolean), about: ROLE_ABOUT[t.role] ?? ROLE_ABOUT.屋子 };

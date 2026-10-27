@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>像素村落</title>
+  <script>
+    // 英文界面（规则同 src/i18n.js）：标题和载入画面的字在模块加载前就要换
+    window.PV_EN = (() => { const q = new URLSearchParams(location.search).get('lang'); return q === 'en' || (q !== 'zh' && !/^zh/i.test(navigator.languages?.[0] ?? navigator.language ?? '')); })();
+    if (PV_EN) { document.title = 'Pixel Village'; document.documentElement.lang = 'en'; }
+  </script>
   <link rel="preload" href="fonts/pixel-zh.woff" as="font" type="font/woff" crossorigin>
   <link rel="preload" href="fonts/pixel-zh-12.woff" as="font" type="font/woff" crossorigin>
   <link rel="stylesheet" href="src/ui/ui.css">
@@ -400,10 +405,10 @@
         done() { go(1, 200); pct.textContent = '100%'; setTimeout(() => el.classList.add('out'), 240); setTimeout(() => el.remove(), 800); },
       };
     })();
-    loader.set(0.02, '正在下载…', 0.35, 6000);
+    loader.set(0.02, PV_EN ? 'Downloading...' : '正在下载…', 0.35, 6000);
   </script>
   <div id="hint">
-    <div id="settings" class="dark px" hidden><button id="sound" class="btn">声音：关</button><button id="music" class="btn">音乐：关</button><button id="season" class="btn">季节：秋</button><button id="ruins" class="btn">老宅：完好</button></div>
+    <div id="settings" class="dark px" hidden><button id="sound" class="btn">声音：关</button><button id="music" class="btn">音乐：关</button><button id="nextTrack" class="btn">下一首</button><button id="season" class="btn">季节：秋</button><button id="ruins" class="btn">老宅：完好</button></div>
     <div id="debug" class="dark px" hidden></div>
     <div class="bar px"><button id="settingsBtn" class="btn">设置</button><button id="debugBtn" class="btn">调试</button><button id="rosterBtn" class="btn">村民档案</button><button id="newBtn" class="btn">创建居民</button></div>
   </div>

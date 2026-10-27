@@ -1,5 +1,9 @@
 import * as THREE from 'three';
-import { GOODS } from '../life/economy.js';
+import { goodName, reasonText } from '../life/economy.js';
+import { EN } from '../i18n.js';
+
+/** 钱数：中文「6文」，英文「6 coins」。 */
+export const coinText = (n) => (EN ? `${n} ${n === 1 ? 'coin' : 'coins'}` : `${n}文`);
 
 /*
  * 成交气泡：买卖一成，买家头顶冒一个像素小气泡（"豆腐×2 4文" / "换 鸡蛋×2" / "赊 6文"），卖家头顶冒一个"+4文"，
@@ -11,12 +15,12 @@ const PX = 0.055; // 画布一个像素 = 村里多少米
 
 /** 一笔买卖在买家头顶怎么写：[[字, 颜色], …]。 */
 export function dealText(t) {
-  const G = (g) => GOODS[g]?.name ?? g;
-  const what = t.good ? `${G(t.good)}×${t.qty}` : t.service;
-  if (t.kind === 'barter') return [[what, '#ffcc66'], [` 换${G(t.swap.good)}×${t.swap.qty}`, '#e0d4bf']];
-  if (t.kind === 'gift') return [[what, '#ffcc66'], [' 接济', '#8fd16a']];
-  if (t.kind === 'credit') return [[what, '#ffcc66'], [` 赊${t.price}文`, '#d0564a']];
-  return [[what, '#ffcc66'], [` ${t.price}文`, '#e0d4bf']];
+  const G = goodName;
+  const what = t.good ? `${G(t.good)}×${t.qty}` : reasonText(t.service);
+  if (t.kind === 'barter') return [[what, '#ffcc66'], [EN ? ` for ${G(t.swap.good)}×${t.swap.qty}` : ` 换${G(t.swap.good)}×${t.swap.qty}`, '#e0d4bf']];
+  if (t.kind === 'gift') return [[what, '#ffcc66'], [EN ? ' gift' : ' 接济', '#8fd16a']];
+  if (t.kind === 'credit') return [[what, '#ffcc66'], [EN ? ` ${coinText(t.price)} on credit` : ` 赊${t.price}文`, '#d0564a']];
+  return [[what, '#ffcc66'], [` ${coinText(t.price)}`, '#e0d4bf']];
 }
 
 function paint(parts) {
@@ -57,7 +61,7 @@ export function createTradeBubbles() {
       if (t.place === '货郎代买') return; // 代买：气泡冒在货郎头上（main.js 的 onRun），买的人不一定在跟前
       const b = byId[t.buyer], s = byId[t.seller];
       if (b && !b.inside) show(b.object, dealText(t), 2.9);
-      if (s && !s.inside && t.kind === 'cash' && t.price > 0) show(s.object, [[`+${t.price}文`, '#8fd16a']], 3.8); // 卖家的高一截：两人挨着站，气泡别叠在一起
+      if (s && !s.inside && t.kind === 'cash' && t.price > 0) show(s.object, [[`+${coinText(t.price)}`, '#8fd16a']], 3.8); // 卖家的高一截：两人挨着站，气泡别叠在一起
     },
     update() {
       const now = performance.now();

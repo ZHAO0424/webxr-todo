@@ -1,4 +1,6 @@
 import { PLACES as HOMES } from './labels.js';
+import { EN, tr } from './i18n.js';
+import { pNick } from './names.js';
 
 /*
  * 村里动物的名字和来历（点小动物弹出的卡片用）。
@@ -36,10 +38,59 @@ const ABOUT = {
   pigeon: '栖在学堂屋檐下的一群鸽子，白天在村子上空盘旋，傍晚落回屋脊。',
 };
 
+// 英文界面：品种、名字（和 NAMES 一一对应，按同一个下标取）、来历
+const KIND_EN = {
+  dog: 'Yellow dog', dogBlack: 'Black dog', cat: 'Tabby cat', hen: 'Barred hen', henBrown: 'Brown hen', rooster: 'Rooster', duck: 'Speckled duck', goose: 'White goose',
+  pig: 'Black pig', boar: 'Wild boar', sheep: 'Sheep', donkey: 'Grey donkey', ox: 'Ox', magpie: 'Magpie', pigeon: 'Pigeon',
+};
+const NAMES_EN = {
+  dog: ['Goldie', 'Tiger'], dogBlack: ['Blackie', 'Coal'], cat: ['Patches', 'Mimi', 'Tabby'],
+  hen: ['Speckles', 'Little Speck', 'Dot', 'Millet', 'Bean', 'Ruffles', 'Whitewing', 'Freckle'], henBrown: ['Auntie Brown', 'Redcomb', 'Hazel', 'Jujube'], rooster: ['Red Robe', 'Goldcrest', 'General', 'King Crow'],
+  duck: ['Quack', 'Flatbill', 'Freckle', 'Floater', 'Duckhead'], goose: ['Big White', 'Second White', 'Longneck', 'Old Dopey'],
+  pig: ['Sooty', 'Chubby', 'Oinker', 'Porky'], boar: ['One-eye', 'Big Tusk', 'Bristles', 'Wildling'], sheep: ['Bellwether', 'Cloud', 'Curly', 'Baa', 'Little Horn', 'Spotface', 'Cotton', 'Dumpling', 'Old Wool'],
+  donkey: ['Grey'], ox: ['Old Yellow', 'Spotnose', 'Big Bull', 'Calf'], magpie: ['Chatter', 'Goodnews'], pigeon: ['Greydot', 'Whitefeather', 'Bell', 'Slate', 'Raindrop', 'Courier', 'Coo', 'Speckle'],
+};
+const ABOUT_EN = {
+  dog: 'A fine guard dog that trails its owner all day. It barks twice at strangers, but the peddler is an old friend by now.',
+  dogBlack: 'A glossy black coat and a quiet temper; it rarely barks. It follows its owner everywhere, even sitting at their feet at the opera.',
+  cat: 'Loves high places: wall tops, eaves, the rim of the water vat. Naps in the sun by day and hunts mice in the woodshed at night.',
+  hen: 'The best layer in the yard, scratching in the dirt for bugs all day. Scatter some grain and she is always first to it.',
+  henBrown: 'A slow one, always last to the food, but she lays the biggest eggs.',
+  rooster: 'Crows before dawn, the whole village\'s clock. He keeps an eye on all the hens in the yard.',
+  duck: 'One of the Wus\' ducks. It paddles in the stream for food by day, and Xiaocui herds it home before dark.',
+  goose: 'More alert than a dog: let a stranger come near and it stretches out its neck and gives chase. It belongs to the Wus too and often goes down to the stream with the ducks.',
+  pig: 'Eats, sleeps, eats again. At the clank of the slop bucket it grunts its way to the trough.',
+  boar: 'Wild boar from the edge of the East Hill woods, coming down at night to root up sweet potatoes and corn. The hunters set snares at the forest edge, but these are too clever to fall for them easily.',
+  sheep: 'Shepherd Ma\'s flock. At dawn they follow him up the slope to graze; at sunset one crack of the whip and they file back to the fold.',
+  donkey: 'The tofu shop\'s donkey, blindfolded, turning the millstone round and round. When not working it stands under the shed chewing hay.',
+  ox: 'The Yangs\' old ox, who pulls the stone roller on the threshing floor. Gentle-natured; doesn\'t mind the kids riding him.',
+  magpie: 'Hops between treetops and rooftops. Villagers say a magpie on the branch means good news is coming.',
+  pigeon: 'A flock of pigeons living under the school eaves. By day they circle over the village; at dusk they settle back on the roof ridge.',
+};
+const MULE_EN = { 大青: 'Dapple', 二黑: 'Ebony', 花脸: 'Patchface' };
+/** 英文界面换成英文（名字按在中文名单里的下标对应；查不到原样）。 */
+function toEn(info, s) {
+  if (!EN) return info;
+  const zh = NAMES[s.kind] ?? [], i = zh.indexOf(info.name);
+  const name = s.role === 'mule' ? MULE_EN[info.name] ?? info.name : i >= 0 ? NAMES_EN[s.kind]?.[i] ?? info.name : info.name === '小家伙' ? 'Little one' : info.name;
+  return { ...info, name, kind: KIND_EN[s.kind] ?? info.kind, owner: info.ownerEn ?? info.owner, about: info.aboutEn ?? info.about };
+}
 
 const used = new Map();
 /** 给一只动物（compounds 里的条目 s、所在院子 c）发名字和来历。 */
 export function animalInfo(s, c) {
+  const info = animalInfoZh(s, c);
+  if (!EN) return info;
+  const out = toEn(info, s);
+  if (s.role === 'mule') return { ...out, kind: 'Mule', owner: "Boss Niu's mule train", about: 'A pack mule of the caravan, a pannier slung on each side. Used to the cliff road, it is sure-footed and never flinches at the edge.' };
+  if (s.ownerText) return { ...out, owner: s.ownerTextEn ?? out.owner, about: s.aboutEn ?? (s.about ? out.about : ABOUT_EN[s.kind] ?? out.about) };
+  if (s.role === 'duck' || s.role === 'goose') out.owner = "The Wus'";
+  else if (s.role === 'pigeon') out.owner = 'Under the school eaves';
+  else if (!HOMES[c?.id]) out.owner = 'Village';
+  return { ...out, about: ABOUT_EN[s.kind] ?? out.about };
+}
+
+function animalInfoZh(s, c) {
   if (s.role === 'mule') return { name: s.name, kind: '骡子', owner: '骡帮牛老大', about: '骡帮的驮骡，背上一边一个驮篓。走惯了挂壁古道，脚底下稳当，崖边上也不慌。' };
   const pool = NAMES[s.kind] ?? ['小家伙'];
   const key = `${c?.id ?? 'wild'}:${s.kind}`;
@@ -57,19 +108,19 @@ export function animalInfo(s, c) {
 /** 这会儿在干什么（看动物的状态）。 */
 export function animalDoing(b, V) {
   const s = b.s;
-  if (b.home) return s.role === 'chicken' ? '已回鸡窝歇息' : s.role === 'mule' ? '跟着骡帮在山外' : '已回窝';
-  if (s.role === 'mule' && !b.follow) return '驮着货在村口歇脚';
-  if (s.role === 'pigeon') return b.moving ? '在村子上空盘旋' : '栖在学堂屋脊上';
-  if (s.perches) return b.flight ? (s.role === 'bird' ? '飞往另一棵树' : '跃向别处') : s.role === 'cat' ? '蹲在高处小憩' : '立在高处鸣叫';
-  if (b.circling) return s.role === 'ox' ? '拉碾碾场' : '蒙眼拉磨';
-  if (b.follow) return `跟随${b.follow.p.nick}`;
-  if (b.lure) return '围拢抢食';
-  if (b.stroll) return '拱开院门外出闲逛';
-  if (b.returning) return '独自返回家中';
-  if (s.role === 'dog' && s.owner) { const o = V.byId[s.owner]; if (o && !o.inside && Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z) < 3) return `守在${o.p.nick}身旁`; }
-  if (b.graze) return '山坡上吃草';
-  if (b.swim && V.nav.water[V.nav.index(b.pos.x, b.pos.z)]) return '溪中游弋';
-  if (b.moving) return '四处走动';
-  if (b.pecking) return s.role === 'sheep' ? '低头吃草' : s.role === 'pig' ? '拱土觅食' : '低头啄食';
-  return '休息';
+  if (b.home) return s.role === 'chicken' ? tr('已回鸡窝歇息', 'Roosting in the coop') : s.role === 'mule' ? tr('跟着骡帮在山外', 'Away with the mule train') : tr('已回窝', 'Back in its pen');
+  if (s.role === 'mule' && !b.follow) return tr('驮着货在村口歇脚', 'Resting with its load');
+  if (s.role === 'pigeon') return b.moving ? tr('在村子上空盘旋', 'Circling over the village') : tr('栖在学堂屋脊上', 'Perched on the school roof');
+  if (s.perches) return b.flight ? (s.role === 'bird' ? tr('飞往另一棵树', 'Flying to another tree') : tr('跃向别处', 'Leaping elsewhere')) : s.role === 'cat' ? tr('蹲在高处小憩', 'Napping up high') : tr('立在高处鸣叫', 'Calling from a perch');
+  if (b.circling) return s.role === 'ox' ? tr('拉碾碾场', 'Pulling the roller') : tr('蒙眼拉磨', 'Turning the mill');
+  if (b.follow) return EN ? `Following ${pNick(b.follow.p)}` : `跟随${b.follow.p.nick}`;
+  if (b.lure) return tr('围拢抢食', 'Crowding for food');
+  if (b.stroll) return tr('拱开院门外出闲逛', 'Nosed the gate open, roaming');
+  if (b.returning) return tr('独自返回家中', 'Heading home alone');
+  if (s.role === 'dog' && s.owner) { const o = V.byId[s.owner]; if (o && !o.inside && Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z) < 3) return EN ? `Staying by ${pNick(o.p)}` : `守在${o.p.nick}身旁`; }
+  if (b.graze) return tr('山坡上吃草', 'Grazing on the slope');
+  if (b.swim && V.nav.water[V.nav.index(b.pos.x, b.pos.z)]) return tr('溪中游弋', 'Swimming in the stream');
+  if (b.moving) return tr('四处走动', 'Wandering about');
+  if (b.pecking) return s.role === 'sheep' ? tr('低头吃草', 'Grazing') : s.role === 'pig' ? tr('拱土觅食', 'Rooting for food') : tr('低头啄食', 'Pecking at the ground');
+  return tr('休息', 'Resting');
 }
