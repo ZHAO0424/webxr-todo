@@ -32,8 +32,9 @@ import { auditOverlaps } from './overlap.js';
 import { SAVE_KEYS, loadWorld, yearOf, yearLabel } from './world.js';
 import { mine, statusOf, markSent, markQueued } from './mine.js';
 import { cloud } from './cloud.js';
+import { progress as badgeProgress, affinity, check as checkBadges } from './life/badges.js';
 import { signature, pickKeys, EDIT_KEYS } from './residentSchema.js';
-import { EN, tr, plural } from './i18n.js';
+import { EN, tr, plural, setLang } from './i18n.js';
 import { villageName, hhName, hhField, word, pName, pNick, pJob } from './names.js';
 import { VILLAGE } from './residents.js';
 import { WEST_BOUNDS } from './west.js';
@@ -521,6 +522,11 @@ V.onRelic = (v, n) => { // 挖到一件老东西：头顶冒一句（村史馆�
   const relic = relicText(n);
   if (!params.has('sim')) bubbles.say(v.object, EN ? [[`Found ${relic}`, '#ffcc66'], [` museum piece #${n}`, '#e0d4bf']] : [[`挖到${relic}`, '#ffcc66'], [` 村史馆第${n}件`, '#e0d4bf']]);
 };
+V.onBadge = (v, list) => { // 新来的人拿到勋章：头顶冒一句（自己的人才冒）
+  if (params.has('sim') || !myIds().has(v.p.id)) return;
+  bubbles.say(v.object, [[tr('得勋章 ', 'Medal: '), '#e0d4bf'], [list.map((b) => b.name).join(tr('、', ', ')), '#ffcc66']]);
+  saveNewcomers();
+};
 V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一句，档案重建
   saveNewcomers();
   bubbles.say(v.object, EN ? [[pJob(v.p), '#ffcc66'], [' open for business', '#e0d4bf']] : [[`当${v.p.job}`, '#ffcc66'], [' 开张了', '#e0d4bf']]);
@@ -530,15 +536,47 @@ V.onNewcomer = (v) => { // 认完人、挑好行当了：存档，头顶冒一�
 let cloudRows = null; // 云端自己那几行（后台处理了没有、退回的原因）：打开网页时取一次，提交后再取
 const myResidents = () => noMine ? [] : mine.list().filter((p) => !mine.meta()[p.id]?.left).map((p0) => {
   const live = V.byId[p0.id]?.p, w = worldNewcomers.get(p0.id), row = cloudRows?.[p0.id];
-  return { p: live ?? p0, status: statusOf(live ?? p0, w, undefined, row), owner: w?.owner, row, inWorld: !!w };
+  const bs = V.byId[p0.id] && badgeProgress(V, V.byId[p0.id], HOUSEHOLDS);
+  return { p: live ?? p0, status: statusOf(live ?? p0, w, undefined, row), owner: w?.owner, row, inWorld: !!w, badges: bs && [bs.filter((b) => b.got).length, bs.length] };
 });
+/** 绑定邮箱 / 用邮箱登录找回（src/cloud.js）。返回 'ok' 或者给人看的原因。 */
+const accountError = (e) => {
+  const m = String(e?.message ?? '');
+  if (/already.*regist|already exists|email_exists/i.test(m)) return tr('这个邮箱已经绑过别的身份了：要找回那边的居民，点「用邮箱登录找回」。', 'That email is already linked to another identity. Use "Log in to recover" instead.');
+  if (/invalid login|credentials/i.test(m)) return tr('邮箱或密码不对。', 'Wrong email or password.');
+  if (/password/i.test(m)) return tr('密码至少 6 位。', 'Password needs at least 6 characters.');
+  if (/email/i.test(m) && /invalid|format|validate/i.test(m)) return tr('邮箱格式不对。', 'That email doesn\'t look right.');
+  if (/rate limit/i.test(m)) return tr('试得太频繁了，过一会儿再试。', 'Too many tries; wait a bit and try again.');
+  return tr('连不上村子的服务器，稍后再试。', 'Couldn\'t reach the village server; try again later.');
+};
+const account = {
+  who: () => cloud.who(),
+  async bind(email, pw) { try { await cloud.bind(email, pw); return 'ok'; } catch (e) { return accountError(e); } },
+  /** 登录以后把这个账号的居民接回这台电脑（村子存档里有的用存档那份，还没进村的用提交的资料），然后重新打开网页。 */
+  async login(email, pw) {
+    try {
+      await cloud.login(email, pw);
+      const rows = await cloud.mine();
+      const list = mine.list().filter((p) => !rows.some((r) => r.id === p.id));
+      for (const r of rows) {
+        if (r.kind === 'leave') continue;
+        const w = worldNewcomers.get(r.id);
+        list.push(w ? structuredClone(w) : { ...r.data, id: r.id });
+        mine.setMeta(r.id, w ? null : { sent: { kind: 'join', at: Date.now(), sig: '' } });
+      }
+      mine.save(list);
+      setTimeout(() => location.reload(), 600);
+      return 'ok';
+    } catch (e) { return accountError(e); }
+  },
+};
 /**
  * 提交到大家的村子（src/cloud.js）：在存档里了就是改（edit），还没进就是新来（join），leave 离村。
  * 返回 'ok'；连不上（超时、断网、服务器出错）返回 'queued'——先存本机，下次打开自动再发；被数据库拒了（一个浏览器超过三个）返回原因。
  */
 async function share(p0, leave = false) {
   const p = V.byId[p0.id]?.p ?? p0, kind = leave ? 'leave' : worldNewcomers.has(p.id) ? 'edit' : 'join';
-  if (params.has('uicheck') || params.has('nocloud')) return 'ok'; // 无头检查界面：不往真的云端写
+  if (params.has('uicheck') || params.has('nocloud')) { markSent(kind, p); return 'ok'; } // 无头检查界面：不往真的云端写
   try {
     await cloud.save(kind, p);
     markSent(kind, p);
@@ -585,6 +623,8 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
     dropResident(id);
   },
   share,
+  account,
+  onDetail: (id) => { roster.show(id); rosterBtn?.classList.add('on'); }, // 详情：档案里这个人（勋章、好感度）
   econ: () => ECON,
   homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? hhName(h), n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
   M: village.M, // 第一步的 3D 小人用村里同一套材质
@@ -636,6 +676,9 @@ const makeRoster = () => createRoster(document.getElementById('roster'), {
   },
   onClose: () => rosterBtn?.classList.remove('on'),
   mine: (id) => myIds().has(id),
+  // 新来的人：勋章和好感度（life/badges.js）；原住户没有
+  // 先把够了的勋章记上（平时每天清早记一次）
+  progress: (id) => { const v = V.byId[id]; if (v?.p.newcomer) checkBadges(V, v, HOUSEHOLDS); return v?.p.newcomer ? { badges: badgeProgress(V, v, HOUSEHOLDS), affinity: affinity(V, v.p, HOUSEHOLDS).slice(0, 6), day: V.econ.day } : null; },
   onEdit: (id) => { const v = V.byId[id]; if (v) newcomerPanel.edit(v.p); },
   // 档案里的地图：三块沙盘各一张真实场景从正上方看下去的截图；村子、老村址的居民按户标在自家院子上，西沟按"谁到这儿干活"标
   map: { boards: mapBoards() },
@@ -783,6 +826,8 @@ function syncSoundBtn() {
 musicBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.toggle(); syncSoundBtn(); lastLabel = null; });
 const nextBtn = document.getElementById('nextTrack');
 if (nextBtn) nextBtn.textContent = tr('下一首', 'Next track');
+const langBtn = document.getElementById('lang'); // 设置里切中英文（记在浏览器里，重新打开）
+if (langBtn) { langBtn.textContent = EN ? 'Language: English' : '语言：中文'; langBtn.title = EN ? '切换到中文' : 'Switch to English'; langBtn.addEventListener('click', (e) => { e.stopPropagation(); setLang(EN ? 'zh' : 'en'); }); }
 nextBtn?.addEventListener('click', (e) => { e.stopPropagation(); music.next(); syncSoundBtn(); lastLabel = null; }); // 跳过这一首
 syncSoundBtn(); // 按钮上的字按当前语言写一遍
 // 设置按钮：点一下往上弹出声音、音乐、季节，再点（或点场景）收起
@@ -1079,8 +1124,10 @@ if (params.has('uicheck')) {
     ...[0, 1, 2, 3, 4].map((c) => ({ name: `new:job${c}`, open: () => { closeAll(); newcomerPanel.create('job'); document.querySelectorAll('#newcomer .jcats button')[c]?.click(); document.querySelector('#newcomer .jcard')?.dispatchEvent(new Event('pointerover', { bubbles: true })); } })),
     { name: 'new:done', open: () => { const n = document.querySelector('#newcomer [data-f=name]'); n.value = EN ? 'Hu Ergen' : '胡二根'; n.dispatchEvent(new Event('input')); document.querySelector('#newcomer .create').click(); } },
     { name: 'new:mine', open: () => { closeAll(); newcomerPanel.mine(); } },
+    { name: 'detail', open: () => { closeAll(); const id = myIds().values().next().value; if (id) { roster.show(id); roster.layout(); } } }, // 自己的人的详情：勋章、好感度
     { name: 'new:edit', open: () => { const b = document.querySelector('#newcomer .mcard [data-act=edit]'); b?.click(); } },
     { name: 'new:editinfo', open: () => { document.querySelector('#newcomer [data-page=info]')?.click(); } },
   ];
-  await uiCheck(steps);
+  const stop = params.get('uicheck'), upto = steps.findIndex((st) => st.name === stop); // ?uicheck=new:mine：走到这一步就停（截这一页的图）
+  await uiCheck(upto >= 0 ? steps.slice(0, upto + 1) : steps);
 }

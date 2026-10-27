@@ -36,7 +36,7 @@ const jt = (j, k) => (EN ? j.en?.[k] ?? j[k] : j[k]); // 营生的字（英文�
 const goodName = (g) => (EN ? GOODS[g].en?.name ?? GOODS[g].name : GOODS[g].name);
 const goodUnit = (g) => (EN ? GOODS[g].en?.unit ?? '' : GOODS[g].unit);
 
-export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind, onLeave, share, residents = () => [], econ, homes, pickHome = () => null, M }) {
+export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind, onLeave, onDetail, share, account, residents = () => [], econ, homes, pickHome = () => null, M }) {
   el.className = 'panel px';
   el.id = 'newcomer';
   el.hidden = true;
@@ -322,6 +322,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   const mineCards = () => {
     const box = q('.mcards'), list = residents();
     box.innerHTML = '';
+    box.append(acctBox());
     for (const r of list) {
       const { p, status, owner, row } = r, [st, why0] = STATUS[status];
       const why = status === 'rejected' ? `${reason(row?.result)} ${tr('改好了点「修改」保存，会自动再提交。', 'Fix it via Edit; saving resubmits automatically.')}` : why0;
@@ -333,17 +334,17 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       const asking = leaveAsk === p.id;
       card.innerHTML = `<div class="mp"><div class="v"></div></div><div class="mt">
           <div class="l1"><b>${esc(pName(p))}</b><span class="badge ${STATUS_CLS[status]}">${esc(st)}</span></div>
-          <div class="dim jb">${esc(pJob(p))}${owner && !owner.startsWith('sb:') ? ` · GitHub @${esc(owner)}` : ''}</div>
+          <div class="dim jb">${esc(pJob(p))}${owner && !owner.startsWith('sb:') ? ` · GitHub @${esc(owner)}` : ''}${r.badges ? ` · ${tr('勋章', 'Medals')} ${r.badges[0]}/${r.badges[1]}` : ''}</div>
           <div class="why">${esc(why)}</div>
           ${notes[p.id] ? `<div class="okmsg">${esc(notes[p.id])}</div>` : ''}
           ${asking ? `<div class="ask">${status === 'local' ? tr('他还没提交过，删掉就没了。确定？', 'They were never submitted; removing deletes them. Sure?') : tr('他会离开大家的村子（下次后台处理时）。确定让他走？', 'They will leave the shared village (at the next update). Let them go?')}
             <span class="acts"><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button></span></div>`
           : `<div class="acts">${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}
-            <button class="btn" data-act="edit">${tr('修改', 'Edit')}</button>${p.met ? `<button class="btn" data-act="job">${tr('改行', 'New job')}</button>` : ''}
+            <button class="btn" data-act="detail">${tr('详情', 'Details')}</button><button class="btn" data-act="edit">${tr('修改', 'Edit')}</button>${p.met ? `<button class="btn" data-act="job">${tr('改行', 'New job')}</button>` : ''}
             <button class="btn" data-act="find">${tr('去村里找', 'Find')}</button>${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 提交', 'Submit via GitHub')}</button>` : ''}
             <button class="btn danger" data-act="leave">${tr('离村', 'Leave')}</button></div>`}
         </div>`;
-      draw(card.querySelector('.mp .v'), p, 'front', 110);
+      draw(card.querySelector('.mp .v'), p, 'front', 136);
       box.append(card);
     }
     const add = document.createElement('button');
@@ -351,6 +352,32 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     add.dataset.act = 'new';
     add.innerHTML = `<span class="plus">＋</span><span>${tr('再建一个居民', 'Create another resident')}</span>`;
     box.append(add);
+  };
+  /**
+   * 「我的居民」顶上的账号框：没绑邮箱时劝绑（换电脑、清了浏览器也能找回）；还有「用邮箱登录找回」（在别的电脑上建过）。
+   * 不发验证邮件：邮箱 + 密码就是账号（account.bind / login，见 main.js 和 cloud.js）。
+   */
+  let acctMode = null, acctMsg = '', acctEmail = '';
+  const acctBox = () => {
+    const d = document.createElement('div');
+    d.className = 'paper acct';
+    const me = account?.who?.(), n = residents().length;
+    const form = (act, label) => `<div class="af"><input class="in" type="email" data-af="email" value="${esc(acctEmail)}" placeholder="${tr('邮箱', 'Email')}" autocomplete="email"><input class="in" type="password" data-af="pw" placeholder="${tr('密码（至少 6 位）', 'Password (6+ characters)')}" autocomplete="${act === 'bind' ? 'new-password' : 'current-password'}"><button class="btn on" data-act="${act}">${label}</button><button class="btn" data-act="acctCancel">${tr('算了', 'Cancel')}</button></div>`;
+    d.innerHTML = me?.email
+      ? `<div class="al"><b>${tr('已绑定邮箱', 'Email linked')}</b> ${esc(me.email)} <span class="dim">${tr('换电脑或清了浏览器，用这个邮箱和密码登录就能找回居民。', 'On another computer, log in with this email and password to get your residents back.')}</span></div>`
+      : acctMode === 'bind' ? `<div class="al"><b>${tr('绑定邮箱', 'Link an email')}</b> <span class="dim">${tr('以后换电脑或清了浏览器，用它登录就能找回居民。不会发邮件，记好密码（忘了找不回）。', 'Use it to get your residents back on another computer. No email is sent, so remember the password (it can\'t be reset).')}</span></div>${form('bind', tr('绑定', 'Link'))}`
+      : acctMode === 'login' ? `<div class="al"><b>${tr('用邮箱登录找回', 'Log in to recover')}</b> <span class="dim">${n ? tr(`注意：这台电脑上现在的 ${n} 个居民没绑邮箱，登录别的账号以后就改不了它们了。`, `Note: the ${n} resident(s) on this computer aren't linked to an email; after logging in to another account you won't be able to edit them.`) : tr('输入在别的电脑上绑定的邮箱和密码。', 'Enter the email and password you linked on the other computer.')}</span></div>${form('login', tr('登录', 'Log in'))}`
+      : `<div class="al"><span class="dim">${n ? tr('居民认的是这个浏览器：换电脑、清了浏览器就改不了了。', 'Your residents are tied to this browser; you\'d lose them on another computer.') : tr('在别的电脑上建过居民？', 'Made residents on another computer?')}</span>${n ? `<button class="btn on" data-act="acctBind">${tr('绑定邮箱', 'Link email')}</button>` : ''}<button class="btn" data-act="acctLogin">${tr('用邮箱登录找回', 'Log in to recover')}</button></div>`;
+    if (acctMsg) d.insertAdjacentHTML('beforeend', `<div class="okmsg">${esc(acctMsg)}</div>`);
+    return d;
+  };
+  const acctRun = (act, btn) => {
+    const box = btn.closest('.acct'), email = box.querySelector('[data-af=email]').value.trim(), pw = box.querySelector('[data-af=pw]').value;
+    acctEmail = email;
+    if (!/^\S+@\S+\.\S+$/.test(email)) { acctMsg = tr('邮箱格式不对', 'That email doesn\'t look right'); sync(); return; }
+    if (pw.length < 6) { acctMsg = tr('密码至少 6 位', 'Password needs at least 6 characters'); sync(); return; }
+    acctMsg = tr('稍等……', 'One moment...'); btn.disabled = true;
+    account[act](email, pw).then((r) => { acctMsg = r === 'ok' ? (act === 'bind' ? tr('绑好了。', 'Linked.') : tr('登录好了，正在找回居民……', 'Logged in, restoring residents...')) : r; if (r === 'ok') acctMode = null; if (!el.hidden) sync(); });
   };
   /** 走 GitHub 提交（连不上村子服务器时的后路）：打开填好资料的 Issue 页面。 */
   const viaGitHub = (kind, p) => { window.open(issueUrl(kind, p), '_blank', 'noopener'); markSent(kind, p); };
@@ -427,6 +454,10 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     if (act) {
       q('.foot .err').textContent = '';
       if (act === 'new') { api.create(); return; }
+      if (act === 'acctBind' || act === 'acctLogin') { acctMode = act === 'acctBind' ? 'bind' : 'login'; acctMsg = ''; sync(); el.querySelector('.acct [data-af=email]')?.focus(); return; }
+      if (act === 'acctCancel') { acctMode = null; acctMsg = ''; sync(); return; }
+      if (act === 'bind' || act === 'login') { acctRun(act, t); return; }
+      if (act === 'detail' && r) { api.close(); onDetail?.(r.p.id); return; }
       if (act === 'share' && r) { send(r.p); return; }
       if (act === 'issue' && r) { viaGitHub(r.inWorld ? 'edit' : 'join', r.p); notes[r.p.id] = tr('已打开 GitHub 提交页：在那边点「Submit new issue」。', 'GitHub opened: press "Submit new issue" there.'); sync(); return; }
       if (act === 'edit' && r) { api.edit(r.p); return; }
@@ -502,7 +533,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     /** 新建一个（which：直接到哪一页 / 哪一样，截图检查用）。 */
     create(which = 'look') { changing = null; editing = null; if (made) { form = FORM0(); made = null; } if (PARTS.some((x) => x.key === which)) { group = Math.max(0, GROUPS.findIndex(([, , ks]) => ks.includes(which))); part = which; which = 'look'; } page = which; if (page === 'job') { const c = JOBS.find((j) => j.id === form.jobId)?.cat; if (c) cat = c; } sync(); open(); },
     /** 左下角按钮：有自己的人先看「我的居民」，一个都没有直接新建。 */
-    show(which) { if (which) { api.create(which); return; } changing = null; editing = null; leaveAsk = null; if (residents().length) { page = 'mine'; sync(); open(); } else api.create(); },
+    show(which) { if (which) { api.create(which); return; } changing = null; editing = null; leaveAsk = null; page = 'mine'; sync(); open(); }, // 一个都没有也先到「我的居民」：有「新建」那一格，也能用邮箱登录找回
     mine() { changing = null; editing = null; page = 'mine'; sync(); open(); },
     close() { el.hidden = true; document.body.classList.remove('roster-open'); if (editing) editing = null; },
   };

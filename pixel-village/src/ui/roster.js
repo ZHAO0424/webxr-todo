@@ -4,7 +4,7 @@ import { animalAtlas } from '../animals.js';
 import { LABELS } from '../labels.js';
 import { portrait, bodyCrop } from './frame.js';
 import { EN, tr } from '../i18n.js';
-import { villageName, pName, pNick, pJob, pRelation, pHousehold, pTraits, pSkills, pLikes, pOwns, pStory, pSex, pAge } from '../names.js';
+import { villageName, hhName, pName, pNick, pJob, pRelation, pHousehold, pTraits, pSkills, pLikes, pOwns, pStory, pSex, pAge } from '../names.js';
 
 /*
  * 村民档案：村子页面里的一张横板大卡（四边留一点，和屏幕一样的比例），不跳新页面。版式参考星露谷的村民关系页、牧场物语的村民资料页：
@@ -94,7 +94,7 @@ function dayHTML(day) {
  * map：{ boards: [{ id, name, sub, bounds, image(), groups() }] }——每块沙盘一张俯视图；groups() 给出这块图上的一组组人：
  *   [{ key, name, at: [x, z], ids: [村民 id…] }]（at 是那块沙盘的坐标）。
  */
-export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, onEdit, mine = () => false, onClose, map, hour }) {
+export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, onEdit, mine = () => false, progress = () => null, onClose, map, hour }) {
   el.className = 'panel px';
   el.id = 'roster';
   el.hidden = true;
@@ -268,6 +268,7 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
         <div class="kv"><b>${tr('喜欢', 'Likes')}</b><span>${esc(pLikes(p))}</span><b>${tr('手艺', 'Skills')}</b><span>${esc(pSkills(p).join(tr('、', ', ')))}</span><b>${tr('家当', 'Owns')}</b><span>${esc(owns.length ? owns.join(tr('、', ', ')) : '——')}</span></div>
       </div></div></div>
       <div class="paper box info">
+        ${progressHTML(p)}
         <div class="sec"><div class="lbl">${tr('背景故事', 'Story')}</div><p class="story">${esc(pStory(p))}</p></div>
         <div class="sec"><div class="lbl">${tr('一天', 'A day')}<span class="count">${EN ? `${p.day.length} activities` : `${p.day.length} 项安排`}</span></div>${dayHTML(p.day)}</div>
         <div class="sec econ-sec"><div class="lbl">${tr('家当和账', 'Money & goods')}<span class="count"></span></div><div class="econ"></div></div>
@@ -293,6 +294,22 @@ export function createRoster(el, { status, beasts, econ, onFind, onChangeJob, on
     side.querySelector('.edit')?.addEventListener('click', () => { close(); onEdit?.(p.id); }); // 自己建的人：改样子、改资料
     side.querySelector('.chjob')?.addEventListener('click', () => { close(); onChangeJob?.(p.id); }); // 新来的人：换个营生
     nowHTMLs();
+  }
+
+  /**
+   * 新来的人（玩家建的）：成就（勋章，见 life/badges.js）和好感度（和各户熟到什么程度）。
+   * 勋章一格一个：拿到的亮（铜 / 银 / 金），写拿到那天；没拿到的灰着，底下一根进度条和「现在 / 要多少」。
+   */
+  function progressHTML(p) {
+    const g = progress(p.id);
+    if (!g) return '';
+    const got = g.badges.filter((b) => b.got).length;
+    const medal = (b) => `<div class="badge-t${b.got ? ` got t${b.tier}` : ''}" title="${esc(b.desc)}"><span class="md">★</span><span class="bn">${esc(b.name)}</span>`
+      + (b.got ? `<span class="bd">${EN ? `Day ${b.got}` : `第 ${b.got} 天`}</span>` : `<span class="bp"><i style="width:${Math.round((b.cur / b.need) * 100)}%"></i></span><span class="bd">${b.cur}/${b.need}</span>`)
+      + `<span class="bx">${esc(b.desc)}</span></div>`;
+    const heart = (a) => `<div class="aff"><span class="an">${esc(hhName(HOUSEHOLDS.find((h) => h.id === a.id)))}</span><span class="hearts">${[0, 1, 2, 3, 4].map((i) => `<i class="${i < a.hearts ? 'on' : ''}"></i>`).join('')}</span><span class="at">${a.trusted ? tr('信得过', 'Trusted') : ''}</span></div>`;
+    return `<div class="sec"><div class="lbl">${tr('成就', 'Achievements')}<span class="count">${got}/${g.badges.length}</span></div><div class="badges">${[...g.badges].sort((a, b) => (b.got ? 1 : 0) - (a.got ? 1 : 0)).map(medal).join('')}</div></div>`
+      + `<div class="sec"><div class="lbl">${tr('好感度', 'Affinity')}<span class="count">${tr('熟到「信得过」：勋章「自家人」', 'Reach "Trusted": medal "One of the family"')}</span></div><div class="affs">${g.affinity.map(heart).join('') || `<span class="dim">${tr('还没和谁熟起来', 'Not close to anyone yet')}</span>`}</div></div>`;
   }
 
   /** 家当和账（economy.js）：这户的铜钱、存着的东西、最近的买卖、赊的账。没有经济数据时整块不显示。 */

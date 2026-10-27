@@ -1,4 +1,5 @@
 import { hash, lunarOf } from './events.js';
+import { track } from './badges.js';
 import { season } from '../season.js';
 import { friendsOf } from '../residents.js';
 import { PLACES } from '../labels.js';
@@ -576,6 +577,7 @@ export class Economy {
   }
 
   record(t) {
+    track(this.V, t); // 新来的人：卖了多少、挣了多少（勋章用，见 badges.js）
     if (t.price > 0 && t.kind !== 'gift') { const u = this.unit(t.to); if (u) u.earned = (u.earned ?? 0) + t.price; } // 开张以来挣了多少（新人改行参考）
     this.trades.push(t);
     if (this.trades.length > 400) this.trades.shift();

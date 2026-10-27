@@ -234,6 +234,8 @@ export function scheduleFor(job, met = true) {
 export function addNewcomer(V, p, { arriving = true } = {}) {
   p.id ??= `new_${Date.now().toString(36)}${(V.newcomerCount = (V.newcomerCount ?? 0) + 1)}`; // 同一毫秒加好几个人也不撞
   p.newcomer = true;
+  p.stats ??= {}; p.stats.since ??= V.econ.day; // 进村那天（勋章「老住户」从这天算）
+  V.jobOf ??= (id) => jobById[id]; // badges.js 查营生做什么（不直接 import，免得绕圈）
   if (arriving && !p.home) { const o = V.east && pickOldHouse(p, V.east.houses); if (o) { p.home = o.id; p.homeWhy = o.why; } } // 自己找住处：空着的老宅优先
   const plot = p.home && V.C[p.home]?.plot ? V.east.claim(p.home, p) : null; // 住进老村址的一处老宅：自己住（不交房钱），塌了的先苫半边顶
   if (plot) { p.oldHouse = p.home; p.houseState = plot.state; p.household = `老村址·${plot.who}老宅`; }

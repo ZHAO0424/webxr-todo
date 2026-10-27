@@ -53,6 +53,24 @@ export const cloud = {
     await call('/rest/v1/residents?on_conflict=id', { method: 'POST', token: s.access_token, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: { id: p.id, kind, data } });
     return true;
   },
+  /** 现在是谁：{ uid, email }（email 没绑就是 null）；还没存过东西（没登录过）返回 null。 */
+  who() { const s = load(); return s?.uid ? { uid: s.uid, email: s.email ?? null } : null; },
+  /** 绑定邮箱和密码：现在这个匿名身份升级成正式账号（居民还是这些）。换电脑、清了浏览器，用邮箱和密码登录就能找回。 */
+  async bind(email, password) {
+    const s = await session();
+    const u = await call('/auth/v1/user', { method: 'PUT', token: s.access_token, body: { email, password } });
+    keep({ ...load(), email: u.email ?? email });
+  },
+  /** 用邮箱和密码登录（在别的电脑上找回）：换成那个账号的身份。 */
+  async login(email, password) {
+    const r = await call('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password } });
+    keep({ access_token: r.access_token, refresh_token: r.refresh_token, expires_at: r.expires_at ?? Math.floor(Date.now() / 1000) + (r.expires_in ?? 3600), uid: r.user?.id, email: r.user?.email ?? email });
+  },
+  /** 这个账号存过的居民（带资料，找回用）：[{ id, kind, data, … }]。 */
+  async mine() {
+    const s = await session();
+    return call('/rest/v1/residents?select=id,kind,data,updated_at,applied_at,result', { token: s.access_token });
+  },
   /** 自己存过的行（看后台处理了没有、退回的原因）：{ id → { kind, updated_at, applied_at, result } }。没登录过 / 连不上返回 null。 */
   async rows() {
     if (!load()) return null;

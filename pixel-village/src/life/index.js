@@ -8,6 +8,8 @@ import { holiday } from './variety.js';
 import { Economy } from './economy.js';
 import { Trading } from './trade.js';
 import { jobById, teaTick } from './newcomers.js';
+import { check as checkBadges } from './badges.js';
+import { HOUSEHOLDS } from '../residents.js';
 import { repairTick } from './oldsite.js';
 
 export { Clock, RATES, rateAt } from './clock.js';
@@ -101,6 +103,7 @@ export function populate(V, residents, extraAnimals, startHour, { event: forcedE
         for (const v of V.people) { v.entry = -1; v.inside = true; v.lift = 0; v.perched = false; v.down = null; const [dx, dz] = V.nav.nearestFree(...v.bed.door('house')); v.pos.set(dx, 0, dz); }
         V.econ.newDay(clock.day); // 结账：吃用、放坏、调价、今天想买什么
         V.trade.plan(clock.day);
+        for (const v of V.people) if (v.p.newcomer && !v.gone) { const got = checkBadges(V, v, HOUSEHOLDS); if (got.length) V.onBadge?.(v, got); } // 新来的人：够了的勋章记上（见 badges.js）
       }
       if (crossed(6.6)) for (const tr of V.torches) tr.lit = false; // 天亮了还没人去灭的，算熄了
       if (h > 19.25 || h < 5) for (const tr of V.torches) tr.lit = true; // 兜底：过了七点一刻还没点的，算别人顺手点了

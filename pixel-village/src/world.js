@@ -19,7 +19,7 @@ export const yearOf = (day, startMonth, startDate) => Math.floor((startMonth - 1
 export const yearLabel = (n) => (EN ? `Shiyu Year ${n + 1}` : `${ERA}${n ? cnNum(n + 1) : '元'}年`); // 英文：Shiyu Year 1、2……（Node 里总是中文）
 
 /** 新居民存档的字段（网页存在浏览器里的、后台存档里的，都是这一份）。 */
-export const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pattern', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'acc', 'coins', 'goods', 'home', 'homeWhy', 'jobId', 'jobWhy', 'houseState', 'jobPicked', 'met', 'jobHistory', 'owner']; // owner：提交这个人的 GitHub 账号（tools/intake.mjs）
+export const SAVE_KEYS = ['id', 'name', 'nick', 'age', 'sex', 'skills', 'traits', 'bio', 'likes', 'body', 'build', 'elder', 'skin', 'hair', 'hairRamp', 'hat', 'top', 'style', 'pattern', 'pants', 'beard', 'mustache', 'blush', 'smile', 'legwrap', 'apron', 'sash', 'acc', 'coins', 'goods', 'home', 'homeWhy', 'jobId', 'jobWhy', 'houseState', 'jobPicked', 'met', 'jobHistory', 'owner', 'stats', 'badges']; // stats、badges：勋章的计数和拿到的勋章（life/badges.js） // owner：提交这个人的 GitHub 账号（tools/intake.mjs）
 /** 写文件用：账本里偶尔挂着村民、动物对象（顺手记的），存档只要普通数据。 */
 export const toJSON = (state) => JSON.stringify(state, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) !== Object.prototype ? undefined : v));
 export const newcomerData = (p) => Object.fromEntries(SAVE_KEYS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]));
