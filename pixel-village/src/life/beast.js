@@ -8,7 +8,7 @@ import { animalInfo } from '../animalInfo.js';
 
 // 会拱门的牲口，以及每次挑新去处时溜出院子转一圈的概率
 const PUSHERS = { dog: 0.12, pig: 0.05, sheep: 0.04, donkey: 0.03, ox: 0.02 };
-const SPEED = { boar: 0.55, dog: 1.5, dogBlack: 1.4, cat: 0.8, hen: 0.5, henBrown: 0.5, rooster: 0.5, duck: 0.5, goose: 0.45, pig: 0.35, sheep: 0.55, donkey: 0.7, ox: 0.6, magpie: 3, pigeon: 0 };
+const SPEED = { fox: 0.8, foxCub: 0.9, boar: 0.55, dog: 1.5, dogBlack: 1.4, cat: 0.8, hen: 0.5, henBrown: 0.5, rooster: 0.5, duck: 0.5, goose: 0.45, pig: 0.35, sheep: 0.55, donkey: 0.7, ox: 0.6, magpie: 3, pigeon: 0 };
 
 export class Beast {
   constructor(s, V, c, rand) {
@@ -44,7 +44,8 @@ export class Beast {
     this.jump = null;
     if (s.perches) { const rest = s.perches.map((p, i) => i).filter((i) => s.perches[i][3] !== 'pass'); this.perch = rest[Math.floor(this.rand() * rest.length)]; this.flight = null; return; }
     if (s.role === 'pigeon') return;
-    const p = this.areaPoint() ?? (this.c ? this.c.at(0, 0) : [0, 0]);
+    const m = s.kitOf?.spawn, p = m ? this.V.nav.nearestFree(m[0] + (this.rand() - 0.5) * 2, m[1] + (this.rand() - 0.5) * 2) : this.areaPoint() ?? (this.c ? this.c.at(0, 0) : [0, 0]); // 小狐狸：就在妈妈身边出来（妈妈排在前面，先摆好）
+    s.spawn = p;
     this.pos.set(p[0], 0, p[1]);
   }
 
@@ -210,6 +211,21 @@ export class Beast {
   behave(t, dt, hour) {
     const s = this.s, V = this.V;
     this.pecking = false;
+    // 0. 小狐狸（s.kitOf = 母狐狸那一条）：不离妈妈两三米，在她身边打转、追着玩；落远了小跑着追上去
+    if (s.kitOf) {
+      const m = (this.mom ??= V.beasts.find((b) => b.s === s.kitOf));
+      if (m) {
+        const far = Math.hypot(m.pos.x - this.pos.x, m.pos.z - this.pos.z) > 2.6;
+        this.wait -= dt;
+        if (this.wait <= 0 && (far || !this.target)) { // 隔一会儿才换个地方（落远了每半秒重新瞄一次妈妈），不每帧找路
+          const a = this.rand() * Math.PI * 2, r = 0.5 + this.rand() * 1.2;
+          this.target = V.nav.nearestFree(m.pos.x + Math.cos(a) * r, m.pos.z + Math.sin(a) * r);
+          this.wait = far ? 0.5 : 0.6 + this.rand() * 2.4;
+        }
+        if (this.target && this.moveTo(this.target[0], this.target[1], dt, this.speed * (far ? 1.8 : 1))) this.target = null;
+        return;
+      }
+    }
     // 1. 跟着人走（羊跟羊倌、牛跟主人、鸭鹅被赶回家）——排成一串，各自有位置
     if (this.follow) {
       const f = this.follow;

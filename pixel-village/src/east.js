@@ -1361,8 +1361,19 @@ export function buildEast(M) {
     gather: [W(SHED.u) + 1.6, SHED.z + 1.8], // 山货收购棚前：采回来的山货倒在这儿晾
     forest: forestEdge, // 林子边：采山货、下套子
   };
+  /** 一窝狐狸：母狐狸在老村址北边转（林子边到坡上两排老宅之间），两只小狐狸跟着她（beast.js 的 kitOf）。 */
+  function foxes() {
+    const mom = { kind: 'fox', role: 'fox', worldArea: [W(-26), forestZ(-12) + 1, W(2), -7], ownerText: '东山林子里的野物', ownerTextEn: 'Wild, from the East Hill woods',
+      about: '东山林子里的一只母狐狸，今年开春在老宅后坡的土坎下打了窝，带着两只小狐狸出来找吃的。见了人也不慌，站住看一眼，再不紧不慢地钻回林子边。',
+      aboutEn: 'A vixen from the East Hill woods. This spring she dug a den under the bank behind the old houses, and now she brings her two cubs out to forage. She is not shy: she stops, looks you over, then trots unhurried back to the edge of the woods.' };
+    const kit = () => ({ kind: 'foxCub', role: 'fox', kitOf: mom, worldArea: mom.worldArea, ownerText: '母狐狸火尾巴的崽', ownerTextEn: "Firetail's cub",
+      about: '今年春天生的小狐狸，耳朵比脸还显得大。寸步不离地跟着妈妈，一会儿扑兄弟的尾巴，一会儿追草里的蚂蚱。',
+      aboutEn: 'Born this spring, ears looking bigger than its face. It never strays far from its mother, pouncing on its sibling\'s tail one moment and chasing grasshoppers in the grass the next.' });
+    return [mom, kit(), kit()];
+  }
   const animals = [ // 林子边的野猪、草场上的牛（village.js 放进 extraAnimals）
     ...[[-26, -14], [-2, 10], [16, 24]].map(([u0, u1]) => ({ kind: 'boar', role: 'boar', worldArea: [W(u0), Math.min(forestZ(u0), forestZ(u1)) - 5, W(u1), Math.max(forestZ(u0), forestZ(u1)) + 2], ownerText: '东山上的野物', ownerTextEn: 'Wild, from East Hill' })),
+    ...foxes(),
     ...Array.from({ length: 4 }, () => ({ kind: 'ox', role: 'cow', worldArea: [W(PASTURE.u0 + 1.5), PASTURE.z0 + 1.5, W(PASTURE.u1 - 1.5), PASTURE.z1 - 1.5], ownerText: '老村址草场（各家寄养）', ownerTextEn: 'Old Site pasture (boarded)', aboutEn: 'Oxen a few village families board on the pasture. By day they graze inside the fence with a herder watching; in the busy season each family leads theirs home to plough and pull carts.', about: '村里几家寄养在草场上的黄牛，白天在栅栏里低头吃草，放牛的人看着；农忙时各家牵回去犁地、拉车。' })),
   ];
 

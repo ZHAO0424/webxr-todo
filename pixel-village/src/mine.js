@@ -48,16 +48,16 @@ export function statusOf(p, w, meta = mine.meta()[p.id] ?? {}, row = null) {
   if (sent?.kind === 'edit' && sent.sig === signature(p)) return old ? 'stale' : 'editing';
   return 'changed';
 }
-export const STATUS = {
-  local: [tr('只在这台电脑上', 'Only on this computer'), tr('别人看不到。提交到村子，大家就都能看见他。', 'Others can\'t see them yet. Submit to the village so everyone can.')],
-  queued: [tr('等联网', 'Waiting to send'), tr('已存在这台电脑上，但没连上村子的服务器。下次打开会自动再发，也可以点「再试一次」。', 'Saved on this computer, but the village server couldn\'t be reached. It retries next time you open the page, or press Retry.')],
-  pending: [tr('等入村', 'Joining soon'), tr('已提交。一般两三分钟他就从村口走进来（刷新网页看）；服务器忙的时候要久一点。', 'Submitted. They usually walk in within a few minutes (refresh the page); it can take longer when the server is busy.')],
-  stale: [tr('还没处理', 'Not processed yet'), tr('提交好几个小时了还没生效，可以再提交一次。', 'Submitted hours ago but still not applied. You can submit again.')],
-  rejected: [tr('被退回', 'Sent back'), ''], // 原因在云端那一行的 result 里
-  in: [tr('在村里', 'In the village'), tr('大家都看得见他。', 'Everyone can see them.')],
-  changed: [tr('有改动没提交', 'Unsubmitted changes'), tr('改动只在这台电脑上，提交以后大家才看得见。', 'Your changes are only on this computer until you submit them.')],
-  editing: [tr('改动等生效', 'Changes pending'), tr('改动已提交，一般两三分钟就生效（刷新网页看）。', 'Changes submitted; they usually apply within a few minutes (refresh the page).')],
-  leaving: [tr('正在离村', 'Leaving'), tr('已提交离村，这台电脑上先不显示他。', 'Leaving submitted; hidden on this computer.')],
+export const STATUS = { // 你这边（这个浏览器）建好、改好马上就看得见；「世界」= 大家共同的村子，别人打开网页看到的是世界里的样子
+  local: [tr('还没上传到世界', 'Not in the shared world yet'), tr('只有你这边看得见。上传到世界，别人打开村子也能看见他。', 'Only you can see them. Upload them to the shared world so everyone can.')],
+  queued: [tr('等联网上传', 'Waiting to upload'), tr('已经存在这台电脑上，但没连上世界的服务器。下次打开会自动再上传，也可以点「再试一次」。', 'Saved on this computer, but the world server couldn\'t be reached. It retries next time you open the page, or press Retry.')],
+  pending: [tr('正在保存到世界', 'Saving to the world'), tr('你这边已经能看见他了。世界那边一般两三分钟收下，之后别人打开村子也能看见他。', 'You can already see them. The shared world usually takes them in within a few minutes; after that everyone can see them.')],
+  stale: [tr('世界还没收下', 'Not in the world yet'), tr('上传好几个小时了，世界那边还没收下。可以再上传一次。', 'Uploaded hours ago but the world still hasn\'t taken them in. You can upload again.')],
+  rejected: [tr('世界没收下', 'Not accepted'), ''], // 原因在云端那一行的 result 里
+  in: [tr('已保存到世界', 'Saved to the world'), tr('别人打开村子也能看见他。', 'Everyone who opens the village can see them.')],
+  changed: [tr('改动还没上传', 'Changes not uploaded'), tr('改动只在你这边，上传以后世界里才跟着变。', 'Your changes are only here; upload them to update the shared world.')],
+  editing: [tr('正在把改动存到世界', 'Saving changes to the world'), tr('你这边已经是新样子了。世界那边一般两三分钟跟着变。', 'You already see the new look. The shared world usually updates within a few minutes.')],
+  leaving: [tr('正在离开世界', 'Leaving the world'), tr('已经让他离村，你这边先不显示他；世界那边两三分钟后他也走了。', 'They\'ve been told to leave; hidden here, and gone from the shared world within a few minutes.')],
 };
 
 /** GitHub 新建 Issue 的链接（资料填在代码块里）。kind：join 新来 / edit 改样子资料 / leave 离村。 */

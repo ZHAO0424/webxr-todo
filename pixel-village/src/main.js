@@ -548,7 +548,7 @@ const accountError = (e) => {
   if (/password/i.test(m)) return tr('密码至少 6 位。', 'Password needs at least 6 characters.');
   if (/email/i.test(m) && /invalid|format|validate/i.test(m)) return tr('邮箱格式不对。', 'That email doesn\'t look right.');
   if (/rate limit/i.test(m)) return tr('试得太频繁了，过一会儿再试。', 'Too many tries; wait a bit and try again.');
-  return tr('连不上村子的服务器，稍后再试。', 'Couldn\'t reach the village server; try again later.');
+  return tr('连不上世界的服务器，稍后再试。', 'Couldn\'t reach the world server; try again later.');
 };
 const account = {
   who: () => cloud.who(),

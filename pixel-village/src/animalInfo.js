@@ -9,7 +9,7 @@ import { pNick } from './names.js';
 
 export const KIND_NAMES = {
   dog: '黄狗', dogBlack: '黑狗', cat: '狸花猫', hen: '芦花鸡', henBrown: '麻母鸡', rooster: '大公鸡', duck: '麻鸭', goose: '大白鹅',
-  pig: '黑猪', boar: '野猪', sheep: '绵羊', donkey: '灰毛驴', ox: '黄牛', magpie: '喜鹊', pigeon: '鸽子',
+  pig: '黑猪', boar: '野猪', sheep: '绵羊', donkey: '灰毛驴', ox: '黄牛', magpie: '喜鹊', pigeon: '鸽子', fox: '赤狐', foxCub: '小狐狸',
 };
 
 const NAMES = {
@@ -17,7 +17,7 @@ const NAMES = {
   hen: ['芦花', '小芦', '点点', '米米', '豆豆', '花脖', '白翅', '小麻'], henBrown: ['麻姑', '红冠', '小褐', '枣子'], rooster: ['大红袍', '金冠', '将军', '打鸣王'],
   duck: ['嘎嘎', '扁嘴', '小麻', '水漂', '鸭头'], goose: ['大白', '二白', '长脖', '老憨'],
   pig: ['黑娃', '胖墩', '哼哼', '肥肥'], boar: ['独眼', '大獠牙', '黑鬃', '小野'], sheep: ['头羊', '白云', '卷卷', '咩咩', '小犄角', '花脸', '棉花', '团子', '老绵'],
-  donkey: ['灰灰'], ox: ['老黄', '花鼻子', '大犍', '小犊'], magpie: ['喳喳', '报喜'], pigeon: ['灰点', '白羽', '铃铛', '瓦灰', '雨点', '小信', '咕咕', '斑斑'],
+  donkey: ['灰灰'], ox: ['老黄', '花鼻子', '大犍', '小犊'], fox: ['火尾巴'], foxCub: ['毛球', '尖耳朵'], magpie: ['喳喳', '报喜'], pigeon: ['灰点', '白羽', '铃铛', '瓦灰', '雨点', '小信', '咕咕', '斑斑'],
 };
 
 const ABOUT = {
@@ -41,14 +41,14 @@ const ABOUT = {
 // 英文界面：品种、名字（和 NAMES 一一对应，按同一个下标取）、来历
 const KIND_EN = {
   dog: 'Yellow dog', dogBlack: 'Black dog', cat: 'Tabby cat', hen: 'Barred hen', henBrown: 'Brown hen', rooster: 'Rooster', duck: 'Speckled duck', goose: 'White goose',
-  pig: 'Black pig', boar: 'Wild boar', sheep: 'Sheep', donkey: 'Grey donkey', ox: 'Ox', magpie: 'Magpie', pigeon: 'Pigeon',
+  pig: 'Black pig', boar: 'Wild boar', sheep: 'Sheep', donkey: 'Grey donkey', ox: 'Ox', magpie: 'Magpie', pigeon: 'Pigeon', fox: 'Red fox', foxCub: 'Fox cub',
 };
 const NAMES_EN = {
   dog: ['Goldie', 'Tiger'], dogBlack: ['Blackie', 'Coal'], cat: ['Patches', 'Mimi', 'Tabby'],
   hen: ['Speckles', 'Little Speck', 'Dot', 'Millet', 'Bean', 'Ruffles', 'Whitewing', 'Freckle'], henBrown: ['Auntie Brown', 'Redcomb', 'Hazel', 'Jujube'], rooster: ['Red Robe', 'Goldcrest', 'General', 'King Crow'],
   duck: ['Quack', 'Flatbill', 'Freckle', 'Floater', 'Duckhead'], goose: ['Big White', 'Second White', 'Longneck', 'Old Dopey'],
   pig: ['Sooty', 'Chubby', 'Oinker', 'Porky'], boar: ['One-eye', 'Big Tusk', 'Bristles', 'Wildling'], sheep: ['Bellwether', 'Cloud', 'Curly', 'Baa', 'Little Horn', 'Spotface', 'Cotton', 'Dumpling', 'Old Wool'],
-  donkey: ['Grey'], ox: ['Old Yellow', 'Spotnose', 'Big Bull', 'Calf'], magpie: ['Chatter', 'Goodnews'], pigeon: ['Greydot', 'Whitefeather', 'Bell', 'Slate', 'Raindrop', 'Courier', 'Coo', 'Speckle'],
+  donkey: ['Grey'], ox: ['Old Yellow', 'Spotnose', 'Big Bull', 'Calf'], fox: ['Firetail'], foxCub: ['Fluffball', 'Pointy Ears'], magpie: ['Chatter', 'Goodnews'], pigeon: ['Greydot', 'Whitefeather', 'Bell', 'Slate', 'Raindrop', 'Courier', 'Coo', 'Speckle'],
 };
 const ABOUT_EN = {
   dog: 'A fine guard dog that trails its owner all day. It barks twice at strangers, but the peddler is an old friend by now.',

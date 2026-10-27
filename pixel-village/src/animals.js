@@ -94,6 +94,31 @@ const ANIMALS = {
     body: ['....mmmmm.......', '.t.mmmmmmmmmpp..', 't.pPPpppppppkpww', '..pppppppppppppw', '..pppppppppppp..', '...PPpppppppP...'],
     legs: [['...p.p....p.p...'], ['....pp.....pp...']],
   },
+  fox: { // 赤狐：橘红的毛、白下巴白胸口、黑袜子、蓬松的大尾巴拖在后面，尾巴尖是白的
+    keys: { o: R.autumn[3], O: R.autumn[2], w: R.white[3], W: R.white[3], k: INK, n: INK, t: R.autumn[3], T: R.autumn[2], b: R.black[1] },
+    body: [
+      '...........o.o..',
+      '...........ooo..',
+      '..........okooon',
+      '..........ooww..',
+      'tt.oOoOoooooww..',
+      'Tttooooooooowww.',
+      'WTtoooooooooww..',
+      '....OoOoOoOoO...',
+    ],
+    legs: [['....b.b....b.b..', '....b.b....b.b..'], ['.....bb.....bb..', '.....bb.....bb..']],
+  },
+  foxCub: { // 小狐狸：圆滚滚的，耳朵显得大
+    keys: { o: R.autumn[3], O: R.autumn[2], w: R.white[3], W: R.white[3], k: INK, n: INK, t: R.autumn[3], b: R.black[1] },
+    body: [
+      '........o.o',
+      '........ooo',
+      't.......okn',
+      'tt..oOoooww',
+      'Wtoooooooo.',
+    ],
+    legs: [['...b.b.b.b.'], ['....bb..bb.']],
+  },
   sheep: {
     keys: { w: R.white[3], W: R.white[2], f: R.slate[2], k: INK },
     body: ['...........ff.', '..wWwWwWw.fkff', '.wwwwwwwwwffff', 'WwWwWwWwWwwff.', '.wwwwwwwwwww..', '..WwWwWwWwW...'],

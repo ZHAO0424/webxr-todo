@@ -340,8 +340,8 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
         <p class="dim">${tr('在别的电脑上建过？用底下的「用邮箱登录找回」。', 'Made residents on another computer? Use "Log in to recover" below.')}</p></div>`;
     } else {
       const { p, status, owner, row } = r, [st, why0] = STATUS[status];
-      const why = status === 'rejected' ? `${reason(row?.result)} ${tr('改好了点「修改」保存，会自动再提交。', 'Fix it via Edit; saving resubmits automatically.')}` : why0;
-      const main = ['local', 'stale', 'changed'].includes(status) ? tr('提交到村子', 'Submit to village') : status === 'queued' ? tr('再试一次', 'Retry') : null;
+      const why = status === 'rejected' ? `${reason(row?.result)} ${tr('改好了点「修改」保存，会自动再上传。', 'Fix it via Edit; saving uploads again automatically.')}` : why0;
+      const main = ['local', 'stale', 'changed'].includes(status) ? tr('上传到世界', 'Upload to world') : status === 'queued' ? tr('再试一次', 'Retry') : null;
       const viaIssue = ['local', 'queued', 'stale'].includes(status); // 连不上村子的服务器：还可以走 GitHub
       const asking = leaveAsk === p.id;
       stage.innerHTML = `<div class="big-p"><div class="v"></div></div><div class="sinfo">
@@ -351,8 +351,8 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
           ${notes[p.id] ? `<div class="okmsg">${esc(notes[p.id])}</div>` : ''}
           ${r.badges ? `<div class="smedal"><span class="k">${tr('勋章', 'Medals')}</span><span class="bar"><i style="width:${Math.round((r.badges[0] / r.badges[1]) * 100)}%"></i></span><b>${r.badges[0]}/${r.badges[1]}</b></div>` : ''}
           <div class="acts main">${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}<button class="btn${main ? '' : ' on'}" data-act="detail">${tr('详情：勋章、好感度', 'Details: medals, affinity')}</button><button class="btn" data-act="find">${tr('去村里找', 'Find in village')}</button></div>
-          <div class="acts"><button class="btn" data-act="edit">${tr('修改样子和资料', 'Edit look & profile')}</button>${p.met ? `<button class="btn" data-act="job">${tr('改行', 'Change job')}</button>` : ''}${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 提交', 'Submit via GitHub')}</button>` : ''}</div>
-          <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr('他还没提交过，删掉就没了。确定？', 'They were never submitted; this deletes them. Sure?') : tr('他会离开大家的村子（下次村子更新时），之后可以再建一个新居民。确定？', 'They will leave the shared village at the next update; then you can create a new resident. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
+          <div class="acts"><button class="btn" data-act="edit">${tr('修改样子和资料', 'Edit look & profile')}</button>${p.met ? `<button class="btn" data-act="job">${tr('改行', 'Change job')}</button>` : ''}${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 上传', 'Upload via GitHub')}</button>` : ''}</div>
+          <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr('他还没上传过，删掉就没了。确定？', 'They were never uploaded; this deletes them. Sure?') : tr('他会离开大家的村子（下次村子更新时），之后可以再建一个新居民。确定？', 'They will leave the shared village at the next update; then you can create a new resident. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
             : `<button class="btn danger small" data-act="leave">${tr('让他离村…', 'Leave village...')}</button>`}</div>
         </div>`;
       draw(stage.querySelector('.big-p .v'), p, 'front', 230);
@@ -400,7 +400,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
   let notes = {}, doneState = null;
   const send = (p, leave = false) => {
     if (p === made) doneState = 'sending';
-    notes[p.id] = tr('正在提交……', 'Submitting...');
+    notes[p.id] = tr('正在上传……', 'Uploading...');
     sync();
     return Promise.resolve(share?.(p, leave)).then((r) => {
       notes[p.id] = r === 'ok' || r === 'queued' ? '' : r || ''; // 提交上了 / 排队了：状态那一栏已经写着，不再重复
@@ -418,11 +418,11 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     const st = doneState;
     q('.donebox').innerHTML = `<h3>${EN ? `${esc(pName(p))} has arrived!` : `${esc(p.name)} 进村了！`}</h3>
       <p>${tr('他正从村口的桥上走进来：先挨家认人，再自己找住处，第二天开张。', 'They\'re walking in over the bridge now: first meeting everyone, then finding a home, and starting work the next day.')}</p>
-      <div class="note">${st === 'sending' ? `<b>${tr('正在提交到大家的村子……', 'Submitting to the shared village...')}</b>`
-        : st === 'ok' ? `<b>${tr('已经提交到大家的村子。', 'Submitted to the shared village.')}</b>${tr('一般两三分钟他就从村口走进来，所有打开村子的人都看得见他（刷新网页看）。在这之前只有你看得见。以后在「我的居民」里改他、让他离村，存一下就自动提交（认的是这个浏览器，换电脑就改不了了）。', 'They usually walk in within a few minutes, and everyone who opens the village will see them (refresh the page). Until then only you can. Edit them or let them leave from "My residents"; saving submits automatically (tied to this browser, so you can\'t edit them from another computer).')}`
-        : st === 'queued' ? `<b>${tr('没连上村子的服务器。', 'Couldn\'t reach the village server.')}</b>${tr('他已经存在这台电脑上，下次打开网页会自动再提交；也可以点「再试一次」，或者改用 GitHub 提交（要 GitHub 账号）。', 'They\'re saved on this computer and will be resubmitted next time you open the page. You can also retry now, or submit via GitHub (needs an account).')}`
+      <div class="note">${st === 'sending' ? `<b>${tr('正在上传到世界……', 'Uploading to the shared world...')}</b>`
+        : st === 'ok' ? `<b>${tr('已上传，正在保存到世界。', 'Uploaded; saving to the shared world.')}</b>${tr('你这边已经能看见他了；世界那边一般两三分钟收下，之后别人打开村子也能看见他。以后在「我的居民」里改他、让他离村，存一下就自动上传（认的是这个浏览器，换电脑就改不了了）。', 'You can already see them. The shared world usually takes them in within a few minutes, and then everyone who opens the village can see them too. Edit them or let them leave from "My residents"; saving uploads automatically (tied to this browser, so you can\'t edit them from another computer).')}`
+        : st === 'queued' ? `<b>${tr('没连上世界的服务器。', 'Couldn\'t reach the world server.')}</b>${tr('他已经存在这台电脑上，下次打开网页会自动再上传；也可以点「再试一次」，或者改用 GitHub 提交（要 GitHub 账号）。', 'They\'re saved on this computer and will be resubmitted next time you open the page. You can also retry now, or submit via GitHub (needs an account).')}`
         : `<b>${esc(st ?? '')}</b>`}</div>
-      <div class="acts">${st === 'queued' ? `<button class="btn on" data-act="retryMade">${tr('再试一次', 'Retry')}</button><button class="btn" data-act="issueMade">${tr('改用 GitHub 提交', 'Submit via GitHub')}</button>` : ''}<button class="btn${st === 'queued' ? '' : ' on'}" data-act="watch">${tr('去看看他', 'Watch them')}</button><button class="btn" data-act="mine">${tr('我的居民', 'My residents')}</button></div>`;
+      <div class="acts">${st === 'queued' ? `<button class="btn on" data-act="retryMade">${tr('再试一次', 'Retry')}</button><button class="btn" data-act="issueMade">${tr('改用 GitHub 上传', 'Upload via GitHub')}</button>` : ''}<button class="btn${st === 'queued' ? '' : ' on'}" data-act="watch">${tr('去看看他', 'Watch them')}</button><button class="btn" data-act="mine">${tr('我的居民', 'My residents')}</button></div>`;
   };
 
   const sync = () => {
@@ -445,10 +445,10 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     q('.foot .back').hidden = page === 'look' || !!changing;
     q('.foot .fwd').textContent = page === 'look' ? `${tr('下一步：填资料', 'Next: profile')} →` : `${tr('下一步：选营生', 'Next: work')} →`;
     q('.newonly .bring-h').hidden = q('.newonly .bring').hidden = q('.newonly .coin-h').hidden = q('.newonly .coin-f').hidden = !!editing; // 改的时候：本钱、带的东西不能改
-    q('.hint').textContent = page === 'mine' ? (residents().length ? tr('你在村里的居民（一个浏览器一个）。改好会自动提交到大家的村子，两三分钟后生效。', 'Your resident in the village (one per browser). Edits are submitted to the shared village and apply within minutes.') : tr('你还没有自己的居民：建一个，他就住进大家的村子（一个浏览器一个）。', 'You have no resident yet. Create one to move into the shared village (one per browser).'))
+    q('.hint').textContent = page === 'mine' ? (residents().length ? tr('你在村里的居民（一个浏览器一个）。改好会自动上传，两三分钟后保存到世界、别人也看得见。', 'Your resident in the village (one per browser). Edits upload automatically and reach the shared world within minutes.') : tr('你还没有自己的居民：建一个，他就住进大家的村子（一个浏览器一个）。', 'You have no resident yet. Create one to move into the shared village (one per browser).'))
       : page === 'done' ? ''
       : page === 'look' ? tr('先捏个样子：右边分组点选，也可以用人像底下的箭头一个个换；按住人拖动转着看，滚轮放大缩小', 'Shape their look: pick from the groups on the right, or step through with the arrows; drag to turn, scroll to zoom')
-      : page === 'info' ? (editing ? tr('改好了点「保存修改」：这边马上换样子，也会自动提交到大家的村子', 'Press "Save changes": they change right away here and are submitted to the shared village') : tr('起个名字、说说会什么，再挑个住处', 'Give them a name, say what they can do'))
+      : page === 'info' ? (editing ? tr('改好了点「保存修改」：你这边马上换样子，也会自动上传到世界', 'Press "Save changes": they change right away here and are submitted to the shared village') : tr('起个名字、说说会什么，再挑个住处', 'Give them a name, say what they can do'))
       : changing ? (EN ? `Currently: ${pJob(changing)}; earned ${changing.earned ?? 0} coins since starting` : `现在干的是${changing.job}；开张以来挣了 ${changing.earned ?? 0} 文`)
       : tr('挑个营生点「进村」：他从村口的桥上走进来，先挨家认人，第二天开张', 'Pick a job and press "Move in": they walk in over the bridge, meet everyone and start work the next day');
     q('.coinv').textContent = form.coins; q('.agev').textContent = form.age;
