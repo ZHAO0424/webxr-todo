@@ -9,8 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # 把存档提交回仓库
-  pages: write # 存档提交后请 Pages 重新发布
+  contents: write # 把存档提交回仓库（提交了 Pages 会自己重新发布）
 
 concurrency:
   group: pixel-village-sim
@@ -41,7 +40,3 @@ jobs:
           if git diff --cached --quiet; then exit 0; fi
           git commit -q -m "像素村落：后台模拟存档"
           for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
-      - name: 请 Pages 重新发布
-        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" > /dev/null || true
-        env:
-          GH_TOKEN: ${{ github.token }}
