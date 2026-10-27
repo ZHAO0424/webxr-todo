@@ -1,0 +1,47 @@
+# 像素村落后台模拟：每小时把村子往前过一段（现实过去多久，村里就走多久，跟网页开着一样），存档提交回仓库。
+# 网页（pixel-village/）默认读 pixel-village/world/state.json，所以关了网页，村子的日子也在往前走。
+# 也可以在 Actions 页面手动点「Run workflow」立刻跑一次。
+name: 像素村落后台模拟
+
+on:
+  schedule:
+    - cron: '17 * * * *' # 每小时第 17 分（整点排队的人多，GitHub 会拖得更久）
+  workflow_dispatch:
+
+permissions:
+  contents: write # 把存档提交回仓库
+  pages: write # 存档提交后请 Pages 重新发布
+
+concurrency:
+  group: pixel-village-sim
+  cancel-in-progress: false
+
+jobs:
+  sim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: pixel-village
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pixel-village/package-lock.json
+      - run: npm ci
+      # 一次最多补现实 3 小时（村里约三天半，跑三四分钟）；停了更久的话多出来的那段当村子睡着了
+      - run: node tools/sim.mjs --catchup --max 10800
+      - name: 存档提交回仓库
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add world/state.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -q -m "像素村落：后台模拟存档"
+          for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
+      - name: 请 Pages 重新发布
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" > /dev/null || true
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -33,7 +33,9 @@ import { SAVE_KEYS, loadWorld, yearOf, yearLabel } from './world.js';
 
 const params = new URLSearchParams(location.search);
 // ?world=world/state.json：读后台模拟（tools/sim.mjs）存下的村子接着过——季节、开局方式、第几天几点、经济、老宅、新居民都照存档
-const saved = params.get('world') ? await fetch(params.get('world'), { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null), () => null) : null;
+// 村子存档：默认读仓库里的 world/state.json（GitHub Actions 每小时在后台把村子往前过一段、存回这里）；?world=别的.json 读别的；?world=0 不读存档（旧的整村、从下午开始）
+const worldUrl = params.get('world') ?? (['time', 'season', 'ruins', 'event', 'sim'].some((k) => params.has(k)) ? '0' : 'world/state.json'); // 指定了时间、季节这些的（截图、回归）照旧不读
+const saved = worldUrl !== '0' ? await fetch(worldUrl, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null), () => null) : null;
 setSeason(saved?.season ?? params.get('season') ?? 'autumn'); // ?season=spring|summer|autumn|winter：建场景之前定（见 season.js）
 auditOverlaps(params.get('overlap') === '1'); // ?overlap=1：建村时按三角面查共面重叠（慢，调试用），结果在 data-audit / data-east / data-west 的 overlap 里
 setRuins(saved ? saved.ruins : params.get('ruins') === '1'); // ?ruins=1：废墟开局（老村址没人住的老宅是塌的，新居民住进来才修好）；设置里的「老宅」按钮切换
@@ -450,8 +452,13 @@ function econOf(id) {
 
 const loadNewcomers = () => { try { return JSON.parse(localStorage.getItem('pv.newcomers') ?? '[]'); } catch { return []; } };
 const saveNewcomers = () => { try { localStorage.setItem('pv.newcomers', JSON.stringify(V.people.filter((v) => v.p.newcomer).map((v) => Object.fromEntries(SAVE_KEYS.map((k) => [k, v.p[k]]))))); } catch { /* 隐私窗口存不了：只在这次打开里有效 */ } };
-for (const p of params.has('nonew') || params.has('sim') || saved ? [] : loadNewcomers()) { addNewcomer(V, p, { arriving: false }); addResident(p); } // ?nonew=1：不带存下的新人（截图、回归用）；读村子存档时新人从存档里来
-if (saved) loadWorld(village, saved, { addNewcomer, onNewcomer: addResident });
+if (saved) loadWorld(village, saved, { addNewcomer, onNewcomer: addResident }); // 存档里的新人先住进去
+// 自己在这台电脑上建的新人（存在浏览器里，还没进村子的存档）：接着放进来；?nonew=1 不带（截图、回归用）
+for (const p of params.has('nonew') || params.has('sim') ? [] : loadNewcomers()) {
+  if (V.byId[p.id]) continue; // 存档里已经有了
+  if (V.C[p.home]?.plot && V.east.houses.find((h) => h.id === p.home)?.owner) { const o = pickOldHouse(p, V.east.houses); p.home = o?.id; p.homeWhy = o?.why; } // 看中的老宅在存档里已经有人住了：另找一处空的，都住满了就借住村里人家
+  addNewcomer(V, p, { arriving: false }); addResident(p);
+}
 // ?addnew=胡二根:磨面|推磨@old3#miller;马翠:做饭 开局就放几个新人进村（名:手艺|手艺@住处#行当，后两段可省；不存档，无头快进测行当用）
 for (const s of (params.get('addnew') ?? '').split(';').filter(Boolean)) { const [rest, job] = s.split('#'), [who, home] = rest.split('@'), [name, sk = ''] = who.split(':'); const p = { name, nick: name, home: home || undefined, jobId: job || undefined, jobPicked: job ? true : undefined, age: 32, sex: '男', skills: sk.split('|').filter(Boolean), traits: ['勤快'], bio: '测试用的新人', likes: '——', body: 'man', skin: 'skin', hair: 'short', top: 'indigo', pants: 'black', coins: 60, goods: { grain: 10 } }; addNewcomer(V, p); addResident(p); }
 V.onRepaired = (v, plot) => { // 老宅修好了：存档，头顶冒一句

@@ -23,13 +23,14 @@ export const toJSON = (state) => JSON.stringify(state, (k, v) => (v && typeof v 
 export const newcomerData = (p) => Object.fromEntries(SAVE_KEYS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]));
 
 /** 把村子现在的状态存成一份普通对象（JSON.stringify 就能写文件）。village：buildVillage 的返回值。 */
-export function saveWorld(village, { season, ruins }) {
+export function saveWorld(village, { season, ruins, savedAt = Date.now() }) {
   const V = village.world, E = V.econ, clock = village.life.clock;
   return {
     v: 1,
     era: ERA,
     season,
     ruins,
+    savedAt, // 存档那一刻的现实时间（毫秒）：后台补算（tools/sim.mjs --catchup）从这里算过去了多久
     day: clock.day,
     hour: +clock.hour.toFixed(4),
     econ: {
