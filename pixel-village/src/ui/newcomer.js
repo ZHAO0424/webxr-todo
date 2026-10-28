@@ -8,7 +8,7 @@ import { GOODS } from '../life/economy.js';
 import { PARTS, GROUPS, SKILLS, TRAITS, BRING } from '../residentSchema.js';
 import { issueUrl, markSent, STATUS } from '../mine.js';
 import { EN, tr } from '../i18n.js';
-import { word, pName, pNick, pJob, pStory, pLikes, pSkills, pTraits } from '../names.js';
+import { word, pName, pNick, pJob, pStory } from '../names.js';
 import { head, dayHTML } from './roster.js';
 
 /*
@@ -347,8 +347,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
         ${notes[p.id] ? `<div class="okmsg">${esc(notes[p.id])}</div>` : ''}
         ${d ? `<div class="mnow"><span class="dot ${d.now.kind || 'work'}"></span><span class="what">${esc(d.now.doing)}</span>${d.now.where ? `<span class="loc">${esc(d.now.where)}</span>` : ''}</div>
         <div class="mmoney"><span>${tr('手头', 'Cash')} <b>${d.coins}</b> ${tr('文', 'coins')}</span><span>${tr('进村以来挣了', 'Earned')} <b>${d.earned}</b> ${tr('文', '')}</span>${days !== null ? `<span>${EN ? `Day <b>${days}</b> here` : `住了 <b>${days}</b> 天`}</span>` : ''}</div>` : ''}
-        <div class="mstory"><div class="lbl">${tr('背景故事', 'Story')}</div><p class="story">${esc(pStory(p))}</p>
-          <div class="kv"><b>${tr('性格', 'Traits')}</b><span>${esc(pTraits(p).join(tr('、', ', ')) || '——')}</span><b>${tr('手艺', 'Skills')}</b><span>${esc(pSkills(p).join(tr('、', ', ')) || '——')}</span><b>${tr('喜欢', 'Likes')}</b><span>${esc(pLikes(p))}</span></div></div>
+        <div class="mstory"><div class="lbl">${tr('背景故事', 'Story')}</div><div class="story">${(d?.story ?? [pStory(p)]).map((x) => `<p>${esc(x)}</p>`).join('')}</div></div>
         <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr('他还没上传过，删掉就没了。确定？', 'They were never uploaded; this deletes them. Sure?') : tr('他会离开大家的村子（下次村子更新时），之后可以再建一个新居民。确定？', 'They will leave the shared village at the next update; then you can create a new resident. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
           : `${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 上传', 'Upload via GitHub')}</button>` : ''}${d ? `<button class="btn" data-act="find">${tr('跟随', 'Follow')}</button><button class="btn" data-act="detail">${tr('档案', 'Profile')}</button>` : ''}<button class="btn${main ? '' : ' on'}" data-act="edit">${tr('修改', 'Edit')}</button><button class="btn danger small" data-act="leave">${tr('离村', 'Leave')}</button>`}</div>
       </div>`;
@@ -358,7 +357,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     const groups = TIERS.map(([min, lv, name], i) => {
       const xs = d.ties.filter((x) => x.tie >= min && (i === 0 || x.tie < TIERS[i - 1][0]));
       if (!xs.length) return '';
-      const cap = lv === 'lv1' ? 14 : 24;
+      const cap = lv === 'lv1' ? 27 : 27;
       return `<div class="tgrp ${lv}"><div class="tgh"><b>${name}</b><span class="dim">${xs.length} ${tr('人', '')}</span></div><div class="tgs">${xs.slice(0, cap).map((x) => tile(x, lv)).join('')}${xs.length > cap ? `<span class="more dim">${EN ? `+${xs.length - cap} more` : `还有 ${xs.length - cap} 人`}</span>` : ''}</div></div>`;
     }).join('');
     const ties = `<div class="paper md-ties"><div class="lbl">${tr('村里的交情', 'Who they know')}<span class="count">${EN ? `knows ${d.ties.length} of ${d.people}` : `认识 ${d.ties.length} / ${d.people} 人`}</span></div>
@@ -372,17 +371,20 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
         ${e ? `<div class="paper md-econ"><div class="lbl">${tr('家当和账', 'Goods & accounts')}</div>
           <div class="stk">${e.stock.slice(0, 16).map(([n, q, unit]) => `<span class="chip">${esc(n)} ${q}${esc(unit)}</span>`).join('') || `<span class="dim">${tr('家里没什么存货', 'Nothing in store')}</span>`}</div>
           ${e.owe.length ? `<div class="owe">${e.owe.map((x) => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
-          <div class="logs">${e.log.slice(0, 14).map((x) => `<div>${esc(x)}</div>`).join('') || `<div class="dim">${tr('今天还没做成买卖', 'No trades yet')}</div>`}</div></div>` : ''}</div>`;
+          ${e.sold.length ? `<div class="tot"><b>${tr('卖过', 'Sold')}</b><span>${esc(e.sold.join(tr('、', ', ')))}</span></div>` : ''}${e.bought.length ? `<div class="tot"><b>${tr('买过', 'Bought')}</b><span>${esc(e.bought.join(tr('、', ', ')))}</span></div>` : ''}
+          <div class="logs">${e.log.map((x) => `<div>${esc(x)}</div>`).join('') || `<div class="dim">${tr('还没做成买卖', 'No trades yet')}</div>`}</div></div>` : ''}
+        <div class="paper md-who">${[[tr('性格', 'Traits'), d.traits.join(tr('、', ', ')), 'var(--c-plum)'], [tr('手艺', 'Skills'), d.skills.join(tr('、', ', ')), 'var(--c-craft)'], [tr('喜欢', 'Likes'), d.likes, 'var(--c-farm)']].map(([k, v, c]) => `<div class="who"><span class="tag" style="--c:${c}">${k}</span><span>${esc(v || '——')}</span></div>`).join('')}</div></div>`;
     // 中下：一天（和档案里同一条时间条）
     const day = d.sched?.length ? `<div class="paper md-day"><div class="lbl">${tr('一天', 'A day')}<span class="count">${EN ? `${d.sched.length} activities` : `${d.sched.length} 项安排`}</span></div>${dayHTML(d.sched, d.hour)}</div>` : '';
     return `${left}<div class="md-mid">${ties}${day}</div>${side}`;
   };
-  // 我的居民那一大页按 1240×800 的窗口排：放得下几倍就用几倍（一个点取整数个设备像素，点阵字不糊），小窗口最少一倍、放不下就滚动
+  // 我的居民那一大页按 1240×810 的窗口排，跟着窗口（含全屏）连续放大缩小、铺满；最小 0.75 倍。
+  // 倍数取到让 12 号正文正好落在整数个设备像素上，点阵字尽量不糊
   const fitWide = () => {
     if (!el.classList.contains('wide')) { el.style.removeProperty('--f'); el.style.removeProperty('--p'); return; }
-    const dpr = devicePixelRatio || 1, k = Math.max(1, Math.floor(dpr * Math.min(innerWidth / 1240, innerHeight / 800)));
-    el.style.setProperty('--f', `${k / dpr}px`);
-    el.style.setProperty('--p', `${(2 * k) / dpr}px`);
+    const dpr = devicePixelRatio || 1, s = Math.max(0.75, Math.min(innerWidth / 1240, innerHeight / 810)), f = Math.round(12 * s * dpr) / (12 * dpr);
+    el.style.setProperty('--f', `${f}px`);
+    el.style.setProperty('--p', `${2 * f}px`);
   };
   addEventListener('resize', fitWide);
   const mineCards = () => {

@@ -374,7 +374,6 @@ html[lang=en] #newcomer .mine-d { grid-template-columns: calc(260 * var(--f)) mi
 #newcomer .md-ties .legend { margin-top: var(--p); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); }
 /* 右：勋章、家当 */
 #newcomer .md-side { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
-#newcomer .md-side > .md-econ { flex: 1; }
 #newcomer .md-badges .mbs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(2 * var(--p)) calc(3 * var(--p)); }
 #newcomer .md-badges .mbg { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; align-items: center; column-gap: calc(3 * var(--p)); row-gap: calc(1 * var(--f)); color: var(--dim); min-width: 0; }
 #newcomer .md-badges .mbg .md { grid-row: span 2; width: calc(28 * var(--f)); height: calc(28 * var(--f)); line-height: calc(28 * var(--f)); font-size: calc(16 * var(--f)); box-shadow: 0 0 0 var(--f) var(--ink); text-align: center; border-radius: 50%; background: #3a3027; color: #6a5c48; }
@@ -389,7 +388,14 @@ html[lang=en] #newcomer .mine-d { grid-template-columns: calc(260 * var(--f)) mi
 #newcomer .md-econ .stk { display: flex; flex-wrap: wrap; gap: var(--p); }
 #newcomer .md-econ .stk .chip { padding: 0 calc(2 * var(--p)); line-height: calc(16 * var(--f)); font-size: calc(12 * var(--f)); }
 #newcomer .md-econ .owe { color: var(--gold); font-size: calc(12 * var(--f)); }
-#newcomer .md-econ .logs { display: flex; flex-direction: column; gap: calc(2 * var(--f)); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); color: var(--dim); }
+#newcomer .md-econ { flex: 1; min-height: 0; }
+#newcomer .md-econ .logs { flex: 1 1 0; min-height: calc(80 * var(--f)); contain: size; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: calc(2 * var(--f)); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); color: var(--dim); }
+/* 家当下面：卖过 / 买过；性格、手艺、喜欢（前面是带色边框的小牌子） */
+#newcomer .md-econ .tot { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: calc(2 * var(--p)); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); }
+#newcomer .md-econ .tot b { color: var(--gold); text-shadow: none; }
+#newcomer .md-who { gap: calc(2 * var(--p)) !important; }
+#newcomer .md-who .who { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: calc(3 * var(--p)); }
+#newcomer .md-who .tag { padding: 0 calc(3 * var(--p)); line-height: calc(20 * var(--f)); color: var(--text); background: color-mix(in srgb, var(--c) 30%, #17120d); box-shadow: inset 0 0 0 var(--f) var(--c), 0 0 0 var(--f) var(--ink); }
 /* 中下：一天；左栏钱下面：背景故事 */
 #newcomer .md-mid { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
 #newcomer .md-mid > .paper { padding: calc(3 * var(--p)) calc(4 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
@@ -405,9 +411,10 @@ html[lang=en] #newcomer .mine-d { grid-template-columns: calc(260 * var(--f)) mi
 #newcomer .md-day .bar .bt { height: calc(3 * var(--p)); background: #17120d; }
 #newcomer .md-day .bar .bt i { display: block; height: 100%; }
 #newcomer .md-day .bar .bh { color: var(--dim); }
-#newcomer .md-me .mstory { display: flex; flex-direction: column; gap: var(--p); padding-top: calc(2 * var(--p)); border-top: var(--f) solid var(--line); }
-#newcomer .md-me .mstory .story { margin: 0; font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); }
-#newcomer .md-me .mstory .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--f) calc(3 * var(--p)); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); }
-#newcomer .md-me .mstory .kv b { color: var(--dim); text-shadow: none; }
+#newcomer .md-me .mstory { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--p); padding-top: calc(2 * var(--p)); border-top: var(--f) solid var(--line); }
+/* 故事多长都行：占满钱和按钮之间剩下的地方，放不下就滚动（contain: size 让它不把整栏撑高） */
+#newcomer .md-me .mstory .story { flex: 1 1 0; min-height: calc(64 * var(--f)); contain: size; overflow-y: auto; scrollbar-width: thin; padding-right: var(--p); font-size: calc(12 * var(--f)); line-height: calc(17 * var(--f)); }
+#newcomer .md-me .mstory .story p { margin: 0 0 var(--p); }
 @media (max-width: 900px) { #newcomer .mine-d { grid-template-columns: minmax(0, 1fr); } }
 #newcomer .hint:empty { display: none; }
+#newcomer .mine-d * { scrollbar-color: #6a5a44 #17120d; }

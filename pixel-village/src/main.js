@@ -34,7 +34,7 @@ import { cloud } from './cloud.js';
 import { progress as badgeProgress, affinity, check as checkBadges } from './life/badges.js';
 import { signature, pickKeys, EDIT_KEYS } from './residentSchema.js';
 import { EN, tr, plural, setLang } from './i18n.js';
-import { villageName, hhName, hhField, word, pName, pNick, pJob, pHousehold } from './names.js';
+import { villageName, hhName, hhField, word, pName, pNick, pJob, pHousehold, pStory, pTraits, pSkills, pLikes } from './names.js';
 import { VILLAGE } from './residents.js';
 import { WEST_BOUNDS } from './west.js';
 
@@ -473,7 +473,7 @@ function dealLine(v) {
   return t.buyer === v.p.id ? `今天：${t.service ? '' : '买了'}${goodText(t)}（${payText(t)}）` : `今天：${t.service ? `给${nameOf(t.buyer)}${t.service}` : `卖给${nameOf(t.buyer)}${goodText(t)}`}（${payText(t)}）`;
 }
 /** 档案里的"家当和账"。 */
-function econOf(id) {
+function econOf(id, n = 6) { // n：列最近几笔（档案 6 笔；我的居民列满 30 笔，前面带哪天）
   const v = V.byId[id], u = v && ECON.unitOfV(v);
   if (!u) return null;
   const stock = Object.entries(u.stock).filter(([g, q]) => q >= 1 && GOODS[g]).sort((a, b) => b[1] * GOODS[b[0]].price - a[1] * GOODS[a[0]].price).map(([g, q]) => [goodName(g), Math.floor(q), goodUnit(g, Math.floor(q))]);
@@ -485,8 +485,11 @@ function econOf(id) {
     ? (t.from === u.id ? `${nameOf(t.seller)}'s family sent ${goodText(t)} (a gift)` : `Sent ${goodText(t)} to ${(PLACES[t.from] ?? nameOf(t.buyer)).replace(/^The /, 'the ')} (a gift)`)
     : `${nameOf(t.buyer)} ${t.service ? (t.from === u.id ? `paid for ${goodText(t)}` : `came for ${goodText(t)}`) : t.from === u.id ? `bought ${goodText(t)}` : `bought ${goodText(t)} here`} (${payText(t)})`);
   const logZH = (t) => (t.buyer === 'county' ? `县里发来村干部补贴（${payText(t)}）` : t.kind === 'gift' ? `${t.from === u.id ? `${nameOf(t.seller)}家送来${goodText(t)}（接济）` : `给${PLACES[t.from] ?? nameOf(t.buyer)}送去${goodText(t)}（接济）`}` : `${nameOf(t.buyer)}${t.service ? (t.from === u.id ? `付${t.service}` : `来${t.service}`) : t.from === u.id ? `买${goodText(t)}` : `从这家买${goodText(t)}`}（${payText(t)}）`);
-  const log = u.log.slice(-6).reverse().map((t) => `${hm(t.hour)} ${EN ? logEN(t) : logZH(t)}`);
-  return { unit: unitName(u.id), coins: u.coins, stock, owe, log };
+  const ago = (t) => { const k = ECON.day - t.day; return n <= 6 || !k ? '' : k === 1 ? (EN ? 'Yesterday ' : '昨天 ') : EN ? `${k}d ago ` : `${k} 天前 `; };
+  const log = u.log.slice(-n).reverse().map((t) => `${ago(t)}${hm(t.hour)} ${EN ? logEN(t) : logZH(t)}`);
+  // 进村以来一共卖过 / 买过什么（新来的人才记）
+  const tally = (o) => Object.entries(o ?? {}).filter(([g, q]) => q > 0 && GOODS[g]).sort((a, b) => b[1] - a[1]).map(([g, q]) => `${goodName(g)} ${q}`);
+  return { unit: unitName(u.id), coins: u.coins, stock, owe, log, sold: tally(v.p.stats?.sold), bought: tally(v.p.stats?.bought) };
 }
 
 // ---------------------------------------------------------------- 新来的人（「创建居民」卡片 → life/newcomers.js）：存在浏览器里，刷新后照旧在村里过
@@ -646,7 +649,10 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
     if (v.p.newcomer) checkBadges(V, v, HOUSEHOLDS);
     const ties = V.people.filter((o) => o !== v && !o.gone && !o.p.caravan).map((o) => ({ p: o.p, tie: ECON.tie(v.p.id, o.p.id), home: PLACES[o.p.home] ?? '' })).filter((x) => x.tie >= 1).sort((a, b) => b.tie - a.tie);
     const u = ECON.unitOfV(v);
-    return { now: personStatus(v), econ: econOf(id), badges: badgeProgress(V, v, HOUSEHOLDS), ties, people: V.people.filter((o) => o !== v && !o.gone && !o.p.caravan).length, coins: Math.round(u?.coins ?? 0), earned: Math.round(v.p.stats?.earned ?? 0), home: (v.p.oldHouse ? pHousehold(v.p, HOUSEHOLDS) : PLACES[v.p.home]) ?? pHousehold(v.p, HOUSEHOLDS), day: ECON.day, since: v.p.stats?.since, sched: v.p.day ?? [], hour: village.life.clock.hour };
+    return { now: personStatus(v), econ: econOf(id, 30), badges: badgeProgress(V, v, HOUSEHOLDS), ties, people: V.people.filter((o) => o !== v && !o.gone && !o.p.caravan).length, coins: Math.round(u?.coins ?? 0), earned: Math.round(v.p.stats?.earned ?? 0), home: (v.p.oldHouse ? pHousehold(v.p, HOUSEHOLDS) : PLACES[v.p.home]) ?? pHousehold(v.p, HOUSEHOLDS), day: ECON.day, since: v.p.stats?.since, sched: v.p.day ?? [], hour: village.life.clock.hour,
+      // 背景：来历 + 为什么住这儿、为什么干这行（村里安顿他时记下的）
+      story: [pStory(v.p), !EN && v.p.homeWhy ? `住进${(v.p.oldHouse ? pHousehold(v.p, HOUSEHOLDS) : PLACES[v.p.home]) ?? ''}：${v.p.homeWhy}。` : '', !EN && v.p.jobWhy ? `营生是${pJob(v.p)}：${v.p.jobWhy}。` : ''].filter(Boolean),
+      traits: pTraits(v.p), skills: pSkills(v.p), likes: pLikes(v.p) };
   },
   econ: () => ECON,
   homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? hhName(h), n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
