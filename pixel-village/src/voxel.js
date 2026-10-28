@@ -622,7 +622,46 @@ const dogBoxes = (c) => (step) => {
 };
 BOXY.dog = dogBoxes({ y: R.loess[4], Y: R.loess[3], d: R.loess[1], m: R.loess[5], e: R.loess[2], k: R.slate[0], w: R.white[3] }); // 中华田园犬（黄）
 BOXY.dogBlack = dogBoxes({ y: R.slate[2], Y: R.slate[1], d: R.slate[0], m: R.white[3], e: R.slate[1], k: R.gold[4], w: R.white[3] }); // 黑狗：白胸口、白嘴筒，金眼珠（黑脸上看得清）
-const BOXY_SCALE = { ox: 1.15, pig: 1.0, boar: 1.05, dog: 1.15, dogBlack: 1.15 };
+/**
+ * 狐狸也用方块拼：原来按侧影充气，眼睛只有一格，从正面看成了一道横线。
+ * 现在眼睛是 2×2 的黑眼珠（内上角一点白高光），侧脸也看得见；白脸颊白下巴、尖嘴黑鼻头、黑耳尖、黑袜子、拖在后面的大尾巴白尾梢。
+ * 小狐狸：头大身子短、耳朵相对更大，眼睛一样 2×2。
+ */
+const foxBoxes = (cub) => (step) => {
+  const o = R.autumn[3], O = R.autumn[2], w = R.white[3], k = R.slate[0], b = R.black[1], e = R.brown[1];
+  const eyes = (x, y) => [
+    [x, y, -3, x + 2, y + 2, -1, k], [x + 1, y + 1, -2, x + 2, y + 2, -1, w], // 左眼 + 高光
+    [x, y, 1, x + 2, y + 2, 3, k], [x + 1, y + 1, 1, x + 2, y + 2, 2, w], // 右眼 + 高光
+  ];
+  const ears = (x, y, h) => [-3, 1].flatMap((z) => [
+    [x, y, z, x + 2, y + h, z + 2, (xx) => (xx === x + 1 ? e : o)], // 耳朵，正面是深色的耳窝
+    [x, y + h, z + (z < 0 ? 0 : 1), x + 1, y + h + 1, z + (z < 0 ? 1 : 2), b], // 黑耳尖
+  ]);
+  if (cub) return [
+    ...legs([-4, 1], [-2, 0], 3, 2, b, k, step),
+    [-5, 3, -2, 3, 7, 2, (x, yy) => (yy === 3 ? O : o)], // 身子
+    [1, 3, -2, 4, 7, 2, (x, yy) => (x === 3 && yy < 6 ? w : o)], // 白胸口
+    [-8, 4, -1, -5, 7, 1, o], [-10, 3, -1, -8, 6, 1, w], // 尾巴 + 白尾梢
+    [3, 5, -3, 8, 10, 3, (x, yy) => (yy === 5 || (x >= 6 && yy === 6) ? w : o)], // 大头，白下巴白脸颊
+    [8, 5, -1, 10, 7, 1, (x, yy) => (yy === 5 ? w : o)], [9, 6, -1, 10, 7, 1, k], // 短嘴 + 鼻头
+    ...eyes(6, 7),
+    ...ears(3, 10, 3),
+  ];
+  return [
+    ...legs([-6, 3], [-3, 1], 5, 2, b, k, step), // 黑袜子
+    [-7, 5, -3, 5, 10, 3, (x, yy) => (yy === 5 ? O : o)], // 身子（肚皮一道深）
+    [3, 5, -3, 6, 11, 3, (x, yy) => (x === 5 && yy < 10 ? w : o)], // 前胸，白胸口
+    [-10, 7, -2, -7, 10, 2, o], [-13, 6, -2, -10, 9, 2, o], [-16, 5, -2, -13, 8, 2, w], // 蓬松的大尾巴往后往下拖，白尾梢
+    [5, 9, -3, 10, 14, 3, (x, yy) => (yy === 9 || (x >= 8 && yy === 10) ? w : o)], // 头，白下巴白脸颊
+    [10, 9, -2, 12, 11, 2, (x, yy) => (yy === 9 ? w : o)], [12, 9, -1, 14, 11, 1, (x, yy) => (yy === 9 ? w : o)], // 尖嘴，越往前越细
+    [13, 10, -1, 14, 11, 1, k], // 鼻头
+    ...eyes(8, 11),
+    ...ears(5, 14, 3),
+  ];
+};
+BOXY.fox = foxBoxes(false);
+BOXY.foxCub = foxBoxes(true);
+const BOXY_SCALE = { ox: 1.15, pig: 1.0, boar: 1.05, dog: 1.15, dogBlack: 1.15, fox: 1.2, foxCub: 1.0 };
 
 function boxyFrames(kind, M) {
   return [0, 1].map((step) => {

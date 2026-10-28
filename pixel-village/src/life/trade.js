@@ -53,6 +53,8 @@ export class Trading {
     this.orders = [];
     this.runs = [];
     const V = this.V, market = V.today() === 'market' && V.weather() !== 'rain';
+    // 只有老村址的人家有富余的东西（石灰、鸭蛋，还有住老宅的新人打的野味、采的山货）：家里没人有空就托货郎捎
+    const remote = (g) => REMOTE.has(g) || (!!g && (() => { const has = [...this.econ.units.values()].filter((x) => x.id !== 'caravan' && (x.stock[g] ?? 0) - this.econ.keep(x, g) >= 1); return has.length > 0 && has.every((x) => V.C[x.members[0].home]?.east); })());
     for (const u of this.econ.units.values()) {
       if (u.id === 'caravan' || !u.wants.length) continue;
       const ppl = u.members.map((p) => V.byId[p.id]).filter(Boolean);
@@ -66,7 +68,7 @@ export class Trading {
         if (KIDS_OK.has(w.good) && kids.length && h('kid') < 0.35) pool = kids;
         const cap = u.members.some((p) => p.newcomer) || V.C[u.members[0].home]?.east ? 2 : 1; // 新来的（一个人一户、要开张要修房）和老村址几户（离村子远）每天能跑两趟
         pool = pool.filter((v) => (count.get(v) ?? 0) < cap); // 每人每天最多跑一趟：买东西不打乱正常作息
-        if (!pool.length) { if (REMOTE.has(w.good) && grown.length) this.runs.push({ v: grown[0], alts: [], unit: u, good: w.good, qty: w.qty, why: w.why, at: 9, done: true }); return; } // 老村址才有的东西（石灰、条石、鸭蛋）：家里没人有空，托货郎捎回来
+        if (!pool.length) { if (remote(w.good) && grown.length) this.runs.push({ v: grown[0], alts: [], unit: u, good: w.good, qty: w.qty, why: w.why, at: 9, done: true }); return; } // 老村址才有的东西（石灰、条石、鸭蛋）：家里没人有空，托货郎捎回来
         const v = pool[Math.floor(h('who') * pool.length)];
         count.set(v, (count.get(v) ?? 0) + 1);
         const wins = freeWindows(v, market), win = wins[Math.floor(h('ampm') * wins.length)] ?? [13.6, 17]; // 只挑他今天真闲着的时段（羊倌上午放羊、中午歇晌，就下午去）

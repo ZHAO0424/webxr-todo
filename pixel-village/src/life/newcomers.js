@@ -71,8 +71,8 @@ export const JOBS = [
     en: { name: 'Forager', desc: 'Climbs into the hills through the mountain gate with a back basket: wild greens in spring, walnuts and mushrooms in autumn, brought back and spread to dry on the trays at the forage yard.', where: 'The old woods north of the Old Site, and the forage yard', buyers: 'Every family (for a taste of the season); the caravan buys walnuts too', setup: 'A back basket' } },
   { id: 'hunter', name: '打猎', cat: '山上', kind: 'make', makes: 'game', rate: 0.3, max: 8, place: 'forest', item: 'trap', anim: 'squat', season: S4(0.8, 0.6, 1.1, 1.4),
     keys: ['打猎', '套兔子', '山', '眼尖', '脚力'], est: 6,
-    desc: '在老林子边下套子、撵野兔山鸡（林子里还有野猪），入冬最好打', where: '老村址北边的老林子', buyers: '手头宽裕的人家、过节', setup: '几副套子',
-    en: { name: 'Hunter', desc: 'Sets snares at the edge of the old woods and chases hares and pheasants (there are wild boar in there too). Winter is the best season.', where: 'The old woods north of the Old Site', buyers: 'Families with money to spare, and festivals', setup: 'A few snares' } },
+    desc: '在老林子边下套子、撵野兔山鸡（林子里还有野猪），入冬最好打', where: '老村址北边的老林子', buyers: '手头宽裕的人家、过节；赶集日骡帮也收', setup: '几副套子',
+    en: { name: 'Hunter', desc: 'Sets snares at the edge of the old woods and chases hares and pheasants (there are wild boar in there too). Winter is the best season.', where: 'The old woods north of the Old Site', buyers: 'Families with money to spare, and festivals; the caravan buys game on market days', setup: 'A few snares' } },
   { id: 'charcoal', name: '烧炭', cat: '山上', kind: 'make', makes: 'charcoal', rate: 1.5, max: 30, fuel: { coal: 0.4 }, fuelBoost: 1.6, place: 'yard', item: 'shovel', icon: 'charcoal', anim: 'work', season: S4(0.8, 0.7, 1, 1.2),
     keys: ['烧炭', '烧窑', '砍柴', '力气', '看火'], est: 6,
     desc: '捡林子里的枯树枝，在住处边上挖个炭窑焖成木炭；村里有人挖煤，就买点煤引窑火、封窑，一窑出炭多一半', where: '自家院边的炭窑', buyers: '冬天烤火的人家（比柴暖、没烟）', setup: '挖个炭窑（卖炭不卖柴，不和卖柴的抢）；有挖煤的就跟他买煤',
@@ -371,8 +371,16 @@ ACTIVITIES.newJob = (v, id) => {
  */
 function rounds(v, job) {
   const V = v.V, E = V.econ;
+  if (job.id === 'clerk') v.end = () => { v.seat = null; };
   v.loop = () => {
     const call = E.nextCall(job.id, v);
+    if (!call && job.id === 'clerk') { // 文书话传完了：去村长家院里坐着记账、写告示（原来回自家门口干站一下午）
+      const hq = V.C.headman, at = hq.spot('yard') ?? hq.gateOut();
+      v.char.setItem(job.item); v.errandText = doingText(job.id);
+      v.go(at); v.seat = 0.1; v.do('sit', 20, { face: hq.door('house') }); v.call(() => { v.seat = null; });
+      if (v.rand() < 0.3) v.do(job.anim, 4); // 起来跟村长家的人说两句
+      return;
+    }
     if (!call) { v.char.setItem(job.item); v.errandText = doingText(job.id); v.go(v.home.spot('yard') ?? v.home.gateOut()); v.do('idle', 10); return; }
     const c = V.C[call.home] ?? V.C.square;
     v.errandText = EN ? `${reasonText(call.service)} at ${call.place.replace(/^The /, 'the ')}` : `去${call.place}${call.service}`;

@@ -49,7 +49,7 @@ export const GOODS = {
   fish: { name: '鱼', unit: '条', en: { name: 'Fish', unit: '' }, price: 3, decay: 0.5 },
   pork: { name: '猪肉', unit: '斤', en: { name: 'Pork', unit: '' }, price: 4, decay: 0.3 },
   wildfood: { name: '山货', unit: '斤', en: { name: 'Wild produce', unit: '' }, price: 3, decay: 0.1, export: true }, // 野菜、蘑菇、核桃（核桃骡帮收）
-  game: { name: '野味', unit: '只', en: { name: 'Game', unit: '' }, price: 6, decay: 0.3 },
+  game: { name: '野味', unit: '只', en: { name: 'Game', unit: '' }, price: 6, decay: 0.3, export: true }, // 赶集日骡帮也收（野兔山鸡带出山）
   charcoal: { name: '木炭', unit: '斤', en: { name: 'Charcoal', unit: '' }, price: 4 },
   seed: { name: '良种', unit: '升', en: { name: 'Seed grain', unit: '' }, price: 30 }, // 农技员育的谷种：换上的农户这一季多打一成半粮
   relic: { name: '老物件', unit: '件', en: { name: 'Relics', unit: '' }, price: 25, export: true }, // 老村址废墟里挖出来的（骡帮收）
