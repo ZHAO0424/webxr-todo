@@ -391,8 +391,8 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     } else {
       stage.className = 'mine-d';
       stage.innerHTML = mineDetail(r);
-      draw(stage.querySelector('.big-p .v'), r.p, 'front', 164);
-      stage.querySelectorAll('.tt[data-pid]').forEach((t) => { const o = RESIDENTS.find((x) => x.id === t.dataset.pid); if (o) t.querySelector('.hd').append(head(o, 2)); });
+      draw(stage.querySelector('.big-p .v'), r.p, 'front', 136);
+      stage.querySelectorAll('.tt[data-pid]').forEach((t) => { const o = RESIDENTS.find((x) => x.id === t.dataset.pid); if (o) t.querySelector('.hd').append(head(o, 1.5)); });
       stage.dataset.id = r.p.id;
     }
     if (list.length > SLOTS) { // 旧版能建好几个：现在只能留一个，让玩家挑出多余的删掉
