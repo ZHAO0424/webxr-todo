@@ -261,7 +261,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     if (editing) { q('.homes').innerHTML = `<div class="sub">${EN ? 'Already settled in the village; the home stays as it is.' : '已经在村里住下了，住处不变。'}</div>`; return; }
     const o = pickHome(person());
     const host = homes()[0];
-    q('.homes').innerHTML = `<div class="sub">${tr('进村以后自己找：老村址空着的老宅优先（不交房钱，攒够料请葛石头来修），挑和自己合得来的；都有人住了才借住人家。', 'They find a home on arrival: empty old houses at the Old Site first (rent-free; they save up materials and ask Stonemason Ge to repair it), choosing one that suits them. If all are taken, they lodge with a family.')}</div>`
+    q('.homes').innerHTML = `<div class="sub">${tr('进村以后自己找：老村址空着的老宅优先（不交房钱，攒够料请葛石头来修），挑和自己合得来的；都有人住了才借住人家（每月给房东十五文房钱）。', 'They find a home on arrival: empty old houses at the Old Site first (rent-free; they save up materials and ask Stonemason Ge to repair it), choosing one that suits them. If all are taken, they lodge with a family (15 coins a month in rent).')}</div>`
       + (o ? `<div class="pick">${EN ? `With this profile they\'d choose the <b>${esc(o.whoEn ?? word(o.who))} old house</b>: ${esc(o.whyEn ?? o.why)}` : `按现在填的，他会看中<b>${esc(o.who)}老宅</b>：${esc(o.why)}`}</div>` : `<div class="pick">${EN ? `All old houses are taken; they\'d lodge with <b>${esc((host?.name ?? 'a family').replace(/^The /, 'the '))}</b>` : `老宅都有人住了，他会借住<b>${esc(host?.name ?? '村里人家')}</b>`}</div>`);
   };
 

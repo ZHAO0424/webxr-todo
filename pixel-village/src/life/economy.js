@@ -24,8 +24,8 @@ import { pNick } from '../names.js';
 export const GOODS = {
   grain: { name: '粮食', unit: '升', en: { name: 'Grain', unit: '' }, price: 6 },
   flour: { name: '白面', unit: '升', en: { name: 'Wheat flour', unit: '' }, price: 10 },
-  soy: { name: '豆子', unit: '升', en: { name: 'Soybeans', unit: '' }, price: 5 },
-  tofu: { name: '豆腐', unit: '块', en: { name: 'Tofu', unit: 'cake' }, price: 2, decay: 1 },
+  soy: { name: '豆子', unit: '升', en: { name: 'Soybeans', unit: '' }, price: 4 },
+  tofu: { name: '豆腐', unit: '块', en: { name: 'Tofu', unit: 'cake' }, price: 3 }, // 三文一块（原来两文，扣掉黄豆和代销车那一成几乎不挣钱）；不放坏（用户定的：豆腐永久保质期；原来当天就坏，豆腐坊做多了全扔）
   veg: { name: '青菜', unit: '斤', en: { name: 'Greens', unit: '' }, price: 1, decay: 0.5 },
   pickle: { name: '咸菜', unit: '坛', en: { name: 'Pickles', unit: 'jar' }, price: 8 },
   egg: { name: '鸡蛋', unit: '个', en: { name: 'Eggs', unit: '' }, price: 1, decay: 0.12 },
@@ -49,7 +49,7 @@ export const GOODS = {
   fish: { name: '鱼', unit: '条', en: { name: 'Fish', unit: '' }, price: 3, decay: 0.5 },
   pork: { name: '猪肉', unit: '斤', en: { name: 'Pork', unit: '' }, price: 4, decay: 0.3 },
   wildfood: { name: '山货', unit: '斤', en: { name: 'Wild produce', unit: '' }, price: 3, decay: 0.1, export: true }, // 野菜、蘑菇、核桃（核桃骡帮收）
-  game: { name: '野味', unit: '只', en: { name: 'Game', unit: '' }, price: 6, decay: 0.3, export: true }, // 赶集日骡帮也收（野兔山鸡带出山）
+  game: { name: '野味', unit: '只', en: { name: 'Game', unit: '' }, price: 8, decay: 0.3, export: true }, // 赶集日骡帮也收（野兔山鸡带出山）
   charcoal: { name: '木炭', unit: '斤', en: { name: 'Charcoal', unit: '' }, price: 4 },
   seed: { name: '良种', unit: '升', en: { name: 'Seed grain', unit: '' }, price: 30 }, // 农技员育的谷种：换上的农户这一季多打一成半粮
   relic: { name: '老物件', unit: '件', en: { name: 'Relics', unit: '' }, price: 25, export: true }, // 老村址废墟里挖出来的（骡帮收）
@@ -101,12 +101,14 @@ const adult = (p) => !kid(p) && !p.caravan;
  * who：谁干这件事才算（不写 = 谁都算）；max：自家存到这么多就不再做了（卖不掉白做）。
  */
 const MAKE = [
-  { act: ['grind', 'boil'], unit: 'tofu', good: 'tofu', rate: 3, in: { soy: 0.25 }, max: 14 },
+  { act: ['grind', 'boil'], unit: 'tofu', good: 'tofu', rate: 3, in: { soy: 0.15 }, max: 24 }, // 一升豆子点七块豆腐上下 // 一天能卖到二十来块（原来存满 14 块就停工，豆腐当天又坏，全村天天有十来家买不着）
+  // 吴家东坡的豆地（孙巧云每天上午去）：出黄豆，卖给豆腐坊。要排在「下地出青菜 / 粮食」前面——一次只算第一条对得上的，
+  // 原来排在后面永远轮不到（粮食的上限四百升存不满），全村一粒新黄豆都没有，豆腐坊开局那点豆子用完就做不出豆腐了
+  { act: ['field'], who: 'sun_qiaoyun', good: 'soy', rate: 2.5, max: 60, seasons: ['summer', 'autumn'] },
   { act: ['garden'], good: 'veg', rate: 4, max: 14, seasons: ['spring', 'summer', 'autumn'] },
-  { act: ['field', 'weed', 'sow', 'plowHoe'], unit: ['carpenter', 'farmB', 'farmC'], good: 'veg', rate: 3.5, max: 14, seasons: ['spring', 'summer', 'autumn'] },
+  { act: ['field', 'weed', 'sow', 'plowHoe'], unit: ['carpenter', 'farmB', 'farmC'], good: 'veg', rate: 3.5, max: 20, seasons: ['spring', 'summer', 'autumn'] },
   { act: ['field', 'reap', 'pickCorn', 'reapWheat', 'carrySheaves', 'haul', 'thresh'], unit: ['farmA', 'farmB', 'farmC'], good: 'grain', rate: 2.5, max: 400, seasons: ['summer', 'autumn'] },
   { act: ['field'], unit: 'tofu', good: 'soy', rate: 2, max: 80, seasons: ['autumn'] },
-  { act: ['field'], unit: 'farmC', good: 'soy', rate: 1, max: 60, seasons: ['summer', 'autumn'] }, // 吴家东坡也种豆子，卖给豆腐坊
   { act: ['firewood'], good: 'wood', rate: 5, max: 30 },
   { act: ['work'], who: 'zhang_tiechui', good: 'tool', rate: 0.12, in: { iron: 2, wood: 1 }, max: 6 },
   { act: ['work'], who: 'liu_youfu', good: 'wooden', rate: 0.15, max: 6 },
@@ -144,8 +146,19 @@ function targetOf(u) {
  * 代销车上卖的：各户自家产的大部分东西。不放的：豆腐（挑子现卖）、药（郎中看了病才给）、农具家什（铺子里现做现修）、
  * 粮食黄豆（量大，去农户家里买）、旧物件良种、烧饼（炉子跟前现卖）。裁缝做好的成衣也放（原来只能上门找他做，住得远就没人去）。每户每样最多摆 CART_MAX 份，家里另留两份（老主顾上门还买得着）。
  */
-const CART_GOODS = new Set(['veg', 'egg', 'honey', 'wool', 'basket', 'pickle', 'duckEgg', 'stone', 'lime', 'wood', 'flour', 'fish', 'pork', 'wildfood', 'game', 'coal', 'charcoal', 'clothes']);
-const CART_MAX = 4;
+const CART_GOODS = new Set(['veg', 'egg', 'honey', 'wool', 'basket', 'pickle', 'duckEgg', 'stone', 'lime', 'wood', 'flour', 'fish', 'pork', 'wildfood', 'game', 'coal', 'charcoal', 'clothes', 'tofu']); // 豆腐不放坏了，也上车（只靠早上挑到村口卖，想买的大半排不上趟）
+/** 骡帮从山外带来放上代销车的：全村富余（各户 + 车上）低于这么多，就补到这么多。 */
+const SUPPLY = { grain: 40, soy: 20, flour: 15, wood: 20, pickle: 60 }; // 咸菜：冬天家家吃，村里只有一两户腌，一入冬就断
+const CART_MAX = 4, cartMax = (g) => (g === 'tofu' ? 10 : CART_MAX); // 豆腐家家天天要，车上多摆几块
+
+/**
+ * 赶集日骡帮收老住户的余货：[家里留多少不卖, 一次最多收多少]。
+ * 原来村里的钱都淤在铁匠、郎中、木匠家，种地的、烧石灰的、养鸭的囤着几百升粮、几十斤石灰鸭蛋，手里却没几个钱，买不起东西。
+ */
+const SURPLUS = {
+  grain: [(u) => eatToday(u).grain * 60, 40], // 留两个月口粮
+  lime: [20, 15], duckEgg: [10, 12], stone: [10, 6], flour: [10, 10], wood: [15, 10], egg: [8, 10], // 农具、家什不收（一把几十文，一次卖掉几把，那户的钱一下子翻好几倍）
+};
 
 /** 开局的家底（铜钱）。 */
 const PURSE = { headman: 320, store: 420, doctor: 160, smith: 140, carpenter: 120, tofu: 110, school: 60, shepherd: 90, farmA: 80, farmB: 100, farmC: 100, zheng_laotou: 40, qian_xiaoer: 90, riverTemple: 40, mason: 70, limeKiln: 60, duckYard: 50 };
@@ -280,15 +293,15 @@ export class Economy {
   /** 短工给谁干：手头最宽裕的种地人家。 */
   employerFor() { return ['farmA', 'farmB', 'farmC'].map((id) => this.unit(id)).sort((a, b) => b.coins - a.coins)[0]; }
 
-  /** 新来的人每天的开销：给房东房钱；短工收东家工钱（昨天干够三个时辰）。 */
+  /** 新来的人的开销和工钱：借住的每月给房东一回房钱；短工收东家工钱（昨天干够三个时辰）。 */
   newcomerDues(day) {
     for (const u of this.units.values()) {
       const p = u.members[0];
       if (!p?.newcomer) continue;
       const host = this.unit(p.home), job = this.jobs?.[p.jobId];
       if (host && host !== u) {
-        const rent = 2, hp = host.members.find(adult) ?? host.members[0];
-        if (u.coins >= rent) { u.coins -= rent; host.coins += rent; this.record({ day, hour: 6.5, buyer: p.id, from: u.id, seller: hp.id, to: host.id, good: null, service: '房钱', qty: 1, price: rent, kind: 'cash' }); }
+        const rent = 15, hp = host.members.find(adult) ?? host.members[0], since = p.stats?.since ?? 0; // 房钱按月给（进村那天算起每三十天一回，十五文；原来每天两文，一个月六十文，借住的攒不下钱）
+        if (day > since && (day - since) % 30 === 0 && u.coins >= rent) { u.coins -= rent; host.coins += rent; this.record({ day, hour: 6.5, buyer: p.id, from: u.id, seller: hp.id, to: host.id, good: null, service: '房钱', qty: 1, price: rent, kind: 'cash' }); }
       }
       if (job?.wage && (u.worked ?? 0) >= 3) { // 帮工、文书：昨天干够三个时辰，东家（农户 / 村长家）给工钱，季节有忙闲
         const boss = job.payer === 'headman' ? this.unit('headman') : this.unit(p.workFor) ?? this.employerFor();
@@ -313,6 +326,7 @@ export class Economy {
       if (!first) {
         for (const [g, q] of Object.entries(eatToday(u))) { if ((st[g] ?? 0) < q && g === 'grain') this.hungry.push(`${day}:${u.id}`); st[g] = Math.max(0, (st[g] ?? 0) - q); } // 吃用（粮食不够吃记一笔）
         for (const g in st) if (GOODS[g]?.decay) st[g] = Math.floor(st[g] * (1 - GOODS[g].decay) + 1e-9); // 放坏
+        if (u.id !== 'tofu') st.tofu = 0; // 买回去的豆腐当天就吃了（豆腐坊的存货不坏，见 GOODS.tofu）
         if (u.members.some((p) => /鸡/.test((p.owns ?? []).join()))) st.egg = (st.egg ?? 0) + (S === 'winter' ? 1 : 3); // 鸡下蛋
         if (u.members.some((p) => p.sex === '男' && adult(p) && p.age >= 16 && p.age < 60)) st.wood = (st.wood ?? 0) + 1; // 有壮劳力的人家：顺手捡柴、劈柴，每天自给一捆
         if (this.V.C[u.members[0]?.home]?.east && !u.members[0].newcomer) st.grain = (st.grain ?? 0) + 0.35 * u.members.length; // 老村址的几户：坎上开了几块小地，口粮大半自己种
@@ -534,10 +548,10 @@ export class Economy {
       const score = -price - dist * 0.05 + this.tie(who.p.id, seller.id) * price * 0.04 + taste * price * 0.24;
       list.push({ u, score });
     }
-    const lot = this.cartLot(good, buyer.id), sq = this.V.C.square, home = this.V.C[buyer.members[0].home];
-    if (lot) { // 代销车：价钱照货主开的，路程从村口算
-      const price = this.unit(lot.from)?.ask[good] ?? GOODS[good].price;
-      const dist = sq && home ? Math.hypot(sq.object.position.x - home.object.position.x, sq.object.position.z - home.object.position.z) : 20;
+    const lot = this.cartLot(good, buyer.id), home = this.V.C[buyer.members[0].home];
+    if (lot) { // 代销车：价钱照货主开的，路程算到近的那辆（村口、老村址各一辆）
+      const price = this.unit(lot.from)?.ask[good] ?? GOODS[good].price, carts = this.V.trade?.carts() ?? [];
+      const dist = home && carts.length ? Math.min(...carts.map((c) => Math.hypot(c.at[0] - home.object.position.x, c.at[1] - home.object.position.z))) : 20;
       list.push({ u: this.cartSeller, score: -price - dist * 0.05 });
     }
     return list.sort((a, b) => b.score - a.score).map((x) => x.u);
@@ -587,7 +601,10 @@ export class Economy {
   // ---------------------------------------------------------------- 村口代销车
 
   /** 代销车上 good 的一份货（不是 buyerId 自家放的）；没有返回 undefined。 */
-  cartLot(good, buyerId) { return this.cart.find((l) => l.good === good && l.qty >= 1 && l.from !== buyerId); }
+  cartLot(good, buyerId) { // 本地人家放的先卖；骡帮从山外带来的排在最后（贵五成，本地断了货才轮到它）
+    const ok = (l) => l.good === good && l.qty >= 1 && l.from !== buyerId;
+    return this.cart.find((l) => ok(l) && l.from !== 'caravan') ?? this.cart.find(ok);
+  }
   cartQty(good) { return this.cart.reduce((s, l) => s + (l.good === good ? l.qty : 0), 0); }
 
   /** 这户该往代销车上送什么：自己做货卖的新居民（打猎、采山货、挖煤、钓鱼……），手头富余两份以上。返回 [东西, 数量] 或 null。 */
@@ -598,7 +615,7 @@ export class Economy {
     for (const g of this.produces(u)) {
       if (!CART_GOODS.has(g)) continue;
       const on = this.cart.find((l) => l.from === u.id && l.good === g)?.qty ?? 0;
-      const q = Math.min(CART_MAX - on, Math.floor((u.stock[g] ?? 0) - this.keep(u, g) - home + 1e-9));
+      const q = Math.min(cartMax(g) - on, Math.floor((u.stock[g] ?? 0) - this.keep(u, g) - home + 1e-9));
       if (q < 2 && !(q >= 1 && GOODS[g].price >= 6)) continue; // 一两文的东西不值当跑一趟
       const worth = q * (u.ask[g] ?? GOODS[g].price);
       if (!best || worth > best[2]) best = [g, q, worth];
@@ -635,7 +652,8 @@ export class Economy {
     if (qty <= 0) { this.fail(v, good, `钱不够（${buyer.coins}文），代销车只收现钱`); return null; }
     const price = unitPrice * qty, cut = Math.max(1, Math.round(price * 0.1)), pd = this.unit('qian_xiaoer');
     buyer.coins -= price;
-    owner.coins += pd ? price - cut : price;
+    if (owner.id === 'caravan') this.flow.out += pd ? price - cut : price; // 骡帮的货：钱出了村（骡帮那户的钱一直记零）
+    else owner.coins += pd ? price - cut : price;
     if (pd) pd.coins += cut;
     lot.qty -= qty;
     if (lot.qty < 1) this.cart = this.cart.filter((l) => l !== lot);
@@ -717,20 +735,52 @@ export class Economy {
         this.record({ day, hour: 9.5, buyer: 'niu_wanshan', from: 'caravan', seller: u.members.find(adult)?.id ?? u.members[0].id, to: u.id, good: g, qty: q, price: gain, kind: 'cash', place: '骡帮' });
       }
     }
+    for (const u of this.units.values()) { // 老住户吃不完、用不完的余货：骡帮按七成价收走一些（钱从村外进来，到的正是种地的、烧石灰的、养鸭的这些手头紧的人家；存货也降下来）
+      if (u.id === 'caravan' || ['store', 'qian_xiaoer'].includes(u.id) || u.members[0]?.newcomer) continue; // 杂货铺、货郎的货是本钱；新居民有代销车
+      for (const [g, [keep, most]] of Object.entries(SURPLUS)) {
+        const k = typeof keep === 'function' ? keep(u) : keep, q = Math.min(most, Math.floor((u.stock[g] ?? 0) - Math.max(k, this.keep(u, g))));
+        if (q <= 0) continue;
+        const gain = Math.max(1, Math.round(q * GOODS[g].price * 0.7));
+        u.stock[g] -= q; u.coins += gain; this.flow.in += gain; brokered += gain;
+        this.record({ day, hour: 9.6, buyer: 'niu_wanshan', from: 'caravan', seller: u.members.find(adult)?.id ?? u.members[0].id, to: u.id, good: g, qty: q, price: gain, kind: 'cash', place: '骡帮（收余货）' });
+      }
+    }
+    const tf = this.unit('tofu'); // 豆腐坊的黄豆不够了（冬春地里不出豆子）：骡帮从山外驮来，豆腐坊按手里的钱买
+    if (tf && (tf.stock.soy ?? 0) < 20) {
+      const want = 20 - Math.floor(tf.stock.soy ?? 0), cash = Math.min(want, Math.floor(Math.max(0, tf.coins - 10) / GOODS.soy.price));
+      if (cash > 0) out(tf, 'soy', cash);
+      const cv = this.unit('caravan'), owed = cv?.owe.tofu ?? 0, credit = Math.min(want - Math.max(0, cash), Math.floor((60 - owed) / GOODS.soy.price)); // 钱不够：骡帮赊给豆腐坊，下回赶集还（最多赊六十文）——不然冬天钱花光了买不起豆子、做不出豆腐，就再也挣不回来
+      if (cv && credit > 0) {
+        cv.owe.tofu = owed + credit * GOODS.soy.price;
+        tf.stock.soy = (tf.stock.soy ?? 0) + credit;
+        this.record({ day, hour: 9, buyer: tf.members[0].id, from: tf.id, seller: 'niu_wanshan', to: 'caravan', good: 'soy', qty: credit, price: credit * GOODS.soy.price, kind: 'credit', place: '骡帮' });
+      }
+    }
     for (const l of this.cart) { // 代销车上骡帮收的货（野味、山货、煤……）：钱直接归货主
       const u = this.unit(l.from), q = Math.floor(l.qty);
-      if (!u || !GOODS[l.good].export || q <= 0) continue;
+      if (!u || u.id === 'caravan' || !GOODS[l.good].export || q <= 0) continue;
       const gain = q * GOODS[l.good].price;
       l.qty -= q; u.coins += gain; this.flow.in += gain; brokered += gain;
       this.record({ day, hour: 9.5, buyer: 'niu_wanshan', from: 'caravan', seller: u.members.find(adult)?.id ?? u.members[0].id, to: u.id, good: l.good, qty: q, price: gain, kind: 'cash', place: '骡帮（代销车）' });
     }
     this.cart = this.cart.filter((l) => l.qty >= 1);
+    // 山外的粮、豆、面、柴：村里各户的富余加上车上的不够了，骡帮带来放上代销车（贵五成，本地有货时没人买它的）。
+    // 原来这些全靠本地地里出，冬春地里不出东西，存货吃完就断；豆腐坊的黄豆就断过
+    const cv = this.unit('caravan');
+    for (const [g, enough] of Object.entries(SUPPLY)) {
+      const have = [...this.units.values()].reduce((n, u) => n + (u.id === 'caravan' ? 0 : Math.max(0, (u.stock[g] ?? 0) - this.keep(u, g))), 0) + this.cartQty(g);
+      const q = Math.floor(enough - have);
+      if (q <= 0 || !cv) continue;
+      cv.ask[g] = Math.ceil(GOODS[g].price * 1.5);
+      const lot = this.cart.find((l) => l.from === 'caravan' && l.good === g);
+      if (lot) lot.qty += q; else this.cart.push({ from: 'caravan', good: g, qty: q });
+    }
     const cut = Math.floor(brokered * 0.1); // 杂货铺给骡帮牵线、存货：骡帮多给一成（村外的钱）
     if (cut > 0) { store.coins += cut; this.flow.in += cut; this.record({ day, hour: 10, buyer: 'niu_wanshan', from: 'caravan', seller: 'sun_youcai', to: 'store', good: null, service: '牵线', qty: 1, price: cut, kind: 'cash', place: '骡帮' }); }
     for (const u of this.units.values()) for (const [id, debt] of Object.entries(u.owe)) { // 赶集日结账：还得起的还上
       const d = this.unit(id);
       const pay = Math.min(debt, Math.max(0, d.coins - 10));
-      if (pay > 0) { d.coins -= pay; u.coins += pay; u.owe[id] -= pay; }
+      if (pay > 0) { d.coins -= pay; if (u.id === 'caravan') this.flow.out += pay; else u.coins += pay; u.owe[id] -= pay; } // 还给骡帮的：钱出了村
       if (u.owe[id] <= 0) delete u.owe[id];
     }
   }

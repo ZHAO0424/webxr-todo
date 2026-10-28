@@ -16,6 +16,7 @@ const BUSY = new Set(['riverIncense', 'repair', 'cook', 'school', 'teach', 'herd
 const HEAVY = new Set(['grain', 'wood', 'tool', 'wooden', 'iron', 'soy', 'basket', 'lime', 'stone', 'charcoal', 'seed', 'coal']); // 男人去扛
 const KIDS_OK = new Set(['tofu', 'match', 'salt']); // 打发孩子去买
 const REMOTE = new Set(['lime', 'stone', 'duckEgg', 'coal']); // 只有老村址有的东西
+const TREAT = ['game', 'wildfood', 'honey', 'fish', 'duckEgg', 'pork']; // 代销车上的稀罕东西：手头宽裕的人看见了会顺手买点
 /** 拿着什么回家。 */
 const CARRY = { tofu: ['tray'], veg: ['basket'], egg: ['basket'], salt: ['basket'], match: ['basket'], cloth: ['basket'], pill: ['basket'], honey: ['basket'], pickle: ['basket'], flour: [null, 'sack'], grain: [null, 'sack'], soy: [null, 'sack'], wood: [null, 'firewood'], tool: ['hoe'], wooden: ['box'], iron: ['box'], basket: ['basket'], wool: [null, 'sack'], lime: [null, 'sack'], stone: [null, 'sack'], duckEgg: ['basket'], fish: ['basket'], pork: ['basket'], wildfood: ['basket'], game: ['basket'], charcoal: [null, 'sack'], seed: [null, 'sack'], relic: ['box'], coal: [null, 'basket:coal'] };
 const PLACE = { headman: '王家', school: '学堂', shepherd: '马家', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', zheng_laotou: '剃头挑子', qian_xiaoer: '货郎那儿', cart: '村口代销车', riverTemple: '柳婆婆家', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '凤仙嫂家' };
@@ -74,9 +75,9 @@ export class Trading {
         if (!pool.length) pool = grown;
         const kids = ppl.filter((v) => v.p.body === 'child' && v.p.age >= 8);
         if (KIDS_OK.has(w.good) && kids.length && h('kid') < 0.35) pool = kids;
-        const cap = u.members.some((p) => p.newcomer) || V.C[u.members[0].home]?.east ? 2 : 1; // 新来的（一个人一户、要开张要修房）和老村址几户（离村子远）每天能跑两趟
+        const cap = u.members.some((p) => p.newcomer) || V.C[u.members[0].home]?.east ? 3 : 2; // 每个大人一天最多跑两趟（新来的、老村址几户三趟）；原来一趟，单子上将近一半的东西轮不上
         pool = pool.filter((v) => (count.get(v) ?? 0) < cap); // 每人每天最多跑一趟：买东西不打乱正常作息
-        if (!pool.length) { if (remote(w.good) && grown.length) this.runs.push({ v: grown[0], alts: [], unit: u, good: w.good, qty: w.qty, why: w.why, at: 9, done: true }); return; } // 老村址才有的东西（石灰、条石、鸭蛋）：家里没人有空，托货郎捎回来
+        if (!pool.length) { if ((remote(w.good) || (w.good && (this.econ.cartLot(w.good, u.id) || [...this.econ.units.values()].some((x) => x !== u && x.id !== 'caravan' && (x.stock[w.good] ?? 0) - this.econ.keep(x, w.good) >= 1)))) && grown.length) this.runs.push({ v: grown[0], alts: [], unit: u, good: w.good, qty: w.qty, why: w.why, at: 9, done: true }); return; } // 家里没人有空跑这一趟：村里（或代销车上）有货的，托货郎捎回来（原来只托老村址才有的石灰、鸭蛋，别的就作罢，一天要落下几十样）
         const v = pool[Math.floor(h('who') * pool.length)];
         count.set(v, (count.get(v) ?? 0) + 1);
         const wins = freeWindows(v, market), win = wins[Math.floor(h('ampm') * wins.length)] ?? [13.6, 17]; // 只挑他今天真闲着的时段（羊倌上午放羊、中午歇晌，就下午去）
@@ -113,23 +114,54 @@ export class Trading {
   cartTick(hour) {
     if (!this.econ.cart.length || Math.abs(hour - (this.lastCart ?? -9)) < 0.15) return;
     this.lastCart = hour;
-    const V = this.V, sq = V.C.square, f = sq.spots.cartBuyA, [cx, cz] = sq.at(f[2], f[3]);
+    const V = this.V, carts = this.carts(), E = this.econ;
     for (const v of V.people) {
       if (v.p.body === 'child' || v.p.caravan || busy(v) || v.state === 'walk' || v.cartDay === this.day) continue;
-      if (Math.hypot(v.pos.x - cx, v.pos.z - cz) > 9) continue;
-      const u = this.econ.unitOfV(v), w = u?.wants.find((x) => x.good && this.econ.cartLot(x.good, u.id));
-      if (!w) continue;
+      if (!carts.some((c) => Math.hypot(v.pos.x - c.at[0], v.pos.z - c.at[1]) < 9)) continue;
+      const u = E.unitOfV(v);
+      if (!u) continue;
+      let w = u.wants.find((x) => x.good && E.cartLot(x.good, u.id));
+      // 单子上没有：手头宽裕的，看见车上有野味、山货、蜂蜜这些稀罕东西，有时也买一点尝尝（养蜂、采山货、打猎的东西靠这个卖得动）
+      if (!w && u.coins >= 40 && v.rand() < 0.3) { const g = TREAT.find((x) => E.cartLot(x, u.id)); if (g) w = { good: g, qty: 1, why: '看见了买点尝尝' }; }
       v.cartDay = this.day;
-      v.interrupt('buy', { v, alts: [], unit: u, good: w.good, qty: w.qty, why: w.why, at: hour, done: true, seller: this.econ.cartSeller });
+      if (!w) continue;
+      v.interrupt('buy', { v, alts: [], unit: u, good: w.good, qty: w.qty, why: w.why, at: hour, done: true, seller: E.cartSeller });
+    }
+  }
+
+  /** 两辆代销车（村口古槐下、老村址老街当腰）：车在哪、买东西的人站哪、脸朝哪。两辆共用一份货。 */
+  carts() {
+    const V = this.V, sq = V.C.square, f = sq.spots.cartBuyA, out = [];
+    out.push({ at: sq.at(f[2], f[3]), to: (v) => sq.spot(V.claim(v, sq, ['cartBuyA', 'cartBuyB'])) });
+    const oc = V.oldSite?.cart;
+    if (oc) out.push({ at: oc.at, to: (v) => oc.buy[Math.floor(v.rand() * oc.buy.length)] });
+    return out;
+  }
+
+  /**
+   * 顺带买：已经站在卖家（或代销车）跟前了，家里今天的单子上还有、这儿正好有富余的，一起买了（最多再买三样）。
+   * 原来一趟只买一样，一家一天跑一两趟，单子上将近一半的东西没人有空去买就作罢了。
+   */
+  alsoBuy(v, seller, place) {
+    const E = this.econ, buyer = E.unitOfV(v);
+    if (!buyer) return;
+    let n = 0;
+    for (const w of [...buyer.wants]) {
+      if (n >= 3) break;
+      if (!w.good) continue;
+      const has = seller.cart ? E.cartLot(w.good, buyer.id) : (seller.stock[w.good] ?? 0) - E.keep(seller, w.good) >= 1;
+      if (!has) continue;
+      if (E.settle(v, seller, w.good, w.qty, { place })) n++;
     }
   }
 
   /** 卖家此刻在哪儿收钱：[位置, 朝向, 卖的人]。 */
   counter(seller, v) {
     const V = this.V;
-    if (seller.cart) { // 代销车：站到车前，脸朝车；货郎多半不在跟前，钱投进钱匣子
-      const sq = V.C.square, f = sq.spots.cartBuyA;
-      return { to: () => sq.spot(V.claim(v, sq, ['cartBuyA', 'cartBuyB'])), face: () => sq.at(f[2], f[3]), who: null };
+    if (seller.cart) { // 代销车：去离自己近的那辆，站到车前，脸朝车；货郎多半不在跟前，钱投进钱匣子
+      const c = this.carts().sort((a, b) => Math.hypot(a.at[0] - v.pos.x, a.at[1] - v.pos.z) - Math.hypot(b.at[0] - v.pos.x, b.at[1] - v.pos.z))[0];
+      let spot = null;
+      return { to: () => (spot ??= c.to(v)), face: () => c.at, who: null };
     }
     if (seller.id === 'store') {
       const st = V.C.store, keeper = V.byId.sun_youcai ?? V.byId.xiao_liuzi;
@@ -156,6 +188,7 @@ export class Trading {
     if (!buyer || !seller || buyer === seller) return null;
     for (const w of [...buyer.wants]) {
       if (!w.good) continue; // 修农具这类手艺活集上办不了
+      if ((seller.stock[w.good] ?? 0) - this.econ.keep(seller, w.good) < 1) continue; // 这个摊上没有的就不问（原来整张单子挨个问一遍，每样都记一笔「卖家没有富余」）
       const t = this.econ.settle(v, seller, w.good, w.qty, { place: '集上' });
       if (t) { this.carry(v, t.good); return t; }
     }
@@ -218,6 +251,7 @@ ACTIVITIES.buy = (v, o) => {
         T.carry(v, t.good);
         if (t.good === 'pill' && seller.id === 'doctor') econ.pay(v, 'doctor', 10, '看病');
       } else econ.miss(o.good);
+      T.alsoBuy(v, seller, c.who?.p.name ?? ''); // 来都来了：家里今天还想要的、这儿正好有的，一起买了
       v.go(v.home.spot('yard') ?? v.home.gateOut());
       v.do('idle', 2);
       v.call(() => { v.char.setItem(v.p.item ?? null); v.char.setBack(null); v.finish(); });

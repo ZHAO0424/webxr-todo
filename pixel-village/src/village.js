@@ -404,6 +404,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
     duckWater: nav.nearestFree(-12, 28.5),
     // 老村址（east.js）原住户干活的地方：河神庙前上香、水则碑前看水、河滩（捞漂木、看鸭子）
     oldSite: {
+      cart: east.work.cart && { at: east.work.cart.at, buy: east.work.cart.buy.map((p) => nav.nearestFree(...p)) }, // 老村址的代销车：站哪儿买
       temple: { at: nav.nearestFree(...east.work.temple.at), face: east.work.temple.face },
       light: (hour) => east.lightIncense(hour),
       stele: { at: nav.nearestFree(...east.work.stele), face: [east.work.stele[0] - 1.1, east.work.stele[1] - 0.6] },

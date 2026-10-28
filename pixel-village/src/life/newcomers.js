@@ -9,7 +9,7 @@ import { PLACES } from '../labels.js';
 
 /*
  * 新来的人（用户在「创建居民」里填的）怎么融进村子：
- *   1. 落脚：借住在人口少的人家（每天两文房钱），或者住进老村址的一处老宅（不交房钱，攒料修房，见 life/oldsite.js）
+ *   1. 落脚：借住在人口少的人家（每月十五文房钱），或者住进老村址的一处老宅（不交房钱，攒料修房，见 life/oldsite.js）
  *   2. 认人：头一天挨家串门打招呼（熟识度 +2），卡片上写"新来的，在认人"
  *   3. 营生：用户在「创建居民」第 ③ 页自己选（p.jobPicked）；选了「先不定」的，认完人按打分自动挑——
  *        分 = 缺口价值（最近有多少人想买没买着 × 底价）+ 空缺加分 − 同行人数 × 4 + 手艺对得上的关键词 × 6 + 一点固定随机数
@@ -70,7 +70,7 @@ export const JOBS = [
     keys: ['采', '山', '野菜', '蘑菇', '核桃', '认得草木'], est: 6,
     desc: '背着背篓从进山口上山：春天挖野菜，秋天捡核桃、采蘑菇，背回来倒在山货收购棚的竹匾里晒', where: '老村址北边的老林子、山货收购棚', buyers: '各家（尝个鲜）；核桃骡帮也收', setup: '一只背篓',
     en: { name: 'Forager', desc: 'Climbs into the hills through the mountain gate with a back basket: wild greens in spring, walnuts and mushrooms in autumn, brought back and spread to dry on the trays at the forage yard.', where: 'The old woods north of the Old Site, and the forage yard', buyers: 'Every family (for a taste of the season); the caravan buys walnuts too', setup: 'A back basket' } },
-  { id: 'hunter', name: '打猎', cat: '山上', kind: 'make', makes: 'game', rate: 0.3, max: 8, place: 'forest', item: 'trap', anim: 'squat', season: S4(0.8, 0.6, 1.1, 1.4),
+  { id: 'hunter', name: '打猎', cat: '山上', kind: 'make', makes: 'game', rate: 0.5, max: 8, place: 'forest', item: 'trap', anim: 'squat', season: S4(0.8, 0.6, 1.1, 1.4),
     keys: ['打猎', '套兔子', '山', '眼尖', '脚力'], est: 6,
     desc: '在老林子边下套子、撵野兔山鸡（林子里还有野猪），入冬最好打', where: '老村址北边的老林子', buyers: '手头宽裕的人家、过节；赶集日骡帮也收', setup: '几副套子',
     en: { name: 'Hunter', desc: 'Sets snares at the edge of the old woods and chases hares and pheasants (there are wild boar in there too). Winter is the best season.', where: 'The old woods north of the Old Site', buyers: 'Families with money to spare, and festivals; the caravan buys game on market days', setup: 'A few snares' } },
@@ -108,7 +108,7 @@ export const JOBS = [
     keys: ['识字', '写字', '算账', '记账', '跑腿', '会说'], est: 7,
     desc: '给王村长打下手：记账、写通知，挨家挨户传话，开村会时坐在边上记', where: '村长家、挨家挨户', buyers: '村长家按天给工钱（公中的钱）', setup: '笔墨纸',
     en: { name: 'Village clerk', desc: 'Assists Headman Wang: keeps the accounts, writes notices, carries messages door to door, and takes notes at village meetings.', where: 'The headman\'s house, and door to door', buyers: 'The headman\'s family pays daily wages (from village funds)', setup: 'Brush, ink and paper' } },
-  { id: 'relic', name: '挖旧物·办村史馆', cat: '新鲜的', kind: 'make', makes: 'relic', rate: 0.08, max: 6, place: 'digs', item: 'pickaxe', icon: 'pot', anim: 'squat', season: S4(1, 1.3, 1, 0.5),
+  { id: 'relic', name: '挖旧物·办村史馆', cat: '新鲜的', kind: 'make', makes: 'relic', rate: 0.15, max: 6, place: 'digs', item: 'pickaxe', icon: 'pot', anim: 'squat', season: S4(1, 1.3, 1, 0.5),
     keys: ['识字', '好奇', '挖', '古董', '考据', '耐性'], est: 5,
     desc: '在老村址的废墟、旧河道里刨大水埋下的老东西：铜钱、瓷片、老匾……挖到的记进村史馆，品相好的骡帮收', where: '老村址的废墟、旧河道', buyers: '骡帮逢集收；挖到的每一样都记进村史馆', setup: '一把小镐（靠运气）',
     en: { name: 'Relic hunter', desc: 'Digs through the ruins and old riverbed at the Old Site for things the great flood buried: coins, pottery shards, old plaques... Every find goes into the village museum; the caravan buys the good ones.', where: 'The ruins and old riverbed at the Old Site', buyers: 'The caravan on market days; every find is recorded in the village museum', setup: 'A small pick (and some luck)' } },

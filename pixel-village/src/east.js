@@ -992,6 +992,14 @@ export function buildEast(M) {
   const place = (obj, spot, fx, fz) => { if (!spot) return null; obj.position.set(spot[0], spot[2], spot[1]); if (fx !== undefined) obj.rotation.y = Math.atan2(fx - spot[0], fz - spot[1]); root.add(obj); decor.push([spot[0], spot[1]]); return obj; };
   place(tag(shrine(M), 'oldShrine'), near(nodes.g1.x + 2.6, nodes.g1.z - 2.4, 2.0, 1.6), nodes.g1.x, nodes.g1.z);
   place(P.well(M, 0, 0), near(nodes.stM.x + 2.6, nodes.stM.z + 2.4, 2.4, 2.4, 3)); // 老街当腰的老井
+  // 老村址的代销车：老街当腰、老井对面，车前（买东西的那面）朝着老街。和村口那辆共用一份货（economy.js 的 cart），谁近去哪辆
+  let oldCart = null;
+  { const cs = near(nodes.stM.x - 3.0, nodes.stM.z + 2.2, 2.0, 1.4, 4);
+    if (cs) {
+      const [x, z] = cs, dx = nodes.stM.x - x, dz = nodes.stM.z - z, d = Math.hypot(dx, dz) || 1, fx = dx / d, fz = dz / d;
+      place(P.consignCart(M), cs, x - fx, z - fz); // 车的 +z（车尾）背着老街
+      oldCart = { at: [x, z], buy: [[x + fx * 0.9 - fz * 0.45, z + fz * 0.9 + fx * 0.45], [x + fx * 0.9 + fz * 0.45, z + fz * 0.9 - fx * 0.45]] };
+    } }
   for (const n of ['st1', 'stM', 'st4', 'ln2b']) place(tag(stoneTablet(M), 'oldTablet'), near(nodes[n].x - 1.6, nodes[n].z - 1.4, 0.8, 0.6, 2.5), nodes[n].x, nodes[n].z);
   const hp = (k, lx, lz) => [W(HOMES[k].u) + lx, HOMES[k].z + lz];
   place(P.firewood(M, 0, 0, 2.0), near(...hp('mason', -4.0, 2.6), 2.2, 0.8, 1.5));
@@ -1347,6 +1355,7 @@ export function buildEast(M) {
   const forestEdge = [];
   for (let u = -22; u <= 43; u += 3) if (Math.abs(u - APIARY.u) > APIARY.w / 2 + 1) forestEdge.push([W(u), forestZ(u) + 1.4]);
   const work = {
+    cart: oldCart, // 老村址的代销车（见上面）
     beach: [ // 水塘边一圈 + 溪北的卵石滩：捞漂木、钓鱼、看水
       ...Array.from({ length: 9 }, (_, i) => { const u = 2 + i * 4.5; return [W(u), shoreZ(u) - 1.2]; }), // 湖北岸的沙滩
       ...Array.from({ length: 6 }, (_, i) => { const u = -34 + i * 4; return [W(u), sz(u) - streamHalf(u) - 1.2]; }),
