@@ -44,6 +44,7 @@ export function saveWorld(village, { season, ruins, savedAt = Date.now() }) {
       ties: [...E.ties.entries()],
       trades: E.trades.slice(-300),
       acc: [...E.acc.entries()].map(([v, a]) => [v.p?.id ?? v, a]), // 键是村民对象：存成 id
+      cart: E.cart, // 村口代销车上的货
     },
     plots: (V.east?.houses ?? []).map((h) => ({ id: h.id, state: h.state, owner: h.owner ?? null, ownerName: h.ownerName ?? null })),
     repairs: V.repairs ?? [],
@@ -79,6 +80,7 @@ export function loadWorld(village, s, { addNewcomer, setJob, onNewcomer = () => 
     E.flow = e.flow ?? E.flow;
     E.total0 = e.total0 ?? E.total0;
     E.missing = e.missing ?? {};
+    E.cart = (e.cart ?? []).filter((l) => E.units.has(l.from));
     E.day = e.day ?? s.day;
   }
   V.trade.plan(clock.day); // 今天想买什么，照读回来的家底重新排

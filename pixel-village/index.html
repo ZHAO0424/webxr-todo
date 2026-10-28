@@ -381,74 +381,14 @@
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/OrbitControls.js">
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.8.3/build/index.module.js">
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/utils/BufferGeometryUtils.js">
-  <link rel="modulepreload" href="src/main.js">
-  <link rel="modulepreload" href="src/village.js">
-  <link rel="modulepreload" href="src/pixel.js">
-  <link rel="modulepreload" href="src/palette.js">
-  <link rel="modulepreload" href="src/textures.js">
-  <link rel="modulepreload" href="src/season.js">
-  <link rel="modulepreload" href="src/terrain.js">
-  <link rel="modulepreload" href="src/layout.js">
-  <link rel="modulepreload" href="src/compounds.js">
-  <link rel="modulepreload" href="src/buildings.js">
-  <link rel="modulepreload" href="src/props.js">
-  <link rel="modulepreload" href="src/things.js">
-  <link rel="modulepreload" href="src/i18n.js">
-  <link rel="modulepreload" href="src/sprites.js">
-  <link rel="modulepreload" href="src/residents.js">
-  <link rel="modulepreload" href="src/life/index.js">
-  <link rel="modulepreload" href="src/life/clock.js">
-  <link rel="modulepreload" href="src/life/villager.js">
-  <link rel="modulepreload" href="src/voxel.js">
-  <link rel="modulepreload" href="src/characters.js">
-  <link rel="modulepreload" href="src/animals.js">
-  <link rel="modulepreload" href="src/life/motion.js">
-  <link rel="modulepreload" href="src/life/activities.js">
-  <link rel="modulepreload" href="src/life/events.js">
-  <link rel="modulepreload" href="src/life/variety.js">
-  <link rel="modulepreload" href="src/life/beast.js">
-  <link rel="modulepreload" href="src/animalInfo.js">
-  <link rel="modulepreload" href="src/labels.js">
-  <link rel="modulepreload" href="src/names.js">
-  <link rel="modulepreload" href="src/i18n/en-people.js">
-  <link rel="modulepreload" href="src/i18n/en-words.js">
-  <link rel="modulepreload" href="src/i18n/words-people.js">
-  <link rel="modulepreload" href="src/i18n/words-world.js">
-  <link rel="modulepreload" href="src/i18n/words-econ.js">
-  <link rel="modulepreload" href="src/i18n/words-ui.js">
-  <link rel="modulepreload" href="src/life/barber.js">
-  <link rel="modulepreload" href="src/life/economy.js">
-  <link rel="modulepreload" href="src/life/badges.js">
-  <link rel="modulepreload" href="src/life/trade.js">
-  <link rel="modulepreload" href="src/life/newcomers.js">
-  <link rel="modulepreload" href="src/life/oldsite.js">
-  <link rel="modulepreload" href="src/nav.js">
-  <link rel="modulepreload" href="src/farmland.js">
-  <link rel="modulepreload" href="src/roadside.js">
-  <link rel="modulepreload" href="src/coplanar.js">
-  <link rel="modulepreload" href="src/overlap.js">
-  <link rel="modulepreload" href="src/audit.js">
-  <link rel="modulepreload" href="src/daylight.js">
-  <link rel="modulepreload" href="src/fx.js">
-  <link rel="modulepreload" href="src/fish.js">
-  <link rel="modulepreload" href="src/west.js">
-  <link rel="modulepreload" href="src/east.js">
-  <link rel="modulepreload" href="src/backdrop.js">
-  <link rel="modulepreload" href="src/xr.js">
-  <link rel="modulepreload" href="src/ui/frame.js">
-  <link rel="modulepreload" href="src/ui/cards.js">
-  <link rel="modulepreload" href="src/ui/roster.js">
-  <link rel="modulepreload" href="src/ui/xrCard.js">
-  <link rel="modulepreload" href="src/ui/tradeBubble.js">
-  <link rel="modulepreload" href="src/ui/newcomer.js">
-  <link rel="modulepreload" href="src/residentSchema.js">
-  <link rel="modulepreload" href="src/mine.js">
-  <link rel="modulepreload" href="src/audio.js">
-  <link rel="modulepreload" href="src/synth.js">
-  <link rel="modulepreload" href="src/music.js">
-  <link rel="modulepreload" href="src/scenes.js">
-  <link rel="modulepreload" href="src/world.js">
-  <link rel="modulepreload" href="src/cloud.js">
+  <script>
+    (() => {
+      const q = new URLSearchParams(location.search), dev = location.protocol === 'file:' || /^(localhost|127\.|\[::1\]|192\.168\.|10\.)/.test(location.hostname);
+      window.PV_ENTRY = q.has('dist') || !(dev || q.has('src')) ? 'dist/main.min.js' : 'src/main.js';
+      const SRC = ["src/main.js","src/village.js","src/pixel.js","src/palette.js","src/textures.js","src/season.js","src/terrain.js","src/layout.js","src/compounds.js","src/buildings.js","src/props.js","src/things.js","src/i18n.js","src/sprites.js","src/residents.js","src/life/index.js","src/life/clock.js","src/life/villager.js","src/voxel.js","src/characters.js","src/animals.js","src/life/motion.js","src/life/activities.js","src/life/events.js","src/life/variety.js","src/life/beast.js","src/animalInfo.js","src/labels.js","src/names.js","src/i18n/en-people.js","src/i18n/en-words.js","src/i18n/words-people.js","src/i18n/words-world.js","src/i18n/words-econ.js","src/i18n/words-ui.js","src/life/barber.js","src/life/economy.js","src/life/badges.js","src/life/trade.js","src/life/newcomers.js","src/life/oldsite.js","src/nav.js","src/farmland.js","src/roadside.js","src/coplanar.js","src/overlap.js","src/audit.js","src/daylight.js","src/fx.js","src/fish.js","src/west.js","src/east.js","src/backdrop.js","src/xr.js","src/ui/frame.js","src/ui/cards.js","src/ui/roster.js","src/ui/xrCard.js","src/ui/tradeBubble.js","src/ui/newcomer.js","src/residentSchema.js","src/mine.js","src/audio.js","src/synth.js","src/music.js","src/scenes.js","src/world.js","src/cloud.js"];
+      for (const href of window.PV_ENTRY === 'src/main.js' ? SRC : [window.PV_ENTRY]) { const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; document.head.append(l); }
+    })();
+  </script>
   <!-- /modulepreload -->
 </head>
 <body>
@@ -501,6 +441,6 @@
   <div id="newcomer" hidden></div>
   <div id="roster" hidden></div>
   <pre id="err"></pre>
-  <script type="module" src="src/main.js"></script>
+  <script type="module">import(`./${window.PV_ENTRY ?? 'src/main.js'}`);</script> <!-- 入口见上面 modulepreload 那段：线上 dist/main.min.js，本机 src/main.js -->
 </body>
 </html>

@@ -19,7 +19,7 @@ async function loadCSS() {
     const b = await (await fetch(url)).blob();
     return new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
   };
-  const base = new URL('./ui.css', import.meta.url);
+  const base = new URL('src/ui/ui.css', document.baseURI); // 按网页的位置找（线上跑的是打包后的 dist/main.min.js，不能按这个文件自己的位置）
   let css = await (await fetch(base)).text();
   for (const m of [...css.matchAll(/url\('([^']+\.woff)'\)/g)]) css = css.replace(m[0], `url('${await toData(new URL(m[1], base))}')`);
   const root = getComputedStyle(document.documentElement);

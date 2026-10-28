@@ -1,6 +1,7 @@
 // 预加载清单：把 main.js 一路 import 到的所有模块写进 index.html 的 <link rel="modulepreload">。
 //
 // 用法：node tools/preload.mjs [index.html]（默认项目里的 index.html）。改了 import（加文件、删文件）以后跑一下，和 subset-font.py 一样。
+// 顺带在页面里定入口 window.PV_ENTRY（线上跑打包版，本机跑源码，见下面），页面末尾 import(window.PV_ENTRY)。
 //
 // 为什么：网页没有打包，七十多个小文件按 import 一层套一层地下——下完 main.js 才知道要 village.js，下完 village.js 才知道要
 // compounds.js……从国内连 GitHub Pages 一层要半秒到一秒，排了七八层，光下代码就八九秒（东西本身只有一兆多）。
@@ -36,8 +37,21 @@ const walk = (file) => {
 };
 walk(resolve(root, 'src/main.js'));
 
-const links = [...cdn, ...local.map((f) => relative(root, f).replaceAll('\\', '/'))].map((h) => `  <link rel="modulepreload" href="${h}">`);
-const block = `  <!-- modulepreload：tools/preload.mjs 生成，别手改 -->\n${links.join('\n')}\n  <!-- /modulepreload -->`;
+const files = local.map((f) => relative(root, f).replaceAll('\\', '/'));
+// 入口：线上跑打包版 dist/main.min.js（tools/bundle.mjs），本机开发（localhost、局域网、file://）或 ?src 跑源码；?dist 在本机也跑打包版。
+// 预加载跟着入口走：打包版只预加载那一个文件，跑源码时预加载全部源码（线上不白下七十个源码文件）
+const block = `  <!-- modulepreload：tools/preload.mjs 生成，别手改 -->
+${[...cdn].map((h) => `  <link rel="modulepreload" href="${h}">`).join('\n')}
+  <script>
+    (() => {
+      const q = new URLSearchParams(location.search), dev = location.protocol === 'file:' || /^(localhost|127\\.|\\[::1\\]|192\\.168\\.|10\\.)/.test(location.hostname);
+      window.PV_ENTRY = q.has('dist') || !(dev || q.has('src')) ? 'dist/main.min.js' : 'src/main.js';
+      const SRC = ${JSON.stringify(files)};
+      for (const href of window.PV_ENTRY === 'src/main.js' ? SRC : [window.PV_ENTRY]) { const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; document.head.append(l); }
+    })();
+  </script>
+  <!-- /modulepreload -->`;
+const links = [...cdn, ...files];
 const old = /  <!-- modulepreload：[\s\S]*?<!-- \/modulepreload -->/;
 if (old.test(html)) html = html.replace(old, block);
 else { // 第一次：放在 import map 后面（import map 必须在任何模块开始下之前）
