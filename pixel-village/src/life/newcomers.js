@@ -5,6 +5,7 @@ import { Villager } from './villager.js';
 import { season } from '../season.js';
 import { EN } from '../i18n.js';
 import { word, registerNewcomerNames } from '../names.js';
+import { PLACES } from '../labels.js';
 
 /*
  * 新来的人（用户在「创建居民」里填的）怎么融进村子：
@@ -220,12 +221,47 @@ export function pickHost(p, V) {
 }
 
 /** 按行当生成一天的日程（和名册里一样的写法：[[钟点, 活动, 参数], …]）。还没认完人的：一整天认人。 */
-export function scheduleFor(job, met = true) {
+export function scheduleFor(job, met = true, far = false) {
   if (!job || !met) return [[6.2, 'meetVillage'], [11.8, 'dinner'], [12.5, 'meetVillage'], [18.4, 'dinner'], [19.0, 'evening'], [20.4, 'home']];
   const w = ['newJob', job.id];
   if (job.id === 'teahouse') return [[6.0, 'yardWork'], [8.0, ...w], [11.8, 'dinner'], [12.5, 'home'], [14.0, ...w], [18.2, 'dinner'], [18.8, ...w], [21.0, 'home']]; // 茶摊：傍晚村口人最多
+  // 干活的地方离住处远（借住在村里、上老村址的山上干活）：中午不回家，就地坐下吃带的干粮（原来一天来回四趟，光走路就三四个钟头）
+  if (far) return [[5.8, 'yardWork'], [6.6, ...w], [11.8, 'packedLunch'], [12.4, ...w], [17.8, 'yardWork'], [18.4, 'dinner'], [19.0, 'evening'], [20.4, 'home']];
   return [[5.8, 'yardWork'], [6.6, ...w], [11.8, 'dinner'], [12.5, 'home'], [13.2, ...w], [17.8, 'yardWork'], [18.4, 'dinner'], [19.0, 'evening'], [20.4, 'home']];
 }
+
+/** 干活的地方大概在哪（上山、下窑、去磨坊这些固定地方的中心）；在自家院里干、上门做活的返回 null。 */
+function workAnchor(V, job) {
+  const O = V.oldSite, mid = (a) => (a?.length ? [a.reduce((s, p) => s + p[0], 0) / a.length, a.reduce((s, p) => s + p[1], 0) / a.length] : null);
+  switch (job.place) {
+    case 'forest': return mid(O?.forest);
+    case 'digs': return mid(O?.digs);
+    case 'beach': return mid(O?.beach);
+    case 'pasture': return mid(O?.pasture);
+    case 'apiary': return mid(O?.apiary);
+    case 'trial': return mid(O?.trial);
+    case 'mine': return O?.mine?.at ?? null;
+    case 'mill': return V.mill?.at ?? null;
+    case 'field': return mid([...(V.fields?.fieldW ?? []), ...(V.fields?.fieldWest ?? []), ...(V.fields?.fieldE ?? [])]); // 帮工：三户的地（村里、西沟坡地）的大致中心
+    default: return null;
+  }
+}
+/** 住处到干活的地方超过 50 米：中午带干粮（见 scheduleFor）。 */
+export function farFromWork(V, p, job) {
+  const a = job && workAnchor(V, job), c = V.C?.[p.home];
+  if (!a || !c) return false;
+  const [x, z] = c.gateOut();
+  return Math.hypot(a[0] - x, a[1] - z) > 50;
+}
+
+/** 带的干粮：在干活的地方就地坐下，端着碗吃，歇一会儿接着干。 */
+ACTIVITIES.packedLunch = (v) => {
+  v.errandText = EN ? 'Eating a packed lunch at work' : '在干活的地方吃带的干粮';
+  v.char.setItem('bowl');
+  v.seat = 0.1;
+  v.loop = () => v.do('sit', 30);
+  v.end = () => { v.seat = null; v.char.setItem(null); };
+};
 
 /**
  * 把一个新人放进村子。p：卡片上填的（name、nick、age、sex、skills、traits、bio、likes、外观……，还有 coins、goods、home、jobId / jobPicked）。
@@ -252,7 +288,7 @@ export function addNewcomer(V, p, { arriving = true } = {}) {
   if (p.jobId && jobById[p.jobId]?.hat && !p.hat) p.hat = jobById[p.jobId].hat; // 养蜂的：没戴帽子的给一顶纱帽
   const job = p.jobId ? jobById[p.jobId] : null;
   p.job = job ? (p.met ? job.name : `新来的（要做${job.name}），在认人`) : '新来的，还没找着活';
-  p.day = scheduleFor(job, p.met);
+  p.day = scheduleFor(job, p.met, farFromWork(V, p, job));
   const v = new Villager(p, V, V.newcomerRand ??= (() => { let s = 99; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })());
   V.people.push(v);
   V.byId[p.id] = v;
@@ -304,7 +340,7 @@ export function setJob(v, id, { why = '', picked = v.p.jobPicked } = {}) {
   v.p.met = true;
   v.p.job = job.name;
   v.p.jobWhy = why;
-  v.p.day = scheduleFor(job);
+  v.p.day = scheduleFor(job, true, farFromWork(v.V, v.p, job));
   const u = v.V.econ.unitOfV(v);
   if (u) { u.since = v.V.econ.day; u.earned = 0; } // 从哪天开张、开张以来挣了多少（档案里看，挣不着钱可以改行）
 }
@@ -362,7 +398,7 @@ ACTIVITIES.newJob = (v, id) => {
     return;
   }
   if (job.place === 'rounds') { rounds(v, job); return; }
-  v.loop = () => { v.go(v.home.randomPoint()); v.do(job.anim, 8); }; // 自家（借住人家 / 老宅）院里
+  v.loop = () => { v.go(v.home.randomPoint()); v.do(job.anim, 20); }; // 自家（借住人家 / 老宅）院里；一处干一阵再挪（原来 8 分钟就换地方，烧炭的一半时间在院里走来走去）
 };
 
 /**
@@ -371,7 +407,7 @@ ACTIVITIES.newJob = (v, id) => {
  */
 function rounds(v, job) {
   const V = v.V, E = V.econ;
-  if (job.id === 'clerk') v.end = () => { v.seat = null; };
+  if (['clerk', 'butcher', 'water'].includes(job.id)) v.end = () => { v.seat = null; }; // 坐着等活、记账的：换别的事时站起来
   v.loop = () => {
     const call = E.nextCall(job.id, v);
     if (!call && job.id === 'clerk') { // 文书话传完了：去村长家院里坐着记账、写告示（原来回自家门口干站一下午）
@@ -381,7 +417,18 @@ function rounds(v, job) {
       if (v.rand() < 0.3) v.do(job.anim, 4); // 起来跟村长家的人说两句
       return;
     }
-    if (!call) { v.char.setItem(job.item); v.errandText = doingText(job.id); v.go(v.home.spot('yard') ?? v.home.gateOut()); v.do('idle', 10); return; }
+    if (!call) { // 今天的活暂时没有：各干各的（原来一律回自家院里干站，一站好几个钟头）
+      v.char.setItem(job.item); v.errandText = doingText(job.id);
+      if (job.id === 'builder') { v.go(v.home.randomPoint()); v.do('work', 20); return; } // 院里和泥、拾掇家伙，备着下回的料
+      if (job.id === 'carer') { // 串门看看老人：家里只剩老人的那几户，站在院门口说会儿话（不收钱）
+        const olds = [...E.units.values()].filter((u) => u.members.length && u.members.every((p) => p.age >= 65) && u !== E.unitOfV(v)).map((u) => V.C[u.members[0].sleepAt ?? u.members[0].home]).filter(Boolean);
+        const c = olds[Math.floor(v.rand() * olds.length)];
+        if (c) { v.errandText = EN ? 'Dropping in on the elders' : `去${PLACES[c.id] ?? '老人家'}看看老人`; v.go(c.gateOut()); v.do('talk', 15, { face: c.gateOut() }); return; }
+      }
+      const [gx, gz] = v.home.gateOut(); // 杀猪的、挑水的：坐在自家门口等人来叫
+      v.go([gx, gz]); v.seat = 0.3; v.do('sit', 20, { face: [gx, gz + 4] }); v.call(() => { v.seat = null; });
+      return;
+    }
     const c = V.C[call.home] ?? V.C.square;
     v.errandText = EN ? `${reasonText(call.service)} at ${call.place.replace(/^The /, 'the ')}` : `去${call.place}${call.service}`;
     if (job.id === 'water') { v.char.setItem('buckets'); v.go(V.well.spot()); v.do('work', 4, { face: V.well.center }); }
@@ -391,15 +438,21 @@ function rounds(v, job) {
   };
 }
 
-/** 茶摊：每过一阵，旁边闲坐、闲聊的人里有一个来喝碗茶（economy.js 的 charge）。life/index.js 每帧调。 */
+/**
+ * 茶摊、烧饼炉子：每过一阵，旁边闲坐、闲聊的人里有一个顺手来喝碗茶 / 买个烧饼（economy.js 的 charge / settle）。life/index.js 每帧调。
+ * 烧饼原来只靠各家专门跑一趟来买（排在购物单最后，常常轮不上），炉子烤了一天几乎卖不出去。
+ */
 export function teaTick(V, h) {
   for (const v of V.people) {
-    if (v.p.jobId !== 'teahouse' || v.doing !== 'newJob' || v.state === 'walk' || v.inside) continue;
+    const tea = v.p.jobId === 'teahouse', bun = v.p.jobId === 'snack';
+    if (!(tea || bun) || v.doing !== 'newJob' || v.state === 'walk' || v.inside) continue;
     if (v.nextTea !== undefined && h < v.nextTea && v.nextTea - h < 2) continue;
-    v.nextTea = h + 0.5 + v.rand() * 0.6;
+    v.nextTea = h + (tea ? 0.5 : 0.6) + v.rand() * 0.6;
     const me = V.econ.unitOfV(v);
-    const near = V.people.filter((o) => o !== v && !o.inside && !o.p.caravan && o.p.body !== 'child' && o.state !== 'walk' && Math.hypot(o.pos.x - v.pos.x, o.pos.z - v.pos.z) < 9 && V.econ.unitOfV(o) !== me);
+    if (bun && (me.stock.bun ?? 0) < 1) continue;
+    const near = V.people.filter((o) => o !== v && !o.inside && !o.p.caravan && o.p.body !== 'child' && o.state !== 'walk' && Math.hypot(o.pos.x - v.pos.x, o.pos.z - v.pos.z) < 9 && V.econ.unitOfV(o) !== me && (!bun || V.econ.unitOfV(o).coins >= 6));
     const o = near[Math.floor(v.rand() * near.length)];
-    if (o) V.econ.charge(V.econ.unitOfV(o), v, 1, '喝茶', o);
+    if (o && tea) V.econ.charge(V.econ.unitOfV(o), v, 1, '喝茶', o);
+    if (o && bun) V.econ.settle(o, me, 'bun', 1, { place: EN ? 'Flatbread stove' : '烧饼炉子' });
   }
 }

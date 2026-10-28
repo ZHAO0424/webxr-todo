@@ -142,9 +142,9 @@ function targetOf(u) {
 
 /**
  * 代销车上卖的：各户自家产的大部分东西。不放的：豆腐（挑子现卖）、药（郎中看了病才给）、农具家什（铺子里现做现修）、
- * 粮食黄豆（量大，去农户家里买）、旧物件良种、烧饼衣裳。每户每样最多摆 CART_MAX 份，家里另留两份（老主顾上门还买得着）。
+ * 粮食黄豆（量大，去农户家里买）、旧物件良种、烧饼（炉子跟前现卖）。裁缝做好的成衣也放（原来只能上门找他做，住得远就没人去）。每户每样最多摆 CART_MAX 份，家里另留两份（老主顾上门还买得着）。
  */
-const CART_GOODS = new Set(['veg', 'egg', 'honey', 'wool', 'basket', 'pickle', 'duckEgg', 'stone', 'lime', 'wood', 'flour', 'fish', 'pork', 'wildfood', 'game', 'coal', 'charcoal']);
+const CART_GOODS = new Set(['veg', 'egg', 'honey', 'wool', 'basket', 'pickle', 'duckEgg', 'stone', 'lime', 'wood', 'flour', 'fish', 'pork', 'wildfood', 'game', 'coal', 'charcoal', 'clothes']);
 const CART_MAX = 4;
 
 /** 开局的家底（铜钱）。 */
@@ -291,7 +291,9 @@ export class Economy {
         if (u.coins >= rent) { u.coins -= rent; host.coins += rent; this.record({ day, hour: 6.5, buyer: p.id, from: u.id, seller: hp.id, to: host.id, good: null, service: '房钱', qty: 1, price: rent, kind: 'cash' }); }
       }
       if (job?.wage && (u.worked ?? 0) >= 3) { // 帮工、文书：昨天干够三个时辰，东家（农户 / 村长家）给工钱，季节有忙闲
-        const boss = job.payer === 'headman' ? this.unit('headman') : this.unit(p.workFor) ?? this.employerFor(), wage = Math.min(Math.round(job.wage * (job.season?.[season()] ?? 1)), boss?.coins ?? 0);
+        const boss = job.payer === 'headman' ? this.unit('headman') : this.unit(p.workFor) ?? this.employerFor();
+        if (job.payer === 'headman' && boss) { const fund = Math.round(job.wage * (job.season?.[season()] ?? 1)); boss.coins += fund; this.flow.in += fund; } // 文书、农技员：乡里按天拨的办公经费（村外的钱），村长家经手发，不掏自家的（原来村长家几天就付空了）
+        const wage = Math.min(Math.round(job.wage * (job.season?.[season()] ?? 1)), boss?.coins ?? 0);
         if (wage > 0) { boss.coins -= wage; u.coins += wage; this.record({ day, hour: 6.4, buyer: boss.members.find(adult)?.id ?? boss.members[0].id, from: boss.id, seller: p.id, to: u.id, good: null, service: '工钱', qty: 1, price: wage, kind: 'cash' }); }
       }
       u.worked = 0;
@@ -473,9 +475,9 @@ export class Economy {
     const festive = ['market', 'opera', 'movie'].includes(this.V.today?.());
     if (!u.members[0]?.newcomer && h('bun') < (festive ? 0.45 : 0.08) + rich * 0.1) w.push({ good: 'bun', qty: 2, why: '赶集、看戏饿了想吃个烧饼' }); // 没人卖：记成缺口（卖吃食的空缺）
     if (h('mill') < 0.12 + rich * 0.1) w.push({ good: 'flour', qty: 3, why: '想吃白面' });
-    for (const p of u.members) { // 新来的人干活要的原料：备够两天的
+    for (const p of u.members) { // 新来的人干活要的原料：备够两天的，排在清单最前头（原来排在油盐青菜后面，一天两趟常轮不上，裁缝几天买不着布、做不出衣裳）
       const job = this.jobs?.[p.jobId];
-      for (const [g, q] of Object.entries(job?.in ?? {})) { const need = Math.ceil(q * job.rate * 8) + this.keep(u, g); if ((st[g] ?? 0) < need) w.push({ good: g, qty: need - Math.floor(st[g] ?? 0) }); }
+      for (const [g, q] of Object.entries(job?.in ?? {})) { const need = Math.ceil(q * job.rate * 8) + this.keep(u, g); if ((st[g] ?? 0) < need) w.unshift({ good: g, qty: need - Math.floor(st[g] ?? 0) }); }
       for (const [g, q] of Object.entries(job?.fuel ?? {})) { const need = Math.ceil(q * job.rate * 6); if ((st[g] ?? 0) < need && [...this.units.values()].some((x) => x !== u && (x.stock[g] ?? 0) >= 1)) w.push({ good: g, qty: need - Math.floor(st[g] ?? 0), why: '烧炭引窑火' }); } // 村里有人挖煤才买
     }
     if (u.members.some((p) => h(`sick/${p.id}`) < 1 / 50)) w.push({ good: 'pill', qty: 2, why: '有人病了' });

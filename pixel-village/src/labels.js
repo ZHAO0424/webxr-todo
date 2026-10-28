@@ -6,7 +6,7 @@ import { EN } from './i18n.js';
 const NAMES = {
   home: '回屋休息', cook: '灶房做饭', work: '劳作', fetchWater: '井边挑水', feedChickens: '喂鸡', feedPigs: '喂猪',
   feedRabbits: '喂兔', yardWork: '洒扫庭院', shopping: '杂货铺采买', visit: '登门拜访', patrol: '巡视村子', chess: '槐树下对弈',
-  dinner: '门口用饭', evening: '晚间闲游',
+  dinner: '门口用饭', evening: '晚间闲游', packedLunch: '吃带的干粮',
   chat: '槐树下闲谈', barber: '照看剃头挑子', haircut: '剃头',
   market: '赶集', 'market:tofu': '集上卖豆腐', 'market:goods': '集上摆杂货摊', 'market:veg': '集上卖菜',
   harvest: '场院打场', 'harvest:ox': '赶牛碾场', movie: '观看露天电影', 'movie:projectionist': '放映电影',
@@ -45,7 +45,7 @@ const NAMES = {
 const NAMES_EN = {
   home: 'Resting at home', cook: 'Cooking in the kitchen', work: 'At work', fetchWater: 'Fetching water at the well', feedChickens: 'Feeding the chickens', feedPigs: 'Feeding the pigs',
   feedRabbits: 'Feeding the rabbits', yardWork: 'Sweeping the yard', shopping: 'Shopping at the store', visit: 'Paying a visit', patrol: 'Walking the village', chess: 'Chess under the locust tree',
-  dinner: 'Supper by the door', evening: 'Evening stroll',
+  dinner: 'Supper by the door', evening: 'Evening stroll', packedLunch: 'Packed lunch',
   chat: 'Chatting under the locust', barber: 'Minding the barber stall', haircut: 'Getting a haircut',
   market: 'At the market', 'market:tofu': 'Selling tofu at market', 'market:goods': 'Running a market stall', 'market:veg': 'Selling veg at market',
   harvest: 'Threshing grain', 'harvest:ox': 'Driving the ox roller', movie: 'Watching the open-air film', 'movie:projectionist': 'Running the projector',

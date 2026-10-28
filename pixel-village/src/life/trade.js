@@ -12,7 +12,7 @@ import { pNick } from '../names.js';
  */
 
 // 放不下的事（和剃头挑子一样）：做饭、上课、放羊、磨豆腐、吃饭、睡觉、在活动上有角色……
-const BUSY = new Set(['riverIncense', 'repair', 'cook', 'school', 'teach', 'herd', 'herdHome', 'thresh', 'oxHome', 'grind', 'boil', 'home', 'dinner', 'sellTofu', 'lightTorches', 'putOutTorches', 'nightWatch', 'gatherDucks', 'deliver', 'haircut', 'barber', 'buy', 'serve', 'caravan', 'caravanHome', 'worship', 'mill', 'firewood', 'fish']);
+const BUSY = new Set(['riverIncense', 'repair', 'cook', 'school', 'teach', 'herd', 'herdHome', 'thresh', 'oxHome', 'grind', 'boil', 'home', 'dinner', 'sellTofu', 'lightTorches', 'putOutTorches', 'nightWatch', 'gatherDucks', 'deliver', 'haircut', 'barber', 'buy', 'serve', 'caravan', 'caravanHome', 'worship', 'mill', 'firewood', 'fish', 'packedLunch']);
 const HEAVY = new Set(['grain', 'wood', 'tool', 'wooden', 'iron', 'soy', 'basket', 'lime', 'stone', 'charcoal', 'seed', 'coal']); // 男人去扛
 const KIDS_OK = new Set(['tofu', 'match', 'salt']); // 打发孩子去买
 const REMOTE = new Set(['lime', 'stone', 'duckEgg', 'coal']); // 只有老村址有的东西
