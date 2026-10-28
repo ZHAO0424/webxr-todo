@@ -326,19 +326,20 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 #newcomer .hub .extra .dim { flex: 1 1 100%; color: var(--gold); }
 
 /* ---------------------------------------------------------------- 我的居民：一页摊开（左 本人 | 中 交情 | 右 勋章、家当） */
-/* 我的居民：整块按窗口大小缩放（1300×820 以上是原大，最小缩到 0.75） */
-#newcomer.wide { --f: clamp(0.7px, min(100vw / 1240, 100vh / 820), 1px); --p: calc(2 * var(--f)); width: min(calc(1200 * var(--f)), 97vw); max-height: 94vh; }
+/* 我的居民：--f 由 newcomer.js 的 fitWide 按窗口取整数倍；字号只用 12（正文）和 16（标题、名字） */
+#newcomer.wide { width: min(calc(1200 * var(--f)), 97vw); max-height: 94vh; }
 #newcomer .hub-d { display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
 #newcomer .mine-d { display: grid; grid-template-columns: calc(224 * var(--f)) minmax(0, 1.1fr) minmax(0, 1fr); gap: calc(3 * var(--p)); align-items: stretch; }
-#newcomer .mine-d > .paper, #newcomer .md-side > .paper { padding: calc(4 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
-#newcomer .mine-d .lbl { color: var(--gold); display: flex; align-items: baseline; gap: calc(2 * var(--p)); }
-#newcomer .mine-d .lbl .count { margin-left: auto; color: var(--dim); font-size: calc(11 * var(--f)); }
+html[lang=en] #newcomer .mine-d { grid-template-columns: calc(260 * var(--f)) minmax(0, 1.1fr) minmax(0, 1fr); }
+#newcomer .mine-d > .paper, #newcomer .md-side > .paper { padding: calc(3 * var(--p)) calc(4 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
+#newcomer .mine-d .lbl { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); color: var(--gold); display: flex; align-items: baseline; gap: calc(2 * var(--p)); }
+#newcomer .mine-d .lbl .count { margin-left: auto; color: var(--dim); font-family: 'PixelZh12', 'Microsoft YaHei', sans-serif; font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); }
 /* 左：本人 */
-#newcomer .md-me .big-p { height: calc(170 * var(--f)); display: grid; place-items: end center; overflow: hidden; background: #e8d6b0; box-shadow: inset 0 0 0 var(--f) var(--ink); }
+#newcomer .md-me .big-p { height: calc(140 * var(--f)); display: grid; place-items: end center; overflow: hidden; background: #e8d6b0; box-shadow: inset 0 0 0 var(--f) var(--ink); }
 #newcomer .md-me .big-p canvas { display: block; max-width: 100%; max-height: 100%; image-rendering: pixelated; }
-#newcomer .md-me .sname b { font-size: calc(20 * var(--f)); line-height: calc(24 * var(--f)); }
+#newcomer .md-me .sname b { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; font-size: calc(32 * var(--f)); line-height: calc(34 * var(--f)); color: var(--gold); }
 #newcomer .md-me .sstat { display: flex; flex-direction: column; align-items: flex-start; gap: var(--p); padding: calc(2 * var(--p)) calc(3 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--line); }
-#newcomer .md-me .sstat .why { font-size: calc(11 * var(--f)); line-height: calc(15 * var(--f)); color: var(--dim); }
+#newcomer .md-me .sstat .why { font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); color: var(--dim); }
 #newcomer .md-me .mnow { display: flex; align-items: center; flex-wrap: wrap; gap: calc(2 * var(--p)); }
 #newcomer .md-me .mnow .dot { width: calc(2 * var(--p)); height: calc(2 * var(--p)); background: var(--green); flex: none; }
 #newcomer .md-me .mnow .dot.rest { background: var(--blue); }
@@ -365,14 +366,15 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 #newcomer .md-ties .tt.lv1 { opacity: .85; }
 #newcomer .md-ties .tt .hd { display: grid; place-items: end center; height: calc(36 * var(--f)); overflow: hidden; }
 #newcomer .md-ties .tt .hd canvas { display: block; image-rendering: pixelated; }
-#newcomer .md-ties .tt .tn { max-width: 100%; padding: 0 calc(1 * var(--f)); font-size: calc(12 * var(--f)); line-height: calc(14 * var(--f)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#newcomer .md-ties .tt .tn { max-width: 100%; padding: 0 calc(1 * var(--f)); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #newcomer .mine-d .th { display: inline-flex; gap: calc(1 * var(--f)); vertical-align: middle; }
 #newcomer .mine-d .th i { width: calc(5 * var(--f)); height: calc(5 * var(--f)); background: #3a3027; box-shadow: 0 0 0 var(--f) var(--ink); }
 #newcomer .mine-d .th i.on { background: #d0564a; }
-#newcomer .md-ties .more { grid-column: 1 / -1; font-size: calc(11 * var(--f)); }
-#newcomer .md-ties .legend { margin-top: var(--p); font-size: calc(10 * var(--f)); line-height: calc(14 * var(--f)); }
+#newcomer .md-ties .more { grid-column: 1 / -1; font-size: calc(12 * var(--f)); }
+#newcomer .md-ties .legend { margin-top: var(--p); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); }
 /* 右：勋章、家当 */
 #newcomer .md-side { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
+#newcomer .md-side > .md-econ { flex: 1; }
 #newcomer .md-badges .mbs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(2 * var(--p)) calc(3 * var(--p)); }
 #newcomer .md-badges .mbg { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; align-items: center; column-gap: calc(3 * var(--p)); row-gap: calc(1 * var(--f)); color: var(--dim); min-width: 0; }
 #newcomer .md-badges .mbg .md { grid-row: span 2; width: calc(28 * var(--f)); height: calc(28 * var(--f)); line-height: calc(28 * var(--f)); font-size: calc(16 * var(--f)); box-shadow: 0 0 0 var(--f) var(--ink); text-align: center; border-radius: 50%; background: #3a3027; color: #6a5c48; }
@@ -380,32 +382,32 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 #newcomer .md-badges .mbg.got.t1 .md { background: radial-gradient(circle at 35% 35%, #e6a86a, #a8642e); color: #fff0d8; }
 #newcomer .md-badges .mbg.got.t2 .md { background: radial-gradient(circle at 35% 35%, #f0f0f4, #9aa0ae); color: #fff; }
 #newcomer .md-badges .mbg.got.t3 .md { background: radial-gradient(circle at 35% 35%, #ffe88a, #c8901e); color: #fff6d0; }
-#newcomer .md-badges .mbg .bn { font-size: calc(14 * var(--f)); line-height: calc(16 * var(--f)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#newcomer .md-badges .mbg .bd { font-size: calc(11 * var(--f)); line-height: calc(13 * var(--f)); color: var(--dim); }
+#newcomer .md-badges .mbg .bn { font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(18 * var(--f)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#newcomer .md-badges .mbg .bd { font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); color: var(--dim); }
 #newcomer .md-badges .mbg .bp { width: 80%; height: calc(5 * var(--f)); background: #3a3027; box-shadow: 0 0 0 var(--f) var(--ink); }
 #newcomer .md-badges .mbg .bp i { display: block; height: 100%; background: var(--gold); }
 #newcomer .md-econ .stk { display: flex; flex-wrap: wrap; gap: var(--p); }
-#newcomer .md-econ .stk .chip { padding: 0 calc(2 * var(--p)); line-height: calc(16 * var(--f)); font-size: calc(11 * var(--f)); }
-#newcomer .md-econ .owe { color: var(--gold); font-size: calc(11 * var(--f)); }
-#newcomer .md-econ .logs { display: flex; flex-direction: column; gap: calc(2 * var(--f)); font-size: calc(11 * var(--f)); line-height: calc(15 * var(--f)); color: var(--dim); }
-/* 中下：一天；右下：背景故事 */
+#newcomer .md-econ .stk .chip { padding: 0 calc(2 * var(--p)); line-height: calc(16 * var(--f)); font-size: calc(12 * var(--f)); }
+#newcomer .md-econ .owe { color: var(--gold); font-size: calc(12 * var(--f)); }
+#newcomer .md-econ .logs { display: flex; flex-direction: column; gap: calc(2 * var(--f)); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); color: var(--dim); }
+/* 中下：一天；左栏钱下面：背景故事 */
 #newcomer .md-mid { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
-#newcomer .md-mid > .paper { padding: calc(4 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
+#newcomer .md-mid > .paper { padding: calc(3 * var(--p)) calc(4 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
 #newcomer .md-mid > .md-ties { flex: 1; }
 #newcomer .md-day .tl { position: relative; height: calc(8 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--ink); margin-top: var(--p); }
 #newcomer .md-day .tl .sg { position: absolute; top: 0; bottom: 0; box-shadow: inset calc(-1 * var(--f)) 0 0 rgba(0, 0, 0, .35); }
 #newcomer .md-day .tl .now-line { position: absolute; top: calc(-2 * var(--p)); bottom: calc(-2 * var(--p)); width: var(--p); margin-left: calc(-0.5 * var(--p)); background: var(--gold); box-shadow: 0 0 0 var(--f) var(--ink); }
-#newcomer .md-day .ticks { position: relative; height: calc(14 * var(--f)); color: var(--dim); font-size: calc(11 * var(--f)); }
+#newcomer .md-day .ticks { position: relative; height: calc(14 * var(--f)); color: var(--dim); font-size: calc(12 * var(--f)); }
 #newcomer .md-day .ticks span { position: absolute; transform: translateX(-50%); }
-#newcomer .md-day .bars { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(70 * var(--p)), 1fr)); gap: var(--f) calc(4 * var(--p)); font-size: calc(11 * var(--f)); }
-#newcomer .md-day .bar { display: grid; grid-template-columns: calc(24 * var(--p)) 1fr auto; align-items: center; gap: calc(2 * var(--p)); }
-html[lang=en] #newcomer .md-day .bar { grid-template-columns: calc(32 * var(--p)) 1fr auto; }
+#newcomer .md-day .bars { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(54 * var(--p)), 1fr)); gap: var(--f) calc(4 * var(--p)); font-size: calc(12 * var(--f)); }
+#newcomer .md-day .bar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: calc(2 * var(--p)); }
 #newcomer .md-day .bar .bn i { display: inline-block; width: calc(2 * var(--p)); height: calc(2 * var(--p)); margin-right: var(--p); }
 #newcomer .md-day .bar .bt { height: calc(3 * var(--p)); background: #17120d; }
 #newcomer .md-day .bar .bt i { display: block; height: 100%; }
 #newcomer .md-day .bar .bh { color: var(--dim); }
-#newcomer .md-story .story { margin: 0; font-size: calc(12 * var(--f)); line-height: calc(17 * var(--f)); }
-#newcomer .md-story .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--f) calc(3 * var(--p)); font-size: calc(11 * var(--f)); line-height: calc(15 * var(--f)); }
-#newcomer .md-story .kv b { color: var(--dim); font-weight: normal; }
+#newcomer .md-me .mstory { display: flex; flex-direction: column; gap: var(--p); padding-top: calc(2 * var(--p)); border-top: var(--f) solid var(--line); }
+#newcomer .md-me .mstory .story { margin: 0; font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); }
+#newcomer .md-me .mstory .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--f) calc(3 * var(--p)); font-size: calc(12 * var(--f)); line-height: calc(16 * var(--f)); }
+#newcomer .md-me .mstory .kv b { color: var(--dim); text-shadow: none; }
 @media (max-width: 900px) { #newcomer .mine-d { grid-template-columns: minmax(0, 1fr); } }
 #newcomer .hint:empty { display: none; }
