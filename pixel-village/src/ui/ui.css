@@ -327,14 +327,14 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 
 /* ---------------------------------------------------------------- 我的居民：一页摊开（左 本人 | 中 交情 | 右 勋章、家当） */
 /* 我的居民：整块按窗口大小缩放（1300×820 以上是原大，最小缩到 0.75） */
-#newcomer.wide { --f: clamp(0.75px, min(100vw / 1240, 100vh / 760), 1px); --p: calc(2 * var(--f)); width: min(calc(1080 * var(--f)), 96vw); max-height: 94vh; }
+#newcomer.wide { --f: clamp(0.7px, min(100vw / 1240, 100vh / 820), 1px); --p: calc(2 * var(--f)); width: min(calc(1200 * var(--f)), 97vw); max-height: 94vh; }
 #newcomer .hub-d { display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
-#newcomer .mine-d { display: grid; grid-template-columns: calc(214 * var(--f)) minmax(0, 1fr) minmax(0, 1.15fr); gap: calc(3 * var(--p)); align-items: stretch; }
+#newcomer .mine-d { display: grid; grid-template-columns: calc(224 * var(--f)) minmax(0, 1.1fr) minmax(0, 1fr); gap: calc(3 * var(--p)); align-items: stretch; }
 #newcomer .mine-d > .paper, #newcomer .md-side > .paper { padding: calc(4 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
 #newcomer .mine-d .lbl { color: var(--gold); display: flex; align-items: baseline; gap: calc(2 * var(--p)); }
 #newcomer .mine-d .lbl .count { margin-left: auto; color: var(--dim); font-size: calc(11 * var(--f)); }
 /* 左：本人 */
-#newcomer .md-me .big-p { height: calc(150 * var(--f)); display: grid; place-items: end center; overflow: hidden; background: #e8d6b0; box-shadow: inset 0 0 0 var(--f) var(--ink); }
+#newcomer .md-me .big-p { height: calc(170 * var(--f)); display: grid; place-items: end center; overflow: hidden; background: #e8d6b0; box-shadow: inset 0 0 0 var(--f) var(--ink); }
 #newcomer .md-me .big-p canvas { display: block; max-width: 100%; max-height: 100%; image-rendering: pixelated; }
 #newcomer .md-me .sname b { font-size: calc(20 * var(--f)); line-height: calc(24 * var(--f)); }
 #newcomer .md-me .sstat { display: flex; flex-direction: column; align-items: flex-start; gap: var(--p); padding: calc(2 * var(--p)) calc(3 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--line); }
@@ -353,24 +353,24 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 #newcomer .md-me .leave .ask { color: var(--gold); flex: 1 1 100%; text-align: right; }
 #newcomer .md-solo { display: grid; grid-template-columns: calc(260 * var(--f)); justify-content: center; }
 /* 中：交情（头像分三档） */
-#newcomer .md-ties .tgrp { display: flex; flex-direction: column; gap: var(--p); }
+#newcomer .md-ties .tgrp { display: flex; flex-direction: column; gap: calc(1 * var(--f)); }
 #newcomer .md-ties .tgh { display: flex; align-items: baseline; gap: calc(2 * var(--p)); }
 #newcomer .md-ties .tgrp.lv3 .tgh b { color: var(--gold); }
 #newcomer .md-ties .tgrp.lv2 .tgh b { color: #9fd68a; }
 #newcomer .md-ties .tgrp.lv1 .tgh b { color: var(--dim); }
-#newcomer .md-ties .tgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(44 * var(--f)), 1fr)); gap: var(--p) calc(1 * var(--f)); align-items: start; }
+#newcomer .md-ties .tgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(50 * var(--f)), 1fr)); gap: calc(2 * var(--f)) 0; align-items: start; }
 #newcomer .md-ties .tt { display: flex; flex-direction: column; align-items: center; gap: calc(1 * var(--f)); min-width: 0; } /* 不加框：档次看名字颜色 */
 #newcomer .md-ties .tt.lv3 .tn { color: var(--gold); }
 #newcomer .md-ties .tt.lv2 .tn { color: #9fd68a; }
 #newcomer .md-ties .tt.lv1 { opacity: .85; }
-#newcomer .md-ties .tt .hd { display: grid; place-items: end center; height: calc(28 * var(--f)); overflow: hidden; }
+#newcomer .md-ties .tt .hd { display: grid; place-items: end center; height: calc(36 * var(--f)); overflow: hidden; }
 #newcomer .md-ties .tt .hd canvas { display: block; image-rendering: pixelated; }
-#newcomer .md-ties .tt .tn { max-width: 100%; padding: 0 calc(1 * var(--f)); font-size: calc(10 * var(--f)); line-height: calc(12 * var(--f)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#newcomer .md-ties .tt .tn { max-width: 100%; padding: 0 calc(1 * var(--f)); font-size: calc(12 * var(--f)); line-height: calc(14 * var(--f)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #newcomer .mine-d .th { display: inline-flex; gap: calc(1 * var(--f)); vertical-align: middle; }
 #newcomer .mine-d .th i { width: calc(5 * var(--f)); height: calc(5 * var(--f)); background: #3a3027; box-shadow: 0 0 0 var(--f) var(--ink); }
 #newcomer .mine-d .th i.on { background: #d0564a; }
 #newcomer .md-ties .more { grid-column: 1 / -1; font-size: calc(11 * var(--f)); }
-#newcomer .md-ties .legend { margin-top: auto; font-size: calc(10 * var(--f)); line-height: calc(14 * var(--f)); }
+#newcomer .md-ties .legend { margin-top: var(--p); font-size: calc(10 * var(--f)); line-height: calc(14 * var(--f)); }
 /* 右：勋章、家当 */
 #newcomer .md-side { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
 #newcomer .md-badges .mbs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(2 * var(--p)) calc(3 * var(--p)); }
@@ -388,5 +388,24 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 #newcomer .md-econ .stk .chip { padding: 0 calc(2 * var(--p)); line-height: calc(16 * var(--f)); font-size: calc(11 * var(--f)); }
 #newcomer .md-econ .owe { color: var(--gold); font-size: calc(11 * var(--f)); }
 #newcomer .md-econ .logs { display: flex; flex-direction: column; gap: calc(2 * var(--f)); font-size: calc(11 * var(--f)); line-height: calc(15 * var(--f)); color: var(--dim); }
+/* 中下：一天；右下：背景故事 */
+#newcomer .md-mid { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
+#newcomer .md-mid > .paper { padding: calc(4 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
+#newcomer .md-mid > .md-ties { flex: 1; }
+#newcomer .md-day .tl { position: relative; height: calc(8 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--ink); margin-top: var(--p); }
+#newcomer .md-day .tl .sg { position: absolute; top: 0; bottom: 0; box-shadow: inset calc(-1 * var(--f)) 0 0 rgba(0, 0, 0, .35); }
+#newcomer .md-day .tl .now-line { position: absolute; top: calc(-2 * var(--p)); bottom: calc(-2 * var(--p)); width: var(--p); margin-left: calc(-0.5 * var(--p)); background: var(--gold); box-shadow: 0 0 0 var(--f) var(--ink); }
+#newcomer .md-day .ticks { position: relative; height: calc(14 * var(--f)); color: var(--dim); font-size: calc(11 * var(--f)); }
+#newcomer .md-day .ticks span { position: absolute; transform: translateX(-50%); }
+#newcomer .md-day .bars { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(70 * var(--p)), 1fr)); gap: var(--f) calc(4 * var(--p)); font-size: calc(11 * var(--f)); }
+#newcomer .md-day .bar { display: grid; grid-template-columns: calc(24 * var(--p)) 1fr auto; align-items: center; gap: calc(2 * var(--p)); }
+html[lang=en] #newcomer .md-day .bar { grid-template-columns: calc(32 * var(--p)) 1fr auto; }
+#newcomer .md-day .bar .bn i { display: inline-block; width: calc(2 * var(--p)); height: calc(2 * var(--p)); margin-right: var(--p); }
+#newcomer .md-day .bar .bt { height: calc(3 * var(--p)); background: #17120d; }
+#newcomer .md-day .bar .bt i { display: block; height: 100%; }
+#newcomer .md-day .bar .bh { color: var(--dim); }
+#newcomer .md-story .story { margin: 0; font-size: calc(12 * var(--f)); line-height: calc(17 * var(--f)); }
+#newcomer .md-story .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--f) calc(3 * var(--p)); font-size: calc(11 * var(--f)); line-height: calc(15 * var(--f)); }
+#newcomer .md-story .kv b { color: var(--dim); font-weight: normal; }
 @media (max-width: 900px) { #newcomer .mine-d { grid-template-columns: minmax(0, 1fr); } }
 #newcomer .hint:empty { display: none; }

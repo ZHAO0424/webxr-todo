@@ -646,7 +646,7 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
     if (v.p.newcomer) checkBadges(V, v, HOUSEHOLDS);
     const ties = V.people.filter((o) => o !== v && !o.gone && !o.p.caravan).map((o) => ({ p: o.p, tie: ECON.tie(v.p.id, o.p.id), home: PLACES[o.p.home] ?? '' })).filter((x) => x.tie >= 1).sort((a, b) => b.tie - a.tie);
     const u = ECON.unitOfV(v);
-    return { now: personStatus(v), econ: econOf(id), badges: badgeProgress(V, v, HOUSEHOLDS), ties, people: V.people.filter((o) => o !== v && !o.gone && !o.p.caravan).length, coins: Math.round(u?.coins ?? 0), earned: Math.round(v.p.stats?.earned ?? 0), home: (v.p.oldHouse ? pHousehold(v.p, HOUSEHOLDS) : PLACES[v.p.home]) ?? pHousehold(v.p, HOUSEHOLDS), day: ECON.day, since: v.p.stats?.since };
+    return { now: personStatus(v), econ: econOf(id), badges: badgeProgress(V, v, HOUSEHOLDS), ties, people: V.people.filter((o) => o !== v && !o.gone && !o.p.caravan).length, coins: Math.round(u?.coins ?? 0), earned: Math.round(v.p.stats?.earned ?? 0), home: (v.p.oldHouse ? pHousehold(v.p, HOUSEHOLDS) : PLACES[v.p.home]) ?? pHousehold(v.p, HOUSEHOLDS), day: ECON.day, since: v.p.stats?.since, sched: v.p.day ?? [], hour: village.life.clock.hour };
   },
   econ: () => ECON,
   homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? hhName(h), n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头

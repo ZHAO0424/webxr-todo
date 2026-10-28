@@ -73,7 +73,7 @@ export function head(p, k) {
 const nowHTML = (s) => `<span class="dot ${s?.kind ?? 'sleep'}"></span><span class="what">${esc(s?.doing ?? '')}</span>${s?.where ? `<span class="loc"><i class="pin"></i>${esc(s.where)}</span>` : ''}`;
 
 /** 一天：时间条（每段一种颜色，悬停看几点、干什么）+ 刻度 + 此刻的竖线，下面各类一共几个钟头的柱条。 */
-function dayHTML(day) {
+export function dayHTML(day, hour) { // hour：给了就把「此刻」竖线画在那儿（档案里是另外按钟点挪的）
   const segs = [];
   const items = [[0, 'home'], ...day.filter(([t]) => t < DAY1)];
   items.forEach(([t, a, arg], i) => {
@@ -85,7 +85,7 @@ function dayHTML(day) {
   for (const s of segs) sum[s.kind] += s.t1 - s.t0;
   const max = Math.max(...Object.values(sum));
   const color = (k) => KINDS.find((x) => x.k === k).color;
-  return `<div class="tl">${segs.map((s) => `<span class="sg" style="left:${pct(s.t0)}%;width:${pct(s.t1) - pct(s.t0)}%;background:${color(s.kind)}" title="${hm(s.t0)}–${hm(s.t1)} ${esc(actLabel(s.a, s.arg))}"></span>`).join('')}<span class="now-line"></span></div>
+  return `<div class="tl">${segs.map((s) => `<span class="sg" style="left:${pct(s.t0)}%;width:${pct(s.t1) - pct(s.t0)}%;background:${color(s.kind)}" title="${hm(s.t0)}–${hm(s.t1)} ${esc(actLabel(s.a, s.arg))}"></span>`).join('')}<span class="now-line"${hour === undefined ? '' : hour < DAY0 || hour > DAY1 ? ' hidden' : ` style="left:${pct(hour)}%"`}></span></div>
     <div class="ticks">${[6, 9, 12, 15, 18, 21].map((h) => `<span style="left:${pct(h)}%">${h}</span>`).join('')}</div>
     <div class="bars">${KINDS.filter(({ k }) => sum[k] > 0).map(({ k, name }) => `<div class="bar"><span class="bn"><i style="background:${color(k)}"></i>${name}</span><span class="bt"><i style="width:${(sum[k] / max) * 100}%;background:${color(k)}"></i></span><span class="bh">${sum[k].toFixed(1)}${tr(' 时', 'h')}</span></div>`).join('')}</div>`;
 }

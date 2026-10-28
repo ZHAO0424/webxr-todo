@@ -8,8 +8,8 @@ import { GOODS } from '../life/economy.js';
 import { PARTS, GROUPS, SKILLS, TRAITS, BRING } from '../residentSchema.js';
 import { issueUrl, markSent, STATUS } from '../mine.js';
 import { EN, tr } from '../i18n.js';
-import { word, pName, pNick, pJob } from '../names.js';
-import { head } from './roster.js';
+import { word, pName, pNick, pJob, pStory, pLikes, pSkills, pTraits } from '../names.js';
+import { head, dayHTML } from './roster.js';
 
 /*
  * 「我的居民」+「创建居民」：屏幕当中一张游戏里那样的弹窗（后面的沙盘压暗）。
@@ -368,10 +368,14 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     const e = d.econ;
     const side = `<div class="md-side"><div class="paper md-badges"><div class="lbl">${tr('勋章', 'Medals')}<span class="count">${got}/${d.badges.length}</span></div><div class="mbs">${[...d.badges].sort((a, b) => (b.got ? 1 : 0) - (a.got ? 1 : 0)).map(medal).join('')}</div></div>
         ${e ? `<div class="paper md-econ"><div class="lbl">${tr('家当和账', 'Goods & accounts')}</div>
-          <div class="stk">${e.stock.slice(0, 10).map(([n, q, unit]) => `<span class="chip">${esc(n)} ${q}${esc(unit)}</span>`).join('') || `<span class="dim">${tr('家里没什么存货', 'Nothing in store')}</span>`}</div>
+          <div class="stk">${e.stock.slice(0, 16).map(([n, q, unit]) => `<span class="chip">${esc(n)} ${q}${esc(unit)}</span>`).join('') || `<span class="dim">${tr('家里没什么存货', 'Nothing in store')}</span>`}</div>
           ${e.owe.length ? `<div class="owe">${e.owe.map((x) => `<div>${esc(x)}</div>`).join('')}</div>` : ''}
-          <div class="logs">${e.log.slice(0, 5).map((x) => `<div>${esc(x)}</div>`).join('') || `<div class="dim">${tr('今天还没做成买卖', 'No trades yet')}</div>`}</div></div>` : ''}</div>`;
-    return left + ties + side;
+          <div class="logs">${e.log.slice(0, 8).map((x) => `<div>${esc(x)}</div>`).join('') || `<div class="dim">${tr('今天还没做成买卖', 'No trades yet')}</div>`}</div></div>` : ''}
+        <div class="paper md-story"><div class="lbl">${tr('背景故事', 'Story')}</div><p class="story">${esc(pStory(p))}</p>
+          <div class="kv"><b>${tr('性格', 'Traits')}</b><span>${esc(pTraits(p).join(tr('、', ', ')) || '——')}</span><b>${tr('手艺', 'Skills')}</b><span>${esc(pSkills(p).join(tr('、', ', ')) || '——')}</span><b>${tr('喜欢', 'Likes')}</b><span>${esc(pLikes(p))}</span></div></div></div>`;
+    // 中下：一天（和档案里同一条时间条）
+    const day = d.sched?.length ? `<div class="paper md-day"><div class="lbl">${tr('一天', 'A day')}<span class="count">${EN ? `${d.sched.length} activities` : `${d.sched.length} 项安排`}</span></div>${dayHTML(d.sched, d.hour)}</div>` : '';
+    return `${left}<div class="md-mid">${ties}${day}</div>${side}`;
   };
   const mineCards = () => {
     const box = q('.mcards'), list = residents();
@@ -391,8 +395,8 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     } else {
       stage.className = 'mine-d';
       stage.innerHTML = mineDetail(r);
-      draw(stage.querySelector('.big-p .v'), r.p, 'front', 146);
-      stage.querySelectorAll('.tt[data-pid]').forEach((t) => { const o = RESIDENTS.find((x) => x.id === t.dataset.pid); if (o) t.querySelector('.hd').append(head(o, 1.5)); });
+      draw(stage.querySelector('.big-p .v'), r.p, 'front', 164);
+      stage.querySelectorAll('.tt[data-pid]').forEach((t) => { const o = RESIDENTS.find((x) => x.id === t.dataset.pid); if (o) t.querySelector('.hd').append(head(o, 2)); });
       stage.dataset.id = r.p.id;
     }
     if (list.length > SLOTS) { // 旧版能建好几个：现在只能留一个，让玩家挑出多余的删掉
