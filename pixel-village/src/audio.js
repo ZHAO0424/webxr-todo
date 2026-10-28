@@ -161,7 +161,7 @@ export function createSound(village, getCamera) {
     const near = (pos, r) => pos && dist(pos) < r;
 
     // 下雨天才有雨声（风声、溪水这类一直响的噪声底子听着像收音机杂音，去掉了）
-    rain.gain.setTargetAtTime(weather === 'rain' && !is('winter') ? 0.14 : 0, now, 1); // 冬天下的是雪，没有雨声
+    rain.gain.setTargetAtTime(weather === 'rain' && !is('winter') ? 0.056 : 0, now, 1); // 冬天下的是雪，没有雨声；原来 0.14，用户嫌吵，小六成
 
     // 时不时：白天鸟叫、夜里蛐蛐（在听者周围随机一处）
     const around = () => [lp.x + (Math.random() - 0.5) * 50, lp.y - 20, lp.z + (Math.random() - 0.5) * 50];

@@ -156,13 +156,13 @@ export function lightShafts(parent, material, shafts) {
   return g;
 }
 
-/** 雨丝的贴图：一道细线，上头透明、往下越来越实，最下面一点最亮（落下来的那滴水，拖着一条淡尾巴）。 */
+/** 雨丝的贴图：一道细线，上端实、往下越来越透明（用户定的：下端透明）。 */
 function rainStreak() {
   const c = document.createElement('canvas');
   c.width = 4; c.height = 32;
   const g = c.getContext('2d');
-  for (let y = 0; y < 32; y++) { g.fillStyle = `rgba(214,228,246,${((y / 31) ** 1.6 * 0.85).toFixed(3)})`; g.fillRect(1, y, 2, 1); }
-  g.fillStyle = 'rgba(240,248,255,1)'; g.fillRect(1, 29, 2, 3);
+  for (let y = 0; y < 32; y++) { g.fillStyle = `rgba(214,228,246,${(((31 - y) / 31) ** 1.6 * 0.85).toFixed(3)})`; g.fillRect(1, y, 2, 1); }
+  g.fillStyle = 'rgba(240,248,255,1)'; g.fillRect(1, 0, 2, 3);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
@@ -186,7 +186,7 @@ function crossQuad(w, h) {
 }
 
 /**
- * 下雨（照「我的世界」的雨）：雨丝是半透明的细线，上头淡、下头实（看着像拖着尾巴落下来），长短、深浅不一（分两层：近处实一点、远处淡一点），
+ * 下雨（照「我的世界」的雨）：雨丝是半透明的细线，上端实、下端透明，顺着下落方向歪（下端往东），长短、深浅不一（分两层：近处实一点、远处淡一点），
  * 落到地上溅起一小朵水花，一闪就没。斜着一点（风往东吹）。夜里雨丝跟着暗下去。
  * 冬天下雪：一片片小方块慢慢飘，左右晃（雪还是原来的样子）。
  * 原来的雨是一根根实心的小方块，又亮又硬，像一排排像素棍子。
