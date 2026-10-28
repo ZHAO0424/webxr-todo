@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { R } from './palette.js';
 import { is } from './season.js';
 import { TPU, snap, makeRng, paint, toTexture, flat } from './pixel.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // 氛围层：炊烟、萤火虫、斜光束。都在沙盘的格坐标里，位置吸附像素网格。
 
@@ -155,9 +156,40 @@ export function lightShafts(parent, material, shafts) {
   return g;
 }
 
+/** 雨丝的贴图：一道细线，上头透明、往下越来越实，最下面一点最亮（落下来的那滴水，拖着一条淡尾巴）。 */
+function rainStreak() {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 32;
+  const g = c.getContext('2d');
+  for (let y = 0; y < 32; y++) { g.fillStyle = `rgba(214,228,246,${((y / 31) ** 1.6 * 0.85).toFixed(3)})`; g.fillRect(1, y, 2, 1); }
+  g.fillStyle = 'rgba(240,248,255,1)'; g.fillRect(1, 29, 2, 3);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/** 水花的贴图：中间一小点，两边各甩出去一滴（溅起来那一下）。 */
+function splashArt() {
+  const c = document.createElement('canvas');
+  c.width = 8; c.height = 8;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(226,238,252,0.9)';
+  for (const [x, y, w, h] of [[3, 6, 2, 2], [1, 3, 1, 2], [6, 3, 1, 2], [2, 5, 1, 1], [5, 5, 1, 1], [3, 2, 1, 1]]) g.fillRect(x, y, w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter;
+  return t;
+}
+/** 两片竖着十字交叉的面（从哪个方向看都不是一条缝），底边在原点。 */
+function crossQuad(w, h) {
+  const a = new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0), b = a.clone().rotateY(Math.PI / 2);
+  return mergeGeometries([a, b]);
+}
+
 /**
- * 小雨：三千根雨丝在村子上空落下，落到地面高度就回到顶上；斜着一点（风），淡蓝灰。
- * 每根是一个细长小方块（宽一个场景像素）——WebGL 的线只有一个屏幕像素宽，缩成沙盘后看不见。
+ * 下雨（照「我的世界」的雨）：雨丝是半透明的细线，上头淡、下头实（看着像拖着尾巴落下来），长短、深浅不一（分两层：近处实一点、远处淡一点），
+ * 落到地上溅起一小朵水花，一闪就没。斜着一点（风往东吹）。夜里雨丝跟着暗下去。
+ * 冬天下雪：一片片小方块慢慢飘，左右晃（雪还是原来的样子）。
+ * 原来的雨是一根根实心的小方块，又亮又硬，像一排排像素棍子。
  */
 export class Rain {
   constructor(parent, bounds, groundAt, count = 3000, seed = 11) {
@@ -165,30 +197,59 @@ export class Rain {
     this.groundAt = groundAt;
     this.snow = is('winter'); // 冬天下的是雪：一片片慢慢飘，左右晃
     if (this.snow) count = Math.round(count * 0.6);
-    this.drops = Array.from({ length: count }, () => { const x = bounds.x0 + r() * (bounds.x1 - bounds.x0), z = bounds.z0 + r() * (bounds.z1 - bounds.z0); return { x, z, y: groundAt(x, z) + r() * 9, v: this.snow ? 0.7 + r() * 0.6 : 7 + r() * 3, top: 7 + r() * 3, ph: r() * 6 }; });
-    const w = 1 / TPU;
-    const geo = this.snow ? new THREE.BoxGeometry(w * 2, w * 2, w * 2) : new THREE.BoxGeometry(w, 0.5, w);
-    this.object = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: this.snow ? '#f4f0f4' : '#c4d0e4', transparent: true, opacity: this.snow ? 0.9 : 0.65, depthWrite: false }), count);
-    this.object.frustumCulled = false;
-    this.object.userData.dynamic = true;
-    this.object.visible = false;
+    this.drops = Array.from({ length: count }, () => { const x = bounds.x0 + r() * (bounds.x1 - bounds.x0), z = bounds.z0 + r() * (bounds.z1 - bounds.z0); return { x, z, y: groundAt(x, z) + r() * 9, v: this.snow ? 0.7 + r() * 0.6 : 8 + r() * 4, top: 7 + r() * 3, ph: r() * 6, len: 0.7 + r() * 0.6 }; });
     this.m = new THREE.Matrix4();
     this.q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -0.1));
     this.s = new THREE.Vector3(1, 1, 1);
     this.p = new THREE.Vector3();
+    this.object = new THREE.Group();
+    this.object.userData.dynamic = true;
+    this.object.visible = false;
     parent.add(this.object);
+    const inst = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; m.userData.dynamic = true; this.object.add(m); return m; };
+    if (this.snow) {
+      const w = 2 / TPU;
+      this.layers = [inst(new THREE.BoxGeometry(w, w, w), new THREE.MeshBasicMaterial({ color: '#f4f0f4', transparent: true, opacity: 0.9, depthWrite: false }), count)];
+      this.drops.forEach((d, i) => { d.layer = 0; d.slot = i; });
+      return;
+    }
+    // 雨丝分两层：一半实一点、一半淡一点（同一层一个材质，透明度不同）
+    const streak = rainStreak(), geo = crossQuad(3 / TPU, 1);
+    const mats = [0.75, 0.42].map((o) => new THREE.MeshBasicMaterial({ map: streak, color: '#ffffff', transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide }));
+    const half = Math.ceil(count / 2);
+    this.layers = [inst(geo, mats[0], half), inst(geo, mats[1], count - half)];
+    this.drops.forEach((d, i) => { d.layer = i < half ? 0 : 1; d.slot = i < half ? i : i - half; });
+    // 水花：一个池子轮着用，每朵亮 0.2 秒、越来越扁地消失
+    this.splashes = Array.from({ length: 360 }, () => ({ t: 1, x: 0, y: -999, z: 0 }));
+    this.next = 0;
+    this.splash = inst(crossQuad(5 / TPU, 5 / TPU), new THREE.MeshBasicMaterial({ map: splashArt(), color: '#ffffff', transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide, alphaTest: 0.05 }), this.splashes.length);
+    this.tint = [...mats, this.splash.material];
   }
 
-  update(dt, on) {
+  update(dt, on, night = 0) {
     this.object.visible = on;
     if (!on) return;
-    this.drops.forEach((d, i) => {
+    if (this.tint) { const k = 1 - 0.6 * night; for (const m of this.tint) m.color.setRGB(k, k, k * 1.05); } // 夜里雨丝暗下去，不发光
+    const wind = this.snow ? 0.3 : 1.2;
+    this.drops.forEach((d) => {
       d.y -= d.v * dt;
-      d.x += (this.snow ? 0.3 + Math.sin(d.y * 1.7 + d.ph) * 0.5 : 1.2) * dt; // 风往东吹一点；雪花左右飘
+      d.x += (this.snow ? 0.3 + Math.sin(d.y * 1.7 + d.ph) * 0.5 : wind) * dt; // 风往东吹一点；雪花左右飘
       const g = this.groundAt(d.x, d.z);
-      if (d.y < g) { d.y = g + d.top; d.x -= (this.snow ? 0.3 : 1.2) * (d.top / d.v); } // 落地了回到上面（只在地面以上几米落，雨丝才密）
-      this.object.setMatrixAt(i, this.m.compose(this.p.set(d.x, d.y, d.z), this.q, this.s));
+      if (d.y < g) {
+        if (this.splashes && (d.slot & 1)) { const s = this.splashes[this.next]; this.next = (this.next + 1) % this.splashes.length; s.t = 0; s.x = d.x; s.y = g; s.z = d.z; } // 一半的雨点溅个水花
+        d.y = g + d.top; d.x -= wind * (d.top / d.v); // 落地了回到上面（只在地面以上几米落，雨丝才密）
+      }
+      if (!this.snow) this.s.set(1, d.len, 1);
+      this.layers[d.layer].setMatrixAt(d.slot, this.m.compose(this.p.set(d.x, Math.max(d.y, g), d.z), this.q, this.s));
     });
-    this.object.instanceMatrix.needsUpdate = true;
+    for (const l of this.layers) l.instanceMatrix.needsUpdate = true;
+    if (!this.splashes) return;
+    this.splashes.forEach((s, i) => {
+      s.t += dt / 0.2;
+      const k = s.t < 1 ? 1 - s.t * s.t : 0; // 溅起来马上最大，越来越扁、越来越小
+      this.splash.setMatrixAt(i, this.m.compose(this.p.set(s.x, s.y + 0.02, s.z), this.q.identity(), this.s.set(0.6 + 0.4 * k, k, 0.6 + 0.4 * k)));
+    });
+    this.q.setFromEuler(new THREE.Euler(0, 0, -0.1));
+    this.splash.instanceMatrix.needsUpdate = true;
   }
 }

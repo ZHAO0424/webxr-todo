@@ -840,7 +840,7 @@ export function buildWest(M) {
       incense.update(dt, hour >= litAt && hour < litAt + 1.2);
       fireflies.update(t);
       for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain' && is('summer'); // 萤火虫：夏夜
-      rain.update(dt, weather === 'rain');
+      rain.update(dt, weather === 'rain', n);
       const k = Math.min(1, n * 1.1);
       millWindow.color.setRGB(0.42 + 0.58 * k, 0.36 + 0.64 * k, 0.34 + 0.66 * k);
       for (const { l, base } of lights) l.intensity = base * n * (0.92 + (Math.floor(t * 9 + l.position.x) % 3) * 0.04);

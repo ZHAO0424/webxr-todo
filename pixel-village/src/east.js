@@ -1465,7 +1465,7 @@ export function buildEast(M) {
       incense.update(dt, hour >= litAt && hour < litAt + 1.2);
       fireflies.update(t);
       for (const ff of fireflies.flies) ff.visible &&= n > 0.4 && weather !== 'rain' && is('summer');
-      rain.update(dt, weather === 'rain');
+      rain.update(dt, weather === 'rain', n);
       const k = Math.min(1, n * 1.1) * (hour > 21.5 || hour < 4.6 ? 0 : 1);
       ownWindow.color.setRGB(0.42 + 0.58 * k, 0.36 + 0.64 * k, 0.34 + 0.66 * k);
       const late = hour > 21.5 || hour < 4.6;

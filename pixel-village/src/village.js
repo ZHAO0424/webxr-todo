@@ -606,7 +606,7 @@ export function buildVillage({ startHour = 15.5, event = null, weather = null, M
       const weather = V.weather();
       const L = overcast(daylight(hour), weather); // 阴天、雨天：太阳弱、天发灰，雨天白天屋里也点灯
       const n = L.night;
-      rain.update(dt, weather === 'rain');
+      rain.update(dt, weather === 'rain', n);
       fish?.update(dt, hour, n);
 
       const step = Math.floor(t * 2); // 溪水按整像素往西流
