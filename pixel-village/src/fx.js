@@ -197,9 +197,10 @@ export class Rain {
     this.groundAt = groundAt;
     this.snow = is('winter'); // 冬天下的是雪：一片片慢慢飘，左右晃
     if (this.snow) count = Math.round(count * 0.6);
-    this.drops = Array.from({ length: count }, () => { const x = bounds.x0 + r() * (bounds.x1 - bounds.x0), z = bounds.z0 + r() * (bounds.z1 - bounds.z0); return { x, z, y: groundAt(x, z) + r() * 9, v: this.snow ? 0.7 + r() * 0.6 : 8 + r() * 4, top: 7 + r() * 3, ph: r() * 6, len: 0.7 + r() * 0.6 }; });
+    this.drops = Array.from({ length: count }, () => { const x = bounds.x0 + r() * (bounds.x1 - bounds.x0), z = bounds.z0 + r() * (bounds.z1 - bounds.z0); return { x, z, y: groundAt(x, z) + r() * 9, v: this.snow ? 0.7 + r() * 0.6 : 8 + r() * 4, top: 7 + r() * 3, ph: r() * 6, len: 0.4 + r() * 0.3 }; });
     this.m = new THREE.Matrix4();
-    this.q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -0.1));
+    this.tilt = new THREE.Euler(0, 0, this.snow ? -0.1 : Math.atan2(1.2, 10)); // 雪还是原来的角度；雨丝顺着落的方向歪：风往东（+x）吹，尾巴（上端）留在西边
+    this.q = new THREE.Quaternion().setFromEuler(this.tilt);
     this.s = new THREE.Vector3(1, 1, 1);
     this.p = new THREE.Vector3();
     this.object = new THREE.Group();
@@ -214,15 +215,15 @@ export class Rain {
       return;
     }
     // 雨丝分两层：一半实一点、一半淡一点（同一层一个材质，透明度不同）
-    const streak = rainStreak(), geo = crossQuad(3 / TPU, 1);
-    const mats = [0.75, 0.42].map((o) => new THREE.MeshBasicMaterial({ map: streak, color: '#ffffff', transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide }));
+    const streak = rainStreak(), geo = crossQuad(2 / TPU, 1);
+    const mats = [0.45, 0.25].map((o) => new THREE.MeshBasicMaterial({ map: streak, color: '#ffffff', transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide }));
     const half = Math.ceil(count / 2);
     this.layers = [inst(geo, mats[0], half), inst(geo, mats[1], count - half)];
     this.drops.forEach((d, i) => { d.layer = i < half ? 0 : 1; d.slot = i < half ? i : i - half; });
     // 水花：一个池子轮着用，每朵亮 0.2 秒、越来越扁地消失
     this.splashes = Array.from({ length: 360 }, () => ({ t: 1, x: 0, y: -999, z: 0 }));
     this.next = 0;
-    this.splash = inst(crossQuad(5 / TPU, 5 / TPU), new THREE.MeshBasicMaterial({ map: splashArt(), color: '#ffffff', transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide, alphaTest: 0.05 }), this.splashes.length);
+    this.splash = inst(crossQuad(4 / TPU, 4 / TPU), new THREE.MeshBasicMaterial({ map: splashArt(), color: '#ffffff', transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide, alphaTest: 0.05 }), this.splashes.length);
     this.tint = [...mats, this.splash.material];
   }
 
@@ -249,7 +250,7 @@ export class Rain {
       const k = s.t < 1 ? 1 - s.t * s.t : 0; // 溅起来马上最大，越来越扁、越来越小
       this.splash.setMatrixAt(i, this.m.compose(this.p.set(s.x, s.y + 0.02, s.z), this.q.identity(), this.s.set(0.6 + 0.4 * k, k, 0.6 + 0.4 * k)));
     });
-    this.q.setFromEuler(new THREE.Euler(0, 0, -0.1));
+    this.q.setFromEuler(this.tilt);
     this.splash.instanceMatrix.needsUpdate = true;
   }
 }
