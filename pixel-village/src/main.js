@@ -44,7 +44,8 @@ if ('serviceWorker' in navigator && !navigator.webdriver && !params.has('uicheck
 // ?world=world/state.json：读后台模拟（tools/sim.mjs）存下的村子接着过——季节、开局方式、第几天几点、经济、老宅、新居民都照存档
 // 村子存档：默认读仓库里的 world/state.json（GitHub Actions 每小时在后台把村子往前过一段、存回这里）；?world=别的.json 读别的；?world=0 不读存档（旧的整村、从下午开始）
 const worldUrl = params.get('world') ?? (['time', 'season', 'ruins', 'event', 'sim'].some((k) => params.has(k)) ? '0' : 'world/state.json'); // 指定了时间、季节这些的（截图、回归）照旧不读
-const saved = worldUrl !== '0' ? await fetch(worldUrl, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null), () => null) : null;
+const saved = worldUrl === '0' ? null // PV_SAVED：index.html 里一打开就开始下的默认存档
+  : await (worldUrl === 'world/state.json' && window.PV_SAVED ? window.PV_SAVED : fetch(worldUrl, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null), () => null));
 setSeason(saved?.season ?? params.get('season') ?? 'autumn'); // ?season=spring|summer|autumn|winter：建场景之前定（见 season.js）
 auditOverlaps(params.get('overlap') === '1'); // ?overlap=1：建村时按三角面查共面重叠（慢，调试用），结果在 data-audit / data-east / data-west 的 overlap 里
 setRuins(saved ? saved.ruins : params.get('ruins') === '1'); // ?ruins=1：废墟开局（老村址没人住的老宅是塌的，新居民住进来才修好）；设置里的「老宅」按钮切换
@@ -333,9 +334,17 @@ const homeOf = (cid) => HOUSEHOLDS.find((h) => h.id === cid);
 const residentsOf = (cid) => village.life.people.filter((v) => v.p.home === cid).map((v) => ({ id: v.p.id, name: pName(v.p) }));
 const doingOf = (v) => (v.inside ? '' : LABELS[v.doing] ?? LABELS[v.doing?.split(':')[0]] ?? '');
 
+/** 代销车卡片上加一句：车上现在有什么、是谁家的。 */
+function cartNow() {
+  const L = V.econ.cartLines();
+  if (!L.length) return tr('车上现在空着。', 'The cart is empty right now.');
+  return tr('车上现在：', 'On the cart now: ') + L.map((l) => (EN ? `${l.qty}${goodUnit(l.good, l.qty)} ${goodName(l.good).toLowerCase()} (${l.owner})` : `${goodName(l.good)} ${l.qty} ${goodUnit(l.good)}（${l.owner}的）`)).join(EN ? ', ' : '、') + tr('。', '.');
+}
+
 function selectThing(t) {
   const place = t.cid ? PLACES[t.cid] : null;
-  const d = describe(t, place);
+  const d0 = describe(t, place);
+  const d = t.thing === 'consignCart' ? { ...d0, about: `${d0.about} ${cartNow()}` } : d0;
   const h = t.thing === 'house' ? homeOf(t.cid) : null;
   const card = thingCard({ ...d, household: h && { name: hhName(h, true) }, people: t.thing === 'house' ? residentsOf(t.cid) : [] }, { onClose: closeCard, onPick: pick });
   sel = { t, card };

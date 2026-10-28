@@ -468,6 +468,10 @@ function square(M) {
     marketSpots[`stall${i}_seller`] = [...at(0, 0.8), st.x, st.z];
     for (const [k, dx] of [['A', -0.45], ['B', 0.45]]) { marketSpots[`stall${i}_buy${k}`] = [...at(dx, -0.9), st.x, st.z]; market.buyers.push(`stall${i}_buy${k}`); }
   });
+  // 代销车：常年停在古槐西南边，买东西的站东边（车的前面），脸朝车
+  const CART = [-7.8, 4.6];
+  put(g, P.consignCart(M), ...CART, -Math.PI / 2);
+  const cartSpots = { cartBuyA: [CART[0] + 0.9, CART[1] - 0.45, ...CART], cartBuyB: [CART[0] + 0.9, CART[1] + 0.45, ...CART] };
   // 吃过晚饭在大槐树下围一圈闲聊的位置
   const chatCenter = [-5.0, 4.9], chat = [], chatSpots = {};
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; chatSpots[`chat${i}`] = [chatCenter[0] + Math.cos(a) * 1.0, chatCenter[1] + Math.sin(a) * 0.95, ...chatCenter]; chat.push(`chat${i}`); }
@@ -529,7 +533,7 @@ function square(M) {
     gate: [0, S + 1.2], lanterns, evening, ringSeats: ring, stools: { tableW: [-1.45, 3.6], tableE: [0.65, 3.6], table: [-0.4, 4.65] }, benchSeats, benches, barber, market, chat, chatCenter, screen, projector,
     discs: [[...PIT, 0.75]],
     spots: {
-      ...evSpots, ...marketSpots, ...chatSpots, stageFoot: [3.5, 1.1, 3.5, -1],
+      ...evSpots, ...marketSpots, ...chatSpots, ...cartSpots, stageFoot: [3.5, 1.1, 3.5, -1],
       barberChair: [...barber.chair], barberWork: [-1.65, -5.15, ...barber.chair], ...Object.fromEntries(barber.wait.map((p, i) => [`barberWait${i}`, [...p, ...barber.chair]])),
       projector: [0.45, 4.5, 3.5, -0.6],
       tree: [-4.4, 4.2, -5.2, 1.0], tableW: [-2.0, 3.6, -0.4, 3.6], tableE: [1.2, 3.6, -0.4, 3.6], table: [-0.4, 5.2, -0.4, 3.6], // 石桌边：先走到石墩外头，再上石墩坐（stools）

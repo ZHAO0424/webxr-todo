@@ -565,6 +565,24 @@ export function peddlerCart(M) {
 }
 
 /**
+ * 代销车：货郎钱小二常年停在村口古槐下的另一辆车。远处的人（老村址、山上干活的新居民）把多出来的货放上来代卖，
+ * 村里人到村口就买得着；卖了钱归货主，货郎抽一成（economy.js 的 cart）。和货郎车一个样子，篷檐上多一块「代销」招牌、台面上一只钱匣子。
+ * 常年摆着：不标 dynamic，参与合批，也算导航里的障碍。
+ */
+export function consignCart(M) {
+  const g = peddlerCart(M);
+  g.userData.dynamic = false;
+  g.visible = true;
+  const sign = decal(M.tex.signBoard, M.signBoard, 'bottom');
+  sign.position.set(0, 2.02, -0.62);
+  sign.rotation.y = Math.PI; // 招牌朝前（买东西的人那边，-z）
+  sign.scale.setScalar(0.42);
+  g.add(sign);
+  g.add(block(0.62, 0.82, -0.6, 0.74, 0.92, -0.44, M.redwood), block(0.66, 0.92, -0.56, 0.7, 0.93, -0.48, M.ink)); // 钱匣子 + 投钱的缝
+  return g;
+}
+
+/**
  * 露天电影的幕布：两根竿子撑一块白布，片子是几帧像素画轮着放（天地山水、骑马、两个人在台上、一张大脸）。
  * frames：幕布上要换的贴图；平时收起来。
  */

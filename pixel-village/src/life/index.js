@@ -112,6 +112,7 @@ export function populate(V, residents, extraAnimals, startHour, { event: forcedE
       V.trade.tick(h); // 到点去买东西
       repairTick(V, h); // 老村址：请了葛石头来修房子的，白天两个人在院里干
       teaTick(V, h); // 村口茶摊：旁边闲坐的人顺手买碗茶
+      V.trade.cartTick(h); // 村口代销车：路过、闲坐的人顺手买家里想要的
       for (const v of V.people) v.update(t, dt, h);
       for (const b of V.beasts) b.update(t, dt, h);
     },

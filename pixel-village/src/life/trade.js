@@ -18,9 +18,9 @@ const KIDS_OK = new Set(['tofu', 'match', 'salt']); // 打发孩子去买
 const REMOTE = new Set(['lime', 'stone', 'duckEgg', 'coal']); // 只有老村址有的东西
 /** 拿着什么回家。 */
 const CARRY = { tofu: ['tray'], veg: ['basket'], egg: ['basket'], salt: ['basket'], match: ['basket'], cloth: ['basket'], pill: ['basket'], honey: ['basket'], pickle: ['basket'], flour: [null, 'sack'], grain: [null, 'sack'], soy: [null, 'sack'], wood: [null, 'firewood'], tool: ['hoe'], wooden: ['box'], iron: ['box'], basket: ['basket'], wool: [null, 'sack'], lime: [null, 'sack'], stone: [null, 'sack'], duckEgg: ['basket'], fish: ['basket'], pork: ['basket'], wildfood: ['basket'], game: ['basket'], charcoal: [null, 'sack'], seed: [null, 'sack'], relic: ['box'], coal: [null, 'basket:coal'] };
-const PLACE = { headman: '王家', school: '学堂', shepherd: '马家', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', zheng_laotou: '剃头挑子', qian_xiaoer: '货郎那儿', riverTemple: '柳婆婆家', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '凤仙嫂家' };
+const PLACE = { headman: '王家', school: '学堂', shepherd: '马家', farmA: '陈家', farmB: '杨家', farmC: '吴家', carpenter: '刘家木匠铺', store: '孙家杂货铺', doctor: '周家药铺', smith: '张家铁匠铺', tofu: '赵家豆腐坊', zheng_laotou: '剃头挑子', qian_xiaoer: '货郎那儿', cart: '村口代销车', riverTemple: '柳婆婆家', mason: '葛家石匠院', limeKiln: '白家石灰窑', duckYard: '凤仙嫂家' };
 /** 英文界面的同一张表（卡片上的差事：Off to Sun's Store for Salt）。 */
-const PLACE_EN = { headman: "the Wangs'", school: 'the school', shepherd: "the Mas'", farmA: "the Chens'", farmB: "the Yangs'", farmC: "the Wus'", carpenter: "Liu's Carpentry", store: "Sun's Store", doctor: "Zhou's Pharmacy", smith: "Zhang's Smithy", tofu: "Zhao's Tofu Shop", zheng_laotou: "the barber's stall", qian_xiaoer: 'the peddler', riverTemple: "Granny Liu's", mason: "Ge's Mason Yard", limeKiln: "Bai's Lime Kiln", duckYard: "Sister Fengxian's" };
+const PLACE_EN = { headman: "the Wangs'", school: 'the school', shepherd: "the Mas'", farmA: "the Chens'", farmB: "the Yangs'", farmC: "the Wus'", carpenter: "Liu's Carpentry", store: "Sun's Store", doctor: "Zhou's Pharmacy", smith: "Zhang's Smithy", tofu: "Zhao's Tofu Shop", zheng_laotou: "the barber's stall", qian_xiaoer: 'the peddler', riverTemple: "Granny Liu's", mason: "Ge's Mason Yard", limeKiln: "Bai's Lime Kiln", duckYard: "Sister Fengxian's" , cart: 'the consignment cart' };
 const placeOf = (id, who) => (EN ? PLACE_EN[id] ?? (who ? pNick(who.p) : '') : PLACE[id] ?? who?.p.nick ?? '');
 const STALL_SELLER = { tofu: 'tofu', goods: 'qian_xiaoer', veg: 'farmC' }; // 集上三个摊子各是谁家的
 
@@ -54,12 +54,20 @@ export class Trading {
     this.runs = [];
     const V = this.V, market = V.today() === 'market' && V.weather() !== 'rain';
     // 只有老村址的人家有富余的东西（石灰、鸭蛋，还有住老宅的新人打的野味、采的山货）：家里没人有空就托货郎捎
-    const remote = (g) => REMOTE.has(g) || (!!g && (() => { const has = [...this.econ.units.values()].filter((x) => x.id !== 'caravan' && (x.stock[g] ?? 0) - this.econ.keep(x, g) >= 1); return has.length > 0 && has.every((x) => V.C[x.members[0].home]?.east); })());
+    const remote = (g) => REMOTE.has(g) || (!!g && !this.econ.cartQty(g) && (() => { const has = [...this.econ.units.values()].filter((x) => x.id !== 'caravan' && (x.stock[g] ?? 0) - this.econ.keep(x, g) >= 1); return has.length > 0 && has.every((x) => V.C[x.members[0].home]?.east); })());
     for (const u of this.econ.units.values()) {
-      if (u.id === 'caravan' || !u.wants.length) continue;
+      if (u.id === 'caravan') continue;
       const ppl = u.members.map((p) => V.byId[p.id]).filter(Boolean);
       const grown = ppl.filter((v) => v.p.body !== 'child' && !v.p.caravan);
       const count = new Map();
+      // 自家产的东西富余了：挑一样送到村口代销车（算这人今天的一趟）。新居民自己送，老住户挑家里今天有空的大人
+      const cg = this.econ.consignable(u), hc = (tag) => hash(`${day}/${u.id}/consign/${tag}`);
+      const free = cg ? grown.filter((x) => freeWindows(x, market).length) : [], cv = free[Math.floor(hc('who') * free.length)];
+      if (cv) {
+        const wins = freeWindows(cv, market), win = wins[Math.floor(hc('ampm') * wins.length)];
+        this.orders.push({ v: cv, alts: [], unit: u, consign: cg[0], qty: cg[1], at: win[0] + hc('at') * Math.max(0.1, win[1] - win[0] - 0.4), done: false });
+        count.set(cv, 1);
+      }
       u.wants.forEach((w, i) => {
         const h = (tag) => hash(`${day}/${u.id}/${w.good ?? w.service}/${tag}`);
         let pool = HEAVY.has(w.good) || w.service ? grown.filter((v) => v.p.sex === '男') : grown.filter((v) => v.p.sex === '女');
@@ -86,21 +94,43 @@ export class Trading {
   tick(hour) {
     for (const o of this.orders) {
       if (o.done || hour < o.at) continue;
-      if (hour > o.at + 3) { o.done = true; if (!o.service) this.runs.push(o); continue; } // 三个钟点都没抽出空：交给货郎代买（修农具这类得本人拿着家伙去的不算）
+      if (hour > o.at + 3) { o.done = true; if (!o.service && !o.consign) this.runs.push(o); continue; } // 三个钟点都没抽出空：交给货郎代买（修农具这类得本人拿着家伙去的不算）
       if (busy(o.v)) { // 原定的人一个钟点都抽不出空（磨豆腐的、上课的……）：换家里别的闲着的人去
         const alt = hour > o.at + 1 && o.alts.find((x) => !busy(x));
         if (!alt) continue;
         o.v = alt;
       }
-      if (!o.unit.wants.some((w) => (o.service ? w.service === o.service : w.good === o.good))) { o.done = true; continue; } // 已经买到了（比如集上买了）
+      if (!o.consign && !o.unit.wants.some((w) => (o.service ? w.service === o.service : w.good === o.good))) { o.done = true; continue; } // 已经买到了（比如集上买了）
       o.done = true;
       o.v.interrupt('buy', o);
+    }
+  }
+
+  /**
+   * 顺手买：村口代销车就停在晚上闲聊那一圈旁边。人在车跟前（九米内）闲着，家里今天想买的东西车上正好有，就走过去买——
+   * 补上「一人一天只跑一趟、排在后头的东西轮不上」。每人每天最多顺手一回。
+   */
+  cartTick(hour) {
+    if (!this.econ.cart.length || Math.abs(hour - (this.lastCart ?? -9)) < 0.15) return;
+    this.lastCart = hour;
+    const V = this.V, sq = V.C.square, f = sq.spots.cartBuyA, [cx, cz] = sq.at(f[2], f[3]);
+    for (const v of V.people) {
+      if (v.p.body === 'child' || v.p.caravan || busy(v) || v.state === 'walk' || v.cartDay === this.day) continue;
+      if (Math.hypot(v.pos.x - cx, v.pos.z - cz) > 9) continue;
+      const u = this.econ.unitOfV(v), w = u?.wants.find((x) => x.good && this.econ.cartLot(x.good, u.id));
+      if (!w) continue;
+      v.cartDay = this.day;
+      v.interrupt('buy', { v, alts: [], unit: u, good: w.good, qty: w.qty, why: w.why, at: hour, done: true, seller: this.econ.cartSeller });
     }
   }
 
   /** 卖家此刻在哪儿收钱：[位置, 朝向, 卖的人]。 */
   counter(seller, v) {
     const V = this.V;
+    if (seller.cart) { // 代销车：站到车前，脸朝车；货郎多半不在跟前，钱投进钱匣子
+      const sq = V.C.square, f = sq.spots.cartBuyA;
+      return { to: () => sq.spot(V.claim(v, sq, ['cartBuyA', 'cartBuyB'])), face: () => sq.at(f[2], f[3]), who: null };
+    }
     if (seller.id === 'store') {
       const st = V.C.store, keeper = V.byId.sun_youcai ?? V.byId.xiao_liuzi;
       return { to: () => st.spot(V.claim(v, st, ['customer', 'customer2'])), face: () => st.spot('counter'), who: keeper };
@@ -171,7 +201,8 @@ ACTIVITIES.peddle = (v) => { // 货郎叫卖：有代买的活先跑代买
 ACTIVITIES.buy = (v, o) => {
   const T = v.V.trade, econ = T.econ;
   if (o.service) { fix(v, o); return; }
-  const sellers = econ.sellersFor(o.unit, o.good, o.qty, v);
+  if (o.consign) { consign(v, o); return; }
+  const sellers = o.seller ? [o.seller] : econ.sellersFor(o.unit, o.good, o.qty, v); // o.seller：顺手在代销车上买
   if (!sellers.length) { econ.miss(o.good); econ.fail(v, o.good, '村里没人有富余'); v.finish(); return; } // 村里没人有富余：今天买不着
   const seller = sellers[0], c = T.counter(seller, v);
   v.errandText = EN ? `Off to ${placeOf(seller.id, c.who)} for ${goodName(o.good).toLowerCase()}` : `去${PLACE[seller.id] ?? c.who?.p.nick ?? ''}买${GOODS[o.good].name}`;
@@ -211,6 +242,21 @@ function fix(v, o) {
       v.do('idle', 2);
       v.call(() => { v.char.setItem(v.p.item ?? null); v.finish(); });
     });
+  });
+}
+
+/** 往代销车上送货：背着自家做的东西走到村口的车前，摆上去，回去接着干活。 */
+function consign(v, o) {
+  const T = v.V.trade, econ = T.econ, c = T.counter(econ.cartSeller, v);
+  v.errandText = EN ? `Taking ${goodName(o.consign).toLowerCase()} to the consignment cart` : `把${GOODS[o.consign].name}送到村口代销车`;
+  T.carry(v, o.consign);
+  v.go(c.to);
+  v.do('work', 3, { face: c.face() });
+  v.call(() => {
+    v.V.release(v);
+    econ.consign(o.unit, o.consign, o.qty);
+    v.char.setItem(v.p.item ?? null); v.char.setBack(null);
+    v.finish();
   });
 }
 

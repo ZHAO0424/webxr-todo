@@ -49,17 +49,18 @@ export function voxelGeometry(min, max, solid, color, size = VOX, origin = [0, 0
   const at = (x, y, z) => ((z - min[2]) * D[1] + (y - min[1])) * D[0] + (x - min[0]);
   const S = new Uint8Array(D[0] * D[1] * D[2]);
   for (let z = min[2]; z < max[2]; z++) for (let y = min[1]; y < max[1]; y++) for (let x = min[0]; x < max[0]; x++) if (solid(x, y, z)) S[at(x, y, z)] = 1;
-  const filled = (x, y, z) => x >= min[0] && x < max[0] && y >= min[1] && y < max[1] && z >= min[2] && z < max[2] && S[at(x, y, z)] === 1;
   const p = [0, 0, 0];
+  const st = [1, D[0], D[0] * D[1]]; // 三个轴在 S 里的步长：直接按下标查，不再每格算坐标、查边界
   for (let f = 0; f < 6; f++) {
     if (skip.includes(f)) continue;
     const n = FACES[f].n, a = n[0] ? 0 : n[1] ? 1 : 2, u = a === 0 ? 1 : 0, v = a === 2 ? 1 : 2; // 法线轴 a，面内两轴 u、v
-    const mask = new Array(D[u] * D[v]);
+    const mask = new Array(D[u] * D[v]), off = n[a] * st[a];
     for (let s = min[a]; s < max[a]; s++) {
       mask.fill(null);
-      for (let j = 0; j < D[v]; j++) for (let i = 0; i < D[u]; i++) {
+      const out = s + n[a] < min[a] || s + n[a] >= max[a]; // 朝外那一格出了包围盒：算空
+      for (let j = 0; j < D[v]; j++) for (let i = 0, k = (s - min[a]) * st[a] + j * st[v]; i < D[u]; i++, k += st[u]) {
+        if (S[k] !== 1 || (!out && S[k + off] === 1)) continue;
         p[a] = s; p[u] = min[u] + i; p[v] = min[v] + j;
-        if (!filled(p[0], p[1], p[2]) || filled(p[0] + n[0], p[1] + n[1], p[2] + n[2])) continue;
         mask[j * D[u] + i] = color(p[0], p[1], p[2], f) || null;
       }
       for (let j = 0; j < D[v]; j++) for (let i = 0; i < D[u];) {
@@ -782,11 +783,15 @@ export function voxelTree(kind, seed = 1, scale = 1) {
   // 树冠表面的起伏：大树冠（槐树）起伏放缓、团块放大——同样蓬松，台阶面少一半（原来一棵槐树近三万个三角面）
   const big = s.blobs.some((b) => b[3] > 12);
   const lump = big ? (x, y, z) => noise(x * 0.55, y * 0.55, z * 0.55) * 0.14 : (x, y, z) => noise(x, y, z) * 0.18;
+  const pad = 1 + (big ? 0.14 : 0.18); // lump 最多这么大：哪个轴上已经超出 pad 的团块直接跳过（结果不变，建村快一大截）
   const crown = (x, y, z) => {
-    let best = null;
+    let best = null, l;
     for (const b of blobs) {
-      const d = Math.hypot((x - b[0]) / b[3], (y - b[1]) / b[4], (z - b[2]) / b[5]);
-      if (d < 1 + lump(x, y, z) && (!best || d < best.d)) best = { b, d };
+      const ex = (x - b[0]) / b[3], ey = (y - b[1]) / b[4], ez = (z - b[2]) / b[5];
+      if (ex > pad || ex < -pad || ey > pad || ey < -pad || ez > pad || ez < -pad) continue;
+      const d = Math.hypot(ex, ey, ez);
+      l ??= lump(x, y, z); // 一个格子只算一次起伏（原来每个团块都算一遍）
+      if (d < 1 + l && (!best || d < best.d)) best = { b, d };
     }
     if (best && s.sparse && hash(x, y, z) < s.sparse && best.d > 0.75) return null; // 柿子树叶子稀
     if (best && s.bare && !(hash(x, y, z) < 0.07 && best.d > 0.4)) return null; // 落了叶：树冠里只剩零星的细枝

@@ -140,6 +140,13 @@ function targetOf(u) {
   return t;
 }
 
+/**
+ * 代销车上卖的：各户自家产的大部分东西。不放的：豆腐（挑子现卖）、药（郎中看了病才给）、农具家什（铺子里现做现修）、
+ * 粮食黄豆（量大，去农户家里买）、旧物件良种、烧饼衣裳。每户每样最多摆 CART_MAX 份，家里另留两份（老主顾上门还买得着）。
+ */
+const CART_GOODS = new Set(['veg', 'egg', 'honey', 'wool', 'basket', 'pickle', 'duckEgg', 'stone', 'lime', 'wood', 'flour', 'fish', 'pork', 'wildfood', 'game', 'coal', 'charcoal']);
+const CART_MAX = 4;
+
 /** 开局的家底（铜钱）。 */
 const PURSE = { headman: 320, store: 420, doctor: 160, smith: 140, carpenter: 120, tofu: 110, school: 60, shepherd: 90, farmA: 80, farmB: 100, farmC: 100, zheng_laotou: 40, qian_xiaoer: 90, riverTemple: 40, mason: 70, limeKiln: 60, duckYard: 50 };
 
@@ -163,6 +170,9 @@ export class Economy {
     this.missing = {}; // 东西 → 连着几天想买没买到（缺口）
     this.hungry = []; // 断粮的：'天:户'（自检用）
     this.fails = []; // 买不成的原因（自检用）
+    this.cart = []; // 村口代销车上的货：[{ from: 货主户 id, good, qty }]（见 consign / settleCart）
+    const pd = this.units.get('qian_xiaoer');
+    this.cartSeller = { id: 'cart', cart: true, members: pd ? [pd.members[0]] : [] }; // 买东西的人眼里的「卖家」：代销车（货郎看着）
     this.seedStock();
     this.total0 = this.total();
   }
@@ -312,6 +322,10 @@ export class Economy {
       }
       u.sold = {};
       u.wants = this.wantsOf(u, day);
+    }
+    if (!first) { // 代销车上的货也会放坏；货主离村了，货就撤了
+      for (const l of this.cart) if (GOODS[l.good]?.decay) l.qty = Math.floor(l.qty * (1 - GOODS[l.good].decay) + 1e-9);
+      this.cart = this.cart.filter((l) => l.qty >= 1 && this.units.has(l.from));
     }
     if (!first) { this.relief(day); this.newcomerDues(day); }
     for (const g in this.missing) { this.missing[g] *= 0.7; if (this.missing[g] < 0.05) delete this.missing[g]; } // 缺口慢慢淡忘
@@ -471,7 +485,7 @@ export class Economy {
     if (h('duckEgg') < 0.05 + rich * 0.12) w.push({ good: 'duckEgg', qty: 4, why: '想吃咸鸭蛋' }); // 只有老村址凤仙嫂家有
     // 新来的人卖的东西：村里有人卖才想着买（没人卖的记成缺口，选营生页标"正缺"）
     const S = season(), festive2 = festive || this.V.holiday?.();
-    const want = (g, p, qty, why) => { if (h(`n/${g}`) >= p) return; if ([...this.units.values()].some((x) => x !== u && (x.stock[g] ?? 0) >= 1)) w.push({ good: g, qty, why }); else this.miss(g, 0.3); };
+    const want = (g, p, qty, why) => { if (h(`n/${g}`) >= p) return; if ([...this.units.values()].some((x) => x !== u && (x.stock[g] ?? 0) >= 1) || this.cartLot(g, u.id)) w.push({ good: g, qty, why }); else this.miss(g, 0.3); };
     want('fish', 0.04 + rich * 0.1 + (festive2 ? 0.2 : 0), 1, '想吃条鱼');
     want('pork', 0.04 + rich * 0.12 + (festive2 ? 0.25 : 0) + (S === 'winter' ? 0.05 : 0), 2, '割二斤肉');
     want('wildfood', (S === 'spring' || S === 'autumn' ? 0.07 : 0.03) + rich * 0.04, 2, S === 'spring' ? '尝个鲜野菜' : '买点核桃蘑菇');
@@ -518,6 +532,12 @@ export class Economy {
       const score = -price - dist * 0.05 + this.tie(who.p.id, seller.id) * price * 0.04 + taste * price * 0.24;
       list.push({ u, score });
     }
+    const lot = this.cartLot(good, buyer.id), sq = this.V.C.square, home = this.V.C[buyer.members[0].home];
+    if (lot) { // 代销车：价钱照货主开的，路程从村口算
+      const price = this.unit(lot.from)?.ask[good] ?? GOODS[good].price;
+      const dist = sq && home ? Math.hypot(sq.object.position.x - home.object.position.x, sq.object.position.z - home.object.position.z) : 20;
+      list.push({ u: this.cartSeller, score: -price - dist * 0.05 });
+    }
     return list.sort((a, b) => b.score - a.score).map((x) => x.u);
   }
 
@@ -531,6 +551,7 @@ export class Economy {
    * 当面成交时调（trade.js 的差事走到跟前了）。
    */
   settle(v, seller, good, qty, { place = '' } = {}) {
+    if (seller === this.cartSeller) return this.settleCart(v, good, qty, place);
     const buyer = this.unitOfV(v);
     const spare = Math.floor((seller.stock[good] ?? 0) - this.keep(seller, good) + 1e-9);
     qty = Math.min(qty, spare);
@@ -559,6 +580,77 @@ export class Economy {
     const t = { day: this.day, hour: this.V.hour(), buyer: v.p.id, from: buyer.id, seller: sp.id, to: seller.id, good, qty, price, kind, swap, place };
     this.record(t);
     return t;
+  }
+
+  // ---------------------------------------------------------------- 村口代销车
+
+  /** 代销车上 good 的一份货（不是 buyerId 自家放的）；没有返回 undefined。 */
+  cartLot(good, buyerId) { return this.cart.find((l) => l.good === good && l.qty >= 1 && l.from !== buyerId); }
+  cartQty(good) { return this.cart.reduce((s, l) => s + (l.good === good ? l.qty : 0), 0); }
+
+  /** 这户该往代销车上送什么：自己做货卖的新居民（打猎、采山货、挖煤、钓鱼……），手头富余两份以上。返回 [东西, 数量] 或 null。 */
+  consignable(u) {
+    if (['caravan', 'store', 'qian_xiaoer'].includes(u.id) || !u.members.length) return null; // 杂货铺、货郎自己就是卖货的
+    let best = null;
+    const home = u.members[0].newcomer ? 0 : 2; // 新居民一个人住得远，家里不留；老住户留两份给上门的老主顾
+    for (const g of this.produces(u)) {
+      if (!CART_GOODS.has(g)) continue;
+      const on = this.cart.find((l) => l.from === u.id && l.good === g)?.qty ?? 0;
+      const q = Math.min(CART_MAX - on, Math.floor((u.stock[g] ?? 0) - this.keep(u, g) - home + 1e-9));
+      if (q < 2 && !(q >= 1 && GOODS[g].price >= 6)) continue; // 一两文的东西不值当跑一趟
+      const worth = q * (u.ask[g] ?? GOODS[g].price);
+      if (!best || worth > best[2]) best = [g, q, worth];
+    }
+    return best && [best[0], best[1]];
+  }
+
+  /** 这户自己产什么：MAKE 里算到这户（或这户的人）头上的、新居民的行当、养鸡的鸡蛋。 */
+  produces(u) {
+    const s = new Set();
+    for (const r of MAKE) if ((r.unit && [].concat(r.unit).includes(u.id)) || (r.who && u.members.some((p) => [].concat(r.who).includes(p.id)))) s.add(r.good);
+    for (const p of u.members) { const m = this.jobs?.[p.jobId]?.makes; if (m) s.add(m); }
+    if (u.members.some((p) => /鸡/.test((p.owns ?? []).join()))) s.add('egg');
+    return s;
+  }
+
+  /** 货主把货放上代销车（送到了才调）：从自家存货挪到车上。返回放了多少。 */
+  consign(u, good, qty) {
+    const q = Math.min(qty, Math.floor((u.stock[good] ?? 0) - this.keep(u, good) - (u.members[0]?.newcomer ? 0 : 2) + 1e-9)); // 家里留的和 consignable 一样
+    if (q <= 0) return 0;
+    u.stock[good] -= q;
+    const lot = this.cart.find((l) => l.from === u.id && l.good === good);
+    if (lot) lot.qty += q; else this.cart.push({ from: u.id, good, qty: q });
+    return q;
+  }
+
+  /** 在代销车上买：只收现钱（货主不在跟前，没法换东西、赊账）；钱归货主，货郎抽一成。 */
+  settleCart(v, good, qty, place) {
+    const buyer = this.unitOfV(v), lot = this.cartLot(good, buyer.id), owner = lot && this.unit(lot.from);
+    if (!owner) { this.fail(v, good, '代销车上卖完了'); return null; }
+    const unitPrice = owner.ask[good] ?? GOODS[good].price;
+    qty = Math.min(qty, Math.floor(lot.qty));
+    if (buyer.coins < unitPrice * qty) qty = Math.floor(buyer.coins / unitPrice);
+    if (qty <= 0) { this.fail(v, good, `钱不够（${buyer.coins}文），代销车只收现钱`); return null; }
+    const price = unitPrice * qty, cut = Math.max(1, Math.round(price * 0.1)), pd = this.unit('qian_xiaoer');
+    buyer.coins -= price;
+    owner.coins += pd ? price - cut : price;
+    if (pd) pd.coins += cut;
+    lot.qty -= qty;
+    if (lot.qty < 1) this.cart = this.cart.filter((l) => l !== lot);
+    buyer.stock[good] = (buyer.stock[good] ?? 0) + qty;
+    owner.sold[good] = (owner.sold[good] ?? 0) + qty;
+    buyer.wants = buyer.wants.filter((w) => w.good !== good);
+    const op = owner.members.find(adult) ?? owner.members[0];
+    this.bump(v.p.id, op.id);
+    const t = { day: this.day, hour: this.V.hour(), buyer: v.p.id, from: buyer.id, seller: op.id, to: owner.id, good, qty, price, kind: 'cash', swap: null, place: place || (EN ? 'Consignment cart' : '代销车') };
+    this.record(t);
+    if (pd) owner.earned -= cut; // 货郎那一成不算货主挣的
+    return t;
+  }
+
+  /** 卡片上用：代销车上现在有什么（东西、数量、谁家的）。 */
+  cartLines() {
+    return this.cart.filter((l) => l.qty >= 1).map((l) => { const p = this.unit(l.from)?.members[0]; return { good: l.good, qty: Math.floor(l.qty), owner: p ? (EN ? pNick(p) : p.nick) : '' }; });
   }
 
   /** 买不成的记一笔原因（自检看：谁老买不着、为什么）。 */
@@ -623,6 +715,14 @@ export class Economy {
         this.record({ day, hour: 9.5, buyer: 'niu_wanshan', from: 'caravan', seller: u.members.find(adult)?.id ?? u.members[0].id, to: u.id, good: g, qty: q, price: gain, kind: 'cash', place: '骡帮' });
       }
     }
+    for (const l of this.cart) { // 代销车上骡帮收的货（野味、山货、煤……）：钱直接归货主
+      const u = this.unit(l.from), q = Math.floor(l.qty);
+      if (!u || !GOODS[l.good].export || q <= 0) continue;
+      const gain = q * GOODS[l.good].price;
+      l.qty -= q; u.coins += gain; this.flow.in += gain; brokered += gain;
+      this.record({ day, hour: 9.5, buyer: 'niu_wanshan', from: 'caravan', seller: u.members.find(adult)?.id ?? u.members[0].id, to: u.id, good: l.good, qty: q, price: gain, kind: 'cash', place: '骡帮（代销车）' });
+    }
+    this.cart = this.cart.filter((l) => l.qty >= 1);
     const cut = Math.floor(brokered * 0.1); // 杂货铺给骡帮牵线、存货：骡帮多给一成（村外的钱）
     if (cut > 0) { store.coins += cut; this.flow.in += cut; this.record({ day, hour: 10, buyer: 'niu_wanshan', from: 'caravan', seller: 'sun_youcai', to: 'store', good: null, service: '牵线', qty: 1, price: cut, kind: 'cash', place: '骡帮' }); }
     for (const u of this.units.values()) for (const [id, debt] of Object.entries(u.owe)) { // 赶集日结账：还得起的还上

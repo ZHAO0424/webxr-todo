@@ -21,12 +21,51 @@ export function snapPerches(root, terrain, C) {
   const solid = [];
   root.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && o !== terrain.object && o.material && o.material.side !== THREE.BackSide && !o.material.transparent && !(o.geometry instanceof THREE.PlaneGeometry)) solid.push(o); });
   solid.push(terrain.object);
+  // 射线都是竖直往下打的：只有世界包围盒罩住这一点（x、z）的网格才可能打中——先按包围盒筛一遍，结果不变，建村快不少
+  const boxes = new Map(solid.map((o) => [o, new THREE.Box3().setFromObject(o)]));
+  const under = (list, p) => list.filter((o) => { const b = boxes.get(o); return p.x >= b.min.x - 1e-6 && p.x <= b.max.x + 1e-6 && p.z >= b.min.z - 1e-6 && p.z <= b.max.z + 1e-6; });
+  // 地面那几块大网格（几万个顶点，盖住整个村子）：Raycaster 每根射线都把全部三角形测一遍，占了建村的大头。
+  // 这里按 x、z 把三角形分进格子，竖直射线只测脚下那一格里的（同样的三角形求交、同样的正反面规则，结果一样）
+  const grids = new Map();
+  const gridOf = (o) => {
+    if (grids.has(o)) return grids.get(o);
+    const pos = o.geometry.attributes.position, index = o.geometry.index, n = index ? index.count : pos.count;
+    const P = new Float32Array(n * 3), v = new THREE.Vector3();
+    for (let i = 0; i < n; i++) { v.fromBufferAttribute(pos, index ? index.getX(i) : i).applyMatrix4(o.matrixWorld); P[i * 3] = v.x; P[i * 3 + 1] = v.y; P[i * 3 + 2] = v.z; }
+    const b = boxes.get(o), cell = Math.max(b.max.x - b.min.x, b.max.z - b.min.z) / 160 || 1, cells = new Map();
+    const ci = (x) => Math.floor((x - b.min.x) / cell), ck = (z) => Math.floor((z - b.min.z) / cell);
+    for (let t = 0; t < n; t += 3) {
+      const xs = [P[t * 3], P[t * 3 + 3], P[t * 3 + 6]], zs = [P[t * 3 + 2], P[t * 3 + 5], P[t * 3 + 8]];
+      for (let i = ci(Math.min(...xs)); i <= ci(Math.max(...xs)); i++) for (let k = ck(Math.min(...zs)); k <= ck(Math.max(...zs)); k++) { const key = i * 100003 + k; let l = cells.get(key); if (!l) cells.set(key, (l = [])); l.push(t); }
+    }
+    const g = { P, cells, at: (x, z) => cells.get(ci(x) * 100003 + ck(z)) ?? [] };
+    grids.set(o, g);
+    return g;
+  };
+  const BIG = 4000, A = new THREE.Vector3(), B = new THREE.Vector3(), Cc = new THREE.Vector3(), hitP = new THREE.Vector3();
+  const isBig = (o) => o.isMesh && o.geometry.attributes.position.count >= BIG && !Array.isArray(o.material);
+  const castDown = (list) => { // = ray.intersectObjects(list, false)[0]，大网格走格子
+    let best = ray.intersectObjects(list.filter((o) => !isBig(o)), false)[0];
+    const r = ray.ray;
+    for (const o of list) {
+      if (!isBig(o)) continue;
+      const g = gridOf(o), cull = o.material.side === THREE.FrontSide;
+      for (const t of g.at(r.origin.x, r.origin.z)) {
+        A.fromArray(g.P, t * 3); B.fromArray(g.P, t * 3 + 3); Cc.fromArray(g.P, t * 3 + 6);
+        if (!r.intersectTriangle(A, B, Cc, cull, hitP)) continue;
+        const d = r.origin.distanceTo(hitP);
+        if (d < ray.near || d > ray.far || (best && d >= best.distance)) continue;
+        best = { distance: d, point: hitP.clone(), object: o };
+      }
+    }
+    return best;
+  };
   const fixed = [];
   for (const c of Object.values(C)) for (const a of c.animals) for (const pt of a.perches ?? []) {
     const [x, z] = c.at(pt[0], pt[2]);
     ray.set(root.localToWorld(new THREE.Vector3(x, c.level + pt[1] + 1.2, z)), new THREE.Vector3(0, -1, 0));
     ray.far = 6 * UNIT;
-    const hit = ray.intersectObjects(solid, false)[0];
+    const hit = castDown(under(solid, ray.ray.origin));
     if (!hit) continue;
     const y = root.worldToLocal(hit.point.clone()).y - c.level;
     if (Math.abs(y - pt[1]) > 0.05) fixed.push(`${c.id}/${a.kind}: ${pt[1].toFixed(2)}→${y.toFixed(2)}`);
@@ -40,7 +79,7 @@ export function snapPerches(root, terrain, C) {
   const topAt = (c, x, z, from, bird) => { // 从弧线能到的最高处往下探（头顶上的树冠不算）
     ray.set(root.localToWorld(new THREE.Vector3(x, c.level + from, z)), down);
     ray.far = 20 * UNIT;
-    const hit = ray.intersectObjects(bird ? noTrees : solid, false)[0];
+    const hit = castDown(under(bird ? noTrees : solid, ray.ray.origin));
     return hit ? root.worldToLocal(hit.point.clone()).y - c.level : -Infinity;
   };
   for (const c of Object.values(C)) for (const a of c.animals) {

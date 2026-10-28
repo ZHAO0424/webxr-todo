@@ -372,6 +372,84 @@
       }
     }
   </script>
+  <script>
+    // 村子存档和代码同时开始下（原来要等七十多个代码文件下完、main.js 跑起来才去下）。main.js 读默认存档时直接用这个
+    (() => { const q = new URLSearchParams(location.search); window.PV_SAVED = ['world', 'time', 'season', 'ruins', 'event', 'sim'].some((k) => q.has(k)) ? null : fetch('world/state.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null), () => null); })();
+  </script>
+  <!-- modulepreload：tools/preload.mjs 生成，别手改 -->
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.8.3/build/index.module.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/utils/BufferGeometryUtils.js">
+  <link rel="modulepreload" href="src/main.js">
+  <link rel="modulepreload" href="src/village.js">
+  <link rel="modulepreload" href="src/pixel.js">
+  <link rel="modulepreload" href="src/palette.js">
+  <link rel="modulepreload" href="src/textures.js">
+  <link rel="modulepreload" href="src/season.js">
+  <link rel="modulepreload" href="src/terrain.js">
+  <link rel="modulepreload" href="src/layout.js">
+  <link rel="modulepreload" href="src/compounds.js">
+  <link rel="modulepreload" href="src/buildings.js">
+  <link rel="modulepreload" href="src/props.js">
+  <link rel="modulepreload" href="src/things.js">
+  <link rel="modulepreload" href="src/i18n.js">
+  <link rel="modulepreload" href="src/sprites.js">
+  <link rel="modulepreload" href="src/residents.js">
+  <link rel="modulepreload" href="src/life/index.js">
+  <link rel="modulepreload" href="src/life/clock.js">
+  <link rel="modulepreload" href="src/life/villager.js">
+  <link rel="modulepreload" href="src/voxel.js">
+  <link rel="modulepreload" href="src/characters.js">
+  <link rel="modulepreload" href="src/animals.js">
+  <link rel="modulepreload" href="src/life/motion.js">
+  <link rel="modulepreload" href="src/life/activities.js">
+  <link rel="modulepreload" href="src/life/events.js">
+  <link rel="modulepreload" href="src/life/variety.js">
+  <link rel="modulepreload" href="src/life/beast.js">
+  <link rel="modulepreload" href="src/animalInfo.js">
+  <link rel="modulepreload" href="src/labels.js">
+  <link rel="modulepreload" href="src/names.js">
+  <link rel="modulepreload" href="src/i18n/en-people.js">
+  <link rel="modulepreload" href="src/i18n/en-words.js">
+  <link rel="modulepreload" href="src/i18n/words-people.js">
+  <link rel="modulepreload" href="src/i18n/words-world.js">
+  <link rel="modulepreload" href="src/i18n/words-econ.js">
+  <link rel="modulepreload" href="src/i18n/words-ui.js">
+  <link rel="modulepreload" href="src/life/barber.js">
+  <link rel="modulepreload" href="src/life/economy.js">
+  <link rel="modulepreload" href="src/life/badges.js">
+  <link rel="modulepreload" href="src/life/trade.js">
+  <link rel="modulepreload" href="src/life/newcomers.js">
+  <link rel="modulepreload" href="src/life/oldsite.js">
+  <link rel="modulepreload" href="src/nav.js">
+  <link rel="modulepreload" href="src/farmland.js">
+  <link rel="modulepreload" href="src/roadside.js">
+  <link rel="modulepreload" href="src/coplanar.js">
+  <link rel="modulepreload" href="src/overlap.js">
+  <link rel="modulepreload" href="src/audit.js">
+  <link rel="modulepreload" href="src/daylight.js">
+  <link rel="modulepreload" href="src/fx.js">
+  <link rel="modulepreload" href="src/fish.js">
+  <link rel="modulepreload" href="src/west.js">
+  <link rel="modulepreload" href="src/east.js">
+  <link rel="modulepreload" href="src/backdrop.js">
+  <link rel="modulepreload" href="src/xr.js">
+  <link rel="modulepreload" href="src/ui/frame.js">
+  <link rel="modulepreload" href="src/ui/cards.js">
+  <link rel="modulepreload" href="src/ui/roster.js">
+  <link rel="modulepreload" href="src/ui/xrCard.js">
+  <link rel="modulepreload" href="src/ui/tradeBubble.js">
+  <link rel="modulepreload" href="src/ui/newcomer.js">
+  <link rel="modulepreload" href="src/residentSchema.js">
+  <link rel="modulepreload" href="src/mine.js">
+  <link rel="modulepreload" href="src/audio.js">
+  <link rel="modulepreload" href="src/synth.js">
+  <link rel="modulepreload" href="src/music.js">
+  <link rel="modulepreload" href="src/scenes.js">
+  <link rel="modulepreload" href="src/world.js">
+  <link rel="modulepreload" href="src/cloud.js">
+  <!-- /modulepreload -->
 </head>
 <body>
   <div id="loader"><div class="ld">
