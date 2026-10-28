@@ -451,7 +451,7 @@ if (params.has('debug')) { window.__life = village.life; window.__village = vill
 const bubbles = createTradeBubbles();
 if (!params.has('sim')) V.onTrade = (t) => { bubbles.show(t, V.byId); document.documentElement.dataset.trade = `${t.buyer}:${t.good ?? t.service}`; if (params.has('followtrade') && !sel) { const b = V.byId[t.buyer]; selectPerson(b); host.querySelector('.follow')?.click(); const p = b.object.getWorldPosition(new THREE.Vector3()); controls.target.copy(p); camera.position.set(p.x, p.y + 0.09, p.z + 0.13); } }; // ?followtrade=1：第一笔成交时选中买家、镜头跟过去（截图检查用） // 无头快进时不画气泡；data-trade 给无头截图等成交用
 V.onRun = (pd, t) => bubbles.say(pd.object, [[tr('代买 ', 'Errand: '), '#e0d4bf'], [`${goodName(t.good)}×${t.qty}`, '#ffcc66']]); // 货郎代买：头顶冒一句
-const nameOf = (id) => (V.byId[id] ? pNick(V.byId[id].p) : id === 'niu_wanshan' ? tr('骡帮', 'the mule train') : id);
+const nameOf = (id) => (V.byId[id] ? pNick(V.byId[id].p) : id === 'niu_wanshan' ? tr('骡帮', 'the mule train') : id === 'county' ? tr('县里', 'the county') : id); // county：县里发村长补贴
 /** 英文句子中间的词：首字母小写（Tofu → tofu；两个大写字母开头的缩写、专名不动）。 */
 const mid = (s) => (EN && /^[A-Z][a-z]/.test(s ?? '') ? s[0].toLowerCase() + s.slice(1) : s);
 const goodText = (t) => (t.good ? (EN ? `${mid(goodName(t.good))} ×${t.qty}` : `${goodName(t.good)}×${t.qty}`) : EN ? mid(reasonText(t.service)) : t.service);
@@ -464,6 +464,7 @@ const unitName = (id) => PLACES[id] ?? nameOf(id);
 function dealLine(v) {
   const t = ECON.trades.findLast((x) => x.day === ECON.day && (x.buyer === v.p.id || x.seller === v.p.id));
   if (!t) return '';
+  if (t.buyer === 'county') return tr(`今天：领了县里发的村干部补贴（${payText(t)}）`, `Today: headman allowance from the county (${payText(t)})`);
   if (EN) {
     if (t.kind === 'gift') return t.buyer === v.p.id ? `Today: ${nameOf(t.seller)}'s family sent ${goodText(t)} (a gift)` : `Today: sent ${goodText(t)} to ${nameOf(t.buyer)}'s family (a gift)`;
     return t.buyer === v.p.id ? `Today: ${t.service ? '' : 'bought '}${goodText(t)} (${payText(t)})` : `Today: ${t.service ? `${goodText(t)} for ${nameOf(t.buyer)}` : `sold ${nameOf(t.buyer)} ${goodText(t)}`} (${payText(t)})`;
@@ -480,10 +481,10 @@ function econOf(id) {
   const owe = EN
     ? [...owedBy.map(([o, n]) => `${unitName(o)} owes this family ${coinText(n)}`), ...owedTo.map((x) => `Owes ${unitName(x.id).replace(/^The /, 'the ')} ${coinText(x.owe[u.id])}`)]
     : [...owedBy.map(([o, n]) => `${unitName(o)} 欠这家 ${n} 文`), ...owedTo.map((x) => `欠 ${unitName(x.id)} ${x.owe[u.id]} 文`)];
-  const logEN = (t) => (t.kind === 'gift'
+  const logEN = (t) => (t.buyer === 'county' ? `Headman allowance from the county (${payText(t)})` : t.kind === 'gift'
     ? (t.from === u.id ? `${nameOf(t.seller)}'s family sent ${goodText(t)} (a gift)` : `Sent ${goodText(t)} to ${(PLACES[t.from] ?? nameOf(t.buyer)).replace(/^The /, 'the ')} (a gift)`)
     : `${nameOf(t.buyer)} ${t.service ? (t.from === u.id ? `paid for ${goodText(t)}` : `came for ${goodText(t)}`) : t.from === u.id ? `bought ${goodText(t)}` : `bought ${goodText(t)} here`} (${payText(t)})`);
-  const logZH = (t) => (t.kind === 'gift' ? `${t.from === u.id ? `${nameOf(t.seller)}家送来${goodText(t)}（接济）` : `给${PLACES[t.from] ?? nameOf(t.buyer)}送去${goodText(t)}（接济）`}` : `${nameOf(t.buyer)}${t.service ? (t.from === u.id ? `付${t.service}` : `来${t.service}`) : t.from === u.id ? `买${goodText(t)}` : `从这家买${goodText(t)}`}（${payText(t)}）`);
+  const logZH = (t) => (t.buyer === 'county' ? `县里发来村干部补贴（${payText(t)}）` : t.kind === 'gift' ? `${t.from === u.id ? `${nameOf(t.seller)}家送来${goodText(t)}（接济）` : `给${PLACES[t.from] ?? nameOf(t.buyer)}送去${goodText(t)}（接济）`}` : `${nameOf(t.buyer)}${t.service ? (t.from === u.id ? `付${t.service}` : `来${t.service}`) : t.from === u.id ? `买${goodText(t)}` : `从这家买${goodText(t)}`}（${payText(t)}）`);
   const log = u.log.slice(-6).reverse().map((t) => `${hm(t.hour)} ${EN ? logEN(t) : logZH(t)}`);
   return { unit: unitName(u.id), coins: u.coins, stock, owe, log };
 }

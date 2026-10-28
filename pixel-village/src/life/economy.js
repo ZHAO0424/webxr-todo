@@ -73,7 +73,7 @@ export const goodQty = (g, n) => `${goodName(g)} ${n}${goodUnit(g, n)}`;
  */
 export const REASON_EN = {
   // service：手艺活、工钱、房钱……（成交记录里 good 为空时的那件事）
-  房钱: 'Rent', 工钱: 'Wages', 帮工修房: 'Help with house repairs', 地租: 'Land rent', 学费: 'School fees', 钉马掌: 'Shoeing mules', 牵线: 'Brokerage',
+  房钱: 'Rent', 工钱: 'Wages', 村干部补贴: 'Headman allowance', 帮工修房: 'Help with house repairs', 地租: 'Land rent', 学费: 'School fees', 钉马掌: 'Shoeing mules', 牵线: 'Brokerage',
   修农具: 'Tool mending', 修家什: 'Furniture mending', 錾磨盘: 'Millstone dressing', 修房盘炕: 'House and kang repairs', 送水: 'Water delivery', 照看: 'Caregiving',
   杀猪: 'Pig slaughtering', 传话: 'Passing on notices', 喝茶: 'Tea', 剃头: 'Haircut', 看病: "Doctor's visit", 跑腿: 'Errand fee',
   // place：在哪儿 / 怎么成交的
@@ -114,7 +114,7 @@ const MAKE = [
   { act: ['work'], who: 'liu_youfu', good: 'wooden', rate: 0.15, max: 6 },
   { act: ['work'], who: 'zhou_jishi', good: 'pill', rate: 1.5, in: { honey: 0.05 }, max: 40 },
   { act: ['tendBees'], good: 'honey', rate: 0.5, max: 30, seasons: ['spring', 'summer', 'autumn'] },
-  { act: ['herd'], good: 'wool', rate: 0.6, max: 40, seasons: ['spring'] },
+  { act: ['herd'], good: 'wool', rate: 0.3, max: 40 }, // 一年四季都出（用户定：不受季节影响；原来只在春天剪毛时出 0.6，冬天羊倌只出不进）
   { act: ['sitGate', 'garden'], who: 'chen_mancang', good: 'basket', rate: 0.15, max: 8 },
   { act: ['yardWork'], who: ['he_xiulan', 'sun_qiaoyun'], good: 'pickle', rate: 0.06, in: { veg: 2, salt: 0.1 }, max: 6, seasons: ['autumn', 'winter'] },
   { act: ['mill'], good: 'flour', rate: 2, in: { grain: 1 }, max: 30 },
@@ -293,6 +293,14 @@ export class Economy {
   /** 短工给谁干：手头最宽裕的种地人家。 */
   employerFor() { return ['farmA', 'farmB', 'farmC'].map((id) => this.unit(id)).sort((a, b) => b.coins - a.coins)[0]; }
 
+  /** 村长：县里每天发十二文村干部补贴（村外的钱）。原来村长家没有进项（不种地），一家人吃用几天就花空了；五文也不够。 */
+  headmanPay(day) {
+    const u = this.unit('headman'), p = u?.members.find(adult);
+    if (!p) return;
+    u.coins += 12; this.flow.in += 12;
+    this.record({ day, hour: 6.3, buyer: 'county', from: 'caravan', seller: p.id, to: u.id, good: null, service: '村干部补贴', qty: 1, price: 12, kind: 'cash' }); // 账上记成「县里发的」（buyer: 'county'，不是村里的人）
+  }
+
   /** 新来的人的开销和工钱：借住的每月给房东一回房钱；短工收东家工钱（昨天干够三个时辰）。 */
   newcomerDues(day) {
     for (const u of this.units.values()) {
@@ -343,7 +351,7 @@ export class Economy {
       for (const l of this.cart) if (GOODS[l.good]?.decay) l.qty = Math.floor(l.qty * (1 - GOODS[l.good].decay) + 1e-9);
       this.cart = this.cart.filter((l) => l.qty >= 1 && this.units.has(l.from));
     }
-    if (!first) { this.relief(day); this.newcomerDues(day); }
+    if (!first) { this.relief(day); this.newcomerDues(day); this.headmanPay(day); }
     for (const g in this.missing) { this.missing[g] *= 0.7; if (this.missing[g] < 0.05) delete this.missing[g]; } // 缺口慢慢淡忘
     if (!first) { this.caravan(day); this.tuition(day); this.repairsReady(day); }
     for (const u of this.units.values()) if ((u.stock.seed ?? 0) >= 1 && u.boost !== S && ['farmA', 'farmB', 'farmC'].includes(u.id)) { u.stock.seed -= 1; u.boost = S; } // 农户换上良种
