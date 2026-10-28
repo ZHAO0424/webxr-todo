@@ -21,7 +21,7 @@ async function loadCSS() {
   };
   const base = new URL('src/ui/ui.css', document.baseURI); // 按网页的位置找（线上跑的是打包后的 dist/main.min.js，不能按这个文件自己的位置）
   let css = await (await fetch(base)).text();
-  for (const m of [...css.matchAll(/url\('([^']+\.woff)'\)/g)]) css = css.replace(m[0], `url('${await toData(new URL(m[1], base))}')`);
+  for (const m of [...css.matchAll(/url\('([^']+\.woff2?)'\)/g)]) css = css.replace(m[0], `url('${await toData(new URL(m[1], base))}')`);
   const root = getComputedStyle(document.documentElement);
   const frames = ['--frame-panel', '--frame-inset', '--frame-face'].map((k) => `${k}: ${root.getPropertyValue(k)};`).join(' ');
   return `${css}\n.xr { ${frames} }\n${SIZE}`;
