@@ -348,7 +348,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
         ${d ? `<div class="mnow"><span class="dot ${d.now.kind || 'work'}"></span><span class="what">${esc(d.now.doing)}</span>${d.now.where ? `<span class="loc">${esc(d.now.where)}</span>` : ''}</div>
         <div class="mmoney"><span>${tr('手头', 'Cash')} <b>${d.coins}</b> ${tr('文', 'coins')}</span><span>${tr('进村以来挣了', 'Earned')} <b>${d.earned}</b> ${tr('文', '')}</span>${days !== null ? `<span>${EN ? `Day <b>${days}</b> here` : `住了 <b>${days}</b> 天`}</span>` : ''}</div>` : ''}
         <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr('他还没上传过，删掉就没了。确定？', 'They were never uploaded; this deletes them. Sure?') : tr('他会离开大家的村子（下次村子更新时），之后可以再建一个新居民。确定？', 'They will leave the shared village at the next update; then you can create a new resident. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
-          : `${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 上传', 'Upload via GitHub')}</button>` : ''}<button class="btn${main ? '' : ' on'}" data-act="edit">${tr('修改', 'Edit')}</button><button class="btn danger small" data-act="leave">${tr('让他离村…', 'Leave village...')}</button>`}</div>
+          : `${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 上传', 'Upload via GitHub')}</button>` : ''}${d ? `<button class="btn" data-act="find">${tr('跟随', 'Follow')}</button><button class="btn" data-act="detail">${tr('档案', 'Profile')}</button>` : ''}<button class="btn${main ? '' : ' on'}" data-act="edit">${tr('修改', 'Edit')}</button><button class="btn danger small" data-act="leave">${tr('离村', 'Leave')}</button>`}</div>
       </div>`;
     if (!d) return `<div class="md-solo">${left}</div>`; // 还没进村（村里找不到这个人）：只有左边
     // 中：交情。每档最多摆这么多个头像，多出来的写「还有 N 人」
@@ -391,7 +391,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     } else {
       stage.className = 'mine-d';
       stage.innerHTML = mineDetail(r);
-      draw(stage.querySelector('.big-p .v'), r.p, 'front', 136);
+      draw(stage.querySelector('.big-p .v'), r.p, 'front', 146);
       stage.querySelectorAll('.tt[data-pid]').forEach((t) => { const o = RESIDENTS.find((x) => x.id === t.dataset.pid); if (o) t.querySelector('.hd').append(head(o, 1.5)); });
       stage.dataset.id = r.p.id;
     }
@@ -420,7 +420,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       ? `<div class="al"><b>${tr('已绑定邮箱', 'Email linked')}</b> ${esc(me.email)} <span class="dim">${tr('换电脑或清了浏览器，用这个邮箱和密码登录就能找回居民。', 'On another computer, log in with this email and password to get your residents back.')}</span></div>`
       : acctMode === 'bind' ? `<div class="al"><b>${tr('绑定邮箱', 'Link an email')}</b> <span class="dim">${tr('以后换电脑或清了浏览器，用它登录就能找回居民。不会发邮件，记好密码（忘了找不回）。', 'Use it to get your residents back on another computer. No email is sent, so remember the password (it can\'t be reset).')}</span></div>${form('bind', tr('绑定', 'Link'))}`
       : acctMode === 'login' ? `<div class="al"><b>${tr('用邮箱登录找回', 'Log in to recover')}</b> <span class="dim">${n ? tr(`注意：这台电脑上现在的 ${n} 个居民没绑邮箱，登录别的账号以后就改不了它们了。`, `Note: the ${n} resident(s) on this computer aren't linked to an email; after logging in to another account you won't be able to edit them.`) : tr('输入在别的电脑上绑定的邮箱和密码。', 'Enter the email and password you linked on the other computer.')}</span></div>${form('login', tr('登录', 'Log in'))}`
-      : `<div class="al"><span class="dim">${n ? tr('居民认的是这个浏览器：换电脑、清了浏览器就改不了了。', 'Your residents are tied to this browser; you\'d lose them on another computer.') : tr('在别的电脑上建过居民？', 'Made residents on another computer?')}</span>${n ? `<button class="btn on" data-act="acctBind">${tr('绑定邮箱', 'Link email')}</button>` : ''}<button class="btn" data-act="acctLogin">${tr('用邮箱登录找回', 'Log in to recover')}</button></div>`;
+      : `<div class="al">${n ? '' : `<span class="dim">${tr('在别的电脑上建过居民？', 'Made residents on another computer?')}</span>`}${n ? `<button class="btn on" data-act="acctBind">${tr('绑定邮箱', 'Link email')}</button>` : ''}<button class="btn" data-act="acctLogin">${tr('用邮箱登录找回', 'Log in to recover')}</button></div>`;
     if (acctMsg) d.insertAdjacentHTML('beforeend', `<div class="okmsg">${esc(acctMsg)}</div>`);
     return d;
   };
@@ -484,7 +484,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     q('.foot .back').hidden = page === 'look' || !!changing;
     q('.foot .fwd').textContent = page === 'look' ? `${tr('下一步：填资料', 'Next: profile')} →` : `${tr('下一步：选营生', 'Next: work')} →`;
     q('.newonly .bring-h').hidden = q('.newonly .bring').hidden = q('.newonly .coin-h').hidden = q('.newonly .coin-f').hidden = !!editing; // 改的时候：本钱、带的东西不能改
-    q('.hint').textContent = page === 'mine' ? (residents().length ? tr('你在村里的居民（一个浏览器一个）。改好会自动上传，两三分钟后保存到世界、别人也看得见。', 'Your resident in the village (one per browser). Edits upload automatically and reach the shared world within minutes.') : tr('你还没有自己的居民：建一个，他就住进大家的村子（一个浏览器一个）。', 'You have no resident yet. Create one to move into the shared village (one per browser).'))
+    q('.hint').textContent = page === 'mine' ? (residents().length ? '' : tr('你还没有自己的居民：建一个，他就住进大家的村子（一个浏览器一个）。', 'You have no resident yet. Create one to move into the shared village (one per browser).'))
       : page === 'done' ? ''
       : page === 'look' ? tr('先捏个样子：右边分组点选，也可以用人像底下的箭头一个个换；按住人拖动转着看，滚轮放大缩小', 'Shape their look: pick from the groups on the right, or step through with the arrows; drag to turn, scroll to zoom')
       : page === 'info' ? (editing ? tr('改好了点「保存修改」：你这边马上换样子，也会自动上传到世界', 'Press "Save changes": they change right away here and are submitted to the shared village') : tr('起个名字、说说会什么，再挑个住处', 'Give them a name, say what they can do'))
