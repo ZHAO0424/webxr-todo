@@ -324,3 +324,67 @@ html[lang=en] #roster .badge-t .bn { white-space: normal; line-height: calc(13 *
 #newcomer .hub { grid-template-columns: minmax(0, 1fr); min-height: 0; } /* 一个浏览器一个居民：不要左边的居民位 */
 #newcomer .hub .extra { display: flex; flex-wrap: wrap; align-items: center; gap: calc(2 * var(--p)); padding: calc(2 * var(--p)) calc(3 * var(--p)); }
 #newcomer .hub .extra .dim { flex: 1 1 100%; color: var(--gold); }
+
+/* ---------------------------------------------------------------- 我的居民：一页摊开（左 本人 | 中 交情 | 右 勋章、家当） */
+#newcomer.wide { width: min(calc(610 * var(--p)), 97vw); max-height: 96vh; }
+#newcomer .hub-d { display: flex; flex-direction: column; gap: calc(3 * var(--p)); }
+#newcomer .mine-d { display: grid; grid-template-columns: calc(230 * var(--f)) minmax(0, 1.35fr) minmax(0, 1fr); gap: calc(3 * var(--p)); align-items: stretch; }
+#newcomer .mine-d > .paper, #newcomer .md-side > .paper { padding: calc(4 * var(--p)); display: flex; flex-direction: column; gap: calc(2 * var(--p)); min-width: 0; }
+#newcomer .mine-d .lbl { color: var(--gold); display: flex; align-items: baseline; gap: calc(2 * var(--p)); }
+#newcomer .mine-d .lbl .count { margin-left: auto; color: var(--dim); font-size: calc(11 * var(--f)); }
+/* 左：本人 */
+#newcomer .md-me .big-p { height: calc(168 * var(--f)); display: grid; place-items: end center; overflow: hidden; background: #e8d6b0; box-shadow: inset 0 0 0 var(--f) var(--ink); }
+#newcomer .md-me .big-p canvas { display: block; max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+#newcomer .md-me .sname b { font-size: calc(22 * var(--f)); line-height: calc(26 * var(--f)); }
+#newcomer .md-me .sstat { display: flex; flex-direction: column; align-items: flex-start; gap: var(--p); padding: calc(2 * var(--p)) calc(3 * var(--p)); background: #17120d; box-shadow: 0 0 0 var(--f) var(--line); }
+#newcomer .md-me .sstat .why { font-size: calc(11 * var(--f)); line-height: calc(15 * var(--f)); color: var(--dim); }
+#newcomer .md-me .mnow { display: flex; align-items: center; flex-wrap: wrap; gap: calc(2 * var(--p)); }
+#newcomer .md-me .mnow .dot { width: calc(2 * var(--p)); height: calc(2 * var(--p)); background: var(--green); flex: none; }
+#newcomer .md-me .mnow .dot.rest { background: var(--blue); }
+#newcomer .md-me .mnow .dot.sleep { background: var(--purple); }
+#newcomer .md-me .mnow .dot.event { background: var(--gold); }
+#newcomer .md-me .mnow .loc { color: var(--dim); }
+#newcomer .md-me .mmoney { display: flex; flex-wrap: wrap; gap: calc(1 * var(--p)) calc(4 * var(--p)); color: var(--dim); }
+#newcomer .md-me .mmoney b { color: var(--gold); }
+#newcomer .md-me .leave { margin-top: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: calc(2 * var(--p)); padding-top: calc(2 * var(--p)); border-top: var(--f) solid var(--line); }
+#newcomer .md-me .leave .btn { padding: 0 calc(4 * var(--p)); line-height: calc(26 * var(--f)); }
+#newcomer .md-me .leave .btn.small { line-height: calc(26 * var(--f)); --c: #4a2c26; color: #e0b0a0; }
+#newcomer .md-me .leave .ask { color: var(--gold); flex: 1 1 100%; text-align: right; }
+#newcomer .md-solo { display: grid; grid-template-columns: calc(260 * var(--f)); justify-content: center; }
+/* 中：交情（头像分三档） */
+#newcomer .md-ties .tgrp { display: flex; flex-direction: column; gap: var(--p); }
+#newcomer .md-ties .tgh { display: flex; align-items: baseline; gap: calc(2 * var(--p)); }
+#newcomer .md-ties .tgrp.lv3 .tgh b { color: var(--gold); }
+#newcomer .md-ties .tgrp.lv2 .tgh b { color: #9fd68a; }
+#newcomer .md-ties .tgrp.lv1 .tgh b { color: var(--dim); }
+#newcomer .md-ties .tgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(58 * var(--f)), 1fr)); gap: calc(2 * var(--p)); align-items: start; }
+#newcomer .md-ties .tt { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--f)); padding: calc(3 * var(--f)) 0; background: #241c14; box-shadow: 0 0 0 var(--f) var(--line); min-width: 0; }
+#newcomer .md-ties .tt.lv3 { background: #3a2e18; box-shadow: 0 0 0 calc(2 * var(--f)) var(--gold); }
+#newcomer .md-ties .tt.lv2 { box-shadow: 0 0 0 var(--f) #6f9a5c; }
+#newcomer .md-ties .tt.lv1 { opacity: .85; }
+#newcomer .md-ties .tt .hd { display: grid; place-items: end center; height: calc(38 * var(--f)); overflow: hidden; }
+#newcomer .md-ties .tt .hd canvas { display: block; image-rendering: pixelated; }
+#newcomer .md-ties .tt .tn { max-width: 100%; padding: 0 calc(2 * var(--f)); font-size: calc(11 * var(--f)); line-height: calc(13 * var(--f)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#newcomer .mine-d .th { display: inline-flex; gap: calc(1 * var(--f)); vertical-align: middle; }
+#newcomer .mine-d .th i { width: calc(6 * var(--f)); height: calc(6 * var(--f)); background: #3a3027; box-shadow: 0 0 0 var(--f) var(--ink); }
+#newcomer .mine-d .th i.on { background: #d0564a; }
+#newcomer .md-ties .more { align-self: center; font-size: calc(11 * var(--f)); }
+#newcomer .md-ties .legend { margin-top: auto; font-size: calc(11 * var(--f)); line-height: calc(15 * var(--f)); }
+/* 右：勋章、家当 */
+#newcomer .md-side { display: flex; flex-direction: column; gap: calc(3 * var(--p)); min-width: 0; }
+#newcomer .md-badges .mbs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(1 * var(--p)) calc(2 * var(--p)); }
+#newcomer .md-badges .mbg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: calc(2 * var(--p)); color: var(--dim); min-width: 0; }
+#newcomer .md-badges .mbg .md { width: calc(14 * var(--f)); height: calc(14 * var(--f)); line-height: calc(14 * var(--f)); font-size: calc(10 * var(--f)); text-align: center; border-radius: 50%; background: #3a3027; color: #6a5c48; }
+#newcomer .md-badges .mbg.got .bn { color: var(--gold); }
+#newcomer .md-badges .mbg.got.t1 .md { background: radial-gradient(circle at 35% 35%, #e6a86a, #a8642e); color: #fff0d8; }
+#newcomer .md-badges .mbg.got.t2 .md { background: radial-gradient(circle at 35% 35%, #f0f0f4, #9aa0ae); color: #fff; }
+#newcomer .md-badges .mbg.got.t3 .md { background: radial-gradient(circle at 35% 35%, #ffe88a, #c8901e); color: #fff6d0; }
+#newcomer .md-badges .mbg .bn { font-size: calc(12 * var(--f)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#newcomer .md-badges .mbg .bd { font-size: calc(10 * var(--f)); color: var(--dim); }
+#newcomer .md-badges .mbg .bp { width: calc(26 * var(--f)); height: calc(4 * var(--f)); background: #3a3027; box-shadow: 0 0 0 var(--f) var(--ink); }
+#newcomer .md-badges .mbg .bp i { display: block; height: 100%; background: var(--gold); }
+#newcomer .md-econ .stk { display: flex; flex-wrap: wrap; gap: var(--p); }
+#newcomer .md-econ .stk .chip { padding: 0 calc(2 * var(--p)); line-height: calc(16 * var(--f)); font-size: calc(11 * var(--f)); }
+#newcomer .md-econ .owe { color: var(--gold); font-size: calc(11 * var(--f)); }
+#newcomer .md-econ .logs { display: flex; flex-direction: column; gap: calc(2 * var(--f)); font-size: calc(11 * var(--f)); line-height: calc(15 * var(--f)); color: var(--dim); }
+@media (max-width: 900px) { #newcomer .mine-d { grid-template-columns: minmax(0, 1fr); } }

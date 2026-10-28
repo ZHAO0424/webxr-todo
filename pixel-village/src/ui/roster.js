@@ -65,7 +65,7 @@ function bust(p) {
   return canvas;
 }
 /** 头像：头和肩膀，一个像素 = k 个字点。 */
-function head(p, k) {
+export function head(p, k) {
   const { canvas, w } = bodyCrop(characterAtlas(bare(p)), CELL_W, CELL_H, HEAD(p), 18);
   canvas.style.width = `calc(${w * k} * var(--f))`;
   return canvas;

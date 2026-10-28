@@ -34,7 +34,7 @@ import { cloud } from './cloud.js';
 import { progress as badgeProgress, affinity, check as checkBadges } from './life/badges.js';
 import { signature, pickKeys, EDIT_KEYS } from './residentSchema.js';
 import { EN, tr, plural, setLang } from './i18n.js';
-import { villageName, hhName, hhField, word, pName, pNick, pJob } from './names.js';
+import { villageName, hhName, hhField, word, pName, pNick, pJob, pHousehold } from './names.js';
 import { VILLAGE } from './residents.js';
 import { WEST_BOUNDS } from './west.js';
 
@@ -636,6 +636,18 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
   share,
   account,
   onDetail: (id) => { roster.show(id); rosterBtn?.classList.add('on'); }, // 详情：档案里这个人（勋章、好感度）
+  /**
+   * 「我的居民」页一次摊开的全部资料：此刻在干什么、钱和存货、最近的买卖、勋章，还有他和村里每个人的交情（熟识度 0–20，熟的在前）。
+   * 原来这些在档案页里，要点「详情」跳过去、在窄窄一栏里上下滚着看。
+   */
+  detail: (id) => {
+    const v = V.byId[id];
+    if (!v) return null;
+    if (v.p.newcomer) checkBadges(V, v, HOUSEHOLDS);
+    const ties = V.people.filter((o) => o !== v && !o.gone && !o.p.caravan).map((o) => ({ p: o.p, tie: ECON.tie(v.p.id, o.p.id), home: PLACES[o.p.home] ?? '' })).filter((x) => x.tie >= 1).sort((a, b) => b.tie - a.tie);
+    const u = ECON.unitOfV(v);
+    return { now: personStatus(v), econ: econOf(id), badges: badgeProgress(V, v, HOUSEHOLDS), ties, people: V.people.filter((o) => o !== v && !o.gone && !o.p.caravan).length, coins: Math.round(u?.coins ?? 0), earned: Math.round(v.p.stats?.earned ?? 0), home: (v.p.oldHouse ? pHousehold(v.p, HOUSEHOLDS) : PLACES[v.p.home]) ?? pHousehold(v.p, HOUSEHOLDS), day: ECON.day, since: v.p.stats?.since };
+  },
   econ: () => ECON,
   homes: () => HOUSEHOLDS.filter((h) => village.C[h.id] && h.id !== 'square' && !h.oldSite).map((h) => ({ id: h.id, name: PLACES[h.id] ?? hhName(h), n: V.people.filter((v) => (v.p.sleepAt ?? v.p.home) === h.id).length })).sort((a, b) => a.n - b.n), // 借住哪家：人少的排前头
   M: village.M, // 第一步的 3D 小人用村里同一套材质
