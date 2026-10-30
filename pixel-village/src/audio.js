@@ -280,6 +280,8 @@ export function createSound(village, getCamera) {
     /** 页面上第一次点击：自动打开声音（除非用户关过）。 */
     wake() { if (!on && !muted) enable(); return on; },
     /** 点了动物：叫一声（不分方向，保证听得见）。 */
+    /** 点了界面上的按钮：轻轻一下（ok = 确认类的按钮）。声音关着就不响。 */
+    ui(ok = false) { if (on && S) synth('tap', null, 0, ok); },
     clickBeast(b) { const k = ANIMAL[b.s.kind]; if (on && ready && k) sample(k, null, { gain: ANIMAL_GAIN * 1.3 }); },
     /** 点了物件：放对应的声音。 */
     clickThing(t) {

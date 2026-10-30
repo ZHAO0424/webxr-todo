@@ -56,6 +56,12 @@ export function makeSynth(ctx) {
   // ---------------------------------------------------------------- 一次性的声音
 
   const SFX = {
+    // 界面按钮：很轻的一下木头声（一小截噪声过带通 + 一点低音），不抢环境声；ok = 确认类按钮，高一点、两下
+    tap(t, out, ok = false) {
+      const hit = (t0, f, peak) => { const n = ctx.createBufferSource(); n.buffer = noise; const g = gainNode(); env(g, t0, peak, 0.001, 0.035); n.connect(filt('bandpass', f, 6)).connect(g).connect(out); n.start(t0, Math.random() * 1.5); n.stop(t0 + 0.08); osc('sine', f * 0.42, t0, 0.03, out, peak * 0.5, 0.001); };
+      hit(t, ok ? 2400 : 1900, 0.16);
+      if (ok) hit(t + 0.055, 3000, 0.11);
+    },
     block(t, out) { osc('sine', 1250, t, 0.06, out, 0.35, 0.001); osc('sine', 1870, t, 0.04, out, 0.15, 0.001); }, // 梆子
     gong(t, out, big = false) { const b = big ? 0.6 : 1; for (const [f, a] of [[220, 0.3], [334, 0.2], [472, 0.15], [655, 0.08]]) { const o = osc('sine', f * b, t, big ? 2.6 : 1.2, out, a, 0.003); o.frequency.exponentialRampToValueAtTime(f * b * 0.97, t + 1.5); } },
     bell(t, out) { for (const [f, a] of [[1580, 0.2], [2390, 0.12], [3950, 0.05]]) osc('sine', f, t, 2.2, out, a, 0.002); },

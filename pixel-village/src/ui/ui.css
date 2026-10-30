@@ -418,3 +418,10 @@ html[lang=en] #newcomer .mine-d { grid-template-columns: calc(260 * var(--f)) mi
 @media (max-width: 900px) { #newcomer .mine-d { grid-template-columns: minmax(0, 1fr); } }
 #newcomer .hint:empty { display: none; }
 #newcomer .mine-d * { scrollbar-color: #6a5a44 #17120d; }
+
+/* 「你不在的时候」（src/ui/away.js）：左下角按钮上面的小纸条，和「设置」弹出的位置一样 */
+#away { position: absolute; left: 0; bottom: calc(100% + 3 * var(--p)); width: max-content; max-width: min(calc(170 * var(--p)), 80vw); padding: calc(4 * var(--p)) calc(5 * var(--p)); display: flex; flex-direction: column; gap: var(--f); line-height: calc(16 * var(--f)); }
+#away h4 { margin: 0 0 var(--p); font-family: 'PixelZh', 'Microsoft YaHei', sans-serif; font-size: calc(16 * var(--f)); line-height: calc(20 * var(--f)); font-weight: normal; color: var(--gold); }
+#away .who { margin-top: var(--p); color: var(--gold); }
+#away .acts { display: flex; gap: calc(3 * var(--p)); margin-top: calc(3 * var(--p)); }
+#hint:has(#away) { z-index: 4; } /* 纸条在的时候左下角整栏压过换场景的按钮（档案、我的居民是 5、6，照样盖住它） */

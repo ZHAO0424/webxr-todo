@@ -91,7 +91,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
         <textarea class="in wide" data-f="bio" maxlength="${EN ? 160 : 80}" rows="2" placeholder="${tr('一两句来历（可以不填），比如 山外胡家庄人，家里的磨坊叫水冲了，出来找营生', 'A line or two of background (optional), e.g. From Hujiazhuang beyond the hills; the family mill was washed away, so came out to find work.')}"></textarea>
       </div>
       <div class="paper box newonly">
-        <h3>${tr('住哪儿', 'Home')}<small>${tr('他自己找', 'They choose')}</small></h3><div class="homes"></div>
+        <h3>${tr('住哪儿', 'Home')}<small class="choose">${tr('他自己找', 'They choose')}</small></h3><div class="homes"></div>
         <h3 class="bring-h">${tr('带着什么来', 'Brings along')}</h3><div class="chips bring">${chips('bring', BRING.map(([g, q]) => [g, EN ? `${goodName(g)} ×${q}` : `${GOODS[g].name} ${q}${GOODS[g].unit}`]))}</div>
         <h3 class="coin-h">${tr('本钱', 'Savings')}</h3>
         <div class="field nok coin-f"><input class="in" data-f="coins" type="range" min="0" max="200" step="10" value="80"><span class="val"><b class="coinv">80</b> ${tr('文', 'coins')}</span></div>
@@ -112,6 +112,8 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
 
   const q = (s) => el.querySelector(s);
   /** 照表单拼出这个人（外观字段 + 资料）。over：试穿某一样（缩略图用）。 */
+  /** 说到这个人用「她」还是「他」（英文一律 they）。 */
+  const ta = (x) => (x?.sex === '女' ? '她' : '他');
   const person = (over = {}) => {
     const f = { ...form, ...over }, age = Math.max(16, Math.min(80, Number(f.age) || 30)), man = f.sex === '男';
     const [ek, ev] = (f.extra || ':').split(':');
@@ -259,6 +261,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     else form[P.key] = v;
   };
   const homeChips = () => { // 按现在填的会什么、性格、喜好，他会看中哪处（修改时：写现在住哪儿）
+    q('.info-page .choose').textContent = tr(`${ta(form)}自己找`, 'They choose');
     if (editing) { q('.homes').innerHTML = `<div class="sub">${EN ? 'Already settled in the village; the home stays as it is.' : '已经在村里住下了，住处不变。'}</div>`; return; }
     const o = pickHome(person());
     const host = homes()[0];
@@ -302,7 +305,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       box.append(b);
     }
     const j = JOBS.find((x) => x.id === (hover ?? form.jobId)), d = q('.jdesc');
-    if (!j) { d.innerHTML = `<div class="empty">${changing ? tr('挑一个新营生，点「改行」，他马上换过去。', 'Pick a new job and press "Change job" — they switch right away.') : tr('左边点一格，看看这一行干什么。<br><br>不选也行：他认完人，自己按"村里缺什么 + 自己会什么"挑一个。', 'Click a tile on the left to see what the job involves.<br><br>Or skip it: after meeting everyone they pick one based on what the village needs and what they can do.')}</div>`; return; }
+    if (!j) { d.innerHTML = `<div class="empty">${changing ? tr(`挑一个新营生，点「改行」，${ta(changing)}马上换过去。`, 'Pick a new job and press "Change job" — they switch right away.') : tr(`左边点一格，看看这一行干什么。<br><br>不选也行：${ta(form)}认完人，自己按"村里缺什么 + 自己会什么"挑一个。`, 'Click a tile on the left to see what the job involves.<br><br>Or skip it: after meeting everyone they pick one based on what the village needs and what they can do.')}</div>`; return; }
     const r = by[j.id] ?? { est: j.est, rivals: 0 };
     d.innerHTML = `<div class="dh"><span class="slot big"></span><div><div class="dn">${esc(jt(j, 'name'))}</div>${r.rivals ? `<div class="dim">${EN ? `${r.rivals} already doing it` : `已有 ${r.rivals} 人在做`}</div>` : ''}<div class="tags">${r.short ? `<i class="tag short">${tr('村里正缺', 'Village needs it')}</i>` : ''}${r.match ? `<i class="tag match">${tr('和会的对口', 'Matches skills')}</i>` : ''}</div></div></div>
       <p>${esc(jt(j, 'desc'))}</p>
@@ -348,7 +351,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
         ${d ? `<div class="mnow"><span class="dot ${d.now.kind || 'work'}"></span><span class="what">${esc(d.now.doing)}</span>${d.now.where ? `<span class="loc">${esc(d.now.where)}</span>` : ''}</div>
         <div class="mmoney"><span>${tr('手头', 'Cash')} <b>${d.coins}</b> ${tr('文', 'coins')}</span><span>${tr('进村以来挣了', 'Earned')} <b>${d.earned}</b> ${tr('文', '')}</span>${days !== null ? `<span>${EN ? `Day <b>${days}</b> here` : `住了 <b>${days}</b> 天`}</span>` : ''}</div>` : ''}
         <div class="mstory"><div class="lbl">${tr('背景故事', 'Story')}</div><div class="story">${(d?.story ?? [pStory(p)]).map((x) => `<p>${esc(x)}</p>`).join('')}</div></div>
-        <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr('他还没上传过，删掉就没了。确定？', 'They were never uploaded; this deletes them. Sure?') : tr('他会离开大家的村子（下次村子更新时），之后可以再建一个新居民。确定？', 'They will leave the shared village at the next update; then you can create a new resident. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr('让他走', 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
+        <div class="leave">${asking ? `<span class="ask">${status === 'local' ? tr(`${ta(r.p)}还没上传过，删掉就没了。确定？`, 'They were never uploaded; this deletes them. Sure?') : tr(`${ta(r.p)}会离开大家的村子（下次村子更新时），之后可以再建一个新居民。确定？`, 'They will leave the shared village at the next update; then you can create a new resident. Sure?')}</span><button class="btn danger" data-act="leaveYes">${tr(`让${ta(r.p)}走`, 'Yes, leave')}</button><button class="btn" data-act="leaveNo">${tr('算了', 'Cancel')}</button>`
           : `${main ? `<button class="btn on" data-act="share">${main}</button>` : ''}${viaIssue ? `<button class="btn" data-act="issue">${tr('改用 GitHub 上传', 'Upload via GitHub')}</button>` : ''}${d ? `<button class="btn" data-act="find">${tr('跟随', 'Follow')}</button><button class="btn" data-act="detail">${tr('档案', 'Profile')}</button>` : ''}<button class="btn${main ? '' : ' on'}" data-act="edit">${tr('修改', 'Edit')}</button><button class="btn danger small" data-act="leave">${tr('离村', 'Leave')}</button>`}</div>
       </div>`;
     if (!d) return `<div class="md-solo">${left}</div>`; // 还没进村（村里找不到这个人）：只有左边
@@ -469,12 +472,12 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
     draw(q('.donep .v'), p, 'front', 180);
     const st = doneState;
     q('.donebox').innerHTML = `<h3>${EN ? `${esc(pName(p))} has arrived!` : `${esc(p.name)} 进村了！`}</h3>
-      <p>${tr('他正从村口的桥上走进来：先挨家认人，再自己找住处，第二天开张。', 'They\'re walking in over the bridge now: first meeting everyone, then finding a home, and starting work the next day.')}</p>
+      <p>${tr(`${ta(p)}正从村口的桥上走进来：先挨家认人，再自己找住处，第二天开张。`, 'They\'re walking in over the bridge now: first meeting everyone, then finding a home, and starting work the next day.')}</p>
       <div class="note">${st === 'sending' ? `<b>${tr('正在上传到世界……', 'Uploading to the shared world...')}</b>`
-        : st === 'ok' ? `<b>${tr('已上传，正在保存到世界。', 'Uploaded; saving to the shared world.')}</b>${tr('你这边已经能看见他了；世界那边一般两三分钟收下，之后别人打开村子也能看见他。以后在「我的居民」里改他、让他离村，存一下就自动上传（认的是这个浏览器，换电脑就改不了了）。', 'You can already see them. The shared world usually takes them in within a few minutes, and then everyone who opens the village can see them too. Edit them or let them leave from "My residents"; saving uploads automatically (tied to this browser, so you can\'t edit them from another computer).')}`
-        : st === 'queued' ? `<b>${tr('没连上世界的服务器。', 'Couldn\'t reach the world server.')}</b>${tr('他已经存在这台电脑上，下次打开网页会自动再上传；也可以点「再试一次」，或者改用 GitHub 提交（要 GitHub 账号）。', 'They\'re saved on this computer and will be resubmitted next time you open the page. You can also retry now, or submit via GitHub (needs an account).')}`
+        : st === 'ok' ? `<b>${tr('已上传，正在保存到世界。', 'Uploaded; saving to the shared world.')}</b>${tr(`你这边已经能看见${ta(p)}了；世界那边一般两三分钟收下，之后别人打开村子也能看见${ta(p)}。以后在「我的居民」里改${ta(p)}、让${ta(p)}离村，存一下就自动上传（认的是这个浏览器，换电脑就改不了了）。`, 'You can already see them. The shared world usually takes them in within a few minutes, and then everyone who opens the village can see them too. Edit them or let them leave from "My residents"; saving uploads automatically (tied to this browser, so you can\'t edit them from another computer).')}`
+        : st === 'queued' ? `<b>${tr('没连上世界的服务器。', 'Couldn\'t reach the world server.')}</b>${tr(`${ta(p)}已经存在这台电脑上，下次打开网页会自动再上传；也可以点「再试一次」，或者改用 GitHub 提交（要 GitHub 账号）。`, 'They\'re saved on this computer and will be resubmitted next time you open the page. You can also retry now, or submit via GitHub (needs an account).')}`
         : `<b>${esc(st ?? '')}</b>`}</div>
-      <div class="acts">${st === 'queued' ? `<button class="btn on" data-act="retryMade">${tr('再试一次', 'Retry')}</button><button class="btn" data-act="issueMade">${tr('改用 GitHub 上传', 'Upload via GitHub')}</button>` : ''}<button class="btn${st === 'queued' ? '' : ' on'}" data-act="watch">${tr('去看看他', 'Watch them')}</button><button class="btn" data-act="mine">${tr('我的居民', 'My residents')}</button></div>`;
+      <div class="acts">${st === 'queued' ? `<button class="btn on" data-act="retryMade">${tr('再试一次', 'Retry')}</button><button class="btn" data-act="issueMade">${tr('改用 GitHub 上传', 'Upload via GitHub')}</button>` : ''}<button class="btn${st === 'queued' ? '' : ' on'}" data-act="watch">${tr(`去看看${ta(p)}`, 'Watch them')}</button><button class="btn" data-act="mine">${tr('我的居民', 'My residents')}</button></div>`;
   };
 
   const sync = () => {
@@ -505,7 +508,7 @@ export function createNewcomerPanel(el, { onCreate, onChangeJob, onEdit, onFind,
       : page === 'info' ? (editing ? tr('改好了点「保存修改」：你这边马上换样子，也会自动上传到世界', 'Press "Save changes": they change right away here and are submitted to the shared village') : tr('起个名字、说说会什么，再挑个住处', 'Give them a name, say what they can do'))
       : changing ? (EN ? `Currently: ${pJob(changing)}; earned ${changing.earned ?? 0} coins since starting` : `现在干的是${changing.job}；开张以来挣了 ${changing.earned ?? 0} 文`)
       : editing ? tr('想换个营生就点一格，再点「保存修改」；不换就直接保存', 'To switch jobs, pick a tile and press "Save changes"; otherwise just save')
-      : tr('挑个营生点「进村」：他从村口的桥上走进来，先挨家认人，第二天开张', 'Pick a job and press "Move in": they walk in over the bridge, meet everyone and start work the next day');
+      : tr(`挑个营生点「进村」：${ta(form)}从村口的桥上走进来，先挨家认人，第二天开张`, 'Pick a job and press "Move in": they walk in over the bridge, meet everyone and start work the next day');
     q('.coinv').textContent = form.coins; q('.agev').textContent = form.age;
     const p = person();
     q('.info-page .who').innerHTML = `<b>${esc(p.name || tr('还没起名字', 'No name yet'))}</b><span>${EN ? `${p.age} · ${p.sex === '女' ? 'Female' : 'Male'}` : `${p.age} 岁 · ${p.sex}`}</span>`;

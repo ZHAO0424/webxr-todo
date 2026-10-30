@@ -31,7 +31,8 @@ import { auditOverlaps } from './overlap.js';
 import { SAVE_KEYS, loadWorld, yearOf, yearLabel } from './world.js';
 import { mine, statusOf, markSent, markQueued } from './mine.js';
 import { cloud } from './cloud.js';
-import { progress as badgeProgress, affinity, check as checkBadges } from './life/badges.js';
+import { progress as badgeProgress, affinity, check as checkBadges, BADGES } from './life/badges.js';
+import { showAway } from './ui/away.js';
 import { signature, pickKeys, EDIT_KEYS } from './residentSchema.js';
 import { EN, tr, plural, setLang } from './i18n.js';
 import { villageName, hhName, hhField, word, pName, pNick, pJob, pHousehold, pStory, pTraits, pSkills, pLikes } from './names.js';
@@ -266,6 +267,8 @@ const marker = (() => {
 
 renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
 addEventListener('pointerdown', () => { sound.wake(); music.wake(); syncSoundBtn(); }); // 第一次点页面就打开声音和音乐（浏览器要求先有一次点击）
+// 界面按钮的点击声：捕获阶段听，面板里自己拦了冒泡的按钮也会响；亮着的主按钮（进村、下一步……）用确认那一声
+addEventListener('click', (e) => { const b = e.target.closest?.('button'); if (b && !b.disabled) sound.ui(b.classList.contains('on') || b.classList.contains('create')); }, true);
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5 || scenes.busy) return; // 拖动视角、正在换场景不算点击
   ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
@@ -309,7 +312,7 @@ function selectPlace(w, p) {
   refreshCard();
 }
 
-function closeCard() { sel = null; follow = false; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; xrCard.set(null); }
+function closeCard() { sel = null; follow = false; closeTo = 0; host.innerHTML = ''; host.hidden = true; marker.removeFromParent(); marker.visible = false; xrCard.set(null); }
 const dockCard = () => { host.style.top = `${clockEl.getBoundingClientRect().bottom + 6}px`; }; // 卡片总在时钟栏下面
 addEventListener('resize', dockCard);
 function show(card, obj, h) {
@@ -325,6 +328,10 @@ function show(card, obj, h) {
   }
 }
 let follow = false;
+let closeTo = 0; // 跟随时把镜头慢慢推近到这个距离（0 = 不推）；自己拖、滚轮缩放就停
+/** 跟住卡片上这个人：已经在跟就不动（按钮是开关，连点两次会关掉），再把镜头推近到看得清人。 */
+const followSel = (near = 0.32) => { if (!follow) host.querySelector('.follow')?.click(); closeTo = near; };
+controls.addEventListener('start', () => { closeTo = 0; });
 let markerH = 2.2;
 const spot = new THREE.Object3D(); // 房子、物件上方放箭头的点
 village.object.add(spot);
@@ -622,7 +629,7 @@ const newBtn = document.getElementById('newBtn');
 const updateNewBtn = () => { if (newBtn) newBtn.textContent = myResidents().length ? tr('我的居民', 'My residents') : tr('创建居民', 'New resident'); };
 const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
   residents: myResidents,
-  onFind: (id) => { const v = V.byId[id]; if (!v) return; if (v.object.parent !== scenes.current.object && !scenes.busy) goToBoard(v.object.parent); selectPerson(v); host.querySelector('.follow')?.click(); },
+  onFind: (id) => { const v = V.byId[id]; if (!v) return; if (v.object.parent !== scenes.current.object && !scenes.busy) goToBoard(v.object.parent); selectPerson(v); followSel(); },
   onEdit(id, look) { // 改了样子、资料：村里这个人马上换样子，本地存一份（提交以后大家才看得见）
     const v = V.byId[id];
     if (!v) return;
@@ -678,7 +685,7 @@ const newcomerPanel = createNewcomerPanel(document.getElementById('newcomer'), {
     roster = makeRoster();
     if (scenes.current.object !== village.object) goToBoard(village.object);
     selectPerson(v);
-    host.querySelector('.follow')?.click();
+    followSel();
     if (params.has('closeup')) { const p = v.object.getWorldPosition(new THREE.Vector3()); controls.target.copy(p); camera.position.set(p.x, p.y + 0.06, p.z + 0.09); } // ?closeup=1：镜头推到新人跟前（截图检查用）
     return p;
   },
@@ -701,7 +708,7 @@ const makeRoster = () => createRoster(document.getElementById('roster'), {
     const host2 = v.object.parent; // 人在另一块沙盘上：先换过去
     if (host2 !== scenes.current.object && !scenes.busy) goToBoard(host2);
     selectPerson(v);
-    host.querySelector('.follow')?.click();
+    followSel();
   },
   onClose: () => rosterBtn?.classList.remove('on'),
   mine: (id) => myIds().has(id),
@@ -886,7 +893,7 @@ vrBtn?.addEventListener('click', async (e) => {
 if (vrBtn) syncVR();
 // 设置按钮：点一下往上弹出声音、音乐、季节，再点（或点场景）收起
 const settingsEl = document.getElementById('settings'), settingsBtn = document.getElementById('settingsBtn');
-const showSettings = (on) => { if (!settingsEl) return; settingsEl.hidden = !on; settingsBtn.classList.toggle('on', on); if (on) showDebug(false); };
+const showSettings = (on) => { if (!settingsEl) return; settingsEl.hidden = !on; settingsBtn.classList.toggle('on', on); if (on) { showDebug(false); document.getElementById('away')?.remove(); } }; // 设置弹出来和「你不在的时候」在同一处：收起纸条
 // 调试按钮：往上弹出实时数值（帧率、每帧耗时、draw call、三角面、着色器 / 贴图 / 几何体数、在外面的人和动物、时钟流速）
 const debugEl = document.getElementById('debug'), debugBtn = document.getElementById('debugBtn');
 function showDebug(on) { if (!debugEl) return; debugEl.hidden = !on; debugBtn.classList.toggle('on', on); if (on && !settingsEl.hidden) { settingsEl.hidden = true; settingsBtn.classList.remove('on'); } }
@@ -987,6 +994,7 @@ renderer.setAnimationLoop((_, frame) => {
       followD.subVectors(o, controls.target).multiplyScalar(Math.min(1, dt * 3));
       controls.target.add(followD);
       camera.position.add(followD);
+      if (closeTo) { const d = camera.position.distanceTo(controls.target); if (d > closeTo * 1.03) camera.position.lerp(controls.target, Math.min(1, dt * 1.5) * (1 - closeTo / d)); else closeTo = 0; }
     }
     controls.update();
     viewer.copy(camera.position);
@@ -1156,6 +1164,20 @@ document.documentElement.dataset.east = JSON.stringify({ audit: east.object.user
 document.documentElement.dataset.west = JSON.stringify({ audit: west.object.userData.audit, pasture: V.pasture.length, work: { fieldWest: V.fields.fieldWest.length, woods: V.woods.filter((w) => w.at[0] < -45).length, mill: V.mill.at.map((v) => +v.toFixed(1)) }, bake: west.object.userData.bake, flora: west.object.userData.flora, floating: west.object.userData.floating, coplanar: { found: west.object.userData.coplanar.found, left: west.object.userData.coplanar.left, leftSamples: west.object.userData.coplanar.leftSamples }, overlap: west.object.userData.overlap, bridges: west.terrain.bridges.length, things: west.things.reduce((m, t) => ((m[t.thing] = (m[t.thing] ?? 0) + 1), m), {}) });
 document.documentElement.dataset.bake = JSON.stringify(village.object.userData.bake);
 document.documentElement.dataset.audit = JSON.stringify({ perchFix: village.object.userData.perchFix, coplanar: village.object.userData.coplanar, overlap: village.object.userData.overlap, flora: village.object.userData.flora, floating: village.object.userData.floating, unreachable: village.object.userData.unreachable, islands: village.object.userData.islands, brokenEdges: village.object.userData.brokenEdges });
+// 「你不在的时候」（src/ui/away.js）：和上次打开时的世界存档比，自己的居民这几天怎么样了
+const awayNow = (id) => {
+  const v = V.byId[id];
+  if (!v || v.gone) return null;
+  const s = v.p.stats ?? {}, sum = (o) => Math.round(Object.values(o ?? {}).reduce((a, b) => a + b, 0));
+  return { day: ECON.day, earned: Math.round(s.earned ?? 0), coins: Math.round(ECON.unitOfV(v)?.coins ?? 0), sold: sum(s.sold), bought: sum(s.bought),
+    friends: V.people.filter((o) => o !== v && !o.gone && ECON.tie(id, o.p.id) >= 6).map((o) => o.p.id), badges: Object.keys(v.p.badges ?? {}) }; // 混熟 = 熟识度 6 以上（和勋章「全村的朋友」一样）
+};
+if (!params.has('sim') && !params.has('uicheck')) showAway(document.getElementById('hint'), {
+  people: myResidents().map((r) => ({ id: r.p.id, name: pName(r.p), sex: r.p.sex, now: awayNow(r.p.id) })),
+  nameOf: (id) => V.byId[id] && pName(V.byId[id].p),
+  badgeName: (id) => BADGES.find((b) => b.id === id)?.name,
+  onOpen: () => { roster.close(); showSettings(false); newcomerPanel.mine(); },
+});
 document.documentElement.dataset.ready = '1';
 
 // ?uicheck=1：一个个打开界面，量哪里的字出了框（src/uicheck.js；英文比中文长，换语言后用 ?lang=en&uicheck=1 跑一遍）

@@ -15,6 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 chars = set(chr(c) for c in range(0x20, 0x7F))           # 全部 ASCII
 chars |= set('·、，。：；！？（）《》「」【】“”‘’…—～×→←↑↓▶▼●○★☆♪')
 for f in list(ROOT.glob('src/**/*.js')) + list(ROOT.glob('*.html')):
+    if f.name == 'pinyin.js': continue  # 汉字→拼音的查表（六千多字），界面上不显示这些字
     chars |= set(re.findall(r'[^\x00-\x7f]', f.read_text(encoding='utf-8')))
 
 # 缺的符号 → 借用的字
