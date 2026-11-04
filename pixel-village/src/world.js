@@ -40,7 +40,7 @@ export function saveWorld(village, { season, ruins, savedAt = Date.now() }) {
       flow: E.flow,
       total0: E.total0,
       missing: E.missing,
-      units: [...E.units.values()].map((u) => ({ id: u.id, coins: u.coins, stock: u.stock, ask: u.ask, sold: u.sold, made: u.made, owe: u.owe, log: (u.log ?? []).slice(-30), earned: u.earned })),
+      units: [...E.units.values()].map((u) => ({ id: u.id, coins: u.coins, stock: u.stock, ask: u.ask, sold: u.sold, soldY: u.soldY, made: u.made, owe: u.owe, log: (u.log ?? []).slice(-30), earned: u.earned })),
       ties: [...E.ties.entries()],
       trades: E.trades.slice(-300),
       acc: [...E.acc.entries()].map(([v, a]) => [v.p?.id ?? v, a]), // 键是村民对象：存成 id
@@ -73,7 +73,7 @@ export function loadWorld(village, s, { addNewcomer, setJob, onNewcomer = () => 
   V.repairs = s.repairs ?? [];
   const E = V.econ, e = s.econ;
   if (e) {
-    for (const su of e.units) { const u = E.units.get(su.id); if (u) Object.assign(u, { coins: su.coins, stock: su.stock ?? {}, ask: su.ask ?? {}, sold: su.sold ?? {}, made: su.made ?? {}, owe: su.owe ?? {}, log: su.log ?? [], earned: su.earned }); }
+    for (const su of e.units) { const u = E.units.get(su.id); if (u) Object.assign(u, { coins: su.coins, stock: su.stock ?? {}, ask: su.ask ?? {}, sold: su.sold ?? {}, soldY: su.soldY, made: su.made ?? {}, owe: su.owe ?? {}, log: su.log ?? [], earned: su.earned }); }
     E.ties = new Map(e.ties);
     E.trades = e.trades ?? [];
     E.acc = new Map((e.acc ?? []).map(([id, a]) => [V.byId[id], a]).filter(([v]) => v));
@@ -83,5 +83,12 @@ export function loadWorld(village, s, { addNewcomer, setJob, onNewcomer = () => 
     E.cart = (e.cart ?? []).filter((l) => E.units.has(l.from));
     E.day = e.day ?? s.day;
   }
-  V.trade.plan(clock.day); // 今天想买什么，照读回来的家底重新排
+  // 今天想买什么：照读回来的家底重新列。原来新居民的单子是进村那会儿按随身带的十升粮算的（存档的家底还没放回去），
+  // 后台每小时读一回档，她就照旧单子再买一回柴——卖烧饼的小葵一个月囤了一百多捆；老住户的单子读档后是空的，要等第二天凌晨
+  if (e) {
+    const miss = E.miss; E.miss = () => {}; // 缺口凌晨列单子时已经记过了，这里不重复记
+    for (const u of E.units.values()) if (u.id !== 'caravan') u.wants = E.wantsOf(u, E.day);
+    E.miss = miss;
+  }
+  V.trade.plan(clock.day);
 }

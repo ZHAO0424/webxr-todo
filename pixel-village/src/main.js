@@ -471,7 +471,7 @@ const unitName = (id) => PLACES[id] ?? nameOf(id);
 function dealLine(v) {
   const t = ECON.trades.findLast((x) => x.day === ECON.day && (x.buyer === v.p.id || x.seller === v.p.id));
   if (!t) return '';
-  if (t.buyer === 'county') return tr(`今天：领了县里发的村干部补贴（${payText(t)}）`, `Today: headman allowance from the county (${payText(t)})`);
+  if (t.buyer === 'county') return tr(`今天：领了县里发的${t.service}（${payText(t)}）`, `Today: ${mid(reasonText(t.service))} from the county (${payText(t)})`);
   if (EN) {
     if (t.kind === 'gift') return t.buyer === v.p.id ? `Today: ${nameOf(t.seller)}'s family sent ${goodText(t)} (a gift)` : `Today: sent ${goodText(t)} to ${nameOf(t.buyer)}'s family (a gift)`;
     return t.buyer === v.p.id ? `Today: ${t.service ? '' : 'bought '}${goodText(t)} (${payText(t)})` : `Today: ${t.service ? `${goodText(t)} for ${nameOf(t.buyer)}` : `sold ${nameOf(t.buyer)} ${goodText(t)}`} (${payText(t)})`;
@@ -488,10 +488,10 @@ function econOf(id, n = 6) { // n：列最近几笔（档案 6 笔；我的居�
   const owe = EN
     ? [...owedBy.map(([o, n]) => `${unitName(o)} owes this family ${coinText(n)}`), ...owedTo.map((x) => `Owes ${unitName(x.id).replace(/^The /, 'the ')} ${coinText(x.owe[u.id])}`)]
     : [...owedBy.map(([o, n]) => `${unitName(o)} 欠这家 ${n} 文`), ...owedTo.map((x) => `欠 ${unitName(x.id)} ${x.owe[u.id]} 文`)];
-  const logEN = (t) => (t.buyer === 'county' ? `Headman allowance from the county (${payText(t)})` : t.kind === 'gift'
+  const logEN = (t) => (t.buyer === 'county' ? `${reasonText(t.service)} from the county (${payText(t)})` : t.kind === 'gift'
     ? (t.from === u.id ? `${nameOf(t.seller)}'s family sent ${goodText(t)} (a gift)` : `Sent ${goodText(t)} to ${(PLACES[t.from] ?? nameOf(t.buyer)).replace(/^The /, 'the ')} (a gift)`)
     : `${nameOf(t.buyer)} ${t.service ? (t.from === u.id ? `paid for ${goodText(t)}` : `came for ${goodText(t)}`) : t.from === u.id ? `bought ${goodText(t)}` : `bought ${goodText(t)} here`} (${payText(t)})`);
-  const logZH = (t) => (t.buyer === 'county' ? `县里发来村干部补贴（${payText(t)}）` : t.kind === 'gift' ? `${t.from === u.id ? `${nameOf(t.seller)}家送来${goodText(t)}（接济）` : `给${PLACES[t.from] ?? nameOf(t.buyer)}送去${goodText(t)}（接济）`}` : `${nameOf(t.buyer)}${t.service ? (t.from === u.id ? `付${t.service}` : `来${t.service}`) : t.from === u.id ? `买${goodText(t)}` : `从这家买${goodText(t)}`}（${payText(t)}）`);
+  const logZH = (t) => (t.buyer === 'county' ? `县里发来${t.service}（${payText(t)}）` : t.kind === 'gift' ? `${t.from === u.id ? `${nameOf(t.seller)}家送来${goodText(t)}（接济）` : `给${PLACES[t.from] ?? nameOf(t.buyer)}送去${goodText(t)}（接济）`}` : `${nameOf(t.buyer)}${t.service ? (t.from === u.id ? `付${t.service}` : `来${t.service}`) : t.from === u.id ? `买${goodText(t)}` : `从这家买${goodText(t)}`}（${payText(t)}）`);
   const ago = (t) => { const k = ECON.day - t.day; return n <= 6 || !k ? '' : k === 1 ? (EN ? 'Yesterday ' : '昨天 ') : EN ? `${k}d ago ` : `${k} 天前 `; };
   const log = u.log.slice(-n).reverse().map((t) => `${ago(t)}${hm(t.hour)} ${EN ? logEN(t) : logZH(t)}`);
   // 进村以来一共卖过 / 买过什么（新来的人才记）
