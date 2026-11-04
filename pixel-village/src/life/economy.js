@@ -73,7 +73,7 @@ export const goodQty = (g, n) => `${goodName(g)} ${n}${goodUnit(g, n)}`;
  */
 export const REASON_EN = {
   // service：手艺活、工钱、房钱……（成交记录里 good 为空时的那件事）
-  房钱: 'Rent', 工钱: 'Wages', 村干部补贴: 'Headman allowance', 统筹: 'County levy', 困难补助: 'Hardship allowance', 帮工修房: 'Help with house repairs', 地租: 'Land rent', 学费: 'School fees', 钉马掌: 'Shoeing mules', 牵线: 'Brokerage',
+  房钱: 'Rent', 工钱: 'Wages', 村干部补贴: 'Headman allowance', 公益会捐款: 'Village fund donation', 补助: 'Relief grant', 统筹: 'County levy', 困难补助: 'Hardship allowance',帮工修房: 'Help with house repairs', 地租: 'Land rent', 学费: 'School fees', 钉马掌: 'Shoeing mules', 牵线: 'Brokerage',
   修农具: 'Tool mending', 修家什: 'Furniture mending', 錾磨盘: 'Millstone dressing', 修房盘炕: 'House and kang repairs', 送水: 'Water delivery', 照看: 'Caregiving',
   杀猪: 'Pig slaughtering', 传话: 'Passing on notices', 喝茶: 'Tea', 剃头: 'Haircut', 看病: "Doctor's visit", 跑腿: 'Errand fee',
   // place：在哪儿 / 怎么成交的
@@ -493,26 +493,28 @@ export class Economy {
   }
 
   /**
-   * 每月初一交统筹（乡里收的提留、公益金，钱出村）：手头超过 400 文的人家，超出的部分交两成。
-   * 村外的钱（骡帮、县里补贴、钉马掌）一直往村里流，原来没有出口，几个月下来村里的钱翻了六倍、全淤在两三户手里。
-   * 收上来的一半当天由县里发回来，给手头不到五十文的人家做困难补助（每户最多八十文）：光把钱收走，穷的几户还是一文没有。
+   * 公益会（村长牵头的乡约会，祠堂里立着捐资碑）：每月初一，手头超过 400 文的老住户把超出部分的两成捐进会里。
+   * 会里的钱一半当天发给手头不到五十文的人家做补助（每户最多八十文）；另一半攒着修桥补路——石料、匠人都是托骡帮从山外请的，这份钱出村。
+   * 为什么要有：村外的钱（骡帮、县里补贴、钉马掌）一直往村里流，原来没有出口，几个月下来村里的钱翻了六倍、全淤在两三户手里；光把钱收走，穷的几户还是一文没有。
+   * 新居民（玩家建的人）不捐：他们刚进村，挣的是自己的本钱。
+   * 账上：捐款记 seller 'fund'、补助记 buyer 'fund'（main.js 显示成「公益会」）。11-04 之前的存档里还有叫「统筹」「困难补助」的旧记录，REASON_EN 留着它们的译名。
    */
   levy(day) {
     let pool = 0;
     for (const u of this.units.values()) {
-      if (u.id === 'caravan' || !u.members.length) continue;
+      if (u.id === 'caravan' || !u.members.length || u.members[0].newcomer) continue;
       const fee = Math.floor((u.coins - 400) * 0.2);
       if (fee <= 0) continue;
       u.coins -= fee; this.flow.out += fee; pool += fee;
       const p = u.members.find(adult) ?? u.members[0];
-      this.record({ day, hour: 8.2, buyer: p.id, from: u.id, seller: 'county', to: 'caravan', good: null, service: '统筹', qty: 1, price: fee, kind: 'cash' });
+      this.record({ day, hour: 8.2, buyer: p.id, from: u.id, seller: 'fund', to: 'caravan', good: null, service: '公益会捐款', qty: 1, price: fee, kind: 'cash' });
     }
     const poor = [...this.units.values()].filter((u) => u.id !== 'caravan' && u.members.length && u.coins < 50);
     const each = poor.length ? Math.min(80, Math.floor(pool * 0.5 / poor.length)) : 0;
     if (each > 0) for (const u of poor) {
       u.coins += each; this.flow.in += each;
       const p = u.members.find(adult) ?? u.members[0];
-      this.record({ day, hour: 8.4, buyer: 'county', from: 'caravan', seller: p.id, to: u.id, good: null, service: '困难补助', qty: 1, price: each, kind: 'cash' });
+      this.record({ day, hour: 8.4, buyer: 'fund', from: 'caravan', seller: p.id, to: u.id, good: null, service: '补助', qty: 1, price: each, kind: 'cash' });
     }
   }
 
