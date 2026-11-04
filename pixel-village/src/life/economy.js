@@ -73,7 +73,7 @@ export const goodQty = (g, n) => `${goodName(g)} ${n}${goodUnit(g, n)}`;
  */
 export const REASON_EN = {
   // service：手艺活、工钱、房钱……（成交记录里 good 为空时的那件事）
-  房钱: 'Rent', 工钱: 'Wages', 村干部补贴: 'Headman allowance', 统筹: 'County levy', 困难补助: 'Hardship allowance', 公益会捐款: 'Village fund donation', 补助: 'Relief grant', 帮工修房: 'Help with house repairs', 地租: 'Land rent', 学费: 'School fees', 钉马掌: 'Shoeing mules', 牵线: 'Brokerage',
+  房钱: 'Rent', 工钱: 'Wages', 村干部补贴: 'Headman allowance', 民办教师补贴: 'Teacher allowance', 统筹: 'County levy', 困难补助: 'Hardship allowance', 公益会捐款: 'Village fund donation', 补助: 'Relief grant', 帮工修房: 'Help with house repairs', 地租: 'Land rent', 学费: 'School fees', 钉马掌: 'Shoeing mules', 牵线: 'Brokerage',
   修农具: 'Tool mending', 修家什: 'Furniture mending', 錾磨盘: 'Millstone dressing', 修房盘炕: 'House and kang repairs', 送水: 'Water delivery', 照看: 'Caregiving',
   杀猪: 'Pig slaughtering', 传话: 'Passing on notices', 喝茶: 'Tea', 剃头: 'Haircut', 看病: "Doctor's visit", 跑腿: 'Errand fee',
   // place：在哪儿 / 怎么成交的
@@ -120,7 +120,7 @@ const MAKE = [
   { act: ['mill'], good: 'flour', rate: 2, in: { grain: 1 }, max: 30 },
   // 老村址
   { act: ['driftwood'], good: 'wood', rate: 4, max: 30 }, // 水生捞漂木，晒干当柴卖
-  { act: ['tendDucks'], good: 'duckEgg', rate: 2.5, max: 30 }, // 凤仙嫂的鸭蛋
+  { act: ['tendDucks'], good: 'duckEgg', rate: 4, max: 30 }, // 凤仙嫂的鸭蛋（原来 2.5 个，进项不够一家吃用）
   { act: ['work'], who: 'ge_shitou', good: 'stone', rate: 0.6, max: 20 },
   { act: ['work'], who: 'bai_laohui', good: 'lime', rate: 2, in: { wood: 0.15 }, max: 60 },
 ];
@@ -310,6 +310,8 @@ export class Economy {
     if (!p) return;
     u.coins += 20; this.flow.in += 20;
     this.record({ day, hour: 6.3, buyer: 'county', from: 'caravan', seller: p.id, to: u.id, good: null, service: '村干部补贴', qty: 1, price: 20, kind: 'cash' }); // 账上记成「县里发的」（buyer: 'county'，不是村里的人）
+    const sc = this.unit('school'), t = sc?.members.find(adult); // 李先生：县里每天八文民办教师补贴（学费一个月才收一回，月中就花空了）
+    if (t) { sc.coins += 8; this.flow.in += 8; this.record({ day, hour: 6.3, buyer: 'county', from: 'caravan', seller: t.id, to: sc.id, good: null, service: '民办教师补贴', qty: 1, price: 8, kind: 'cash' }); }
   }
 
   /** 新来的人的开销和工钱：借住的每月给房东一回房钱；短工收东家工钱（昨天干够三个时辰）。 */
