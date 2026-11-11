@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Swarm · 萤群</title>
+<style>
+  :root { --fg: #e6fff8; --dim: #7fa8a0; --bg: #01050a; --acc: #6fffd8; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden;
+    font-family: "Helvetica Neue", "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  canvas { display: block; touch-action: none; }
+  #card { position: fixed; left: 26px; top: 24px; max-width: 300px; pointer-events: none; transition: opacity 1s; }
+  #card h1 { font-weight: 200; font-size: 30px; letter-spacing: .14em; margin: 0; }
+  #card .alt { display: block; font-size: 11px; color: var(--dim); letter-spacing: .32em; margin: 8px 0 12px 2px; }
+  #card p { margin: 4px 0; font-size: 13px; line-height: 1.8; color: var(--dim); }
+  #card ul { margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.9; color: #b8d8d0; }
+  #card ul li::before { content: "▸ "; color: var(--acc); }
+  #btns { position: fixed; right: 18px; top: 16px; display: flex; gap: 8px; }
+  #btns button { background: none; border: 1px solid #1a3330; color: var(--dim); font: inherit; font-size: 12px;
+    padding: 6px 12px; border-radius: 16px; cursor: pointer; }
+  #btns button:hover { color: var(--fg); border-color: #2f6a60; }
+  @media (max-width: 760px) { #card { left: 16px; right: 16px; top: 14px; } #card h1 { font-size: 22px; } #card p, #card ul { display: none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="card">
+  <h1 id="t-name"></h1><span class="alt" id="t-alt"></span>
+  <p id="t-tag"></p>
+  <ul id="t-how"></ul>
+</div>
+<div id="btns"><button id="lang"></button><button id="mute"></button></div>
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const V3 = THREE.Vector3, clamp = THREE.MathUtils.clamp, rand = (a, b) => a + Math.random() * (b - a), TAU = Math.PI * 2;
+
+// ---------- 双语 ----------
+const STR = {
+  en: {
+    name: 'SWARM', alt: '萤群', tag: 'Lead a school of glowing fish through the dark sea with the light in your hand.',
+    how: ['Move your hand — the school follows your light (no pinch needed)', 'Swim through plankton to feed; every 5 bites a new fish is born', 'Shadows hunt the school — pinch and hold to pull everyone into a tight ball', 'A tight ball is hard to bite, but it cannot feed', 'Desktop: mouse to lead, hold the button or Space to gather, wheel for depth'],
+    start: 'PINCH OR CLICK TO START', over: 'THE SEA GOES DARK', retry: 'PINCH OR CLICK TO SWIM AGAIN',
+    school: 'SCHOOL', glow: 'GLOW', time: 'TIME', best: 'BEST', largest: 'LARGEST SCHOOL',
+    mute: 'Sound off', unmute: 'Sound on', lang: '中文', hint: 'Move hand: lead · Pinch & hold: gather',
+  },
+  zh: {
+    name: '萤群', alt: 'SWARM', tag: '用手里的一点光，带一群发光的小鱼穿过深海。',
+    how: ['移动手 — 鱼群跟着你的光游（不用捏）', '带鱼群穿过浮游光点去吃；每吃 5 口生出一条新鱼', '暗影会来捕食 — 捏住不放，鱼群缩成一团', '抱成团很难被咬，但抱团时吃不了东西', '电脑上：鼠标引路，按住鼠标或空格抱团，滚轮调远近'],
+    start: '捏合手指或点击 开始', over: '海归于暗', retry: '捏合或点击 再游一次',
+    school: '鱼群', glow: '光点', time: '时间', best: '最高', largest: '最大鱼群',
+    mute: '关声音', unmute: '开声音', lang: 'EN', hint: '移动手：引路 · 捏住不放：抱团',
+  },
+};
+let lang = 'en';
+try { lang = localStorage.getItem('swarm-lang') || (/^zh/i.test(navigator.language) ? 'zh' : 'en'); } catch (e) { lang = /^zh/i.test(navigator.language) ? 'zh' : 'en'; }
+const S = () => STR[lang];
+const FONT = () => lang === 'zh' ? '"PingFang SC","Microsoft YaHei",sans-serif' : '"Helvetica Neue","Segoe UI",Arial,sans-serif';
+function applyLang() {
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.getElementById('t-name').textContent = S().name;
+  document.getElementById('t-alt').textContent = S().alt;
+  document.getElementById('t-tag').textContent = S().tag;
+  document.getElementById('t-how').innerHTML = S().how.map(s => `<li>${s}</li>`).join('');
+  document.getElementById('lang').textContent = S().lang;
+  document.getElementById('mute').textContent = muted ? S().unmute : S().mute;
+  hudDirty = true; panelDirty = true;
+}
+
+// ---------- 渲染 ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x01050a);
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.01, 40);
+scene.add(new THREE.HemisphereLight(0x6fd0ff, 0x100818, 0.8));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0); sun.position.set(0.3, 1, 0.5); scene.add(sun);
+
+// 坐标（米）：观者在原点看 -z。鱼群在眼前 0.7–1.3 米的一块"水体"里游，引路的光点限制在 LX × LY 之内，
+// 全部落在眼镜正前方 40°×24° 以内
+const world = new THREE.Group(); scene.add(world);
+const CZ = -1.0, CY = -0.02, LX = 0.33, LY = 0.15, LZ0 = -1.35, LZ1 = -0.7;
+
+// ---------- 点精灵：鱼的光晕、浮游光点、火花、海雪全在一个 Points 里，每帧重写 ----------
+// shape：0 圆点 · 3 环 · 4 柔光 · 5 针（沿运动方向拉长）
+const PMAX = 6000;
+const pPos = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3), pSize = new Float32Array(PMAX), pShape = new Float32Array(PMAX), pDir = new Float32Array(PMAX * 3), pA = new Float32Array(PMAX);
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('aColor', new THREE.BufferAttribute(pCol, 3));
+pGeo.setAttribute('aSize', new THREE.BufferAttribute(pSize, 1)); pGeo.setAttribute('aShape', new THREE.BufferAttribute(pShape, 1));
+pGeo.setAttribute('aDir', new THREE.BufferAttribute(pDir, 3)); pGeo.setAttribute('aA', new THREE.BufferAttribute(pA, 1));
+const pMat = new THREE.ShaderMaterial({
+  uniforms: { uScale: { value: 500 } },
+  vertexShader: `
+    attribute vec3 aColor, aDir; attribute float aSize, aShape, aA;
+    uniform float uScale;
+    varying vec3 vColor; varying float vShape, vA, vAng, vStretch;
+    void main() {
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vec4 p = projectionMatrix * mv;
+      vec4 p2 = projectionMatrix * modelViewMatrix * vec4(position + aDir * 0.02, 1.0);
+      vec2 d = p2.xy / p2.w - p.xy / p.w;
+      d.x *= projectionMatrix[1][1] / projectionMatrix[0][0];
+      vAng = atan(d.y, d.x);
+      vStretch = clamp(length(d) * 60.0, 0.15, 1.0);
+      gl_Position = p;
+      gl_PointSize = aSize * uScale * projectionMatrix[1][1] / -mv.z;
+      vColor = aColor; vShape = aShape; vA = aA;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor; varying float vShape, vA, vAng, vStretch;
+    void main() {
+      vec2 c = gl_PointCoord * 2.0 - 1.0; c.y = -c.y;
+      float ca = cos(vAng), sa = sin(vAng);
+      vec2 q = vec2(ca * c.x + sa * c.y, -sa * c.x + ca * c.y);
+      vec3 col; float r;
+      if (vShape < 0.5) {
+        r = length(c);
+        float core = smoothstep(0.36, 0.22, r), glow = exp(-r * r * 4.0) * 0.6;
+        col = vColor * glow + vec3(core) * 0.9;
+      } else if (vShape < 3.5) {
+        r = length(c);
+        float ring = smoothstep(0.1, 0.0, abs(r - 0.72));
+        col = vColor * ring * 1.3 + vec3(ring * 0.25);
+      } else if (vShape < 4.5) {
+        r = length(c); float a = exp(-r * r * 4.5);
+        col = vColor * a * 1.3 + vec3(a * a * a * 0.4);
+      } else {
+        vec2 e = q * vec2(1.0, 1.0 + 5.0 * vStretch); r = length(e);
+        float core = smoothstep(0.5, 0.2, r), glow = exp(-dot(e, e) * 1.2) * 0.6;
+        col = vColor * glow * 1.3 + vec3(core);
+      }
+      col *= vA;
+      if (max(col.r, max(col.g, col.b)) < 0.004) discard;
+      gl_FragColor = vec4(col, 1.0);
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+const points = new THREE.Points(pGeo, pMat); points.frustumCulled = false; points.renderOrder = 10; world.add(points);
+let pN = 0;
+function P(x, y, z, c, size, shape, a = 1, dx = 0, dy = 0, dz = 0) {
+  if (pN >= PMAX) return;
+  const i = pN++;
+  pPos[i * 3] = x; pPos[i * 3 + 1] = y; pPos[i * 3 + 2] = z;
+  pCol[i * 3] = c[0]; pCol[i * 3 + 1] = c[1]; pCol[i * 3 + 2] = c[2];
+  pDir[i * 3] = dx; pDir[i * 3 + 1] = dy; pDir[i * 3 + 2] = dz;
+  pSize[i] = size; pShape[i] = shape; pA[i] = a;
+}
+const C = {
+  warm: [1.0, 0.82, 0.45], gold: [1.0, 0.75, 0.25], white: [1, 1, 1], mint: [0.4, 1.0, 0.85], cyan: [0.3, 0.85, 1.0],
+  red: [1.0, 0.2, 0.32], pink: [1.0, 0.45, 0.85], violet: [0.75, 0.4, 1.0], deep: [0.15, 0.35, 0.6],
+};
+
+// ---------- 鱼：InstancedMesh，一条鱼 = 椭球身体 + 分叉的尾鳍；尾巴在顶点着色器里摆 ----------
+// 模型里鱼头朝 +z
+const FMAX = 360;
+const fishGeo = (() => {
+  const body = new THREE.SphereGeometry(1, 12, 8); body.scale(0.0032, 0.0042, 0.011);
+  const tail = new THREE.BufferGeometry();
+  tail.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, -0.008, 0, 0.0065, -0.019, 0, -0.0065, -0.019, 0, 0, -0.0145], 3));
+  tail.setAttribute('normal', new THREE.Float32BufferAttribute([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0], 3));
+  tail.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 1, 1, 0], 2));
+  tail.setIndex([0, 1, 3, 0, 3, 2]);
+  return mergeGeometries([body, tail]);
+})();
+const fCol = new Float32Array(FMAX * 3), fPh = new Float32Array(FMAX);
+fishGeo.setAttribute('aColor', new THREE.InstancedBufferAttribute(fCol, 3));
+fishGeo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(fPh, 1));
+const fishMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    attribute vec3 aColor; attribute float aPhase;
+    uniform float uTime;
+    varying vec3 vColor; varying float vRim, vTail;
+    void main() {
+      vec3 p = position;
+      // 越靠尾巴摆得越大，波从头往尾传
+      float k = clamp((0.004 - p.z) / 0.023, 0.0, 1.0);
+      p.x += sin(uTime * 15.0 + aPhase + p.z * 260.0) * 0.0042 * k * k;
+      vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
+      vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * normal);
+      vRim = 1.0 - abs(dot(n, normalize(-mv.xyz)));
+      vTail = step(position.z, -0.0105);
+      vColor = aColor;
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor; varying float vRim, vTail;
+    void main() {
+      float b = mix(0.2 + 0.75 * vRim * vRim, 0.32, vTail);
+      vec3 col = vColor * b + vec3(pow(vRim, 6.0) * 0.15);
+      gl_FragColor = vec4(col, 1.0);
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+const fishMesh = new THREE.InstancedMesh(fishGeo, fishMat, FMAX); fishMesh.frustumCulled = false; fishMesh.count = 0; world.add(fishMesh);
+
+// 每条鱼的状态（紧凑数组：死一条就把最后一条挪过来）
+const fp = new Float32Array(FMAX * 3), fv = new Float32Array(FMAX * 3), fo = new Float32Array(FMAX * 3), fbase = new Float32Array(FMAX * 3);
+const fs = new Float32Array(FMAX), fb = new Float32Array(FMAX), fw = new Float32Array(FMAX), fdead = new Uint8Array(FMAX), fseen = new Int32Array(FMAX);
+let nF = 0;
+function addFish(x, y, z, flash = 0) {
+  if (nF >= FMAX) return -1;
+  const i = nF++, i3 = i * 3, a = rand(0, TAU);
+  fp[i3] = x; fp[i3 + 1] = y; fp[i3 + 2] = z;
+  fv[i3] = Math.cos(a) * 0.1; fv[i3 + 1] = rand(-0.02, 0.02); fv[i3 + 2] = Math.sin(a) * 0.1;
+  // 每条鱼在鱼群里的"站位"：扁球里随机一点，鱼群绕着引路光转
+  let ox, oy, oz; do { ox = rand(-1, 1); oy = rand(-1, 1); oz = rand(-1, 1); } while (ox * ox + oy * oy + oz * oz > 1);
+  fo[i3] = ox; fo[i3 + 1] = oy * 0.6; fo[i3 + 2] = oz * 0.8;
+  const gold = Math.random() < 0.04, c = new THREE.Color().setHSL(gold ? 0.11 : rand(0.44, 0.56), 0.85, gold ? 0.6 : rand(0.5, 0.62));
+  fbase[i3] = c.r; fbase[i3 + 1] = c.g; fbase[i3 + 2] = c.b;
+  fs[i] = rand(0.8, 1.2); fb[i] = flash; fw[i] = rand(0, 100); fPh[i] = rand(0, TAU); fdead[i] = 0; fseen[i] = 0;
+  return i;
+}
+function removeFish(i) {
+  const j = --nF;
+  if (i === j) return;
+  for (const A of [fp, fv, fo, fbase]) A.copyWithin(i * 3, j * 3, j * 3 + 3);
+  fs[i] = fs[j]; fb[i] = fb[j]; fw[i] = fw[j]; fPh[i] = fPh[j]; fdead[i] = fdead[j]; fseen[i] = fseen[j];
+}
+function killFish(i, c) {
+  if (fdead[i]) return;
+  fdead[i] = 1;
+  const i3 = i * 3;
+  spark(fp[i3], fp[i3 + 1], fp[i3 + 2], c || [fbase[i3], fbase[i3 + 1], fbase[i3 + 2]], 7, 0.12, 0.008, 0.6);
+}
+
+// 邻居查找用的均匀网格（计数排序）
+const GC = 0.05, GX0 = -0.6, GY0 = -0.42, GZ0 = -1.7, NX = 24, NY = 17, NZ = 28, NCELL = NX * NY * NZ;
+const cellStart = new Int32Array(NCELL + 1), cellFill = new Int32Array(NCELL), cellOf = new Int32Array(FMAX), order = new Int32Array(FMAX);
+const gix = x => clamp(Math.floor((x - GX0) / GC), 0, NX - 1), giy = y => clamp(Math.floor((y - GY0) / GC), 0, NY - 1), giz = z => clamp(Math.floor((z - GZ0) / GC), 0, NZ - 1);
+function buildGrid() {
+  cellStart.fill(0);
+  for (let i = 0; i < nF; i++) { const c = (giz(fp[i * 3 + 2]) * NY + giy(fp[i * 3 + 1])) * NX + gix(fp[i * 3]); cellOf[i] = c; cellStart[c + 1]++; }
+  for (let c = 0; c < NCELL; c++) cellStart[c + 1] += cellStart[c];
+  cellFill.set(cellStart.subarray(0, NCELL));
+  for (let i = 0; i < nF; i++) order[cellFill[cellOf[i]]++] = i;
+}
+
+// ---------- 掠食者：暗色身体 + 发光棱线（眼镜上暗色是透明的，只看得见轮廓和眼睛） ----------
+function hull(geo, color, parent, opts = {}) {
+  const c = new THREE.Color(color);
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x0a0c12, metalness: 0.6, roughness: 0.4, emissive: c.clone().multiplyScalar(0.08), flatShading: true, side: opts.side || THREE.FrontSide }));
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: opts.op || 0.85 }));
+  m.add(e); parent.add(m); if (opts.pos) m.position.set(...opts.pos);
+  return m;
+}
+const tri = (...v) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals(); return g; };
+function makePike() {
+  // 狗鱼：长身子，头朝 +z，全长约 0.3 米
+  const g = new THREE.Group(), c = 0xff3a5c;
+  hull(new THREE.SphereGeometry(1, 10, 6).scale(0.022, 0.028, 0.11), c, g);
+  hull(new THREE.ConeGeometry(0.016, 0.06, 6).rotateX(Math.PI / 2), c, g, { pos: [0, -0.004, 0.13] });
+  hull(tri(0, 0, -0.095, 0, 0.05, -0.18, 0, -0.045, -0.17), c, g, { side: THREE.DoubleSide });
+  hull(tri(0, 0.024, 0.0, 0, 0.055, -0.06, 0, 0.02, -0.07), c, g, { side: THREE.DoubleSide });
+  for (const s of [1, -1]) hull(tri(s * 0.018, -0.01, 0.05, s * 0.05, -0.025, 0.0, s * 0.016, -0.012, 0.01), c, g, { side: THREE.DoubleSide });
+  g.scale.setScalar(0.65); world.add(g); return g;
+}
+function makeJelly() {
+  const g = new THREE.Group();
+  hull(new THREE.SphereGeometry(0.03, 14, 5, 0, TAU, 0, Math.PI / 2), 0xd08aff, g, { side: THREE.DoubleSide, op: 0.6 });
+  world.add(g); return g;
+}
+function dropMesh(g) { world.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+
+// ---------- 游戏状态 ----------
+let state = 'title', score = 0, best = 0, bites = 0, gameT = 0, largest = 0, lungeId = 0;
+try { best = +localStorage.getItem('swarm-best') || 0; } catch (e) { }
+const lure = { x: 0, y: CY, z: CZ, tx: 0, ty: CY, tz: CZ, g: 0 };
+let gather = false;
+const motes = [], parts = [], pikes = [], jellies = [], eels = [], threats = [];
+const snow = Array.from({ length: 260 }, () => ({ x: rand(-1.2, 1.2), y: rand(-0.7, 0.7), z: rand(-3, -0.5), s: rand(0.002, 0.005), ph: rand(0, TAU) }));
+const school = new V3(0, CY, CZ), schoolV = new V3();
+let dir = {};
+const resetDirector = () => { dir = { bloom: 0.5, gold: rand(14, 20), pike: 12, jelly: 6, eel: 8 }; };
+resetDirector();
+let flash = 0;
+
+function spark(x, y, z, c, n, sp = 0.1, size = 0.008, life = 0.6) {
+  for (let i = 0; i < n; i++) {
+    const d = new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(sp * Math.sqrt(Math.random()));
+    const l = life * rand(0.5, 1.2);
+    parts.push({ x, y, z, vx: d.x, vy: d.y, vz: d.z, life: l, max: l, size: size * rand(0.6, 1.4), c, drag: 3 });
+  }
+}
+
+// 浮游光点：一团一团从水里冒出来，慢慢漂；金色的稀有，值 5 口
+function spawnBloom(gold = false) {
+  if (motes.length > 140) return;
+  const cx = rand(-LX, LX) * 0.9, cy = CY + rand(-LY, LY) * 0.9, cz = rand(LZ0, LZ1);
+  const n = gold ? 1 : 5 + (Math.random() * 8 | 0);
+  for (let k = 0; k < n; k++) motes.push({ x: cx + rand(-0.04, 0.04), y: cy + rand(-0.03, 0.03), z: cz + rand(-0.04, 0.04), ph: rand(0, TAU), t: 0, life: gold ? 20 : rand(14, 18), gold });
+}
+function eat(m, i) {
+  m.dead = true;
+  const v = m.gold ? 5 : 1;
+  score += v; bites += v; hudDirty = true;
+  spark(m.x, m.y, m.z, m.gold ? C.gold : C.warm, m.gold ? 18 : 4, m.gold ? 0.15 : 0.06, 0.007, 0.5);
+  sfx.eat(m.gold);
+  const cap = state === 'play' ? FMAX : 60;
+  while (bites >= 5) {
+    bites -= 5;
+    if (nF < cap && addFish(fp[i * 3], fp[i * 3 + 1], fp[i * 3 + 2], 1) >= 0) { sfx.birth(); largest = Math.max(largest, nF); }
+  }
+}
+
+// 狗鱼：游到鱼群侧面 → 蓄势（眼睛变亮、红线预警）→ 横着冲过鱼群 → 回到深处
+function spawnPike(s) {
+  s = s || (Math.random() < 0.5 ? -1 : 1);
+  pikes.push({ g: makePike(), x: s * 0.8, y: CY + rand(-0.1, 0.1), z: -2.6, v: new V3(-s * 0.1, 0, 0.3), s, st: 'approach', t: 0, eaten: 0, id: 0, dir: new V3(), face: new V3(-s, 0, 1) });
+}
+function updatePike(p, dt) {
+  p.t += dt;
+  const pos = new V3(p.x, p.y, p.z);
+  if (p.st === 'approach') {
+    const tgt = new V3(school.x + p.s * 0.3, school.y + 0.02, school.z - 0.04);
+    const d = tgt.clone().sub(pos), dl = d.length();
+    p.v.lerp(d.normalize().multiplyScalar(Math.min(0.55, dl * 2 + 0.08)), Math.min(1, dt * 2));
+    p.face.copy(p.v);
+    if (dl < 0.05 || p.t > 9) { p.st = 'windup'; p.t = 0; sfx.growl(); }
+  } else if (p.st === 'windup') {
+    p.v.multiplyScalar(1 - Math.min(1, dt * 4));
+    p.face.copy(school).sub(pos);
+    if (p.t > 0.8) {
+      // 冲的方向：瞄鱼群中心，再提前一点点
+      p.dir.copy(school).addScaledVector(schoolV, 0.3).sub(pos); p.dir.y *= 0.5; p.dir.normalize();
+      p.st = 'lunge'; p.t = 0; p.id = ++lungeId; p.eaten = 0; sfx.lunge();
+    }
+  } else if (p.st === 'lunge') {
+    p.v.lerp(p.dir.clone().multiplyScalar(1.15), Math.min(1, dt * 10));
+    p.face.copy(p.v);
+    // 嘴附近的鱼：散着的几乎跑不掉，抱成团的大多咬不到
+    const mx = p.x + p.dir.x * 0.085, my = p.y + p.dir.y * 0.085, mz = p.z + p.dir.z * 0.085;
+    const chance = lure.g > 0.5 ? 0.1 : 0.85, cap = lure.g > 0.5 ? 2 : 10;
+    for (let i = 0; i < nF && p.eaten < cap; i++) {
+      if (fdead[i] || fseen[i] === p.id) continue;
+      const dx = fp[i * 3] - mx, dy = fp[i * 3 + 1] - my, dz = fp[i * 3 + 2] - mz;
+      if (dx * dx + dy * dy + dz * dz < 0.045 * 0.045) {
+        fseen[i] = p.id;
+        if (Math.random() < chance) { killFish(i, C.red); p.eaten++; sfx.gulp(); }
+      }
+    }
+    if (p.t > 0.7) { p.st = 'leave'; p.t = 0; }
+  } else {
+    const want = new V3(p.dir.x || p.s, 0.1, -0.9).normalize().multiplyScalar(0.6);
+    p.v.lerp(want, Math.min(1, dt * 1.5));
+    p.face.copy(p.v);
+  }
+  // 别冲到脸上
+  if (p.z > -0.6) p.v.z -= dt * 3;
+  p.x += p.v.x * dt; p.y += p.v.y * dt; p.z += p.v.z * dt;
+  p.g.position.set(p.x, p.y, p.z);
+  if (p.face.lengthSq() > 1e-6) p.g.lookAt(p.g.position.clone().add(p.face));
+  if (p.st === 'windup' || p.st === 'lunge') threats.push({ x: p.x + p.face.x * 0.07, y: p.y, z: p.z + p.face.z * 0.07, r: 0.17, k: 2.4 });
+  return p.st === 'leave' && (p.z < -2.8 || Math.abs(p.x) > 1.4);
+}
+
+// 水母：从下往上一张一缩地漂；碰到伞和触须的鱼会被蜇死，鱼会稍微躲
+function spawnJelly() {
+  jellies.push({ g: makeJelly(), x: clamp(school.x + rand(-0.15, 0.15), -LX, LX), y: CY - 0.3, z: clamp(school.z + rand(-0.15, 0.15), LZ0, LZ1), vx: rand(-0.015, 0.015), t: 0, ph: rand(0, TAU) });
+}
+function updateJelly(j, dt) {
+  j.t += dt;
+  const pulse = Math.max(0, Math.sin(j.t * 2.2 + j.ph));
+  j.y += (0.012 + 0.05 * pulse) * dt; j.x += j.vx * dt;
+  const s = Math.sin(j.t * 2.2 + j.ph);
+  j.g.position.set(j.x, j.y, j.z); j.g.scale.set(1 + 0.1 * s, 1 - 0.12 * s, 1 + 0.1 * s);
+  for (let i = 0; i < nF; i++) {
+    if (fdead[i]) continue;
+    const dy = fp[i * 3 + 1] - j.y, dx = fp[i * 3] - j.x, dz = fp[i * 3 + 2] - j.z;
+    if (dy < 0.02 && dy > -0.09 && dx * dx + dz * dz < 0.024 * 0.024) { killFish(i, C.pink); sfx.sting(); }
+  }
+  threats.push({ x: j.x, y: j.y - 0.035, z: j.z, r: 0.08, k: 1.6 });
+  return j.y > CY + 0.32;
+}
+
+// 海鳗：先在那一层亮一条红色虚线预警，然后从一侧横扫过去，身子碰到的鱼都没了
+function spawnEel() {
+  const s = Math.random() < 0.5 ? -1 : 1;
+  eels.push({ s, y: clamp(school.y, CY - LY, CY + LY), z: clamp(school.z, LZ0, LZ1), x: -s * 0.75, t: 0, warn: 1.6, hist: [] });
+  sfx.eelWarn();
+}
+function updateEel(e, dt) {
+  e.t += dt;
+  if (e.t < e.warn) return false;
+  e.x += e.s * 0.85 * dt;
+  const y = e.y + Math.sin(e.t * 7) * 0.022;
+  e.hist.unshift([e.x, y, e.z]); if (e.hist.length > 44) e.hist.pop();
+  for (let k = 0; k < e.hist.length; k += 3) {
+    const h = e.hist[k];
+    for (let i = 0; i < nF; i++) {
+      if (fdead[i]) continue;
+      const dx = fp[i * 3] - h[0], dy = fp[i * 3 + 1] - h[1], dz = fp[i * 3 + 2] - h[2];
+      if (dx * dx + dy * dy + dz * dz < 0.02 * 0.02) { killFish(i, C.violet); sfx.gulp(); }
+    }
+  }
+  threats.push({ x: e.x + e.s * 0.03, y, z: e.z, r: 0.13, k: 2.6 });
+  const tail = e.hist[e.hist.length - 1];
+  return e.s * tail[0] > 0.8;
+}
+
+// ---------- 鱼群行为（boids）：对齐 + 聚拢 + 分开 + 跟着引路光的站位 + 找吃的 + 躲危险 ----------
+const _m = new THREE.Matrix4(), _d = new V3(), _s = new V3(), O3 = new V3(), UP = new V3(0, 1, 0);
+function updateFish(dt, t) {
+  buildGrid();
+  const g = lure.g, n = nF, sq = Math.sqrt(n / 60);
+  const R = (0.065 + 0.035 * sq) * (1 - g) + (0.016 + 0.01 * sq) * g;
+  const spin = t * (0.3 + 1.4 * g), cs = Math.cos(spin), sn = Math.sin(spin);
+  const sepR = 0.014 - 0.006 * g, NR = 0.045, maxV = 0.4 - 0.1 * g, steer = 2 + 3 * g, feed = g < 0.5;
+  let sx = 0, sy = 0, sz = 0, svx = 0, svy = 0, svz = 0;
+  for (let i = 0; i < n; i++) {
+    const i3 = i * 3, px = fp[i3], py = fp[i3 + 1], pz = fp[i3 + 2];
+    let vx = fv[i3], vy = fv[i3 + 1], vz = fv[i3 + 2];
+    let cnt = 0, avx = 0, avy = 0, avz = 0, cx = 0, cy = 0, cz = 0, ex = 0, ey = 0, ez = 0;
+    const ix = gix(px), iy = giy(py), iz = giz(pz);
+    for (let z = Math.max(0, iz - 1); z <= Math.min(NZ - 1, iz + 1); z++)
+      for (let y = Math.max(0, iy - 1); y <= Math.min(NY - 1, iy + 1); y++)
+        for (let x = Math.max(0, ix - 1); x <= Math.min(NX - 1, ix + 1); x++) {
+          const c = (z * NY + y) * NX + x;
+          for (let k = cellStart[c]; k < cellStart[c + 1] && cnt < 14; k++) {
+            const j = order[k]; if (j === i) continue;
+            const j3 = j * 3, dx = px - fp[j3], dy = py - fp[j3 + 1], dz = pz - fp[j3 + 2], d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 > NR * NR) continue;
+            cnt++; avx += fv[j3]; avy += fv[j3 + 1]; avz += fv[j3 + 2]; cx += fp[j3]; cy += fp[j3 + 1]; cz += fp[j3 + 2];
+            if (d2 < sepR * sepR) { const d = Math.sqrt(d2) + 1e-5, w = (sepR - d) / sepR / d; ex += dx * w; ey += dy * w; ez += dz * w; }
+          }
+        }
+    let ax = 0, ay = 0, az = 0;
+    if (cnt) {
+      ax += (avx / cnt - vx) * 1.2; ay += (avy / cnt - vy) * 1.2; az += (avz / cnt - vz) * 1.2;
+      const coh = 1.0 * (1 - g); ax += (cx / cnt - px) * coh; ay += (cy / cnt - py) * coh; az += (cz / cnt - pz) * coh;
+    }
+    ax += ex * 0.8; ay += ey * 0.8; az += ez * 0.8;
+    // 站位：引路光 + 自己的偏移（偏移绕竖轴转，抱团时转得快，像真的饵球）
+    const ox = fo[i3] * R, oy = fo[i3 + 1] * R, oz = fo[i3 + 2] * R;
+    const tx = lure.x + ox * cs - oz * sn - px, ty = lure.y + oy - py, tz = lure.z + ox * sn + oz * cs - pz;
+    const td = Math.hypot(tx, ty, tz) + 1e-6, want = Math.min(maxV, td * 3);
+    ax += (tx / td * want - vx) * steer; ay += (ty / td * want - vy) * steer; az += (tz / td * want - vz) * steer;
+    // 闲游：散开时每条鱼自己晃
+    const w = fw[i];
+    ax += Math.sin(t * 1.3 + w) * 0.25 * (1 - g); ay += Math.sin(t * 1.7 + w * 1.3) * 0.1; az += Math.cos(t * 1.1 + w * 0.7) * 0.25 * (1 - g);
+    // 找吃的：附近 10 cm 内最近的光点
+    if (feed) {
+      let bm = null, bd = 0.1 * 0.1;
+      for (const m of motes) {
+        if (m.dead) continue;
+        const dx = m.x - px, dy = m.y - py, dz = m.z - pz, d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < bd) { bd = d2; bm = m; }
+      }
+      if (bm) {
+        const d = Math.sqrt(bd) + 1e-6;
+        if (d < 0.014) eat(bm, i);
+        else { ax += (bm.x - px) / d * 1.8; ay += (bm.y - py) / d * 1.8; az += (bm.z - pz) / d * 1.8; }
+      }
+    }
+    // 躲：离危险越近推得越狠；抱团时只躲一点，靠阵型扛
+    for (const h of threats) {
+      const dx = px - h.x, dy = py - h.y, dz = pz - h.z, d = Math.hypot(dx, dy, dz) + 1e-6;
+      if (d < h.r) { const f = h.k * (1 - d / h.r) * (1 - 0.65 * g) / d; ax += dx * f; ay += dy * f; az += dz * f; }
+    }
+    // 水体软边界，离脸太近往回推
+    if (px < -0.5) ax += (-0.5 - px) * 10; else if (px > 0.5) ax += (0.5 - px) * 10;
+    if (py < CY - 0.3) ay += (CY - 0.3 - py) * 10; else if (py > CY + 0.3) ay += (CY + 0.3 - py) * 10;
+    if (pz > -0.6) az += (-0.6 - pz) * 14; else if (pz < -1.6) az += (-1.6 - pz) * 10;
+    vx += ax * dt; vy += ay * dt; vz += az * dt;
+    const sp = Math.hypot(vx, vy, vz), cl = clamp(sp, 0.05, maxV) / (sp || 1);
+    vx *= cl; vy *= cl; vz *= cl;
+    fv[i3] = vx; fv[i3 + 1] = vy; fv[i3 + 2] = vz;
+    fp[i3] = px + vx * dt; fp[i3 + 1] = py + vy * dt; fp[i3 + 2] = pz + vz * dt;
+    sx += px; sy += py; sz += pz; svx += vx; svy += vy; svz += vz;
+  }
+  if (n) { school.set(sx / n, sy / n, sz / n); schoolV.set(svx / n, svy / n, svz / n); }
+  else school.set(lure.x, lure.y, lure.z);
+  for (let i = nF - 1; i >= 0; i--) if (fdead[i]) removeFish(i);
+}
+function drawFish(dt) {
+  for (let i = 0; i < nF; i++) {
+    const i3 = i * 3, px = fp[i3], py = fp[i3 + 1], pz = fp[i3 + 2];
+    fb[i] = Math.max(0, fb[i] - dt * 1.2);
+    const b = (1 + fb[i] * 1.2) * (1 - 0.35 * lure.g);
+    fCol[i3] = fbase[i3] * b; fCol[i3 + 1] = fbase[i3 + 1] * b; fCol[i3 + 2] = fbase[i3 + 2] * b;
+    _m.lookAt(O3, _d.set(-fv[i3], -fv[i3 + 1], -fv[i3 + 2]), UP);
+    _m.scale(_s.setScalar(fs[i] * (1 + fb[i] * 0.4)));
+    _m.setPosition(px, py, pz);
+    fishMesh.setMatrixAt(i, _m);
+    P(px, py, pz, [fbase[i3], fbase[i3 + 1], fbase[i3 + 2]], 0.022 * fs[i], 4, (0.06 + fb[i] * 0.25) * (1 - 0.6 * lure.g));
+  }
+  fishMesh.count = nF;
+  fishMesh.instanceMatrix.needsUpdate = true;
+  fishGeo.attributes.aColor.needsUpdate = true; fishGeo.attributes.aPhase.needsUpdate = true;
+}
+
+// ---------- 开局 / 每帧更新 ----------
+function clearHunters() {
+  for (const p of pikes) dropMesh(p.g); for (const j of jellies) dropMesh(j.g);
+  pikes.length = jellies.length = eels.length = 0;
+}
+function startGame() {
+  clearHunters();
+  for (let i = 0; i < nF; i++) killFish(i);
+  nF = 0;
+  Object.assign(lure, { tx: 0, ty: CY, tz: CZ });
+  for (let i = 0; i < 30; i++) addFish(lure.x + rand(-0.05, 0.05), lure.y + rand(-0.03, 0.03), lure.z + rand(-0.05, 0.05), 0.6);
+  score = 0; bites = 0; gameT = 0; largest = nF; resetDirector();
+  state = 'play'; hudDirty = true; panelDirty = true; anchor.set = false;
+  sfx.start();
+}
+function endGame() {
+  state = 'over'; panelDirty = true; hudDirty = true; flash = 0.4;
+  if (score > best) { best = score; try { localStorage.setItem('swarm-best', best); } catch (e) { } }
+  sfx.over();
+}
+function update(dt, t) {
+  if (state === 'play') gameT += dt;
+  // 导演：光点一直有；掠食者只在游戏里来，越往后越多
+  dir.bloom -= dt; if (dir.bloom <= 0) { spawnBloom(); dir.bloom = rand(1.2, 2.0); }
+  if (state === 'play') {
+    dir.gold -= dt; if (dir.gold <= 0) { spawnBloom(true); dir.gold = rand(16, 24); }
+    dir.pike -= dt;
+    if (dir.pike <= 0) { spawnPike(); if (gameT > 100 && Math.random() < 0.5) spawnPike(-pikes[pikes.length - 1].s); dir.pike = Math.max(5, 13 - gameT / 25) + rand(0, 3); }
+    if (gameT > 35) { dir.jelly -= dt; if (dir.jelly <= 0) { if (jellies.length < Math.min(3, 1 + (gameT / 70 | 0))) spawnJelly(); dir.jelly = rand(6, 10); } }
+    if (gameT > 80) { dir.eel -= dt; if (dir.eel <= 0) { spawnEel(); dir.eel = Math.max(9, 18 - (gameT - 80) / 20) + rand(0, 4); } }
+  } else if (state === 'title') {
+    // 标题画面：光自己慢慢画圈，鱼群跟着游；鱼少了补上
+    lure.tx = Math.sin(t * 0.4) * 0.24; lure.ty = CY + Math.sin(t * 0.63) * 0.1; lure.tz = CZ + Math.sin(t * 0.3) * 0.12;
+    while (nF < 40) addFish(rand(-0.3, 0.3), CY + rand(-0.1, 0.1), CZ + rand(-0.2, 0.2));
+  }
+  // 引路光：平滑跟随；抱团程度平滑过渡
+  const k = Math.min(1, dt * 7);
+  lure.x += (lure.tx - lure.x) * k; lure.y += (lure.ty - lure.y) * k; lure.z += (lure.tz - lure.z) * k;
+  const wasG = lure.g > 0.5;
+  lure.g += (((gather && state === 'play') ? 1 : 0) - lure.g) * Math.min(1, dt * 5);
+  if ((lure.g > 0.5) !== wasG) sfx.gather(lure.g > 0.5);
+
+  threats.length = 0;
+  for (let i = pikes.length - 1; i >= 0; i--) if (updatePike(pikes[i], dt)) { dropMesh(pikes[i].g); pikes.splice(i, 1); }
+  for (let i = jellies.length - 1; i >= 0; i--) if (updateJelly(jellies[i], dt)) { dropMesh(jellies[i].g); jellies.splice(i, 1); }
+  for (let i = eels.length - 1; i >= 0; i--) if (updateEel(eels[i], dt)) eels.splice(i, 1);
+  // 浮游光点漂
+  for (let i = motes.length - 1; i >= 0; i--) {
+    const m = motes[i]; m.t += dt;
+    m.x += Math.sin(t * 0.7 + m.ph) * 0.008 * dt; m.y += (Math.cos(t * 0.5 + m.ph) * 0.006 + 0.003) * dt; m.z += Math.sin(t * 0.4 + m.ph * 2) * 0.006 * dt;
+    if (m.dead || m.t > m.life) motes.splice(i, 1);
+  }
+  const before = nF;
+  updateFish(dt, t);
+  if (nF !== before) hudDirty = true;
+  if (state === 'play' && nF === 0) endGame();
+}
+
+// ---------- 每帧画面 ----------
+function draw(t, dt) {
+  pN = 0;
+  // 海雪：很暗的小颗粒慢慢往上漂，给水的纵深
+  for (const s of snow) {
+    s.y += dt * 0.006; s.z += dt * 0.01;
+    if (s.y > 0.7) s.y = -0.7;
+    if (s.z > -0.5) { s.z = -3; s.x = rand(-1.2, 1.2); }
+    const near = clamp((s.z + 3) / 2.5, 0, 1);
+    P(s.x + Math.sin(t * 0.3 + s.ph) * 0.01, s.y, s.z, C.deep, s.s * 2.4, 4, 0.25 + 0.45 * near);
+  }
+  // 浮游光点：一闪一闪
+  for (const m of motes) {
+    const a = Math.min(1, m.t / 0.8) * Math.min(1, (m.life - m.t) / 2), tw = 0.75 + 0.25 * Math.sin(t * 5 + m.ph * 3);
+    if (m.gold) { P(m.x, m.y, m.z, C.gold, 0.013, 0, a * tw * 0.8); P(m.x, m.y, m.z, C.gold, 0.05, 4, a * 0.16); P(m.x, m.y, m.z, C.gold, 0.03 + 0.008 * Math.sin(t * 4), 3, a * 0.3); }
+    else { P(m.x, m.y, m.z, C.warm, 0.005, 0, a * tw * 0.7); P(m.x, m.y, m.z, C.warm, 0.018, 4, a * 0.1 * tw); }
+  }
+  drawFish(dt);
+  // 引路光：暖白的核 + 光晕；抱团时外面一个收紧的环
+  const L = lure, alive = state !== 'over';
+  P(L.x, L.y, L.z, C.warm, 0.01, 0, alive ? 0.75 : 0.25);
+  P(L.x, L.y, L.z, C.warm, 0.06, 4, (alive ? 0.16 : 0.05) * (1 - 0.6 * L.g));
+  if (L.g > 0.02) P(L.x, L.y, L.z, C.mint, 0.12 - 0.05 * L.g + 0.006 * Math.sin(t * 9), 3, 0.3 * L.g);
+  // 狗鱼的眼睛 + 预警线
+  for (const p of pikes) {
+    const f = p.face.clone().normalize(), r = new V3().crossVectors(f, UP).normalize();
+    const hot = p.st === 'windup' ? 0.6 + 0.4 * Math.sin(p.t * 30) : p.st === 'lunge' ? 1 : 0.35;
+    for (const s of [1, -1]) {
+      const e = new V3(p.x, p.y + 0.008, p.z).addScaledVector(f, 0.055).addScaledVector(r, s * 0.011);
+      P(e.x, e.y, e.z, C.red, 0.01 + 0.008 * hot, 0, 0.5 + 0.3 * hot); P(e.x, e.y, e.z, C.red, 0.04 * hot, 4, 0.22 * hot);
+    }
+    if (p.st === 'windup') {
+      const to = school.clone().sub(new V3(p.x, p.y, p.z)), len = to.length(); to.normalize();
+      for (let k = 1; k < 14; k++) { const q = new V3(p.x, p.y, p.z).addScaledVector(to, (k / 14) * (len + 0.15)); P(q.x, q.y, q.z, C.red, 0.008, 0, (Math.floor(t * 12) % 2 ? 0.8 : 0.3)); }
+      P(school.x, school.y, school.z, C.red, 0.12, 3, 0.22 + 0.15 * Math.sin(t * 20));
+    }
+    if (p.st === 'lunge') for (let k = 0; k < 3; k++) parts.push({ x: p.x + rand(-0.02, 0.02), y: p.y + rand(-0.02, 0.02), z: p.z, vx: -p.v.x * 0.2, vy: 0, vz: -p.v.z * 0.2, life: 0.3, max: 0.3, size: 0.01, c: C.red, drag: 2, shape: 5 });
+  }
+  // 水母：伞下垂着几根会摆的触须，伞心一团光
+  for (const j of jellies) {
+    P(j.x, j.y + 0.008, j.z, C.pink, 0.07, 4, 0.1);
+    for (let k = 0; k < 6; k++) {
+      const a = k * TAU / 6, bx = j.x + Math.cos(a) * 0.018, bz = j.z + Math.sin(a) * 0.018;
+      for (let s = 1; s <= 8; s++) P(bx + Math.sin(t * 2 + s * 0.6 + k) * 0.0012 * s, j.y - s * 0.011, bz + Math.cos(t * 1.7 + s * 0.5 + k) * 0.001 * s, C.pink, 0.006, 0, 0.7 - s * 0.06);
+    }
+  }
+  // 海鳗：预警时一条闪烁的红虚线 + 箭头；冲过来时一串由粗到细的紫红光
+  for (const e of eels) {
+    if (e.t < e.warn) {
+      const on = Math.floor(e.t * 8) % 2 ? 0.75 : 0.25;
+      for (let k = 0; k <= 24; k++) P(-0.36 + k * 0.03, e.y, e.z, C.red, 0.007, 0, on);
+      for (let k = 0; k < 3; k++) { const x = -e.s * 0.33 + e.s * ((e.t * 0.3 + k * 0.05) % 0.15); P(x, e.y, e.z, C.red, 0.03, 5, 0.9, e.s, 0, 0); }
+    } else e.hist.forEach((h, k) => P(h[0], h[1], h[2], k === 0 ? C.white : C.violet, k === 0 ? 0.02 : 0.018 * (1 - k / 50), k === 0 ? 0 : 4, 1 - k / 50));
+  }
+  // 火花
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i]; p.life -= dt;
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    const f = 1 - dt * p.drag; p.vx *= f; p.vy *= f; p.vz *= f; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    const a = p.life / p.max;
+    P(p.x, p.y, p.z, p.c, p.size * (0.4 + 0.6 * a), p.shape || 4, a * 0.6, p.vx, p.vy, p.vz);
+  }
+  flash = Math.max(0, flash - dt * 1.5); flashMesh.material.opacity = flash * 0.2;
+  for (const k of ['position', 'aColor', 'aSize', 'aShape', 'aDir', 'aA']) pGeo.attributes[k].needsUpdate = true;
+  pGeo.setDrawRange(0, pN);
+}
+const flashMesh = new THREE.Mesh(new THREE.PlaneGeometry(3, 2), new THREE.MeshBasicMaterial({ color: 0x80ffe0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+flashMesh.position.set(0, 0, -0.5); flashMesh.renderOrder = 20; world.add(flashMesh);
+
+// ---------- 面板：左上鱼群 / 光点，右上时间 / 最高，正中标题 / 结束 ----------
+function canvasPanel(w, h, pw, ph) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  m.renderOrder = 15; world.add(m); return { cv, g: cv.getContext('2d'), tx, m };
+}
+const hudL = canvasPanel(512, 256, 0.2, 0.1), hudR = canvasPanel(512, 256, 0.2, 0.1), panel = canvasPanel(1024, 512, 0.44, 0.22);
+hudL.m.position.set(-0.3, 0.16, -1.2); hudR.m.position.set(0.3, 0.16, -1.2);
+panel.m.position.set(0, 0.02, -1.0);
+for (const h of [hudL, hudR]) h.m.lookAt(0, 0, 0);
+let hudDirty = true, panelDirty = true, hudT = 0;
+function glowText(g, s, x, y, size, col, align = 'left', weight = 300) {
+  g.font = `${weight} ${size}px ${FONT()}`; g.textAlign = align; g.textBaseline = 'middle';
+  g.shadowColor = col; g.shadowBlur = size * 0.5; g.fillStyle = col; g.fillText(s, x, y); g.shadowBlur = 0;
+}
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function drawHud() {
+  const s = S(), dim = '#5fa69a';
+  let g = hudL.g; g.clearRect(0, 0, 512, 256);
+  if (state !== 'title') {
+    glowText(g, s.school, 20, 34, 30, dim); glowText(g, String(nF), 20, 100, 80, '#bffff0', 'left', 300);
+    glowText(g, `${s.glow} ${score}`, 20, 180, 38, '#ffd890');
+  }
+  hudL.tx.needsUpdate = true;
+  g = hudR.g; g.clearRect(0, 0, 512, 256);
+  if (state !== 'title') {
+    glowText(g, s.time, 492, 34, 30, dim, 'right'); glowText(g, mmss(gameT), 492, 100, 70, '#bffff0', 'right', 300);
+    glowText(g, `${s.best} ${Math.max(best, score)}`, 492, 180, 34, '#7fc8b8', 'right');
+  }
+  hudR.tx.needsUpdate = true;
+}
+function frame(g, w, h, col) { g.strokeStyle = col; g.lineWidth = 3; g.globalAlpha = 0.6; g.beginPath(); g.moveTo(16, 60); g.lineTo(16, 16); g.lineTo(60, 16); g.moveTo(w - 60, h - 16); g.lineTo(w - 16, h - 16); g.lineTo(w - 16, h - 60); g.stroke(); g.globalAlpha = 1; }
+function drawPanel(t) {
+  const s = S(), g = panel.g; g.clearRect(0, 0, 1024, 512);
+  if (state === 'title') {
+    frame(g, 1024, 512, '#3fdcc0');
+    glowText(g, s.name, 512, 150, lang === 'zh' ? 120 : 110, '#c8fff2', 'center', 200);
+    glowText(g, s.alt, 512, 245, 34, '#6fb8a8', 'center');
+    glowText(g, s.hint, 512, 320, 34, '#8fd0c0', 'center');
+    g.globalAlpha = 0.55 + 0.45 * Math.sin(t * 3); glowText(g, s.start, 512, 410, 40, '#ffffff', 'center', 400); g.globalAlpha = 1;
+  } else if (state === 'over') {
+    frame(g, 1024, 512, '#5f7fd0');
+    glowText(g, s.over, 512, 130, lang === 'zh' ? 100 : 80, '#a8c8ff', 'center', 200);
+    glowText(g, `${s.glow}  ${score}`, 512, 235, 52, '#ffe0a0', 'center', 400);
+    glowText(g, `${s.largest} ${largest}   ·   ${s.time} ${mmss(gameT)}   ·   ${s.best} ${best}`, 512, 305, 32, '#9fc0d8', 'center');
+    g.globalAlpha = 0.55 + 0.45 * Math.sin(t * 3); glowText(g, s.retry, 512, 410, 38, '#ffffff', 'center', 400); g.globalAlpha = 1;
+  }
+  panel.tx.needsUpdate = true;
+}
+
+// ---------- 声音：深海底噪 + 吃东西是一串往上走的五声音阶 ----------
+let AC = null, OUT, SFX, MUS, NOISE, muted = false;
+try { muted = localStorage.getItem('swarm-mute') === '1'; } catch (e) { }
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  OUT = AC.createGain(); OUT.gain.value = muted ? 0 : 0.8;
+  const comp = AC.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  OUT.connect(comp).connect(AC.destination);
+  SFX = AC.createGain(); SFX.gain.value = 0.9; SFX.connect(OUT);
+  MUS = AC.createGain(); MUS.gain.value = 0.5; MUS.connect(OUT);
+  NOISE = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+  const d = NOISE.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  // 底噪：三个低音慢慢起伏，过一个呼吸一样开合的低通
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 2;
+  const amb = AC.createGain(); amb.gain.value = 0.09; lp.connect(amb).connect(MUS);
+  for (const f of [55, 82.4, 110.7]) { const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = rand(-8, 8); o.connect(lp); o.start(); }
+  const lfo = AC.createOscillator(), lg = AC.createGain(); lfo.frequency.value = 0.07; lg.gain.value = 160; lfo.connect(lg).connect(lp.frequency); lfo.start();
+  // 远处偶尔一声像鲸鱼的长音
+  setInterval(() => { if (ok() && Math.random() < 0.5) { const f = rand(180, 320); tone(f, f * 0.75, 2.6, 0.03, 'sine', MUS); } }, 7000);
+}
+function tone(f0, f1, dur, amp, type = 'sine', dst = SFX, at = 0) {
+  const t = AC.currentTime + at, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(amp, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(dst); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(f0, f1, dur, amp, q = 1, type = 'bandpass', dst = SFX, at = 0) {
+  const t = AC.currentTime + at, s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = NOISE; s.loop = true; f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(amp, t + Math.min(0.05, dur * 0.3)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f).connect(g).connect(dst); s.start(t, Math.random()); s.stop(t + dur + 0.02);
+}
+const ok = () => AC && !muted;
+const PENTA = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760, 2093];
+let streak = 0, lastEat = 0, gulpT = 0, stingT = 0, eatT = 0;
+const sfx = {
+  eat(gold) {
+    if (!ok()) return;
+    const now = AC.currentTime;
+    if (gold) { [0, 2, 4, 7, 9].forEach((k, i) => tone(PENTA[k], PENTA[k], 0.4, 0.05, 'triangle', SFX, i * 0.06)); return; }
+    if (now - eatT < 0.05) return; eatT = now;
+    streak = now - lastEat < 1.2 ? Math.min(PENTA.length - 1, streak + 1) : 0; lastEat = now;
+    const f = PENTA[streak]; tone(f, f, 0.3, 0.04, 'triangle'); tone(f * 2, f * 2, 0.15, 0.012, 'sine');
+  },
+  birth: () => { if (!ok()) return; tone(1568, 2093, 0.25, 0.035); tone(2093, 2637, 0.3, 0.025, 'sine', SFX, 0.07); },
+  growl: () => { if (!ok()) return; noise(140, 380, 0.8, 0.22, 4); tone(52, 68, 0.8, 0.14, 'sawtooth'); },
+  lunge: () => { if (!ok()) return; noise(500, 2600, 0.45, 0.25, 0.8); },
+  gulp: () => { if (!ok() || AC.currentTime - gulpT < 0.06) return; gulpT = AC.currentTime; tone(420, 110, 0.18, 0.08); },
+  sting: () => { if (!ok() || AC.currentTime - stingT < 0.08) return; stingT = AC.currentTime; noise(5000, 2500, 0.09, 0.06, 3); tone(1900, 900, 0.08, 0.025, 'square'); },
+  eelWarn: () => { if (!ok()) return; for (let i = 0; i < 3; i++) tone(92, 80, 0.32, 0.14, 'square', SFX, i * 0.5); },
+  gather: on => { if (!ok()) return; noise(on ? 2600 : 400, on ? 400 : 2600, 0.35, 0.06, 1.2); },
+  start: () => { if (!ok()) return; [0, 2, 4].forEach((k, i) => tone(PENTA[k] / 2, PENTA[k] / 2, 0.5, 0.05, 'triangle', SFX, i * 0.1)); },
+  over: () => { if (!ok()) return; [7, 4, 2, 0].forEach((k, i) => tone(PENTA[k] / 2, PENTA[k] / 2.02, 1.2, 0.05, 'triangle', SFX, i * 0.3)); },
+};
+
+// ---------- 输入 ----------
+// 头显：鱼群跟着右手的光走（不用捏，用食指根部的位置，捏合时它基本不动）；手移多少，光移 GAIN 倍（手移 ±17 cm 就能走满整个水体）。
+// 任意一只手捏住不放 = 抱团。没开始 / 结束时捏合 = 开始。只有一只手时就用那只手引路
+const GAIN = 2.0;
+const anchor = { set: false, x: 0, y: 0, z: 0 };
+const ctrls = [], hands = [], side = ['', ''], pinching = [false, false];
+const joint = (i, n) => { const j = hands[i].joints && hands[i].joints[n]; return j && j.visible !== false ? j : null; };
+function handPos(i) {
+  const k = joint(i, 'index-finger-metacarpal') || joint(i, 'wrist');
+  if (k) return k.getWorldPosition(new V3());
+  const c = ctrls[i]; if (c.userData.connected) return new V3().setFromMatrixPosition(c.matrixWorld);
+  return null;
+}
+function steerHand() {
+  let any = -1;
+  for (let i = 0; i < 2; i++) { if (!handPos(i)) continue; if (side[i] === 'right') return i; if (any < 0 || side[any] === 'left') any = i; }
+  return any;
+}
+for (let i = 0; i < 2; i++) {
+  const c = renderer.xr.getController(i), h = renderer.xr.getHand(i);
+  c.addEventListener('connected', e => { c.userData.connected = true; side[i] = (e.data && e.data.handedness) || ''; });
+  c.addEventListener('disconnected', () => { c.userData.connected = false; side[i] = ''; pinching[i] = false; });
+  scene.add(c, h); ctrls.push(c); hands.push(h);
+  c.addEventListener('selectstart', () => { initAudio(); if (state !== 'play') { startGame(); return; } pinching[i] = true; });
+  c.addEventListener('selectend', () => { pinching[i] = false; });
+}
+function xrControl() {
+  gather = pinching[0] || pinching[1];
+  const i = steerHand(); if (i < 0) return;
+  const l = world.worldToLocal(handPos(i));
+  // 第一次看到手：此刻手的位置对应光现在的位置
+  if (!anchor.set) Object.assign(anchor, { set: true, x: l.x - lure.tx / GAIN, y: l.y - (lure.ty - CY) / GAIN, z: l.z - (lure.tz - CZ) / GAIN });
+  const tx = (l.x - anchor.x) * GAIN, ty = CY + (l.y - anchor.y) * GAIN, tz = CZ + (l.z - anchor.z) * GAIN;
+  const cx = clamp(tx, -LX, LX), cy = clamp(ty, CY - LY, CY + LY), cz = clamp(tz, LZ0, LZ1);
+  // 顶到边上时把基准跟着挪，手往回一动光就离开边
+  anchor.x += (tx - cx) / GAIN; anchor.y += (ty - cy) / GAIN; anchor.z += (tz - cz) / GAIN;
+  if (state === 'play' || state === 'over') { lure.tx = cx; lure.ty = cy; lure.tz = cz; }
+}
+// 桌面：鼠标指到哪，光就去哪；按住鼠标 / 空格 抱团；滚轮调远近；WASD / 方向键也能动
+const rc = new THREE.Raycaster(), ndc = new THREE.Vector2(); let mouseOn = false, mouseDown = false;
+const keys = new Set();
+const cv = renderer.domElement;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointermove', e => { if (renderer.xr.isPresenting) return; ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseOn = true; });
+cv.addEventListener('pointerdown', e => {
+  if (renderer.xr.isPresenting) return;
+  initAudio(); ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseOn = true;
+  if (state !== 'play') { startGame(); return; }
+  mouseDown = true;
+});
+addEventListener('pointerup', () => { mouseDown = false; });
+cv.addEventListener('wheel', e => { e.preventDefault(); lure.tz = clamp(lure.tz + e.deltaY * 0.0004, LZ0, LZ1); }, { passive: false });
+addEventListener('keydown', e => {
+  keys.add(e.code);
+  if (e.code === 'Space') { e.preventDefault(); initAudio(); if (state !== 'play' && !e.repeat) startGame(); }
+  if (e.code === 'KeyR' && renderer.xr.isPresenting) { needPlace = true; anchor.set = false; }
+  if (/^(Arrow|Key[WASDQE])/.test(e.code)) mouseOn = false;
+});
+addEventListener('keyup', e => keys.delete(e.code));
+const lPlane = new THREE.Plane(new V3(0, 0, 1), 0);
+function deskControl(dt) {
+  gather = mouseDown || keys.has('Space');
+  if (state === 'title') return;
+  let kx = 0, ky = 0, kz = 0;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) kx--;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) kx++;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) ky++;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) ky--;
+  if (keys.has('KeyQ')) kz--;
+  if (keys.has('KeyE')) kz++;
+  if (kx || ky || kz) { lure.tx = clamp(lure.tx + kx * 0.3 * dt, -LX, LX); lure.ty = clamp(lure.ty + ky * 0.3 * dt, CY - LY, CY + LY); lure.tz = clamp(lure.tz + kz * 0.3 * dt, LZ0, LZ1); return; }
+  if (!mouseOn) return;
+  rc.setFromCamera(ndc, camera); lPlane.constant = -lure.tz;
+  const q = rc.ray.intersectPlane(lPlane, new V3()); if (!q) return;
+  lure.tx = clamp(q.x, -LX, LX); lure.ty = clamp(q.y, CY - LY, CY + LY);
+}
+
+document.getElementById('lang').onclick = () => { lang = lang === 'en' ? 'zh' : 'en'; try { localStorage.setItem('swarm-lang', lang); } catch (e) { } applyLang(); };
+document.getElementById('mute').onclick = () => {
+  muted = !muted; try { localStorage.setItem('swarm-mute', muted ? '1' : '0'); } catch (e) { }
+  initAudio(); OUT.gain.setTargetAtTime(muted ? 0 : 0.8, AC.currentTime, 0.05); applyLang();
+};
+
+// ---------- XR 摆放 ----------
+let needPlace = false, placeWait = 0;
+renderer.xr.addEventListener('sessionstart', () => { needPlace = true; placeWait = 0; anchor.set = false; document.getElementById('card').style.opacity = 0; document.getElementById('btns').style.opacity = 0; });
+renderer.xr.addEventListener('sessionend', () => { world.position.set(0, 0, 0); world.rotation.set(0, 0, 0); document.getElementById('card').style.opacity = 1; document.getElementById('btns').style.opacity = 1; onResize(); });
+function place() {
+  const cam = renderer.xr.getCamera(), p = new V3().setFromMatrixPosition(cam.matrixWorld);
+  const d = new V3(0, 0, -1).transformDirection(cam.matrixWorld);
+  world.position.copy(p); world.rotation.set(0, Math.atan2(-d.x, -d.z), 0); needPlace = false; anchor.set = false;
+}
+
+// ---------- 桌面后处理 ----------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.4, 0.55);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+function onResize() {
+  camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 1 ? 64 : 30;
+  // 宽屏：整幅画面往右挪一点，让开左边的说明文字
+  if (innerWidth > 900) camera.setViewOffset(innerWidth, innerHeight, -innerWidth * 0.1, 0, innerWidth, innerHeight); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', onResize); onResize();
+
+applyLang();
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(1 / 30, clock.getDelta()), t = clock.elapsedTime, xr = renderer.xr.isPresenting;
+  if (needPlace && xr && ++placeWait > 5) place();
+  if (!xr) { camera.position.set(0, 0, 0); camera.lookAt(0, CY * 0.5, -1); }
+  world.updateMatrixWorld();
+  if (xr) xrControl(); else deskControl(dt);
+  update(dt, t);
+  fishMat.uniforms.uTime.value = t;
+  draw(t, dt);
+  hudT -= dt;
+  if (state === 'play' && hudT <= 0) hudDirty = true;
+  if (hudDirty && hudT <= 0) { drawHud(); hudDirty = false; hudT = 0.25; }
+  if (state !== 'play' || panelDirty) { drawPanel(t); panelDirty = false; }
+  panel.m.visible = state !== 'play';
+  pMat.uniforms.uScale.value = xr ? ((renderer.xr.getCamera().cameras[0] || {}).viewport || { w: 1200 }).w / 2 : renderer.domElement.height / 2;
+  if (xr) renderer.render(scene, camera); else composer.render();
+});
+
+// 测试用
+window.__swarm = { get state() { return state; }, get fish() { return nF; }, get score() { return score; }, lure, startGame, spawnPike, spawnJelly, spawnEel, spawnBloom, pikes, motes, jump: s => { gameT = s; }, get gather() { return lure.g; } };
+</script>
+</body>
+</html>

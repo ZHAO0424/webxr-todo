@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bubble Machine</title>
+<style>
+  :root { --fg: #e8eef2; --dim: #8a98a3; --bg: #040506; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden;
+    font-family: "Helvetica Neue", "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  canvas { display: block; touch-action: none; }
+  #vig { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 58% 52%, transparent 35%, rgba(0,0,0,.55) 100%); }
+  #card { position: fixed; left: 28px; top: 26px; max-width: 300px; pointer-events: none; transition: opacity 1.2s; }
+  #card h1 { font-weight: 200; font-size: 30px; letter-spacing: .16em; margin: 0 0 10px; }
+  #card h1 small { display: block; font-size: 11px; color: var(--dim); letter-spacing: .34em; margin: 8px 0 0 2px; }
+  #card p { margin: 4px 0; font-size: 13px; line-height: 1.85; color: var(--dim); }
+  #card .meta { font-size: 11px; letter-spacing: .08em; color: #5d6a73; margin-bottom: 10px; }
+  #card .en { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 14px; line-height: 1.7; color: #98a5ae; }
+  #card .how { margin-top: 14px; color: #b9c6cf; }
+  #mute { position: fixed; right: 18px; top: 16px; background: none; border: 1px solid #262e34; color: var(--dim);
+    font: inherit; font-size: 12px; padding: 6px 12px; border-radius: 16px; cursor: pointer; }
+  @media (max-width: 700px) { #card { left: 16px; right: 16px; top: 16px; } #card h1 { font-size: 22px; } #card p:not(.how) { display: none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="vig"></div>
+<div id="card">
+  <h1>Bubble Machine<small>泡泡制作机</small></h1>
+  <p class="meta">Pump, silicone hose, brass nozzle, soap film · Interactive installation</p>
+    <p class="en">One pump, and the hose swells into a bubble that travels down its length. At the brass nozzle it blows a soap bubble, breath by breath, until it lets go and drifts away.</p>
+  <p class="how">Click / hold the pump — pump air (or press Space)<br>Press on the hose — pinch it, drag to squeeze forward<br>Click a bubble — pop it<br>In headset — pinch to click; press the handle or pop bubbles with your fingertip</p>
+</div>
+<button id="mute">Sound off</button>
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const V3 = THREE.Vector3, clamp = THREE.MathUtils.clamp;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x040506);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.01, 50);
+
+// 桌面上相机在原点附近看 -z；头显里进会话时把整组摆到眼前（眼镜只看正前方一小块：全部放在 40° 内、一臂远）
+const art = new THREE.Group(); scene.add(art);
+const TABLE = -0.15, R0 = 0.007, YREST = TABLE + R0;
+
+// ---------- 灯：一盏从上往下的展台射灯 + 背后一道冷色轮廓光 ----------
+art.add(new THREE.HemisphereLight(0x8fb8d0, 0x0a0806, 0.25));
+const spot = new THREE.SpotLight(0xfff1e0, 3.2, 2.5, 0.5, 0.9, 1.6);
+spot.position.set(-0.12, 0.62, -1.0); spot.target.position.set(-0.07, TABLE, -0.87);
+spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); spot.shadow.bias = -0.0004; spot.shadow.camera.near = 0.2; spot.shadow.camera.far = 1.5;
+art.add(spot, spot.target);
+const rim = new THREE.DirectionalLight(0x9cc8ff, 0.9); rim.position.set(0.2, 0.4, -2.2); rim.target.position.set(0, -0.1, -0.85); art.add(rim, rim.target);
+
+// ---------- 展台 ----------
+const slab = new THREE.Mesh(new RoundedBoxGeometry(0.74, 0.04, 0.34, 4, 0.008),
+  new THREE.MeshPhysicalMaterial({ color: 0x15181b, roughness: 0.62, clearcoat: 0.35, clearcoatRoughness: 0.4, envMapIntensity: 0.35 }));
+slab.position.set(-0.07, TABLE - 0.02, -0.87); slab.receiveShadow = true; art.add(slab);
+// 展签
+const label = (() => {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const g = cv.getContext('2d');
+  g.fillStyle = '#b9b4ab'; g.fillRect(0, 0, 512, 256);
+  g.fillStyle = '#1b1b1b'; g.font = '400 54px Georgia, serif'; g.fillText('Bubble Machine', 36, 90);
+  g.font = '26px "PingFang SC","Microsoft YaHei",sans-serif'; g.fillStyle = '#555'; g.fillText('泡泡制作机', 38, 132);
+  g.font = '22px "PingFang SC","Microsoft YaHei",sans-serif'; g.fillStyle = '#666';
+  g.fillText('Pump, silicone hose, brass nozzle, soap film', 36, 182); g.fillText('Interactive installation · 2026', 36, 220);
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.0375, 0.002), [0, 0, 0, 0, 1, 0].map(k => new THREE.MeshStandardMaterial(k ? { map: tx, roughness: 0.8 } : { color: 0xd8d2c6, roughness: 0.8 })));
+  m.position.set(0.19, TABLE + 0.006, -0.745); m.rotation.x = -1.2; m.castShadow = true; art.add(m); return m;
+})();
+
+// ---------- 打气筒 ----------
+// 玻璃筒身，铜帽，里面一块红橡胶活塞，镀铬拉杆，胡桃木 T 形手柄。点它 = 往下打一下
+const pumpG = new THREE.Group(); pumpG.position.set(-0.335, TABLE, -0.845); art.add(pumpG);
+const brass = new THREE.MeshPhysicalMaterial({ color: 0xc8a064, metalness: 1, roughness: 0.28, clearcoat: 0.4 });
+const chrome = new THREE.MeshStandardMaterial({ color: 0xe8ecef, metalness: 1, roughness: 0.08 });
+const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 1, thickness: 0.004, ior: 1.5, roughness: 0.04, clearcoat: 1, specularIntensity: 1, envMapIntensity: 1.3 });
+const wood = new THREE.MeshPhysicalMaterial({ color: 0x5b3a22, roughness: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.3 });
+const rubber = new THREE.MeshStandardMaterial({ color: 0x7a1d18, roughness: 0.65 });
+const cyl = (r, h, m, y, seg = 40) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m); o.position.y = y; o.castShadow = true; pumpG.add(o); return o; };
+const foot = new THREE.Mesh(new RoundedBoxGeometry(0.075, 0.008, 0.045, 3, 0.003), new THREE.MeshPhysicalMaterial({ color: 0x1d1f22, metalness: 0.8, roughness: 0.35 }));
+foot.position.y = 0.004; foot.castShadow = foot.receiveShadow = true; pumpG.add(foot);
+cyl(0.0205, 0.012, brass, 0.014);
+const barrel = cyl(0.017, 0.112, glass, 0.076, 48);
+cyl(0.0195, 0.01, brass, 0.137);
+const piston = cyl(0.0158, 0.009, rubber, 0.12);
+const rod = cyl(0.0024, 0.105, chrome, 0.17, 16);
+const handle = new THREE.Mesh(new THREE.CapsuleGeometry(0.0075, 0.06, 6, 20), wood);
+handle.rotation.z = Math.PI / 2; handle.castShadow = true; pumpG.add(handle);
+// 出气嘴：筒底侧面一截铜管，软管套在上面
+const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.0042, 0.0042, 0.03, 20), brass);
+nozzle.rotation.z = Math.PI / 2; nozzle.position.set(0.028, 0.02, 0); nozzle.castShadow = true; pumpG.add(nozzle);
+const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.0095, 0.0095, 0.018, 24), brass);
+sleeve.rotation.z = Math.PI / 2; sleeve.position.set(0.046, 0.02, 0); sleeve.castShadow = true; pumpG.add(sleeve);
+const PUMP_UP = 0.12, PUMP_DOWN = 0.035;   // 活塞的高度：上 / 下
+
+// ---------- 软管 ----------
+// 平放在台面上，中间拱起两个弯，末端翘起来对着空中（肥皂泡就吹在那里）
+const SEG = 200, RAD = 24, VMAX = 1.4;
+const BASE = [[-0.297, -0.13, -0.845], [-0.272, -0.131, -0.846], [-0.245, YREST, -0.85], [-0.2, YREST, -0.86], [-0.15, -0.075, -0.885], [-0.095, YREST, -0.905],
+  [-0.03, YREST, -0.92], [0.025, -0.095, -0.91], [0.07, YREST, -0.885], [0.11, -0.115, -0.865], [0.135, -0.055, -0.85]].map(a => new V3(...a));
+const SWAY = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];   // 拱起和翘起的地方都被夹子夹住了，不再晃
+const ctrl = BASE.map(v => v.clone());
+const curve = new THREE.CatmullRomCurve3(ctrl, false, 'centripetal');
+const P = [], T = [], N = [], B = [];
+for (let i = 0; i <= SEG; i++) { P.push(new V3()); T.push(new V3()); N.push(new V3()); B.push(new V3()); }
+const rSkin = new Float32Array(SEG + 1), air = new Float32Array(SEG + 1);
+let hoseLen = 1;
+
+const hoseGeo = (() => {
+  const g = new THREE.BufferGeometry(), n = (SEG + 1) * (RAD + 1), idx = [];
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  g.setAttribute('aAir', new THREE.BufferAttribute(new Float32Array(n), 1));
+  for (let i = 0; i < SEG; i++) for (let j = 0; j < RAD; j++) { const a = i * (RAD + 1) + j, b = (i + 1) * (RAD + 1) + j; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  g.setIndex(idx); return g;
+})();
+// 灌满水的硅胶管：透射 + 水的青色衰减；一点点自发光，免得在眼镜（黑 = 透明）里看不见
+// 半透明的乳白硅胶：只透一半光，管壁本身有颜色
+const hoseMat = new THREE.MeshPhysicalMaterial({ color: 0x8fcfdb, transmission: 0.5, thickness: 0.012, ior: 1.36, roughness: 0.38,
+  attenuationColor: new THREE.Color(0x4fc4d8), attenuationDistance: 0.02, specularIntensity: 0.3, sheen: 0.4, sheenColor: 0xcfeff5,
+  emissive: 0x0a3a44, envMapIntensity: 0.45, side: THREE.DoubleSide });
+// 管里的大气团不是另外的实心球，而是管壁自己着色：空气没有水的青色，更通透更亮；
+// 水和空气的交界面在掠射角发生全反射，所以轮廓是一圈亮银边，正中间能透过去看到后面
+hoseMat.onBeforeCompile = sh => {
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', 'attribute float aAir;\nvarying float vAir;\n#include <common>')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvAir = aAir;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', 'varying float vAir;\n#include <common>')
+    .replace('#include <opaque_fragment>', `
+      float airFr = pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 2.6);
+      vec3 airClear = outgoingLight * vec3(1.3, 1.1, 1.05) + vec3(0.025, 0.03, 0.032);
+      outgoingLight = mix(outgoingLight, airClear, vAir);
+      outgoingLight += vec3(0.8, 0.9, 0.95) * airFr * vAir * 1.1;
+      #include <opaque_fragment>`);
+};
+const hose = new THREE.Mesh(hoseGeo, hoseMat); hose.frustumCulled = false; hose.castShadow = true; art.add(hose);
+
+function updateFrames(t) {
+  for (let k = 0; k < ctrl.length; k++) {
+    const b = BASE[k], a = SWAY[k];
+    ctrl[k].set(b.x + a * 0.004 * Math.sin(t * 0.5 + k * 1.7), b.y + a * 0.006 * Math.sin(t * 0.7 + k * 2.3), b.z + a * 0.004 * Math.sin(t * 0.4 + k));
+  }
+  curve.updateArcLengths(); hoseLen = curve.getLength();
+  for (let i = 0; i <= SEG; i++) { curve.getPointAt(i / SEG, P[i]); curve.getTangentAt(i / SEG, T[i]); }
+  N[0].crossVectors(T[0], Math.abs(T[0].y) < 0.9 ? new V3(0, 1, 0) : new V3(1, 0, 0)).normalize();
+  B[0].crossVectors(T[0], N[0]);
+  for (let i = 1; i <= SEG; i++) { N[i].copy(N[i - 1]).addScaledVector(T[i], -N[i - 1].dot(T[i])).normalize(); B[i].crossVectors(T[i], N[i]); }
+  // 每一圈处的弯曲半径：鼓包在弯道内侧不能比它更粗，否则管壁自己穿过自己
+  const ds = hoseLen / SEG;
+  for (let i = 0; i <= SEG; i++) { const a = T[Math.max(0, i - 1)], b = T[Math.min(SEG, i + 1)]; bendTmp[i] = (ds * 2) / Math.max(1e-4, a.distanceTo(b)); }
+  // 先取附近最小、再平均：限制沿管子平滑地变，鼓包在弯道上是被压扁的圆，而不是削出尖角
+  const W = 10;
+  for (let i = 0; i <= SEG; i++) { let m = 1e9; for (let j = Math.max(0, i - W); j <= Math.min(SEG, i + W); j++) m = Math.min(m, bendTmp[j]); bendMin[i] = m; }
+  for (let i = 0; i <= SEG; i++) { let sum = 0, n = 0; for (let j = Math.max(0, i - W); j <= Math.min(SEG, i + W); j++) { sum += bendMin[j]; n++; } bendR[i] = sum / n; }
+}
+const bendTmp = new Float32Array(SEG + 1), bendMin = new Float32Array(SEG + 1);
+const bendR = new Float32Array(SEG + 1);
+
+// ---------- 夹子 ----------
+// 管子拱起、翘起的地方靠实验室那种支架撑着：压重的圆底座 + 镀铬立杆 + 铜十字夹头 + 一圈箍住管子的铜环（带一颗拧紧的螺丝）。
+// 环箍着的那一小段撑不开：鼓包经过时被勒细，过去了再鼓起来
+const clamps = [], TIP = 0.024;   // TIP：吹嘴口沿离管子末端多远
+{
+  updateFrames(0);
+  const near = v => { let best = 1e9, bi = 0; for (let i = 0; i <= SEG; i++) { const d = P[i].distanceToSquared(v); if (d < best) { best = d; bi = i; } } return bi / SEG; };
+  const iron = new THREE.MeshPhysicalMaterial({ color: 0x24272b, metalness: 0.85, roughness: 0.4 });
+  for (const s of [near(BASE[4]), near(BASE[7]), 0.88]) {
+    const i = Math.round(s * SEG), c = P[i].clone(), ringR = R0 * 1.18;
+    const g = new THREE.Group(); art.add(g); clamps.push({ s });
+    const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+    // 底座和立杆
+    add(new THREE.CylinderGeometry(0.013, 0.015, 0.006, 32), iron, c.x, TABLE + 0.003, c.z - 0.016).receiveShadow = true;
+    const top = c.y + ringR + 0.006, rodLen = top - TABLE;
+    add(new THREE.CylinderGeometry(0.0017, 0.0017, rodLen, 12), chrome, c.x, TABLE + rodLen / 2, c.z - 0.016);
+    // 十字夹头：立杆上一块铜块，伸出一根短横杆到环上
+    add(new RoundedBoxGeometry(0.008, 0.008, 0.008, 2, 0.0015), brass, c.x, c.y, c.z - 0.016);
+    add(new THREE.CylinderGeometry(0.0013, 0.0013, 0.016 - ringR, 10), chrome, c.x, c.y, c.z - 0.008 - ringR / 2).rotation.x = Math.PI / 2;
+    // 箍环，环面垂直于管子
+    const ring = add(new THREE.TorusGeometry(ringR, 0.0016, 10, 32), brass, c.x, c.y, c.z);
+    ring.quaternion.setFromUnitVectors(new V3(0, 0, 1), T[i]);
+    const knob = add(new THREE.CylinderGeometry(0.0022, 0.0022, 0.004, 12), brass, 0, 0, 0);
+    knob.position.copy(c).addScaledVector(new V3(0, 1, 0), ringR + 0.003);
+  }
+  // 两头接口处是硬的：套在铜套 / 吹嘴里，鼓不起来
+  clamps.push({ s: 0 }, { s: 1 });
+
+  // 打气筒出气嘴上加一道箍带，压住插进铜套里的软管
+  const band0 = new THREE.Mesh(new THREE.TorusGeometry(R0 * 1.12, 0.0013, 8, 28), chrome);
+  band0.position.copy(P[Math.round(0.035 * SEG)]); band0.quaternion.setFromUnitVectors(new V3(0, 0, 1), T[Math.round(0.035 * SEG)]); band0.castShadow = true; art.add(band0);
+
+  // 右端的金属吹嘴：管子套进一截铜接头（压一道箍），接头往前收成细颈，再张开成一个喇叭口，口沿一圈圆环——肥皂膜就绷在这个圆口上，一下一下被吹成泡泡
+  const tip = new THREE.Group(); art.add(tip);
+  tip.position.copy(P[SEG]); tip.quaternion.setFromUnitVectors(new V3(0, 1, 0), T[SEG]);
+  const part = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.castShadow = true; tip.add(m); return m; };
+  part(new THREE.CylinderGeometry(R0 * 1.32, R0 * 1.32, 0.018, 28), brass, -0.006);                      // 套住管子的接头
+  part(new THREE.TorusGeometry(R0 * 1.36, 0.0012, 8, 28), chrome, -0.012).rotation.x = Math.PI / 2;      // 箍带
+  part(new THREE.CylinderGeometry(0.0045, R0 * 1.32, 0.006, 24), brass, 0.006);                          // 收颈
+  part(new THREE.CylinderGeometry(0.0045, 0.0045, 0.006, 20), brass, 0.012);                             // 细颈
+  part(new THREE.CylinderGeometry(0.0108, 0.0045, 0.009, 32, 1, true), new THREE.MeshPhysicalMaterial({ color: 0xc8a064, metalness: 1, roughness: 0.25, side: THREE.DoubleSide }), 0.0195);   // 喇叭口
+  part(new THREE.TorusGeometry(0.011, 0.0011, 10, 40), chrome, TIP - 0.0005).rotation.x = Math.PI / 2;  // 口沿圆环
+}
+function profile(t) {
+  for (let i = 0; i <= SEG; i++) {
+    const s = i / SEG; let r = R0, am = 0;
+    for (const b of bulges) {
+      if (b.small) continue;   // 比管径小的气泡不撑管子，单独画成小球
+      // 鼓包是一个圆球（橡胶管充气会局部鼓成球，像吹气球）：沿管子的剖面就是圆 r = Rb·√(1 − x²)；
+      // 气多到球撑不大了，就沿管子拉成椭球
+      const L = b.Rb * b.stretch * 1.2 / hoseLen, x = (s - b.s) / L;
+      if (x * x >= 1.6) continue;
+      const rb = b.Rb * Math.sqrt(Math.max(0, 1 - x * x)) * (1 + 0.04 * Math.sin(t * 9 + b.ph));
+      // 和管子平滑地接上（smooth max）
+      const h = clamp(0.5 + (rb - r) / (2 * R0 * 0.6), 0, 1);
+      r = r + (rb - r) * h + R0 * 0.6 * h * (1 - h);
+      am = Math.max(am, clamp((rb - R0 * 1.3) / (R0 * 0.5), 0, 1));
+    }
+    air[i] = am;
+    let k = 1;
+    for (const p of pinches) { const d = (s - p.s) / 0.011; k *= 1 - 0.8 * p.k * Math.exp(-d * d); }
+    const flare = 1;
+    for (const c of clamps) { const d = Math.abs(s - c.s) * hoseLen; r = Math.min(r, R0 * 1.05 + Math.max(0, d - 0.004) * 3); }   // 被环箍住
+    // 软上限（smooth min）：接近弯曲半径时慢慢压住，不是一刀切
+    const cap = Math.max(R0 * 1.3, bendR[i] * 0.95), sk = R0 * 0.8, hm = clamp(0.5 + (cap - r) / (2 * sk), 0, 1);
+    r = cap + (r - cap) * hm - sk * hm * (1 - hm);
+    rSkin[i] = Math.max(R0 * 0.3, r) * k * flare;
+    // 躺在台面上的部分：鼓起来时往上顶，而不是陷进桌子
+    const c = clamp(1 - (P[i].y - YREST) / 0.012, 0, 1);
+    P[i].y += Math.max(0, rSkin[i] - R0) * c;
+  }
+}
+function writeHose() {
+  const pos = hoseGeo.attributes.position.array, nor = hoseGeo.attributes.normal.array, aa = hoseGeo.attributes.aAir.array;
+  let o = 0;
+  for (let i = 0; i <= SEG; i++) {
+    const p = P[i], n = N[i], b = B[i], ri = rSkin[i];
+    for (let j = 0; j <= RAD; j++) {
+      const v = j / RAD * Math.PI * 2, sn = Math.sin(v), cs = -Math.cos(v);
+      const nx = cs * n.x + sn * b.x, ny = cs * n.y + sn * b.y, nz = cs * n.z + sn * b.z;
+      pos[o] = p.x + ri * nx; pos[o + 1] = p.y + ri * ny; pos[o + 2] = p.z + ri * nz;
+      nor[o] = nx; nor[o + 1] = ny; nor[o + 2] = nz; aa[o / 3] = air[i]; o += 3;
+    }
+  }
+  hoseGeo.attributes.position.needsUpdate = hoseGeo.attributes.normal.needsUpdate = hoseGeo.attributes.aAir.needsUpdate = true;
+}
+
+// ---------- 气团 ----------
+// s：在管子上的位置（0 打气筒 → 1 管口）；V：气量
+// 按真实的样子分两种：比管径大的是长气团，把软管撑鼓、占满整个截面；比管径小的是小气泡，圆的，浮在管子顶上
+// 大气团走得比小气泡快（越粗的气团漂移速度越大），追上就把小气泡吞进去；每打一下气量不一样，嘴上还会断下来几个小泡跟在后面
+const SMALL = 0.3;
+const bulges = [], pinches = [];
+// Rb：鼓包球的半径，跟气量的立方根走；撑到约 3.4 倍管径就不再变粗，多的气把球拉长（stretch）
+// w：鼓包沿管子的半长（s 单位），掐住、合并都按它算
+function shape(b) {
+  b.small = !b.growing && b.V < SMALL;
+  const Rf = R0 * (1.16 + 1.36 * Math.cbrt(b.V / VMAX)), RMAX = R0 * 2.9;
+  b.Rb = Math.min(Rf, RMAX); b.stretch = Math.max(1, Math.pow(Rf / RMAX, 3));
+  b.w = b.Rb * b.stretch * 1.2 / Math.max(0.3, hoseLen);
+  b.r = R0 * 0.92 * Math.cbrt(Math.min(b.V, SMALL) / SMALL);
+}
+function newBulge(s, V) { const b = { s, prev: s, V, ph: Math.random() * 6, growing: false, gurgle: 0, jit: 0.85 + Math.random() * 0.3 }; shape(b); bulges.push(b); return b; }
+const speedOf = b => (b.small ? 0.09 + 0.1 * Math.sqrt(b.V) : 0.15 + 0.06 * Math.sqrt(b.V)) * b.jit;
+// 小气泡：银亮的小珠（opaque，透过管壁的透射能看见）
+const beadMat = new THREE.MeshPhysicalMaterial({ color: 0xc8dde3, metalness: 0.6, roughness: 0.1, envMapIntensity: 1.1, emissive: 0x0d1e22, clearcoat: 1 });
+const beadGeo = new THREE.SphereGeometry(1, 16, 12), beads = [];
+for (let i = 0; i < 40; i++) { const m = new THREE.Mesh(beadGeo, beadMat); m.visible = false; art.add(m); beads.push(m); }
+const yAxis = new V3(0, 1, 0), tmpU = new V3();
+function placeBeads() {
+  let k = 0;
+  for (const b of bulges) {
+    if (!b.small || k >= beads.length) continue;
+    const f = clamp(b.s, 0, 1) * SEG, i = Math.min(SEG - 1, f | 0), u = f - i, m = beads[k++];
+    const rt = rSkin[i] * (1 - u) + rSkin[i + 1] * u, r = Math.min(b.r, rt * 0.85);
+    // 浮力：贴着管子的顶内壁
+    tmpU.copy(yAxis).addScaledVector(T[i], -T[i].y); if (tmpU.lengthSq() < 1e-4) tmpU.copy(N[i]); tmpU.normalize();
+    m.position.lerpVectors(P[i], P[i + 1], u).addScaledVector(tmpU, Math.max(0, rt - r - R0 * 0.08));
+    m.scale.setScalar(r); m.visible = true;
+  }
+  for (; k < beads.length; k++) beads[k].visible = false;
+}
+function stepBulges(dt) {
+  for (const b of bulges) {
+    b.prev = b.s;
+    if (!b.growing) b.s += dt * speedOf(b);
+  }
+  for (const p of pinches) if (p.k > 0.35) for (const b of bulges) {
+    const edge = b.w * 1.2 + 0.01;
+    if (b.prev < p.prev) { if (b.s > p.s - edge) b.s = Math.max(0.03, p.s - edge); }
+    else if (b.s < p.s + edge) b.s = p.s + edge;
+  }
+  bulges.sort((a, b) => a.s - b.s);
+  for (let i = 0; i < bulges.length - 1; i++) {
+    const a = bulges[i], c = bulges[i + 1];
+    if (a.growing || c.growing) continue;
+    // 碰上就合：两个小泡要真的挨上；有大气团的话，小泡一进到它身子里就被吞掉
+    const reach = a.small && c.small ? (a.r + c.r) / hoseLen : a.small || c.small ? (a.small ? c.w : a.w) * 0.9 : (a.w + c.w) * 0.55;
+    if (c.s - a.s < reach && !pinches.some(p => p.k > 0.35 && p.s > a.s && p.s < c.s)) {
+      c.s = c.prev = (a.s * a.V + c.s * c.V) / (a.V + c.V); c.V += a.V; shape(c);
+      bulges.splice(i, 1); i--; if (!c.small) sfx.merge(c.V);
+    }
+  }
+  for (let i = bulges.length - 1; i >= 0; i--) if (bulges[i].s > 0.99) { balloon.add(bulges[i].V); bulges.splice(i, 1); }
+  for (let i = pinches.length - 1; i >= 0; i--) {
+    const p = pinches[i]; p.k += (p.kT - p.k) * Math.min(1, dt * 12); p.prev = p.s;
+    if (p.kT === 0 && p.k < 0.02) pinches.splice(i, 1);
+  }
+  // 走动的气团偶尔"咕嘟"一声
+  for (const b of bulges) if (!b.growing && !b.small && Math.random() < dt * 1.6) sfx.gurgle(b.V);
+}
+
+// ---------- 打气筒的动作 ----------
+// 一下 = 0.24 秒压下去（这时候一团气被挤进管子）+ 0.42 秒弹回来；按住不放就一下接一下
+const ease = x => x * x * (3 - 2 * x);
+const pump = {
+  h: 0, st: 'idle', held: 0, queued: false, b: null,
+  trigger() {
+    if (this.st === 'idle' || (this.st === 'up' && this.h < 0.4)) {
+      this.st = 'down'; this.b = newBulge(0.06, 0.05); this.b.growing = true; this.vol = VMAX * (0.55 + Math.random() * 0.75); sfx.strokeDown();
+    } else this.queued = true;
+  },
+  step(dt) {
+    if (this.st === 'down') {
+      this.h = Math.min(1, this.h + dt / 0.24);
+      this.b.V = 0.05 + (this.vol - 0.05) * ease(this.h); shape(this.b);
+      if (this.h >= 1) {
+        this.b.growing = false; shape(this.b); this.b = null; this.st = 'up'; sfx.thunk();
+        // 气从嘴上断开时，尾巴上碎下来几个小泡
+        const n = Math.random() * 4 | 0;
+        for (let k = 0; k < n; k++) newBulge(0.045 - k * 0.004, 0.015 + Math.random() * 0.12);
+      }
+    } else if (this.st === 'up') {
+      this.h = Math.max(0, this.h - dt / 0.42);
+      if (this.h === 0) { this.st = 'idle'; sfx.click(); if (this.held > 0 || this.queued) { this.queued = false; this.trigger(); } }
+    }
+    const y = PUMP_UP + (PUMP_DOWN - PUMP_UP) * ease(this.h);
+    piston.position.y = y; rod.position.y = y + 0.055; handle.position.y = y + 0.105;
+  },
+};
+
+// ---------- 肥皂泡 ----------
+// 自己写的薄膜着色器：干涉色随膜厚流动（顶上薄、底下厚，表面在慢慢打旋），映出天花板上的一扇窗和背后的轮廓光；
+// 戳破时从一个点开一个洞，洞边一圈亮边飞快扩开
+const filmMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 }, uSeed: { value: 0 }, uOpacity: { value: 1 }, uPop: { value: 0 }, uHole: { value: new V3(0, 1, 0) } },
+  vertexShader: `
+    varying vec3 vWN, vWP, vP;
+    void main() {
+      vP = position; vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz;
+      vWN = normalize(mat3(modelMatrix) * normal);
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }`,
+  fragmentShader: `
+    uniform float uTime, uSeed, uOpacity, uPop; uniform vec3 uHole;
+    varying vec3 vWN, vWP, vP;
+    void main() {
+      vec3 p = normalize(vP);
+      float hole = dot(p, uHole), edge = 1.0 - 2.2 * uPop;
+      if (uPop > 0.0 && hole > edge) discard;
+      vec3 n = normalize(vWN), v = normalize(cameraPosition - vWP);
+      if (!gl_FrontFacing) n = -n;
+      float ct = abs(dot(n, v)), f = pow(1.0 - ct, 2.4);
+      float sw = sin(p.x * 3.1 + uTime * 0.6 + uSeed) + sin(p.y * 4.7 - uTime * 0.45 + uSeed * 1.7) + sin(p.z * 3.9 + uTime * 0.8);
+      float swirl = sin(atan(p.z, p.x) * 2.0 + p.y * 7.0 + uTime * 0.9 + sw * 1.3);
+      float th = 0.6 - 0.38 * p.y + 0.09 * sw + 0.05 * swirl + 0.18 * ct;
+      vec3 film = 0.5 + 0.5 * cos(6.2831 * (th * 2.3 + vec3(0.0, 0.33, 0.67)));
+      vec3 r = reflect(-v, n);
+      vec2 q = r.xz / max(r.y, 0.05);
+      float win = smoothstep(0.42, 0.37, abs(q.x)) * smoothstep(0.3, 0.25, abs(q.y + 0.1)) * step(0.2, r.y);
+      win *= 1.0 - 0.85 * max(smoothstep(0.03, 0.012, abs(q.x)), smoothstep(0.03, 0.012, abs(q.y + 0.1)));
+      float rim = pow(max(dot(r, normalize(vec3(0.25, 0.15, -1.0))), 0.0), 24.0);
+      float pr = uPop > 0.0 ? smoothstep(edge - 0.3, edge, hole) : 0.0;
+      vec3 col = film * (0.05 + 0.85 * f) + vec3(win * 1.3) + vec3(0.55, 0.75, 1.0) * rim * 0.5 + vec3(pr * 1.6);
+      gl_FragColor = vec4(col * uOpacity, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+const ballGeo = new THREE.SphereGeometry(1, 64, 40);
+function makeFilm() { const m = new THREE.Mesh(ballGeo, filmMat.clone()); m.material.uniforms.uSeed.value = Math.random() * 20; m.renderOrder = 5; art.add(m); return m; }
+const up = new V3(0, 1, 0);
+const balloon = {
+  m: makeFilm(), V: 0, R: 0.0115, k: 0, kv: 0, det: 5 + Math.random() * 2.5,
+  add(V) { this.V += V; this.kv += 1.4 + V * 0.5; sfx.fill(this.V); },
+};
+function stepBalloon(dt, t) {
+  const b = balloon, Rt = 0.0115 + 0.026 * Math.cbrt(b.V);   // 没气时是绷在吹嘴圆口上的一张膜
+  b.R += (Rt - b.R) * Math.min(1, dt * 7);
+  b.kv += (-b.k * 140 - b.kv * 5) * dt; b.k += b.kv * dt;   // 吹进一口气，泡泡弹一下
+  const k = clamp(b.k, -0.5, 0.8) + 0.025 * Math.sin(t * 3.1);
+  b.m.quaternion.setFromUnitVectors(up, T[SEG]);
+  b.m.position.copy(P[SEG]).addScaledVector(T[SEG], TIP + b.R * (0.92 + 0.4 * k));
+  b.m.scale.set(b.R * (1 - 0.35 * k), b.R * (1 + k), b.R * (1 - 0.35 * k));
+  b.m.material.uniforms.uTime.value = t;
+  b.m.material.uniforms.uOpacity.value = b.V > 0 ? 1 : 0.4;
+  if (b.V >= b.det) detach();
+}
+const bubbles = [];
+function detach() {
+  const b = balloon, m = makeFilm();
+  m.position.copy(b.m.position); m.quaternion.copy(b.m.quaternion); m.scale.copy(b.m.scale);
+  m.material.uniforms.uSeed.value = b.m.material.uniforms.uSeed.value;
+  const v = T[SEG].clone().multiplyScalar(0.06).add(new V3(0, 0.02, -0.07));
+  bubbles.push({ m, R: b.R, v, age: 0, life: 16 + Math.random() * 6, ph: Math.random() * 6, k: 0.5, pop: -1 });
+  sfx.release(b.R);
+  b.V = 0; b.det = 5 + Math.random() * 2.5; b.R = 0.004; b.kv -= 2.5;
+  b.m.material.uniforms.uSeed.value = Math.random() * 20;
+  while (bubbles.length > 12) pop(bubbles[0], false);
+}
+function stepBubbles(dt, t) {
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const b = bubbles[i], p = b.m.position, u = b.m.material.uniforms;
+    u.uTime.value = t;
+    if (b.pop >= 0) {   // 正在破：洞 0.12 秒扩开
+      b.pop += dt / 0.12; u.uPop.value = Math.min(1, b.pop);
+      if (b.pop >= 1) { bubbles.splice(i, 1); art.remove(b.m); b.m.material.dispose(); }
+      continue;
+    }
+    b.age += dt;
+    // 往前漂：一点点上浮，左右轻轻游，被拉回视野中线附近
+    b.v.x += (Math.sin(t * 0.7 + b.ph) * 0.01 - (p.x + 0.03) * 0.03) * dt;
+    b.v.y += (Math.sin(t * 0.9 + b.ph * 1.3) * 0.01 + 0.004 - (p.y - 0.04) * 0.025) * dt;
+    b.v.z -= (b.v.z > -0.035 ? 0.025 : 0.003) * dt;
+    b.v.multiplyScalar(1 - 0.3 * dt);
+    p.addScaledVector(b.v, dt);
+    b.k *= 1 - 0.6 * dt;
+    const k = b.k * Math.sin(t * 5 + b.ph) * 0.4;
+    b.m.scale.set(b.R * (1 - 0.4 * k), b.R * (1 + k), b.R * (1 - 0.4 * k));
+    b.m.quaternion.slerp(new THREE.Quaternion(), dt * 0.8);
+    u.uOpacity.value = clamp((b.life - b.age) / 2.5, 0, 1);
+    if (b.age > b.life) pop(b, false);
+  }
+}
+function pop(b, loud, from) {
+  if (b.pop >= 0) return;
+  b.pop = 0;
+  const hole = from ? from.clone().sub(b.m.position).normalize() : new V3(Math.random() - 0.5, 0.6, Math.random() - 0.5).normalize();
+  b.m.material.uniforms.uHole.value.copy(hole.applyQuaternion(b.m.quaternion.clone().invert()));
+  burst(b.m.position, b.R, loud ? 1 : 0.35);
+  sfx.pop(b.R, loud);
+}
+function popBalloon(from) {
+  const b = balloon; if (b.V <= 0) return;
+  burst(b.m.position, b.R, 0.8); sfx.pop(b.R, true);
+  b.V = 0; b.R = 0.004; b.kv -= 1.5;
+}
+
+// ---------- 水珠 / 雾 ----------
+const pointMat = (extra) => new THREE.ShaderMaterial({
+  uniforms: { uScale: { value: 500 }, uTime: { value: 0 } },
+  vertexShader: `
+    attribute float aA; attribute float aS; uniform float uScale, uTime; varying float vA;
+    void main() {
+      vec3 p = position; ${extra || ''}
+      vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
+      gl_PointSize = aS * uScale * projectionMatrix[1][1] / -mv.z; vA = aA;
+    }`,
+  fragmentShader: `
+    varying float vA;
+    void main() {
+      vec2 c = gl_PointCoord - 0.5; float d = length(c) * 2.0; if (d > 1.0) discard;
+      float hl = smoothstep(0.35, 0.0, length(c + vec2(0.15, 0.15)));
+      gl_FragColor = vec4((vec3(0.55, 0.85, 1.0) * (1.0 - d * d) + hl * 0.8) * vA, 1.0);
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+const DN = 1200, dPos = new Float32Array(DN * 3).fill(1e4), dVel = new Float32Array(DN * 3), dLife = new Float32Array(DN), dMax = new Float32Array(DN).fill(1);
+const dA = new Float32Array(DN), dS = new Float32Array(DN);
+const dGeo = new THREE.BufferGeometry();
+dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3)); dGeo.setAttribute('aA', new THREE.BufferAttribute(dA, 1)); dGeo.setAttribute('aS', new THREE.BufferAttribute(dS, 1));
+const drops = new THREE.Points(dGeo, pointMat()); drops.frustumCulled = false; art.add(drops);
+let dNext = 0;
+function burst(c, R, amt) {
+  const n = Math.round((60 + R * 2200) * amt);
+  for (let m = 0; m < n; m++) {
+    const i = dNext; dNext = (dNext + 1) % DN;
+    const d = new V3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+    const mist = Math.random() < 0.6, sp = mist ? 0.05 + Math.random() * 0.25 : 0.3 + Math.random() * 0.8;
+    dPos[i * 3] = c.x + d.x * R; dPos[i * 3 + 1] = c.y + d.y * R; dPos[i * 3 + 2] = c.z + d.z * R;
+    dVel[i * 3] = d.x * sp; dVel[i * 3 + 1] = d.y * sp + 0.15; dVel[i * 3 + 2] = d.z * sp;
+    dLife[i] = dMax[i] = mist ? 0.8 + Math.random() * 1.2 : 0.5 + Math.random() * 0.7;
+    dS[i] = mist ? 0.0025 + Math.random() * 0.002 : 0.004 + Math.random() * 0.004;
+  }
+}
+function stepDrops(dt) {
+  for (let i = 0; i < DN; i++) {
+    if (dLife[i] <= 0) continue;
+    dLife[i] -= dt;
+    if (dLife[i] <= 0) { dPos[i * 3 + 1] = 1e4; dA[i] = 0; continue; }
+    const big = dS[i] > 0.004;
+    dVel[i * 3 + 1] -= (big ? 2.6 : 0.15) * dt;
+    for (let a = 0; a < 3; a++) { dVel[i * 3 + a] *= 1 - (big ? 0.8 : 2.5) * dt; dPos[i * 3 + a] += dVel[i * 3 + a] * dt; }
+    if (dPos[i * 3 + 1] < TABLE && Math.abs(dPos[i * 3] + 0.07) < 0.37 && Math.abs(dPos[i * 3 + 2] + 0.87) < 0.17) { dPos[i * 3 + 1] = TABLE + 0.001; dVel[i * 3 + 1] *= -0.2; }
+    dA[i] = Math.min(1, dLife[i] / dMax[i] * 2) * (big ? 0.9 : 0.35);
+  }
+  dGeo.attributes.position.needsUpdate = dGeo.attributes.aA.needsUpdate = dGeo.attributes.aS.needsUpdate = true;
+}
+// 射灯光柱里慢慢飘的浮尘
+const MN = 420, mPos = new Float32Array(MN * 3), mA = new Float32Array(MN), mS = new Float32Array(MN);
+for (let i = 0; i < MN; i++) {
+  mPos[i * 3] = -0.07 + (Math.random() - 0.5) * 0.7; mPos[i * 3 + 1] = TABLE + Math.random() * 0.7; mPos[i * 3 + 2] = -0.87 + (Math.random() - 0.5) * 0.5;
+  mA[i] = Math.random(); mS[i] = 0.0012 + Math.random() * 0.0016;
+}
+const mGeo = new THREE.BufferGeometry();
+mGeo.setAttribute('position', new THREE.BufferAttribute(mPos, 3)); mGeo.setAttribute('aA', new THREE.BufferAttribute(mA, 1)); mGeo.setAttribute('aS', new THREE.BufferAttribute(mS, 1));
+const motes = new THREE.Points(mGeo, pointMat(`
+  float sd = aA * 50.0;
+  p.x += 0.02 * sin(uTime * 0.11 + sd); p.z += 0.02 * cos(uTime * 0.09 + sd * 1.3);
+  p.y = ${TABLE.toFixed(3)} + mod(p.y - ${TABLE.toFixed(3)} + uTime * 0.004, 0.7);
+  float axis = length(p.xz - vec2(-0.06, -0.8));
+  vA = 0.0;`));
+motes.material.vertexShader = motes.material.vertexShader.replace('vA = aA;', 'vA = (0.25 + 0.75 * sin(uTime * 0.7 + aA * 40.0) * 0.5 + 0.375) * exp(-axis * axis / 0.03) * 0.5;');
+motes.frustumCulled = false; art.add(motes);
+
+// 台面上的焦散：光穿过肥皂泡和水管，在桌上落下一圈晃动的彩光
+const caustic = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.32).rotateX(-Math.PI / 2).translate(-0.07, TABLE + 0.0008, -0.87), new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 }, uBall: { value: new V3() }, uR: { value: 0.01 }, uK: { value: 0 } },
+  vertexShader: `varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform float uTime, uR, uK; uniform vec3 uBall; varying vec3 vP;
+    void main() {
+      vec2 c = vP.xz - uBall.xz + vec2(0.01, -0.02); float d = length(c);
+      vec2 p = vP.xz * 90.0;
+      float w = sin(p.x + sin(p.y * 0.8 + uTime * 0.9)) * sin(p.y * 1.1 + sin(p.x * 0.7 - uTime * 0.7));
+      float cs = pow(abs(w), 4.0);
+      float spot = exp(-pow(d / (uR * 1.1), 2.0));
+      float ring = exp(-pow((d - uR * 0.85) / (uR * 0.12), 2.0));
+      vec3 film = 0.5 + 0.5 * cos(6.2831 * (d / max(uR, 0.001) * 0.8 + uTime * 0.1 + vec3(0.0, 0.33, 0.67)));
+      vec3 col = (vec3(0.7, 0.95, 1.0) * cs * spot * 0.5 + film * ring * 0.35 + vec3(1.0) * spot * 0.06) * uK;
+      gl_FragColor = vec4(col, 1.0);
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+}));
+art.add(caustic);
+
+// ---------- 声音 ----------
+// 全部合成：打气是"呲——"的气流 + 底下一声闷响，弹回来一声轻咔；气团在水里走"咕嘟"；
+// 气进泡泡一声"噗"；泡泡脱落一个上扬的音；戳破是一声脆响 + 一个五声音阶的音（泡越大音越低）
+let AC = null, OUT, VERB, NOISE, muted = false;
+const PENTA = [146.83, 164.81, 185, 220, 246.94, 293.66, 329.63, 369.99, 440, 493.88, 587.33, 659.25];
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  OUT = AC.createGain(); OUT.gain.value = muted ? 0 : 0.9; OUT.connect(AC.destination);
+  const n = AC.sampleRate * 2.6 | 0, ir = AC.createBuffer(2, n, AC.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3.2); }
+  VERB = AC.createConvolver(); VERB.buffer = ir;
+  const vg = AC.createGain(); vg.gain.value = 0.38; VERB.connect(vg).connect(OUT);
+  NOISE = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+  const nd = NOISE.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+}
+function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+function send(g, wet) { g.connect(OUT); if (wet) { const w = AC.createGain(); w.gain.value = wet; g.connect(w).connect(VERB); } }
+function blip(f0, f1, dur, amp, wet = 0.3, type = 'sine', delay = 0) {
+  const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  env(g, t, 0.006, amp, dur); o.connect(g); send(g, wet); o.start(t); o.stop(t + dur + 0.05);
+}
+function bell(f, amp, delay = 0) {
+  const t = AC.currentTime + delay;
+  for (const [h, a, d] of [[1, 1, 2.2], [2.76, 0.25, 0.9], [5.4, 0.08, 0.4]]) {
+    const o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = f * h;
+    env(g, t, 0.004, amp * a, d); o.connect(g); send(g, 0.7); o.start(t); o.stop(t + d + 0.05);
+  }
+}
+function hiss(f0, f1, q, dur, amp, wet = 0.25, attack = 0.004) {
+  const t = AC.currentTime, s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = NOISE; f.type = 'bandpass'; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  env(g, t, attack, amp, dur); s.connect(f).connect(g); send(g, wet); s.start(t, Math.random() * 0.5); s.stop(t + dur + attack + 0.05);
+}
+const on = () => AC && !muted;
+const noteOf = R => PENTA[clamp(Math.round((0.065 - R) / 0.05 * 11), 0, 11)] * 2;
+const sfx = {
+  strokeDown: () => { if (!on()) return; hiss(700, 2400, 1.2, 0.22, 0.16, 0.15, 0.05); blip(180, 140, 0.2, 0.03, 0.1, 'triangle'); },
+  thunk: () => on() && blip(120, 55, 0.18, 0.2, 0.15),
+  click: () => { if (!on()) return; blip(2200, 1800, 0.02, 0.03, 0.05, 'triangle'); hiss(1400, 900, 0.8, 0.25, 0.025); },
+  gurgle: V => on() && blip((280 + Math.random() * 260) / (1 + V * 0.25), 140 + Math.random() * 60, 0.06 + Math.random() * 0.05, 0.035, 0.35),
+  merge: V => on() && blip(200, 120, 0.16, 0.12),
+  squeeze: () => on() && blip(520, 300, 0.12, 0.05, 0.1, 'triangle'),
+  fill: V => { if (!on()) return; blip(300, 620, 0.09, 0.09, 0.4); hiss(900, 500, 1, 0.15, 0.05); },
+  release: R => { if (!on()) return; blip(260, 700, 0.35, 0.08, 0.5); bell(noteOf(R), 0.08, 0.05); },
+  pop: (R, loud) => { if (!on()) return; hiss(5200, 3000, 1.4, 0.035, loud ? 0.45 : 0.15, 0.3, 0.001); bell(noteOf(R), loud ? 0.15 : 0.05); },
+  poke: () => on() && blip(320, 180, 0.15, 0.06, 0.2, 'triangle'),
+};
+const muteBtn = document.getElementById('mute');
+muteBtn.onclick = e => {
+  e.stopPropagation(); muted = !muted; muteBtn.textContent = muted ? 'Sound on' : 'Sound off';
+  initAudio(); OUT.gain.setTargetAtTime(muted ? 0 : 0.9, AC.currentTime, 0.1);
+};
+
+// ---------- 交互 ----------
+// 一次按下（鼠标 / 空格 / 捏手指）：碰到泡泡 → 戳破；打气筒 → 打一下；软管 → 掐住；别处 → 也当打气（眼镜上手不准，宽松一点）
+const inv = new THREE.Matrix4(), rcast = new THREE.Raycaster();
+const pumpParts = []; pumpG.traverse(o => { if (o.isMesh) pumpParts.push(o); });
+function localRay(w) { inv.copy(art.matrixWorld).invert(); return new THREE.Ray(w.origin.clone().applyMatrix4(inv), w.direction.clone().transformDirection(inv)); }
+function localPoint(w) { inv.copy(art.matrixWorld).invert(); return w.clone().applyMatrix4(inv); }
+function hoseNear(fn) { let best = 1e9, bi = 0; for (let i = 0; i <= SEG; i++) { const d = fn(P[i]); if (d < best) { best = d; bi = i; } } return { s: bi / SEG, d: Math.sqrt(best) }; }
+const hoseByRay = r => hoseNear(p => r.distanceSqToPoint(p));
+const hoseByPoint = x => hoseNear(p => p.distanceToSquared(x));
+function filmByRay(r) {
+  let hit = null, best = 1e9; const tmp = new V3();
+  for (const b of [...bubbles, balloon]) {
+    if (b.pop >= 0 || (b === balloon && b.V <= 0)) continue;
+    if (r.intersectSphere(new THREE.Sphere(b.m.position, b.R * 1.3 + 0.008), tmp)) { const d = tmp.distanceTo(r.origin); if (d < best) { best = d; hit = { b, at: tmp.clone() }; } }
+  }
+  return hit;
+}
+const filmByPoint = x => { for (const b of [...bubbles, balloon]) if (!(b.pop >= 0) && (b !== balloon || b.V > 0) && b.m.position.distanceTo(x) < b.R + 0.012) return { b, at: x }; return null; };
+const pumpByRay = w => { rcast.ray.copy(w); return rcast.intersectObjects(pumpParts, false).length > 0 || localRay(w).distanceToPoint(handle.getWorldPosition(new V3()).applyMatrix4(inv)) < 0.035; };
+function hitFilm(h) { if (h.b === balloon) popBalloon(h.at); else pop(h.b, true, h.at); }
+
+const acts = new Map();
+let touched = 0;
+function press(id, getRay, getPoint, rayThr) {
+  initAudio(); touched++;
+  const w = getRay && getRay(), r = w && localRay(w), pt = getPoint && getPoint();
+  const fh = (pt && filmByPoint(pt)) || (r && filmByRay(r));
+  if (fh) { hitFilm(fh); return; }
+  const startPump = () => { pump.held++; pump.trigger(); acts.set(id, { type: 'pump' }); };
+  if (w && pumpByRay(w)) return startPump();
+  let h = pt ? hoseByPoint(pt) : null, mode = 'point';
+  if (!h || h.d > 0.04) { h = r ? hoseByRay(r) : null; mode = 'ray'; }
+  if (h && h.d < (mode === 'point' ? 0.04 : rayThr) && h.s > 0.05 && h.s < 0.97) {
+    const p = { s: h.s, prev: h.s, k: 0, kT: 1 }; pinches.push(p);
+    acts.set(id, { type: 'pinch', p, mode, getRay, getPoint }); sfx.squeeze(); return;
+  }
+  startPump();
+}
+function hold(a) {
+  if (a.type !== 'pinch') return;
+  const h = a.mode === 'point' ? hoseByPoint(a.getPoint()) : hoseByRay(localRay(a.getRay()));
+  if (h.d < 0.12) a.p.s += (clamp(h.s, 0.04, 0.995) - a.p.s) * 0.5;
+}
+function release(id) {
+  const a = acts.get(id); if (!a) return; acts.delete(id);
+  if (a.type === 'pinch') a.p.kT = 0; else pump.held = Math.max(0, pump.held - 1);
+}
+
+// 桌面：鼠标 / 触屏 + 空格
+const ndc = new THREE.Vector2(), mouse = { x: 0, y: 0 };
+const mouseRay = () => { rcast.setFromCamera(ndc, camera); return rcast.ray.clone(); };
+const cv = renderer.domElement;
+cv.addEventListener('pointermove', e => {
+  ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouse.x = ndc.x; mouse.y = ndc.y;
+  if (renderer.xr.isPresenting || acts.size) return;
+  const w = mouseRay(), r = localRay(w);
+  const onPump = pumpByRay(w);
+  wood.emissive.setHex(onPump ? 0x2a1608 : 0x000000);
+  cv.style.cursor = onPump || filmByRay(r) ? 'pointer' : hoseByRay(r).d < 0.03 ? 'grab' : 'default';
+});
+cv.addEventListener('pointerdown', e => {
+  if (renderer.xr.isPresenting) return;
+  ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
+  cv.setPointerCapture(e.pointerId);
+  press('p' + e.pointerId, mouseRay, null, 0.025);
+});
+const upHandler = e => release('p' + e.pointerId);
+cv.addEventListener('pointerup', upHandler); cv.addEventListener('pointercancel', upHandler);
+addEventListener('keydown', e => {
+  if (e.code === 'Space' && !e.repeat) { e.preventDefault(); initAudio(); touched++; pump.held++; pump.trigger(); acts.set('key', { type: 'pump' }); }
+  if (e.code === 'KeyR' && renderer.xr.isPresenting) needPlace = true;
+});
+addEventListener('keyup', e => { if (e.code === 'Space') release('key'); });
+
+// 头显：两只手 / 手柄。捏合 = select；指尖碰泡泡直接戳破，往下按手柄就打一下气
+const ctrls = [], hands = [];
+for (let i = 0; i < 2; i++) {
+  const c = renderer.xr.getController(i), h = renderer.xr.getHand(i);
+  scene.add(c, h); ctrls.push(c); hands.push(h);
+  const getRay = () => { c.updateMatrixWorld(); const o = new V3().setFromMatrixPosition(c.matrixWorld); return new THREE.Ray(o, new V3(0, 0, -1).transformDirection(c.matrixWorld)); };
+  const getPoint = () => localPoint(pinchPoint(i));
+  c.addEventListener('selectstart', () => press('x' + i, getRay, getPoint, 0.045));
+  c.addEventListener('selectend', () => release('x' + i));
+}
+const joint = (i, name) => { const j = hands[i].joints && hands[i].joints[name]; return j && j.visible !== false ? j : null; };
+function pinchPoint(i) {
+  const a = joint(i, 'index-finger-tip'), b = joint(i, 'thumb-tip');
+  if (a && b) return a.getWorldPosition(new V3()).add(b.getWorldPosition(new V3())).multiplyScalar(0.5);
+  return new V3().setFromMatrixPosition(ctrls[i].matrixWorld);
+}
+let pressCool = 0; const lastTip = [null, null];
+function touchStep(dt) {
+  pressCool -= dt;
+  for (let i = 0; i < 2; i++) {
+    const tip = joint(i, 'index-finger-tip'); if (!tip) continue;
+    const x = localPoint(tip.getWorldPosition(new V3()));
+    const fh = filmByPoint(x); if (fh) hitFilm(fh);
+    // 指尖从上往下压到手柄
+    const hp = handle.getWorldPosition(new V3()); const hl = localPoint(hp);
+    if (pressCool <= 0 && lastTip[i] && x.distanceTo(hl) < 0.03 && x.y < lastTip[i].y - 0.002 && pump.st !== 'down') { initAudio(); touched++; pump.trigger(); pressCool = 0.5; }
+    lastTip[i] = x;
+  }
+}
+
+// 头显里的一行提示（眼镜视野窄，放在作品正下方台沿，几次操作后淡掉）
+const hint = (() => {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 96;
+  const g = c.getContext('2d'); g.fillStyle = 'rgba(205,222,232,0.9)'; g.font = '40px "PingFang SC","Microsoft YaHei",sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Pinch / press handle: pump  ·  Pinch hose: squeeze  ·  Touch bubble: pop', 512, 48);
+  const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.036), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false }));
+  m.position.set(-0.07, TABLE - 0.035, -0.69); m.visible = false; art.add(m); return m;
+})();
+
+// 进头显：几帧后按头的位置和水平朝向把作品摆到眼前；R 键重新摆
+let needPlace = false, placeWait = 0;
+renderer.xr.addEventListener('sessionstart', () => { needPlace = true; placeWait = 0; document.getElementById('card').style.opacity = 0; });
+renderer.xr.addEventListener('sessionend', () => {
+  art.position.set(0, 0, 0); art.rotation.set(0, 0, 0); document.getElementById('card').style.opacity = 1;
+  for (const id of [...acts.keys()]) release(id); onResize();
+});
+function place() {
+  const cam = renderer.xr.getCamera(), p = new V3().setFromMatrixPosition(cam.matrixWorld);
+  const d = new V3(0, 0, -1).transformDirection(cam.matrixWorld);
+  art.position.copy(p); art.rotation.set(0, Math.atan2(-d.x, -d.z), 0); needPlace = false;
+}
+
+// 桌面上加一点泛光（头显里直接渲染，后处理不进 XR）
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.5, 0.9);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+function onResize() {
+  camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 1 ? 72 : 42; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', onResize); onResize();
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime, xr = renderer.xr.isPresenting;
+  if (needPlace && xr && ++placeWait > 5) place();
+  if (!xr) {
+    const wide = innerWidth > 760;
+    camera.position.set(mouse.x * 0.025 + (wide ? -0.06 : -0.07), 0.08 + mouse.y * 0.015, wide ? 0.0 : -0.12);
+    camera.lookAt(wide ? -0.2 : -0.07, -0.085, -0.87);
+  }
+  art.updateMatrixWorld();
+  for (const a of acts.values()) hold(a);
+  pump.step(dt);
+  stepBulges(dt);
+  updateFrames(t); profile(t); writeHose(); placeBeads();
+  stepBalloon(dt, t); stepBubbles(dt, t); stepDrops(dt);
+  if (xr) touchStep(dt);
+  const cu = caustic.material.uniforms;
+  cu.uTime.value = t; cu.uBall.value.copy(balloon.m.position); cu.uR.value = balloon.R; cu.uK.value += ((balloon.V > 0 ? 1 : 0) - cu.uK.value) * Math.min(1, dt * 3);
+  const sc = xr ? 700 : innerHeight * renderer.getPixelRatio() / 2;
+  drops.material.uniforms.uScale.value = motes.material.uniforms.uScale.value = sc;
+  motes.material.uniforms.uTime.value = t;
+  hint.visible = xr && touched < 4;
+  if (xr) renderer.render(scene, camera); else composer.render();
+});
+
+// 测试用
+window.__swell = { bulges, pinches, bubbles, balloon, pump, detach, pop };
+</script>
+</body>
+</html>

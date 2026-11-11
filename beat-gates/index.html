@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Beat Gates · 节拍门</title>
+<style>
+  :root { --fg: #fff0fa; --dim: #a88aa0; --bg: #05020a; --acc: #ff6fd0; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden;
+    font-family: "Helvetica Neue", "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  canvas { display: block; touch-action: none; }
+  #card { position: fixed; left: 26px; top: 24px; max-width: 300px; pointer-events: none; transition: opacity 1s; }
+  #card h1 { font-weight: 200; font-size: 30px; letter-spacing: .14em; margin: 0; }
+  #card .alt { display: block; font-size: 11px; color: var(--dim); letter-spacing: .32em; margin: 8px 0 12px 2px; }
+  #card p { margin: 4px 0; font-size: 13px; line-height: 1.8; color: var(--dim); }
+  #card ul { margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.9; color: #dcc0d4; }
+  #card ul li::before { content: "▸ "; color: var(--acc); }
+  #card .credit { margin-top: 14px; font-size: 11px; opacity: .8; }
+  #btns { position: fixed; right: 18px; top: 16px; display: flex; gap: 8px; }
+  #btns button { background: none; border: 1px solid #3a1f33; color: var(--dim); font: inherit; font-size: 12px;
+    padding: 6px 12px; border-radius: 16px; cursor: pointer; }
+  #btns button:hover { color: var(--fg); border-color: #6e3660; }
+  @media (max-width: 760px) { #card { left: 16px; right: 16px; top: 14px; } #card h1 { font-size: 22px; } #card p, #card ul { display: none; } }
+</style>
+<script src="music/tracks.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="card">
+  <h1 id="t-name"></h1><span class="alt" id="t-alt"></span>
+  <p id="t-tag"></p>
+  <ul id="t-how"></ul>
+  <p id="t-credit" class="credit"></p>
+</div>
+<div id="btns"><button id="lang"></button><button id="mute"></button></div>
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const V3 = THREE.Vector3, clamp = THREE.MathUtils.clamp, rand = (a, b) => a + Math.random() * (b - a), TAU = Math.PI * 2;
+
+// ---------- 双语 ----------
+const STR = {
+  en: {
+    name: 'BEAT GATES', alt: '节拍门', tag: 'Rings fly at you on the beat of real songs. Thread your hand through every one.',
+    how: ['Pick a song: move your hand left / right, pinch to play', 'Move your hand — the light on your plane follows it (no pinch needed)', 'Be inside each ring as it reaches your plane — it lands right on the beat', 'The shrinking circle on your plane shows where and when the next ring lands', 'Gold rings: pinch right on the beat for a SNAP bonus · trails of beads: just glide along', 'Desktop: mouse to move, click or Space to pinch, 1–4 to pick a song'],
+    start: 'PINCH OR CLICK TO PLAY', over: 'FADED OUT', done: 'TRACK CLEAR', retry: 'PINCH OR CLICK TO CONTINUE',
+    pick: 'Move your hand to pick a song', loading: 'LOADING…', failed: 'LOAD FAILED — pinch to retry', noData: 'music/tracks.js missing', diffs: ['EASY', 'NORMAL', 'HARD'],
+    credit: 'Music: Kevin MacLeod (incompetech.com) · CC BY 4.0',
+    score: 'SCORE', combo: 'COMBO', best: 'BEST', energy: 'ENERGY', acc: 'ACCURACY', maxCombo: 'MAX COMBO',
+    perfect: 'PERFECT', good: 'GOOD', miss: 'MISS', snap: 'SNAP!',
+    mute: 'Sound off', unmute: 'Sound on', lang: '中文', hint: 'Move hand: steer · Pinch on gold rings: snap',
+  },
+  zh: {
+    name: '节拍门', alt: 'BEAT GATES', tag: '光环踩着真实歌曲的节拍朝你飞来，用手一个个穿过去。',
+    how: ['选歌：手左右移动挑一首，捏合开始', '移动手 — 平面上的光点跟着手走（不用捏）', '光环飞到平面时让光点在环里 — 它正好落在拍子上', '平面上收缩的圈，提示下一个环落在哪、什么时候到', '金色的环：踩着拍子捏一下拿"捏中"加分 · 一串小光珠：顺着滑过去就行', '电脑上：鼠标移动，点击或空格捏合，数字键 1–4 选歌'],
+    start: '捏合手指或点击 开始', over: '能量耗尽', done: '曲目完成', retry: '捏合或点击 继续',
+    pick: '手左右移动选歌', loading: '加载中…', failed: '加载失败 — 捏合重试', noData: '缺少 music/tracks.js', diffs: ['简单', '普通', '困难'],
+    credit: '音乐：Kevin MacLeod (incompetech.com) · CC BY 4.0',
+    score: '分数', combo: '连击', best: '最高', energy: '能量', acc: '准确率', maxCombo: '最大连击',
+    perfect: '完美', good: '不错', miss: '错过', snap: '捏中!',
+    mute: '关声音', unmute: '开声音', lang: 'EN', hint: '移动手：引导 · 金环上捏合：加分',
+  },
+};
+let lang = 'en';
+try { lang = localStorage.getItem('gates-lang') || (/^zh/i.test(navigator.language) ? 'zh' : 'en'); } catch (e) { lang = /^zh/i.test(navigator.language) ? 'zh' : 'en'; }
+const S = () => STR[lang];
+const FONT = () => lang === 'zh' ? '"PingFang SC","Microsoft YaHei",sans-serif' : '"Helvetica Neue","Segoe UI",Arial,sans-serif';
+function applyLang() {
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.getElementById('t-name').textContent = S().name;
+  document.getElementById('t-alt').textContent = S().alt;
+  document.getElementById('t-tag').textContent = S().tag;
+  document.getElementById('t-how').innerHTML = S().how.map(s => `<li>${s}</li>`).join('');
+  document.getElementById('t-credit').textContent = S().credit;
+  document.getElementById('lang').textContent = S().lang;
+  document.getElementById('mute').textContent = muted ? S().unmute : S().mute;
+  makeWordTextures();
+  hudDirty = true; panelDirty = true;
+}
+
+// ---------- 渲染 ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x05020a);
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.01, 40);
+
+// 坐标（米）：观者在原点看 -z。光点在眼前 PZ 处一块竖直平面里移动（AX × AY 半宽半高），
+// 光环从深处以 SPEED 飞来，正好在节拍上穿过这块平面。全部落在眼镜正前方 40°×24° 以内
+const world = new THREE.Group(); scene.add(world);
+const PZ = -0.8, AX = 0.19, AY = 0.1, PY0 = -0.02, SPEED = 4.5, LEAD = 2.0;
+const PERF = 0.018, GOOD = 0.042, BEAD = 0.035, RING = 0.032;
+
+// ---------- 曲目：Kevin MacLeod（incompetech.com）的真人演奏曲，CC BY 4.0（见 music/CREDITS.md） ----------
+// 拍点、每拍能量、强拍位置、起音（强度 + 音色亮度）是离线用 librosa 分析好的（music/tracks.js）。
+// 谱面在这里按分析结果生成：越响的段落环越密，响的段落强拍上出金环，安静的段落用光珠串连起来；音色越亮环越高
+const TRACKS = [
+  { id: 'elevator', file: 'music/elevator.mp3', stems: 'music/elevator-stems.mp3', miss: 0.3, title: 'Local Forecast', diff: 0 },
+  { id: 'funkorama', file: 'music/funkorama.mp3', stems: 'music/funkorama-stems.mp3', miss: 0.15, title: 'Funkorama', diff: 1 },
+  { id: 'disco', file: 'music/disco.mp3', stems: 'music/disco-stems.mp3', miss: 0.2, title: 'Disco con Tutti', diff: 1 },
+  { id: 'hyperfun', file: 'music/hyperfun.mp3', stems: 'music/hyperfun-stems.mp3', miss: 0.3, title: 'Hyperfun', diff: 2 },
+];
+const ANA = window.GATES_TRACKS || null;
+let sel = 0, TR = TRACKS[0], CHART = [], NOTES = 0, SONG_LEN = 60, BEATS = [], PHASE = 0, LV = [], beatIdx = 0;
+if (!ANA) console.error('music/tracks.js 没加载到');
+const LV_COL = l => l < 0.35 ? C.cyan : l < 0.68 ? C.violet : C.pink;
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function buildChart(A, diff, seed) {
+  const R = mulberry32(seed), B = A.beats, E = A.energy, n = B.length, ons = A.onsets;
+  // 能量按前后 4 拍平滑，免得一拍一变
+  const lv = E.map((_, i) => { let sum = 0, c = 0; for (let k = Math.max(0, i - 4); k <= Math.min(n - 1, i + 4); k++) { sum += E[k]; c++; } return sum / c; });
+  LV = lv;
+  // 某个时刻附近最强的起音（调用时刻单调递增，所以用一个游标往前走）
+  let oi = 0;
+  const onsetNear = (t, w) => {
+    while (oi < ons.length && ons[oi][0] < t - w) oi++;
+    let best = null;
+    for (let k = oi; k < ons.length && ons[k][0] <= t + w; k++) if (!best || ons[k][1] > best[1]) best = ons[k];
+    return best;
+  };
+  const ev = []; let ph = 0, pdir = 1, last = null, yb = 0.5, lastGold = -99;
+  const add = (t, kind, l) => {
+    // 高度跟着音色亮度走（平滑一下）；左右来回扫，安静时扫得大
+    const o = onsetNear(t, 0.07);
+    yb = yb * 0.45 + (o ? o[2] : yb) * 0.55;
+    ph += pdir * (0.3 + R() * 0.5) * (l < 0.35 ? 1.6 : 1);
+    let x = Math.sin(ph) * AX * 0.85, y = PY0 - AY * 0.8 + yb * AY * 1.6;
+    // 两个环之间手要移动的距离不能超过来得及的范围
+    if (last) {
+      const md = 0.04 + 0.45 * (t - last.t), dx = x - last.x, dy = y - last.y, d = Math.hypot(dx, dy);
+      if (d > md) { x = last.x + dx * md / d; y = last.y + dy * md / d; }
+    }
+    last = { t, kind, x, y, lv: l }; ev.push(last);
+  };
+  // 难度：安静段落低于 quiet 只在 1、3 拍出环；高于 loud 时有强起音的反拍也出环
+  // 阈值按这首歌自己的能量分布取分位数（有的歌一直很满，有的起伏大）
+  const sorted = lv.slice().sort((p, q) => p - q), qt = f => sorted[Math.floor(f * (sorted.length - 1))];
+  const quiet = qt([0.8, 0.25, 0.15][diff]), loud = diff ? qt([1, 0.6, 0.4][diff]) : 9, goldT = qt(0.45);
+  for (let i = 0; i < n - 1; i++) {
+    const t = B[i], ibi = B[i + 1] - t, l = lv[i], bp = ((i - A.phase) % 4 + 4) % 4;
+    if (t < LEAD + 0.4 || t > A.dur - 1.5) continue;
+    if (bp === 0 && R() < 0.3) pdir = -pdir;
+    if (l < quiet && bp % 2) continue;
+    const gold = bp === 0 && l > goldT && i - lastGold >= 8;
+    if (gold) lastGold = i;
+    add(t, gold ? 'gold' : 'ring', l);
+    if (l > loud) { const o = onsetNear(t + ibi / 2, 0.05); if (o && o[1] > (diff > 1 ? 0.3 : 0.45) && o[0] - t > ibi * 0.3) add(o[0], 'ring', l); }
+  }
+  // 光珠串：两个环之间空了一拍半以上，就每半拍一颗小光珠连起来
+  const ibiAvg = (B[n - 1] - B[0]) / (n - 1), out = [];
+  for (let k = 0; k < ev.length; k++) {
+    const a = ev[k], c = ev[k + 1]; out.push(a);
+    if (!c || c.t - a.t < ibiAvg * 1.5) continue;
+    const span = c.t - a.t, step = ibiAvg / 2;
+    for (let s = step; s < span - step * 0.5; s += step) {
+      const u = s / span;
+      out.push({ t: a.t + s, kind: 'bead', x: a.x + (c.x - a.x) * u, y: a.y + (c.y - a.y) * u + Math.sin(u * Math.PI) * 0.025, lv: a.lv });
+    }
+  }
+  return out;
+}
+
+// ---------- 点精灵：光点、拖尾、火花、星星 ----------
+const PMAX = 4000;
+const pPos = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3), pSize = new Float32Array(PMAX), pShape = new Float32Array(PMAX), pDir = new Float32Array(PMAX * 3), pA = new Float32Array(PMAX);
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('aColor', new THREE.BufferAttribute(pCol, 3));
+pGeo.setAttribute('aSize', new THREE.BufferAttribute(pSize, 1)); pGeo.setAttribute('aShape', new THREE.BufferAttribute(pShape, 1));
+pGeo.setAttribute('aDir', new THREE.BufferAttribute(pDir, 3)); pGeo.setAttribute('aA', new THREE.BufferAttribute(pA, 1));
+const pMat = new THREE.ShaderMaterial({
+  uniforms: { uScale: { value: 500 } },
+  vertexShader: `
+    attribute vec3 aColor, aDir; attribute float aSize, aShape, aA;
+    uniform float uScale;
+    varying vec3 vColor; varying float vShape, vA, vAng, vStretch;
+    void main() {
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vec4 p = projectionMatrix * mv;
+      vec4 p2 = projectionMatrix * modelViewMatrix * vec4(position + aDir * 0.02, 1.0);
+      vec2 d = p2.xy / p2.w - p.xy / p.w;
+      d.x *= projectionMatrix[1][1] / projectionMatrix[0][0];
+      vAng = atan(d.y, d.x);
+      vStretch = clamp(length(d) * 60.0, 0.15, 1.0);
+      gl_Position = p;
+      gl_PointSize = aSize * uScale * projectionMatrix[1][1] / -mv.z;
+      vColor = aColor; vShape = aShape; vA = aA;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor; varying float vShape, vA, vAng, vStretch;
+    void main() {
+      vec2 c = gl_PointCoord * 2.0 - 1.0; c.y = -c.y;
+      float ca = cos(vAng), sa = sin(vAng);
+      vec2 q = vec2(ca * c.x + sa * c.y, -sa * c.x + ca * c.y);
+      vec3 col; float r;
+      if (vShape < 0.5) {
+        r = length(c);
+        float core = smoothstep(0.36, 0.22, r), glow = exp(-r * r * 4.0) * 0.6;
+        col = vColor * glow + vec3(core) * 0.9;
+      } else if (vShape < 3.5) {
+        r = length(c);
+        float ring = smoothstep(0.1, 0.0, abs(r - 0.72));
+        col = vColor * ring * 1.3 + vec3(ring * 0.25);
+      } else if (vShape < 4.5) {
+        r = length(c); float a = exp(-r * r * 4.5);
+        col = vColor * a * 1.3 + vec3(a * a * a * 0.4);
+      } else {
+        vec2 e = q * vec2(1.0, 1.0 + 5.0 * vStretch); r = length(e);
+        float core = smoothstep(0.5, 0.2, r), glow = exp(-dot(e, e) * 1.2) * 0.6;
+        col = vColor * glow * 1.3 + vec3(core);
+      }
+      col *= vA;
+      if (max(col.r, max(col.g, col.b)) < 0.004) discard;
+      gl_FragColor = vec4(col, 1.0);
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+const points = new THREE.Points(pGeo, pMat); points.frustumCulled = false; points.renderOrder = 12; world.add(points);
+let pN = 0;
+function P(x, y, z, c, size, shape, a = 1, dx = 0, dy = 0, dz = 0) {
+  if (pN >= PMAX) return;
+  const i = pN++;
+  pPos[i * 3] = x; pPos[i * 3 + 1] = y; pPos[i * 3 + 2] = z;
+  pCol[i * 3] = c[0]; pCol[i * 3 + 1] = c[1]; pCol[i * 3 + 2] = c[2];
+  pDir[i * 3] = dx; pDir[i * 3 + 1] = dy; pDir[i * 3 + 2] = dz;
+  pSize[i] = size; pShape[i] = shape; pA[i] = a;
+}
+const C = {
+  pink: [1.0, 0.35, 0.8], cyan: [0.3, 0.85, 1.0], gold: [1.0, 0.8, 0.3], white: [1, 1, 1], violet: [0.65, 0.45, 1.0],
+  red: [1.0, 0.25, 0.3], grey: [0.35, 0.35, 0.45], mint: [0.4, 1.0, 0.8],
+};
+
+// ---------- 光环：一块块面朝观者的方片（InstancedMesh），形状在片元着色器里画 ----------
+// kind：0 普通环 · 1 金环（带四个尖角）· 2 光珠 · 3 炸开的细环 · 4 平面上收缩的提示圈
+const GMAX = 400;
+const gCol = new Float32Array(GMAX * 3), gA = new Float32Array(GMAX), gKind = new Float32Array(GMAX);
+const gGeo = new THREE.PlaneGeometry(1, 1);
+gGeo.setAttribute('aCol', new THREE.InstancedBufferAttribute(gCol, 3));
+gGeo.setAttribute('aA', new THREE.InstancedBufferAttribute(gA, 1));
+gGeo.setAttribute('aKind', new THREE.InstancedBufferAttribute(gKind, 1));
+const gMat = new THREE.ShaderMaterial({
+  vertexShader: `
+    attribute vec3 aCol; attribute float aA, aKind;
+    varying vec3 vCol; varying float vA, vKind; varying vec2 vUv;
+    void main() { vCol = aCol; vA = aA; vKind = aKind; vUv = uv * 2.0 - 1.0; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    varying vec3 vCol; varying float vA, vKind; varying vec2 vUv;
+    void main() {
+      float r = length(vUv), a = atan(vUv.y, vUv.x);
+      vec3 col = vec3(0.0);
+      if (vKind < 0.5) {
+        float ring = smoothstep(0.075, 0.0, abs(r - 0.8)), glow = exp(-pow((r - 0.8) * 7.0, 2.0)) * 0.55;
+        col = vCol * (ring * 1.2 + glow + smoothstep(0.8, 0.6, r) * 0.05) + vec3(ring * 0.35);
+      } else if (vKind < 1.5) {
+        float ring = smoothstep(0.08, 0.0, abs(r - 0.72)), glow = exp(-pow((r - 0.72) * 6.0, 2.0)) * 0.6;
+        float sp = pow(max(0.0, cos(a * 4.0 + 3.14159)), 30.0) * smoothstep(1.0, 0.86, r) * smoothstep(0.76, 0.84, r);
+        float star = smoothstep(0.32, 0.0, r * (0.7 + 0.3 * cos(a * 5.0))) * 0.6;
+        col = vCol * (ring * 1.3 + glow + sp * 1.5 + star) + vec3((ring + sp) * 0.4);
+      } else if (vKind < 2.5) {
+        float core = smoothstep(0.35, 0.18, r), glow = exp(-r * r * 5.0) * 0.7;
+        col = vCol * glow + vec3(core) * 0.8;
+      } else if (vKind < 3.5) {
+        float ring = smoothstep(0.05, 0.0, abs(r - 0.85)) + exp(-pow((r - 0.85) * 10.0, 2.0)) * 0.4;
+        col = vCol * ring * 1.3;
+      } else {
+        float ring = smoothstep(0.03, 0.0, abs(r - 0.9));
+        col = vCol * ring;
+      }
+      col *= vA;
+      if (max(col.r, max(col.g, col.b)) < 0.003) discard;
+      gl_FragColor = vec4(col, 1.0);
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+const gMesh = new THREE.InstancedMesh(gGeo, gMat, GMAX); gMesh.frustumCulled = false; gMesh.renderOrder = 10; world.add(gMesh);
+let gN = 0;
+const _m = new THREE.Matrix4();
+function G(x, y, z, size, kind, c, a) {
+  if (gN >= GMAX) return;
+  const i = gN++;
+  _m.makeScale(size, size, 1); _m.setPosition(x, y, z); gMesh.setMatrixAt(i, _m);
+  gCol[i * 3] = c[0]; gCol[i * 3 + 1] = c[1]; gCol[i * 3 + 2] = c[2]; gA[i] = a; gKind[i] = kind;
+}
+
+// 隧道：每一拍一圈方框，正好在拍点上掠过手的平面
+const TW = 0.55, TH = 0.32;
+const tPos = new Float32Array(16 * 16 * 3), tCol = new Float32Array(tPos.length);
+const tGeo = new THREE.BufferGeometry();
+tGeo.setAttribute('position', new THREE.BufferAttribute(tPos, 3)); tGeo.setAttribute('color', new THREE.BufferAttribute(tCol, 3));
+const tunnel = new THREE.LineSegments(tGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+tunnel.frustumCulled = false; world.add(tunnel);
+// 曲线：把接下来几个环串起来的一根细线，看得出旋律往哪走
+const LMAX = 48;
+const lPos = new Float32Array(LMAX * 3), lCol = new Float32Array(LMAX * 3);
+const lGeo = new THREE.BufferGeometry();
+lGeo.setAttribute('position', new THREE.BufferAttribute(lPos, 3)); lGeo.setAttribute('color', new THREE.BufferAttribute(lCol, 3));
+const pathLine = new THREE.Line(lGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+pathLine.frustumCulled = false; world.add(pathLine);
+// 手的平面：四个角
+const corner = (() => {
+  const v = [], ex = AX + 0.025, ey = AY + 0.025, k = 0.025;
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { v.push(sx * ex, PY0 + sy * ey, PZ, sx * (ex - k), PY0 + sy * ey, PZ, sx * ex, PY0 + sy * ey, PZ, sx * ex, PY0 + sy * (ey - k), PZ); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xff6fd0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+  world.add(m); return m;
+})();
+
+// ---------- 判定字：一小块画布贴图，从环的位置往上飘 ----------
+const WORDS = ['perfect', 'good', 'miss', 'snap'], wordTex = {};
+const WORD_COL = { perfect: '#9ff4ff', good: '#ffb0e8', miss: '#8a8098', snap: '#ffe07a' };
+function makeWordTextures() {
+  for (const w of WORDS) {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+    const g = cv.getContext('2d');
+    g.font = `${w === 'snap' ? 600 : 400} ${lang === 'zh' ? 44 : 40}px ${FONT()}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = WORD_COL[w]; g.shadowBlur = 16; g.fillStyle = WORD_COL[w]; g.fillText(S()[w], 128, 34); g.shadowBlur = 0; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText(S()[w], 128, 34);
+    if (wordTex[w]) wordTex[w].dispose();
+    wordTex[w] = new THREE.CanvasTexture(cv); wordTex[w].colorSpace = THREE.SRGBColorSpace;
+  }
+  for (const s of words) { s.m.material.map = wordTex[s.w] || null; s.m.material.needsUpdate = true; }
+}
+const words = Array.from({ length: 10 }, () => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.025), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  m.visible = false; m.renderOrder = 14; world.add(m); return { m, t: 9, w: 'good' };
+});
+let wordI = 0;
+function word(w, x, y) {
+  const s = words[wordI++ % words.length];
+  s.w = w; s.t = 0; s.m.material.map = wordTex[w]; s.m.material.needsUpdate = true;
+  s.m.position.set(clamp(x, -AX, AX), y + 0.03, PZ + 0.01); s.m.visible = true;
+}
+
+// ---------- 游戏状态 ----------
+let state = 'title', score = 0, best = 0, combo = 0, maxCombo = 0, health = 1, nPerf = 0, nGood = 0, nMiss = 0, nSnap = 0, nBead = 0;
+const bestOf = tr => { try { return +localStorage.getItem('gates-best-' + tr.id) || 0; } catch (e) { return 0; } };
+const cur = { x: 0, y: PY0, tx: 0, ty: PY0, pulse: 0, trail: [] };
+const parts = [], bursts = [], vis = [];
+let spawnI = 0, songV = -1, endT = 0, hitFlash = 0, missFlash = 0, hitCol = [1, 1, 1];
+const stars = Array.from({ length: 220 }, () => ({ x: rand(-2.5, 2.5), y: rand(-1.5, 1.5), z: rand(-14, -1), s: rand(0.008, 0.02) }));
+const mult = () => Math.min(4, 1 + Math.floor(combo / 16));
+
+function spark(x, y, z, c, n, sp = 0.3, size = 0.01, life = 0.5) {
+  for (let i = 0; i < n; i++) {
+    const d = new V3(rand(-1, 1), rand(-1, 1), rand(-0.3, 0.6)).normalize().multiplyScalar(sp * Math.sqrt(Math.random()));
+    const l = life * rand(0.5, 1.2);
+    parts.push({ x, y, z, vx: d.x, vy: d.y, vz: d.z, life: l, max: l, size: size * rand(0.6, 1.4), c, drag: 3 });
+  }
+}
+function judge(e) {
+  e.done = true;
+  const d = Math.hypot(cur.x - e.x, cur.y - e.y), col = e.kind === 'gold' ? C.gold : LV_COL(e.lv);
+  if (e.kind === 'bead') {
+    if (d < BEAD) { e.hit = true; nBead++; musicHit(); score += 20 * mult(); spark(e.x, e.y, PZ, col, 3, 0.15, 0.008, 0.3); sfx.bead(); hudDirty = true; }
+    return;
+  }
+  if (d <= GOOD) {
+    const perf = d <= PERF;
+    e.hit = true; combo++; maxCombo = Math.max(maxCombo, combo);
+    if (perf) nPerf++; else nGood++;
+    score += (perf ? 300 : 100) * mult(); health = Math.min(1, health + (perf ? 0.04 : 0.025));
+    sfx.hit(perf); musicHit();
+    bursts.push({ x: e.x, y: e.y, t: 0, c: col, big: e.kind === 'gold' }, { x: e.x, y: e.y, t: 0, c: C.white, fast: true });
+    spark(e.x, e.y, PZ, col, perf ? 24 : 14, 0.4, 0.012, 0.5); if (perf) spark(e.x, e.y, PZ, C.white, 10, 0.25, 0.009, 0.35);
+    // 平面上放射出去的光线
+    for (let k = 0, n = perf ? 12 : 8, a0 = Math.random(); k < n; k++) { const a = a0 + k * TAU / n, v = perf ? 0.5 : 0.35; parts.push({ x: e.x, y: e.y, z: PZ, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vz: 0, life: 0.28, max: 0.28, size: 0.03, c: perf ? C.white : col, drag: 5, shape: 5 }); }
+    hitFlash = perf ? 1 : 0.7; hitCol = col;
+    word(perf ? 'perfect' : 'good', e.x, e.y); cur.pulse = 1;
+    if (e.kind === 'gold' && e.pinchAt !== undefined && songV - e.pinchAt <= 0.18) snap(e);
+  } else {
+    combo = 0; nMiss++; health -= 0.1; e.missed = true; missFlash = 1; musicMiss();
+    word('miss', e.x, e.y); sfx.miss();
+    if (health <= 0 && state === 'play') fail();
+  }
+  hudDirty = true;
+}
+function snap(e) {
+  if (e.snapped) return;
+  e.snapped = true; nSnap++; score += 150 * mult(); hudDirty = true;
+  word('snap', e.x, e.y + 0.022);
+  bursts.push({ x: e.x, y: e.y, t: 0, c: C.gold, big: true, snap: true });
+  spark(e.x, e.y, PZ, C.gold, 26, 0.5, 0.012, 0.6);
+  sfx.snap();
+}
+// 捏合：金环到达前后 0.15 秒内都算；早捏了先记下，环一到就结算
+function pinch() {
+  cur.pulse = 1;
+  if (state !== 'play') return;
+  for (const e of vis) {
+    if (e.kind !== 'gold' || e.snapped || Math.abs(e.t - songV) > 0.15) continue;
+    if (e.done) { if (e.hit) snap(e); } else e.pinchAt = songV;
+    return;
+  }
+}
+function startGame() {
+  initAudio();
+  const tr = TRACKS[sel];
+  if (!ANA) return;
+  if (tr.err) { tr.err = null; tr.el = null; loadTrack(tr); panelDirty = true; return; }
+  TR = tr;
+  const A = { ...ANA[tr.id] }, cut = cutAt(A);
+  A.dur = cut;
+  CHART = buildChart(A, tr.diff, 20261023 + sel); NOTES = CHART.filter(e => e.kind !== 'bead').length;
+  BEATS = A.beats; PHASE = A.phase; beatIdx = 0; SONG_LEN = cut;
+  vis.length = 0; bursts.length = 0; spawnI = 0;
+  score = 0; combo = 0; maxCombo = 0; health = 1; nPerf = nGood = nMiss = nSnap = nBead = 0; best = bestOf(tr);
+  state = 'play'; hudDirty = true; panelDirty = true; anchor.set = false;
+  song.start(tr);
+}
+// 戴着眼镜举手玩一整首 3–4 分钟太累：只玩到 PLAY_LEN 之后的第一个强拍，然后淡出
+const PLAY_LEN = 120;
+function cutAt(A) {
+  if (A.dur <= PLAY_LEN + 10) return A.dur;
+  const i = A.beats.findIndex((t, k) => t >= PLAY_LEN && ((k - A.phase) % 4 + 4) % 4 === 0);
+  return i < 0 ? A.dur : A.beats[i] + 0.3;
+}
+function toTitle() { state = 'title'; panelDirty = true; hudDirty = true; }
+function finish(st) {
+  state = st; panelDirty = true; hudDirty = true; endT = 0;
+  if (score > best) { best = score; try { localStorage.setItem('gates-best-' + TR.id, best); } catch (e) { } }
+}
+function fail() { finish('over'); song.stop(1.5); sfx.fail(); }
+function grade() {
+  const acc = NOTES ? (nPerf + nGood * 0.6) / NOTES : 0;
+  return { acc, g: acc >= 0.95 ? 'S' : acc >= 0.85 ? 'A' : acc >= 0.7 ? 'B' : acc >= 0.5 ? 'C' : 'D' };
+}
+
+function update(dt, t) {
+  songV = state === 'play' ? song.time() : -1;
+  // 光点：平滑跟着目标走，留一条拖尾
+  const k = Math.min(1, dt * 25);
+  cur.x += (clamp(cur.tx, -AX, AX) - cur.x) * k; cur.y += (clamp(cur.ty, PY0 - AY, PY0 + AY) - cur.y) * k;
+  cur.trail.unshift([cur.x, cur.y]); if (cur.trail.length > 12) cur.trail.pop();
+  cur.pulse = Math.max(0, cur.pulse - dt * 4);
+  if (state === 'title') {
+    // 选歌：光点离哪张卡片近就选哪首（卡片在标题面板上横排）
+    let bi = 0, bd = 9;
+    TRACKS.forEach((tr, i) => { const d = Math.abs(cur.tx - cardX(i)); if (d < bd) { bd = d; bi = i; } });
+    if (bi !== sel) { sel = bi; panelDirty = true; sfx.tick(); if (ANA) loadTrack(TRACKS[sel]); }
+  }
+  if (state !== 'play') return;
+  if (song.waiting()) { if (TR.err) toTitle(); return; }
+  // 进入视野的环
+  while (spawnI < CHART.length && CHART[spawnI].t - songV < LEAD) vis.push(CHART[spawnI++]);
+  for (let i = vis.length - 1; i >= 0; i--) {
+    const e = vis[i];
+    if (!e.done && songV >= e.t) judge(e);
+    if (e.done && (e.hit || songV > e.t + 0.3)) { if (songV > e.t + (e.kind === 'gold' ? 0.2 : 0)) vis.splice(i, 1); }
+  }
+  if (state === 'play' && songV > SONG_LEN - 0.2) { finish('done'); song.stop(2); sfx.clear(); }
+}
+
+// ---------- 每帧画面 ----------
+function draw(t, dt) {
+  pN = 0; gN = 0;
+  const playing = state === 'play';
+  const st = playing ? songV : t;
+  // 拍点：游戏中用这首歌分析出来的拍点（最后一拍之后按平均拍长往后延），标题画面用 120 BPM 空转
+  const B = playing && BEATS.length ? BEATS : null, ib0 = B ? (B[B.length - 1] - B[0]) / (B.length - 1) : 0.5;
+  const beatAt = k => B ? (k < 0 ? B[0] + k * ib0 : k < B.length ? B[k] : B[B.length - 1] + (k - B.length + 1) * ib0) : k * ib0;
+  if (B) while (beatIdx < B.length - 1 && B[beatIdx + 1] <= st) beatIdx++;
+  const k0 = B ? beatIdx : Math.floor(st / ib0), prev = beatAt(k0), next = beatAt(k0 + 1);
+  const pulse = Math.exp(-clamp((st - prev) / Math.max(0.2, next - prev), 0, 1) * 7);
+  const sc = playing ? LV_COL(LV[k0] ?? 0.5) : C.violet;
+  // 隧道：每拍一圈，强拍更亮
+  let o = 0;
+  const put = (x, y, z, b) => { tPos[o] = x; tPos[o + 1] = y; tPos[o + 2] = z; tCol[o] = sc[0] * b; tCol[o + 1] = sc[1] * b; tCol[o + 2] = sc[2] * b; o += 3; };
+  for (let kb = k0 - 1; kb < k0 + 16; kb++) {
+    const z = PZ - (beatAt(kb) - st) * SPEED;
+    if (z > PZ + 0.6 || z < -14) continue;
+    const down = (((kb - (B ? PHASE : 0)) % 4) + 4) % 4 === 0, f = Math.min(1, (z + 14) / 5) * Math.min(1, (PZ + 0.6 - z) / 0.8) * (down ? 0.42 : 0.2) * (playing ? 1 : 0.6);
+    const c = [[-TW, -TH], [TW, -TH], [TW, TH], [-TW, TH]];
+    for (let q = 0; q < 4; q++) { const a = c[q], b = c[(q + 1) % 4]; put(a[0], a[1] + PY0, z, f); put(b[0], b[1] + PY0, z, f); }
+  }
+  tGeo.setDrawRange(0, o / 3); tGeo.attributes.position.needsUpdate = tGeo.attributes.color.needsUpdate = true;
+  // 星星：往你这边流
+  for (const s of stars) {
+    s.z += dt * (playing ? SPEED * 0.6 : 1);
+    if (s.z > -0.9) { s.z = -14; s.x = rand(-2.5, 2.5); s.y = rand(-1.5, 1.5); }
+    const near = 1 + s.z / 14;
+    P(s.x, s.y, s.z, near > 0.8 ? sc : C.violet, s.s * (0.6 + near), 4, near * near * 0.45, 0, 0, 1);
+  }
+  hitFlash = Math.max(0, hitFlash - dt * 5); missFlash = Math.max(0, missFlash - dt * 4);
+  corner.material.opacity = Math.min(1, 0.3 + 0.5 * pulse * (playing ? 1 : 0.5) + hitFlash * 0.7 + missFlash * 0.7);
+  if (missFlash > hitFlash) corner.material.color.setRGB(1, 0.25 + 0.6 * (1 - missFlash), 0.3 + 0.6 * (1 - missFlash));
+  else corner.material.color.setRGB(sc[0] + (1 - sc[0]) * hitFlash, sc[1] + (1 - sc[1]) * hitFlash, sc[2] + (1 - sc[2]) * hitFlash);
+  // 环 + 平面上的提示圈 + 串起来的曲线
+  let lp = 0;
+  for (const e of vis) {
+    const tt = e.t - songV, z = PZ - tt * SPEED;
+    const fade = Math.min(1, (LEAD - tt) / 0.5);
+    const col = e.kind === 'gold' ? C.gold : LV_COL(e.lv);
+    if (e.done) {
+      if (e.missed) G(e.x, e.y, z, RING * 2.5, 0, C.grey, Math.max(0, 1 - (songV - e.t) / 0.3) * 0.6);
+      else if (e.kind === 'gold' && !e.hit) G(e.x, e.y, z, RING * 2.8, 1, C.grey, 0.4);
+      continue;
+    }
+    if (e.kind === 'bead') G(e.x, e.y, z, 0.03, 2, col, fade * 0.9);
+    else {
+      G(e.x, e.y, z, RING * 2.5 * (e.kind === 'gold' ? 1.15 : 1), e.kind === 'gold' ? 1 : 0, col, fade);
+      // 收缩提示圈：最后 0.9 秒出现在手的平面上，缩到环的大小时就是拍点
+      if (tt < 0.9) { const u = tt / 0.9; G(e.x, e.y, PZ, RING * 2.5 * (1 + 2.2 * u), 4, col, (1 - u) * 0.9); }
+    }
+    if (lp < LMAX) { lPos[lp * 3] = e.x; lPos[lp * 3 + 1] = e.y; lPos[lp * 3 + 2] = z; const b = fade * Math.max(0, 1 - tt / LEAD) * 0.5; lCol[lp * 3] = col[0] * b; lCol[lp * 3 + 1] = col[1] * b; lCol[lp * 3 + 2] = col[2] * b; lp++; }
+  }
+  lGeo.setDrawRange(0, lp); lGeo.attributes.position.needsUpdate = lGeo.attributes.color.needsUpdate = true;
+  // 穿中时炸开的环
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const b = bursts[i]; b.t += dt;
+    const a = b.t / (b.big ? 0.6 : 0.4);
+    if (a >= 1) { bursts.splice(i, 1); continue; }
+    if (b.fast) { const f = Math.min(1, b.t / 0.22); if (f >= 1) { bursts.splice(i, 1); continue; } G(b.x, b.y, PZ, RING * 2.5 * (1 + f * 2.6), 3, b.c, (1 - f) * 1.1); continue; }
+    G(b.x, b.y, PZ, RING * 2.5 * (1 + a * (b.big ? 2 : 1)), 3, b.c, (1 - a) * (b.snap ? 1.2 : 0.9));
+  }
+  // 光点：核 + 光晕 + 判定范围的细环 + 拖尾
+  const alive = state === 'play' || state === 'title';
+  P(cur.x, cur.y, PZ + 0.002, C.white, 0.011 + 0.01 * cur.pulse, 0, alive ? 1 : 0.3);
+  if (hitFlash > 0) G(cur.x, cur.y, PZ - 0.002, 0.16 * (1.3 - 0.3 * hitFlash), 2, hitCol, hitFlash * 0.45);
+  if (missFlash > 0) G(cur.x, cur.y, PZ - 0.002, 0.07, 3, C.red, missFlash * 0.6);
+  P(cur.x, cur.y, PZ, sc, 0.05 + 0.03 * pulse * (playing ? 1 : 0), 4, alive ? 0.35 : 0.1);
+  if (playing) P(cur.x, cur.y, PZ, sc, PERF * 2 / 0.72 + 0.02 * cur.pulse, 3, 0.35 + 0.4 * cur.pulse);
+  cur.trail.forEach((p, k) => { if (k) P(p[0], p[1], PZ, sc, 0.012 * (1 - k / 12), 4, 0.5 * (1 - k / 12)); });
+  // 判定字
+  for (const s of words) {
+    if (!s.m.visible) continue;
+    s.t += dt; if (s.t > 0.6) { s.m.visible = false; continue; }
+    s.m.position.y += dt * 0.04; s.m.material.opacity = Math.min(1, 1.6 * (1 - s.t / 0.6));
+    s.m.scale.setScalar(1 + 0.5 * Math.max(0, 1 - s.t / 0.12));
+  }
+  // 火花
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i]; p.life -= dt;
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    const f = 1 - dt * p.drag; p.vx *= f; p.vy *= f; p.vz *= f; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    const a = p.life / p.max;
+    P(p.x, p.y, p.z, p.c, p.size * (0.4 + 0.6 * a), p.shape || 4, a, p.vx, p.vy, p.vz);
+  }
+  gMesh.count = gN; gMesh.instanceMatrix.needsUpdate = true;
+  for (const k of ['aCol', 'aA', 'aKind']) gGeo.attributes[k].needsUpdate = true;
+  for (const k of ['position', 'aColor', 'aSize', 'aShape', 'aDir', 'aA']) pGeo.attributes[k].needsUpdate = true;
+  pGeo.setDrawRange(0, pN);
+}
+
+// ---------- 面板 ----------
+function canvasPanel(w, h, pw, ph) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  m.renderOrder = 15; world.add(m); return { cv, g: cv.getContext('2d'), tx, m };
+}
+const hudL = canvasPanel(512, 256, 0.2, 0.1), hudR = canvasPanel(512, 256, 0.2, 0.1), panel = canvasPanel(1024, 512, 0.36, 0.18);
+hudL.m.position.set(-0.3, 0.16, -1.2); hudR.m.position.set(0.3, 0.16, -1.2);
+panel.m.position.set(0, PY0, PZ + 0.03);
+for (const h of [hudL, hudR]) h.m.lookAt(0, 0, 0);
+let hudDirty = true, panelDirty = true, hudT = 0;
+function glowText(g, s, x, y, size, col, align = 'left', weight = 300) {
+  g.font = `${weight} ${size}px ${FONT()}`; g.textAlign = align; g.textBaseline = 'middle';
+  g.shadowColor = col; g.shadowBlur = size * 0.5; g.fillStyle = col; g.fillText(s, x, y); g.shadowBlur = 0;
+}
+function drawHud() {
+  const s = S(), dim = '#a87a98';
+  let g = hudL.g; g.clearRect(0, 0, 512, 256);
+  if (state === 'play') {
+    glowText(g, s.score, 20, 34, 30, dim); glowText(g, String(score).padStart(7, '0'), 20, 96, 68, '#ffd8f4', 'left', 400);
+    if (combo > 1) glowText(g, `${combo} ${s.combo}${mult() > 1 ? `  ×${mult()}` : ''}`, 20, 180, 44, combo >= 16 ? '#ffe07a' : '#9ff4ff', 'left', 400);
+  }
+  hudL.tx.needsUpdate = true;
+  g = hudR.g; g.clearRect(0, 0, 512, 256);
+  if (state === 'play') {
+    glowText(g, s.energy, 492, 34, 30, dim, 'right');
+    const hc = health > 0.3 ? '#ff6fd0' : '#ff4050';
+    g.strokeStyle = '#5a2a50'; g.lineWidth = 3; g.strokeRect(112, 70, 380, 36);
+    g.shadowColor = hc; g.shadowBlur = 14; g.fillStyle = hc; g.fillRect(118, 76, 368 * Math.max(0, health), 24); g.shadowBlur = 0;
+    const prog = clamp(songV / SONG_LEN, 0, 1);
+    g.fillStyle = '#3a2440'; g.fillRect(112, 160, 380, 6); g.fillStyle = '#9ff4ff'; g.fillRect(112, 160, 380 * prog, 6);
+    glowText(g, `${s.best} ${Math.max(best, score)}`, 492, 214, 30, '#b08aa8', 'right');
+  }
+  hudR.tx.needsUpdate = true;
+}
+function frame(g, w, h, col) { g.strokeStyle = col; g.lineWidth = 3; g.globalAlpha = 0.6; g.beginPath(); g.moveTo(16, 60); g.lineTo(16, 16); g.lineTo(60, 16); g.moveTo(w - 60, h - 16); g.lineTo(w - 16, h - 16); g.lineTo(w - 16, h - 60); g.stroke(); g.globalAlpha = 1; }
+// 标题面板上的选歌卡片：画布里的横坐标换算到世界坐标（面板宽 0.36 m 对应 1024 px）
+const CARD_W = 230, CARD_GAP = 14;
+const cardCx = i => 512 + (i - (TRACKS.length - 1) / 2) * (CARD_W + CARD_GAP);
+const cardX = i => (cardCx(i) - 512) / 1024 * 0.36;
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function drawPanel(t) {
+  const s = S(), g = panel.g; g.clearRect(0, 0, 1024, 512);
+  const blink = 0.55 + 0.45 * Math.sin(t * 4);
+  if (state === 'title') {
+    frame(g, 1024, 512, '#ff6fd0');
+    glowText(g, s.name, 512, 88, lang === 'zh' ? 92 : 80, '#ffd8f4', 'center', 200);
+    glowText(g, s.pick, 512, 172, 28, '#d8b0cc', 'center');
+    TRACKS.forEach((tr, i) => {
+      const cx = cardCx(i), on = i === sel, A = ANA && ANA[tr.id];
+      g.save();
+      g.strokeStyle = on ? '#ffe9ff' : '#5a3354'; g.lineWidth = on ? 4 : 2; g.shadowColor = '#ff6fd0'; g.shadowBlur = on ? 22 : 0;
+      g.strokeRect(cx - CARD_W / 2, 208, CARD_W, 178);
+      if (on) { g.fillStyle = 'rgba(255,111,208,0.10)'; g.fillRect(cx - CARD_W / 2, 208, CARD_W, 178); }
+      g.restore();
+      glowText(g, tr.title, cx, 248, tr.title.length > 12 ? 25 : 30, on ? '#ffffff' : '#c8a8c0', 'center', 400);
+      glowText(g, A ? `${Math.round(A.bpm)} BPM · ${mmss(cutAt(A))}` : '…', cx, 292, 22, tr.err ? '#ff7090' : '#9ff4ff', 'center');
+      glowText(g, s.diffs[tr.diff], cx, 330, 24, ['#8fffc0', '#ffd080', '#ff7090'][tr.diff], 'center', 400);
+      glowText(g, `${s.best} ${bestOf(tr)}`, cx, 364, 20, '#a888a0', 'center');
+    });
+    const tr = TRACKS[sel], msg = !ANA ? s.noData : tr.err ? s.failed : s.start;
+    g.globalAlpha = blink; glowText(g, msg, 512, 432, 34, tr.err || !ANA ? '#ff8090' : '#ffffff', 'center', 400); g.globalAlpha = 1;
+    glowText(g, s.credit, 512, 484, 18, '#8a7090', 'center');
+  } else if (state === 'play') {
+    // 歌还在缓冲：标题面板上显示"加载中"
+    frame(g, 1024, 512, '#ff6fd0');
+    glowText(g, TR.title, 512, 200, 64, '#ffd8f4', 'center', 300);
+    g.globalAlpha = blink; glowText(g, TR.err ? s.failed : s.loading, 512, 310, 40, TR.err ? '#ff8090' : '#ffffff', 'center', 400); g.globalAlpha = 1;
+  } else if (state === 'over' || state === 'done') {
+    const done = state === 'done', gr = grade();
+    frame(g, 1024, 512, done ? '#ffe07a' : '#8a6aa0');
+    glowText(g, `${done ? s.done : s.over}  ·  ${TR.title}`, 512, 80, 52, done ? '#ffe9a8' : '#c8a8e0', 'center', 300);
+    if (done) glowText(g, gr.g, 200, 250, 190, gr.g === 'S' ? '#ffe07a' : '#ffb0e8', 'center', 200);
+    const x0 = done ? 600 : 512;
+    glowText(g, `${s.score}  ${score}`, x0, 175, 50, '#ffffff', 'center', 400);
+    glowText(g, `${s.acc} ${(gr.acc * 100).toFixed(1)}%   ${s.maxCombo} ${maxCombo}`, x0, 245, 30, '#d8c0e0', 'center');
+    glowText(g, `${s.perfect} ${nPerf} · ${s.good} ${nGood} · ${s.miss} ${nMiss} · ${s.snap} ${nSnap}`, x0, 300, 28, '#a8c8e0', 'center');
+    glowText(g, `${s.best} ${best}`, x0, 352, 28, '#b08aa8', 'center');
+    if (endT > 1.2) { g.globalAlpha = blink; glowText(g, s.retry, 512, 440, 36, '#ffffff', 'center', 400); g.globalAlpha = 1; }
+  }
+  panel.tx.needsUpdate = true;
+}
+
+// ---------- 声音：曲子是解码好的 mp3（AudioBufferSourceNode，用音频时钟对拍）；判定音效是很短的噪声"刷"声，不带音高，不会和歌跑调 ----------
+let AC = null, OUT, SFX, SPL, BEDG, LEADF, LEADG, NOISE, muted = false;
+try { muted = localStorage.getItem('gates-mute') === '1'; } catch (e) { }
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  OUT = AC.createGain(); OUT.gain.value = muted ? 0 : 0.9;
+  const comp = AC.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 3;
+  OUT.connect(comp).connect(AC.destination);
+  SFX = AC.createGain(); SFX.gain.value = 0.5; SFX.connect(OUT);
+  // 分轨：左声道 = 伴奏（鼓 + 贝斯），右声道 = 旋律（其余乐器）；拆开后各自调，再一起送到两只耳朵
+  SPL = AC.createChannelSplitter(2);
+  BEDG = AC.createGain(); BEDG.gain.value = 0.85; BEDG.channelCount = 1; BEDG.channelCountMode = 'explicit';
+  LEADF = AC.createBiquadFilter(); LEADF.type = 'lowpass'; LEADF.Q.value = 0.7; LEADF.frequency.value = 18000; LEADF.channelCount = 1; LEADF.channelCountMode = 'explicit';
+  LEADG = AC.createGain(); LEADG.gain.value = 0.6;
+  SPL.connect(BEDG, 0); SPL.connect(LEADF, 1); BEDG.connect(OUT); LEADF.connect(LEADG).connect(OUT);
+  NOISE = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+  const d = NOISE.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+}
+// 每首歌一个 <audio>，边下边播（不用整首解码进内存，眼镜上也快）；选中哪首就先缓冲哪首
+function loadTrack(tr) {
+  if (tr.el) return tr.el;
+  const a = new Audio(); a.preload = 'auto'; a.src = useWA ? tr.stems : tr.file; a.volume = 0.85; a.muted = muted;
+  a.addEventListener('error', () => { tr.err = (a.error && a.error.code) || 1; panelDirty = true; console.error('load', tr.file, a.error); });
+  a.load(); tr.el = a; return a;
+}
+function tone(f0, f1, dur, amp, type = 'sine', dst = SFX, T = null) {
+  const t = T === null ? AC.currentTime : T, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(amp, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(dst); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(f0, f1, dur, amp, q = 1, type = 'bandpass', dst = SFX, T = null) {
+  const t = T === null ? AC.currentTime : T, s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = NOISE; s.loop = true; f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+  g.gain.setValueAtTime(amp, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f).connect(g).connect(dst); s.start(t, Math.random()); s.stop(t + dur + 0.02);
+}
+const ok = () => AC && !muted;
+// 每首歌事先用 Demucs 拆成两轨：伴奏（鼓 + 贝斯）一直正常响；旋律（其余乐器）跟着判定走 ——
+// 击中 → 旋律拉满、滤波全开；错过 → 旋律降到 15–30%、只剩低频（像闷在墙后面）；保持到下一个环判定。
+// http(s) 打开时放分轨文件走 WebAudio；直接双击打开时浏览器不让 WebAudio 处理本地文件的声音，就放原混音、不做旋律开关
+const useWA = /^https?:/.test(location.protocol);
+const mix = { lvl: 0.6, tl: 0.6, cut: 0.6, tc: 0.6, fade: 1, fadeV: 0 };
+const musicHit = () => { mix.tl = 1; mix.tc = 1; };
+// 没击中时旋律留多少：旋律占大头的曲子留得多一点，免得整首几乎没声
+const musicMiss = () => { mix.tl = TR.miss || 0.15; mix.tc = 0; };
+function updateMix(dt) {
+  // 变亮要快（跟拍），变暗慢一点
+  const k = Math.min(1, dt * (mix.tl > mix.lvl ? 30 : 5));
+  mix.lvl += (mix.tl - mix.lvl) * k; mix.cut += (mix.tc - mix.cut) * k;
+  if (mix.fadeV) mix.fade = Math.max(0, mix.fade - dt * mix.fadeV);
+  const a = song.el || song.fading; if (!a) return;
+  if (a._node) { BEDG.gain.value = 0.85 * mix.fade; LEADG.gain.value = mix.lvl * mix.fade; LEADF.frequency.value = 450 * Math.pow(40, mix.cut); }
+  else a.volume = clamp(0.85 * mix.fade, 0, 1);
+}
+// 歌曲时间：audio.currentTime 在有的浏览器里更新得很粗（几十毫秒一跳），
+// 所以用 performance.now() 往前推，每次 currentTime 变了再慢慢校正；最后减去声音输出的延迟
+const song = {
+  el: null, fading: null, base: 0, bnow: 0, last: -1, lat: 0,
+  start(tr) {
+    this.stop();
+    const a = loadTrack(tr); this.el = a;
+    Object.assign(mix, { lvl: 0.6, tl: 0.6, cut: 0.6, tc: 0.6, fade: 1, fadeV: 0 });
+    if (useWA && AC && !a._node) { try { a._node = AC.createMediaElementSource(a); a._node.connect(SPL); } catch (e) { console.warn('MediaElementSource', e); } }
+    a.volume = a._node ? 1 : 0.85; a.muted = a._node ? false : muted;
+    try { a.currentTime = 0; } catch (e) { }
+    const p = a.play(); if (p && p.catch) p.catch(e => console.warn('play', e));
+    this.base = 0; this.bnow = performance.now(); this.last = -1;
+    this.lat = AC ? clamp(AC.outputLatency || AC.baseLatency || 0.02, 0, 0.3) : 0.02;
+  },
+  // 还没真正开始出声（在缓冲 / 被拦）
+  waiting() { const a = this.el; return !a || a.paused || a.readyState < 3 || a.currentTime === 0; },
+  // fade > 0：淡出这么多秒再停
+  stop(fade = 0) {
+    const a = this.el; if (!a) return;
+    this.el = null;
+    if (!fade) { a.pause(); return; }
+    this.fading = a; mix.fadeV = 1 / fade;
+    setTimeout(() => { if (this.el !== a) a.pause(); if (this.fading === a) { this.fading = null; mix.fade = 1; mix.fadeV = 0; } }, fade * 1000);
+  },
+  time() {
+    const a = this.el; if (!a) return -1;
+    const now = performance.now(), ct = a.currentTime;
+    if (a.paused) { this.base = ct; this.bnow = now; return ct - this.lat; }
+    let est = this.base + (now - this.bnow) / 1000;
+    if (ct !== this.last) {
+      this.last = ct;
+      const err = ct - est;
+      est = Math.abs(err) > 0.1 ? ct : est + err * 0.15;
+      this.base = est; this.bnow = now;
+    }
+    return est - this.lat;
+  },
+};
+let missT = 0, tickT = 0;
+const sfx = {
+  // 击打声：一下干脆的"啪"（中频噪声）+ 极短的高频"嗒"；完美再加一层亮的沙沙声
+  hit: perf => { if (!ok()) return; noise(2600, 1400, 0.07, perf ? 0.45 : 0.32, 1.1); tone(2400, 1200, 0.035, 0.12, 'triangle'); noise(9000, 7000, 0.08, perf ? 0.2 : 0.1, 1.5); if (perf) noise(13000, 11000, 0.18, 0.09, 2); },
+  bead: () => ok() && noise(9500, 8500, 0.03, 0.07, 3),
+  snap: () => { if (!ok()) return; noise(2400, 1100, 0.12, 0.35, 0.9); noise(12000, 9000, 0.35, 0.1, 2); },
+  miss: () => { if (!ok() || AC.currentTime - missT < 0.08) return; missT = AC.currentTime; tone(140, 60, 0.16, 0.25, 'sine'); noise(400, 200, 0.12, 0.12, 1, 'lowpass'); },
+  tick: () => { if (!ok() || AC.currentTime - tickT < 0.05) return; tickT = AC.currentTime; noise(5000, 4000, 0.03, 0.08, 2); },
+  fail: () => { if (!ok()) return; noise(3000, 100, 1.2, 0.18, 0.7, 'lowpass'); },
+  clear: () => { if (!ok()) return; noise(8000, 2000, 1.0, 0.12, 0.7); },
+};
+
+// ---------- 输入 ----------
+// 头显：光点跟着右手走（不用捏；用食指根部的位置，捏合时它基本不动），手移多少光点移 GAIN 倍。
+// 任意一只手捏合 = 捏（金环加分 / 开始）。只有一只手时就用那只手
+const GAIN = 1.6;
+const anchor = { set: false, x: 0, y: 0 };
+const ctrls = [], hands = [], side = ['', ''];
+const joint = (i, n) => { const j = hands[i].joints && hands[i].joints[n]; return j && j.visible !== false ? j : null; };
+function handPos(i) {
+  const k = joint(i, 'index-finger-metacarpal') || joint(i, 'wrist');
+  if (k) return k.getWorldPosition(new V3());
+  const c = ctrls[i]; if (c.userData.connected) return new V3().setFromMatrixPosition(c.matrixWorld);
+  return null;
+}
+function steerHand() {
+  let any = -1;
+  for (let i = 0; i < 2; i++) { if (!handPos(i)) continue; if (side[i] === 'right') return i; if (any < 0 || side[any] === 'left') any = i; }
+  return any;
+}
+// 标题画面捏合 = 开始选中的歌；结算画面（1.2 秒后）捏合 = 回到选歌
+function act() { if (state === 'title') startGame(); else if (endT > 1.2) toTitle(); }
+for (let i = 0; i < 2; i++) {
+  const c = renderer.xr.getController(i), h = renderer.xr.getHand(i);
+  c.addEventListener('connected', e => { c.userData.connected = true; side[i] = (e.data && e.data.handedness) || ''; });
+  c.addEventListener('disconnected', () => { c.userData.connected = false; side[i] = ''; });
+  scene.add(c, h); ctrls.push(c); hands.push(h);
+  c.addEventListener('selectstart', () => { initAudio(); if (state !== 'play') { act(); return; } pinch(); });
+}
+function xrControl() {
+  const i = steerHand(); if (i < 0) return;
+  const l = world.worldToLocal(handPos(i));
+  if (!anchor.set) Object.assign(anchor, { set: true, x: l.x - cur.tx / GAIN, y: l.y - (cur.ty - PY0) / GAIN });
+  const tx = (l.x - anchor.x) * GAIN, ty = PY0 + (l.y - anchor.y) * GAIN;
+  const m = 0.02, cx = clamp(tx, -AX - m, AX + m), cy = clamp(ty, PY0 - AY - m, PY0 + AY + m);
+  // 顶到边上时把基准跟着挪，手往回一动光点就离开边
+  anchor.x += (tx - cx) / GAIN; anchor.y += (ty - cy) / GAIN;
+  cur.tx = cx; cur.ty = cy;
+}
+// 桌面：鼠标指到平面上哪里，光点就去哪；点击 / 空格 = 捏
+const rc = new THREE.Raycaster(), ndc = new THREE.Vector2(); let mouseOn = false;
+const keys = new Set();
+const cv = renderer.domElement;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointermove', e => { if (renderer.xr.isPresenting) return; ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseOn = true; });
+cv.addEventListener('pointerdown', e => {
+  if (renderer.xr.isPresenting) return;
+  initAudio(); ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseOn = true;
+  if (state !== 'play') { act(); return; }
+  pinch();
+});
+addEventListener('keydown', e => {
+  keys.add(e.code);
+  if (e.code === 'Space' && !e.repeat) { e.preventDefault(); initAudio(); if (state !== 'play') act(); else pinch(); }
+  if (/^Digit[1-4]$/.test(e.code) && state === 'title') { sel = +e.code[5] - 1; cur.tx = cardX(sel); panelDirty = true; if (ANA) loadTrack(TRACKS[sel]); }
+  if (e.code === 'KeyR' && renderer.xr.isPresenting) { needPlace = true; anchor.set = false; }
+  if (/^(Arrow|Key[WASD])/.test(e.code)) mouseOn = false;
+});
+addEventListener('keyup', e => keys.delete(e.code));
+const pPlane = new THREE.Plane(new V3(0, 0, 1), -PZ);
+function deskControl(dt) {
+  let kx = 0, ky = 0;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) kx--;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) kx++;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) ky++;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) ky--;
+  if (kx || ky) { cur.tx = clamp(cur.tx + kx * 0.5 * dt, -AX, AX); cur.ty = clamp(cur.ty + ky * 0.5 * dt, PY0 - AY, PY0 + AY); return; }
+  if (!mouseOn) return;
+  rc.setFromCamera(ndc, camera);
+  const q = rc.ray.intersectPlane(pPlane, new V3()); if (!q) return;
+  cur.tx = q.x; cur.ty = q.y;
+}
+
+document.getElementById('lang').onclick = () => { lang = lang === 'en' ? 'zh' : 'en'; try { localStorage.setItem('gates-lang', lang); } catch (e) { } applyLang(); };
+document.getElementById('mute').onclick = () => {
+  muted = !muted; try { localStorage.setItem('gates-mute', muted ? '1' : '0'); } catch (e) { }
+  initAudio(); OUT.gain.setTargetAtTime(muted ? 0 : 0.9, AC.currentTime, 0.05); for (const tr of TRACKS) if (tr.el) tr.el.muted = tr.el._node ? false : muted; applyLang();
+};
+
+// ---------- XR 摆放 ----------
+let needPlace = false, placeWait = 0;
+renderer.xr.addEventListener('sessionstart', () => { needPlace = true; placeWait = 0; anchor.set = false; document.getElementById('card').style.opacity = 0; document.getElementById('btns').style.opacity = 0; });
+renderer.xr.addEventListener('sessionend', () => { world.position.set(0, 0, 0); world.rotation.set(0, 0, 0); document.getElementById('card').style.opacity = 1; document.getElementById('btns').style.opacity = 1; onResize(); });
+function place() {
+  const cam = renderer.xr.getCamera(), p = new V3().setFromMatrixPosition(cam.matrixWorld);
+  const d = new V3(0, 0, -1).transformDirection(cam.matrixWorld);
+  world.position.copy(p); world.rotation.set(0, Math.atan2(-d.x, -d.z), 0); needPlace = false; anchor.set = false;
+}
+
+// ---------- 桌面后处理 ----------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.45, 0.45);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+function onResize() {
+  camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 1 ? 64 : 30;
+  if (innerWidth > 900) camera.setViewOffset(innerWidth, innerHeight, -innerWidth * 0.1, 0, innerWidth, innerHeight); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', onResize); onResize();
+
+applyLang();
+if (ANA) loadTrack(TRACKS[0]);
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(1 / 30, clock.getDelta()), t = clock.elapsedTime, xr = renderer.xr.isPresenting;
+  if (needPlace && xr && ++placeWait > 5) place();
+  if (!xr) { camera.position.set(0, 0, 0); camera.lookAt(0, PY0 * 0.5, -1); }
+  world.updateMatrixWorld();
+  if (xr) xrControl(); else deskControl(dt);
+  update(dt, t);
+  updateMix(dt);
+  if (state === 'over' || state === 'done') { const was = endT; endT += dt; if (was <= 1.2 && endT > 1.2) panelDirty = true; }
+  draw(t, dt);
+  hudT -= dt;
+  if (hudDirty && hudT <= 0) { drawHud(); hudDirty = false; hudT = 0.1; }
+  if (state === 'play' && hudT <= 0) hudDirty = true;
+  const wait = state === 'play' && song.waiting();
+  if (state !== 'play' || wait || panelDirty) { drawPanel(t); panelDirty = false; }
+  panel.m.visible = state !== 'play' || wait;
+  pMat.uniforms.uScale.value = xr ? ((renderer.xr.getCamera().cameras[0] || {}).viewport || { w: 1200 }).w / 2 : renderer.domElement.height / 2;
+  if (xr) renderer.render(scene, camera); else composer.render();
+});
+
+// 测试用
+window.__gates = { get state() { return state; }, TRACKS, mix, get node() { return !!(song.el && song.el._node); }, get vol() { return song.el ? song.el.volume : -1; }, get sel() { return sel; }, get chart() { return CHART; }, get beats() { return BEATS; }, get score() { return score; }, get combo() { return combo; }, get health() { return health; }, set health(v) { health = v; }, get songV() { return songV; }, cur, vis, startGame, stats: () => ({ nPerf, nGood, nMiss, nSnap, nBead, maxCombo, NOTES }) };
+</script>
+</body>
+</html>
