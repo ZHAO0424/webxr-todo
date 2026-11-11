@@ -42,7 +42,6 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const V3 = THREE.Vector3, clamp = THREE.MathUtils.clamp, rand = (a, b) => a + Math.random() * (b - a), TAU = Math.PI * 2;
 
@@ -166,44 +165,71 @@ const C = {
   red: [1.0, 0.2, 0.32], pink: [1.0, 0.45, 0.85], violet: [0.75, 0.4, 1.0], deep: [0.15, 0.35, 0.6],
 };
 
-// ---------- 鱼：InstancedMesh，一条鱼 = 椭球身体 + 分叉的尾鳍；尾巴在顶点着色器里摆 ----------
-// 模型里鱼头朝 +z
+// ---------- 鱼：InstancedMesh；沿脊线放样的身体 + 背鳍 / 叉尾 / 胸鳍薄片；身体在顶点着色器里 S 形摆 ----------
+// 模型里鱼头朝 +z，全长约 3 cm。uv.x = 沿身长 0(头)→1(尾)，uv.y = 绕身一圈；鳍的 uv.x 标成 1.5，uv.y = 0 根部 → 1 鳍缘
+// 美术方向：深海生物发光——通透的身体、菲涅尔亮边、侧线发光点、暗环勾出的眼睛（定稿见 concept.html）
 const FMAX = 360;
 const fishGeo = (() => {
-  const body = new THREE.SphereGeometry(1, 12, 8); body.scale(0.0032, 0.0042, 0.011);
-  const tail = new THREE.BufferGeometry();
-  tail.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, -0.008, 0, 0.0065, -0.019, 0, -0.0065, -0.019, 0, 0, -0.0145], 3));
-  tail.setAttribute('normal', new THREE.Float32BufferAttribute([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0], 3));
-  tail.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 1, 1, 0], 2));
-  tail.setIndex([0, 1, 3, 0, 3, 2]);
-  return mergeGeometries([body, tail]);
+  const L = 0.03, SEG = 18, RAD = 10, pos = [], uv = [], idx = [];
+  // 身形：钝圆的头 → 最宽处在 0.3 → 细细的尾柄
+  const w = t => 0.0040 * (t < 0.3 ? Math.sqrt(Math.sin(t / 0.3 * Math.PI / 2)) : 0.18 + 0.82 * Math.pow(Math.cos((t - 0.3) / 0.7 * Math.PI / 2), 1.3)) + 0.0002;
+  const h = t => w(t) * (1.45 - 0.5 * t);
+  for (let i = 0; i <= SEG; i++) {
+    const t = i / SEG, z = L * (0.42 - t);
+    for (let j = 0; j <= RAD; j++) { const a = j / RAD * TAU; pos.push(Math.cos(a) * w(t), Math.sin(a) * h(t), z); uv.push(t, j / RAD); }
+  }
+  for (let i = 0; i < SEG; i++) for (let j = 0; j < RAD; j++) { const a = i * (RAD + 1) + j, b = a + RAD + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const fin = (verts, rim) => { const base = pos.length / 3; verts.forEach((v, k) => { pos.push(...v); uv.push(1.5, rim[k]); }); idx.push(base, base + 1, base + 2); if (verts.length === 4) idx.push(base, base + 2, base + 3); };
+  fin([[0, 0.0055, 0.0035], [0, 0.0082, -0.0015], [0, 0.0046, -0.0055]], [0, 1, 0]);                         // 背鳍
+  fin([[0, 0.0007, -0.0168], [0, 0.0062, -0.0245], [0, 0.0, -0.0205], [0, -0.0062, -0.0245]], [0, 1, 0.6, 1]); // 叉形尾鳍
+  for (const s of [1, -1]) fin([[s * 0.0034, -0.0014, 0.0055], [s * 0.0064, -0.0036, 0.0015], [s * 0.0030, -0.0024, 0.0015]], [0, 1, 0]); // 胸鳍
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  g.scale(0.85, 0.85, 0.85); // 和原来的鱼一样长（约 3 cm 含尾）
+  return g;
 })();
 const fCol = new Float32Array(FMAX * 3), fPh = new Float32Array(FMAX);
 fishGeo.setAttribute('aColor', new THREE.InstancedBufferAttribute(fCol, 3));
 fishGeo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(fPh, 1));
 const fishMat = new THREE.ShaderMaterial({
-  uniforms: { uTime: { value: 0 } },
+  uniforms: { uTime: { value: 0 }, uGather: { value: 0 } },
   vertexShader: `
     attribute vec3 aColor; attribute float aPhase;
     uniform float uTime;
-    varying vec3 vColor; varying float vRim, vTail;
+    varying vec3 vColor, vN, vV; varying vec2 vUv;
     void main() {
-      vec3 p = position;
-      // 越靠尾巴摆得越大，波从头往尾传
-      float k = clamp((0.004 - p.z) / 0.023, 0.0, 1.0);
-      p.x += sin(uTime * 15.0 + aPhase + p.z * 260.0) * 0.0042 * k * k;
+      vec3 p = position; vUv = uv;
+      // S 形摆动：从胸往尾传，越靠尾摆得越大、相位越落后
+      float k = clamp((0.005 - p.z) / 0.027, 0.0, 1.0);
+      p.x += sin(uTime * 14.0 + aPhase - p.z * 260.0) * 0.0034 * k * k;
       vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
-      vec3 n = normalize(normalMatrix * mat3(instanceMatrix) * normal);
-      vRim = 1.0 - abs(dot(n, normalize(-mv.xyz)));
-      vTail = step(position.z, -0.0105);
-      vColor = aColor;
-      gl_Position = projectionMatrix * mv;
+      vN = normalize(normalMatrix * mat3(instanceMatrix) * normal); vV = normalize(-mv.xyz);
+      vColor = aColor; gl_Position = projectionMatrix * mv;
     }`,
   fragmentShader: `
-    varying vec3 vColor; varying float vRim, vTail;
+    uniform float uTime, uGather;
+    varying vec3 vColor, vN, vV; varying vec2 vUv;
     void main() {
-      float b = mix(0.2 + 0.75 * vRim * vRim, 0.32, vTail);
-      vec3 col = vColor * b + vec3(pow(vRim, 6.0) * 0.15);
+      vec3 col;
+      if (vUv.x > 1.2) { // 鳍：冷光薄膜，根部最亮、往鳍缘淡出，鳍缘一道细亮边
+        float e = vUv.y;
+        col = vColor * (0.26 * (1.0 - e) + 0.4 * smoothstep(0.85, 1.0, e));
+      } else {
+        float rim = 1.0 - abs(dot(vN, vV)), t = vUv.x;
+        // 身体：通透的芯 + 菲涅尔亮边；头部偏暖、尾部偏冷；背深腹浅。
+        // 亮度刻意压低：几十条鱼叠加时中心才不会过曝成一团死白（加法混合只会越叠越亮）
+        float back = 0.5 + 0.5 * sin(vUv.y * 6.2832);
+        vec3 base = mix(vColor * vec3(1.1, 1.05, 0.9), vColor * vec3(0.6, 0.85, 1.25), t);
+        col = base * (0.035 + 0.12 * back + 0.62 * pow(rim, 2.6));
+        // 侧线发光点：身体左右两侧中线（uv.y = 0 / 0.5 / 1）从鳃后到尾柄一串
+        float side = min(min(abs(vUv.y), abs(vUv.y - 0.5)), abs(vUv.y - 1.0));
+        float dots = smoothstep(0.04, 0.01, side) * smoothstep(0.2, 0.04, abs(fract(t * 10.0) - 0.5)) * smoothstep(0.15, 0.2, t) * smoothstep(0.85, 0.78, t);
+        col += vec3(0.8, 1.0, 0.95) * dots * (0.65 + 0.25 * sin(uTime * 3.0 + t * 20.0)) * (1.0 - 0.4 * uGather);
+        // 眼睛：亮点 + 一圈暗环（暗 = 透明，靠它勾出眼睛）
+        float er = length(vec2((t - 0.075) * 2.2, side));
+        col = col * smoothstep(0.05, 0.075, er) + vec3(0.95) * smoothstep(0.04, 0.015, er);
+      }
       gl_FragColor = vec4(col, 1.0);
       #include <colorspace_fragment>
     }`,
@@ -253,28 +279,36 @@ function buildGrid() {
   for (let i = 0; i < nF; i++) order[cellFill[cellOf[i]]++] = i;
 }
 
-// ---------- 掠食者：暗色身体 + 发光棱线（眼镜上暗色是透明的，只看得见轮廓和眼睛） ----------
-function hull(geo, color, parent, opts = {}) {
-  const c = new THREE.Color(color);
-  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x0a0c12, metalness: 0.6, roughness: 0.4, emissive: c.clone().multiplyScalar(0.08), flatShading: true, side: opts.side || THREE.FrontSide }));
-  const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: opts.op || 0.85 }));
-  m.add(e); parent.add(m); if (opts.pos) m.position.set(...opts.pos);
-  return m;
-}
-const tri = (...v) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals(); return g; };
+// ---------- 掠食者 · X 光画法：没有实心身体（黑 = 透明，实心黑身还会写深度把后面的鱼挖掉）；
+// 外壳只亮边缘（菲涅尔）+ 脊椎 / 肋骨 / 鳍骨发光。uHot 0→1 = 平常 → 蓄力 / 冲刺，整只变亮 ----------
+const shellMat = (col) => new THREE.ShaderMaterial({
+  uniforms: { uCol: { value: new THREE.Color(col) }, uHot: { value: 0 } },
+  vertexShader: `varying vec3 vN, vV; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform vec3 uCol; uniform float uHot; varying vec3 vN, vV;
+    void main(){ float rim = 1.0 - abs(dot(vN, vV)); gl_FragColor = vec4(uCol * (0.03 + (0.9 + 0.8 * uHot) * pow(rim, 3.0)), 1.0);
+    #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+const boneMat = col => new THREE.MeshBasicMaterial({ color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+const bone = (pts, r, mat) => new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.max(4, pts.length * 3), r, 5), mat);
 function makePike() {
-  // 狗鱼：长身子，头朝 +z，全长约 0.3 米
-  const g = new THREE.Group(), c = 0xff3a5c;
-  hull(new THREE.SphereGeometry(1, 10, 6).scale(0.022, 0.028, 0.11), c, g);
-  hull(new THREE.ConeGeometry(0.016, 0.06, 6).rotateX(Math.PI / 2), c, g, { pos: [0, -0.004, 0.13] });
-  hull(tri(0, 0, -0.095, 0, 0.05, -0.18, 0, -0.045, -0.17), c, g, { side: THREE.DoubleSide });
-  hull(tri(0, 0.024, 0.0, 0, 0.055, -0.06, 0, 0.02, -0.07), c, g, { side: THREE.DoubleSide });
-  for (const s of [1, -1]) hull(tri(s * 0.018, -0.01, 0.05, s * 0.05, -0.025, 0.0, s * 0.016, -0.012, 0.01), c, g, { side: THREE.DoubleSide });
+  // 狗鱼：长身子，头朝 +z，全长约 0.3 米（再整体缩 0.65）
+  const g = new THREE.Group(), red = 0xff3a5c, sh = shellMat(red), rib = boneMat(red), spineM = boneMat(0xffa060);
+  const body = new THREE.SphereGeometry(1, 28, 16); body.scale(0.022, 0.028, 0.115); g.add(new THREE.Mesh(body, sh));
+  const jaw = new THREE.ConeGeometry(0.017, 0.07, 16, 1, true).rotateX(Math.PI / 2); jaw.translate(0, -0.004, 0.135); g.add(new THREE.Mesh(jaw, sh));
+  const spine = []; for (let i = 0; i <= 12; i++) spine.push(new V3(0, 0.006 + Math.sin(i * 0.4) * 0.002, 0.1 - i * 0.022));
+  g.add(bone(spine, 0.0012, spineM));
+  for (let i = 1; i < 9; i++) { const s = spine[i]; for (const sd of [1, -1]) g.add(bone([s, new V3(sd * 0.014, s.y - 0.008, s.z + 0.004), new V3(sd * 0.012, s.y - 0.02, s.z + 0.008)], 0.0006, rib)); }
+  const tb = spine[12]; for (const a of [-0.6, -0.2, 0.2, 0.6]) g.add(bone([tb, new V3(0, tb.y + a * 0.05, tb.z - 0.06)], 0.0007, rib));
+  g.userData.shell = sh; g.userData.bones = [rib, spineM];
   g.scale.setScalar(0.65); world.add(g); return g;
 }
 function makeJelly() {
-  const g = new THREE.Group();
-  hull(new THREE.SphereGeometry(0.03, 14, 5, 0, TAU, 0, Math.PI / 2), 0xd08aff, g, { side: THREE.DoubleSide, op: 0.6 });
+  // 水母：伞盖只亮边缘 + 8 根放射管；触须在 draw() 里用点画（会摆）
+  const g = new THREE.Group(), sh = shellMat(0xd08aff), canal = boneMat(0xf0c0ff);
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.03, 32, 12, 0, TAU, 0, Math.PI / 2), sh));
+  for (let k = 0; k < 8; k++) { const a = k / 8 * TAU, arc = []; for (let i = 0; i <= 8; i++) { const th = i / 8 * Math.PI / 2; arc.push(new V3(Math.cos(a) * Math.sin(th) * 0.0298, Math.cos(th) * 0.0298, Math.sin(a) * Math.sin(th) * 0.0298)); } g.add(bone(arc, 0.0005, canal)); }
   world.add(g); return g;
 }
 function dropMesh(g) { world.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
@@ -367,6 +401,10 @@ function updatePike(p, dt) {
   p.x += p.v.x * dt; p.y += p.v.y * dt; p.z += p.v.z * dt;
   p.g.position.set(p.x, p.y, p.z);
   if (p.face.lengthSq() > 1e-6) p.g.lookAt(p.g.position.clone().add(p.face));
+  // 蓄力时外壳和骨头一闪一闪地变亮，冲刺时最亮：在眼镜上一眼看出「它要来了」
+  const hot = p.st === 'windup' ? 0.6 + 0.4 * Math.sin(p.t * 30) : p.st === 'lunge' ? 1 : 0;
+  p.g.userData.shell.uniforms.uHot.value = hot;
+  for (const m of p.g.userData.bones) m.opacity = 0.75 + 0.25 * hot;
   if (p.st === 'windup' || p.st === 'lunge') threats.push({ x: p.x + p.face.x * 0.07, y: p.y, z: p.z + p.face.z * 0.07, r: 0.17, k: 2.4 });
   return p.st === 'leave' && (p.z < -2.8 || Math.abs(p.x) > 1.4);
 }
@@ -499,7 +537,8 @@ function drawFish(dt) {
     _m.scale(_s.setScalar(fs[i] * (1 + fb[i] * 0.4)));
     _m.setPosition(px, py, pz);
     fishMesh.setMatrixAt(i, _m);
-    P(px, py, pz, [fbase[i3], fbase[i3 + 1], fbase[i3 + 2]], 0.022 * fs[i], 4, (0.06 + fb[i] * 0.25) * (1 - 0.6 * lure.g));
+    // 每条鱼一团淡光晕；鱼越多越淡，免得鱼群中心叠成一团死白
+    P(px, py, pz, [fbase[i3], fbase[i3 + 1], fbase[i3 + 2]], 0.022 * fs[i], 4, (0.05 / (1 + nF / 120) + fb[i] * 0.25) * (1 - 0.6 * lure.g));
   }
   fishMesh.count = nF;
   fishMesh.instanceMatrix.needsUpdate = true;
@@ -522,7 +561,7 @@ function startGame() {
   sfx.start();
 }
 function endGame() {
-  state = 'over'; panelDirty = true; hudDirty = true; flash = 0.4;
+  state = 'over'; overT = 0; panelDirty = true; hudDirty = true; flash = 0.4;
   if (score > best) { best = score; try { localStorage.setItem('swarm-best', best); } catch (e) { } }
   sfx.over();
 }
@@ -632,6 +671,19 @@ function draw(t, dt) {
 }
 const flashMesh = new THREE.Mesh(new THREE.PlaneGeometry(3, 2), new THREE.MeshBasicMaterial({ color: 0x80ffe0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
 flashMesh.position.set(0, 0, -0.5); flashMesh.renderOrder = 20; world.add(flashMesh);
+
+// ---------- 水体光束：远处几道从上方斜下来的淡光锥，给「深海」一个方向感（加法，不压暗任何东西） ----------
+const beamMat = k => new THREE.ShaderMaterial({
+  vertexShader: `varying float vY; varying vec3 vN, vV; void main(){ vY = position.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `varying float vY; varying vec3 vN, vV; void main(){ float f = abs(dot(vN, vV)); float fade = smoothstep(-1.6, -0.2, vY) * smoothstep(0.0, -0.3, vY); gl_FragColor = vec4(vec3(0.10, 0.25, 0.32) * f * f * fade * ${k.toFixed(2)}, 1.0);
+    #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+[[-0.62, 0.30, 0.10, 0.12], [-0.18, 0.22, 0.13, 0.16], [0.27, 0.12, 0.09, 0.13], [0.66, 0.04, 0.12, 0.18]].forEach(([x, rz, k, r], i) => {
+  const geo = new THREE.ConeGeometry(r, 1.6, 24, 1, true); geo.translate(0, -0.8, 0);
+  const beam = new THREE.Mesh(geo, beamMat(k)); beam.position.set(x, 0.75, -2.4 - i * 0.25); beam.rotation.z = rz; beam.renderOrder = 1; world.add(beam);
+});
 
 // ---------- 面板：左上鱼群 / 光点，右上时间 / 最高，正中标题 / 结束 ----------
 function canvasPanel(w, h, pw, ph) {
@@ -763,11 +815,44 @@ for (let i = 0; i < 2; i++) {
   c.addEventListener('connected', e => { c.userData.connected = true; side[i] = (e.data && e.data.handedness) || ''; });
   c.addEventListener('disconnected', () => { c.userData.connected = false; side[i] = ''; pinching[i] = false; });
   scene.add(c, h); ctrls.push(c); hands.push(h);
-  c.addEventListener('selectstart', () => { initAudio(); if (state !== 'play') { startGame(); return; } pinching[i] = true; });
-  c.addEventListener('selectend', () => { pinching[i] = false; });
+  c.addEventListener('selectstart', () => pinchDown(i, 'sel'));
+  c.addEventListener('selectend', () => pinchUp(i, 'sel'));
 }
-function xrControl() {
-  gather = pinching[0] || pinching[1];
+// 捏合有两个来源：浏览器的 select 事件，和自己用拇指尖 / 食指尖距离判（VITURE PC 上 select 可能根本不触发）。
+// 任一来源按下就算捏住，两个都松开才算松开；带滞回防抖
+const PINCH_ON = 0.022, PINCH_OFF = 0.036;
+const src = [{ sel: false, jt: false }, { sel: false, jt: false }];
+function pinchDown(i, k) {
+  const was = src[i].sel || src[i].jt; src[i][k] = true;
+  if (was) return;
+  initAudio();
+  if (state !== 'play') { tryStart(); return; }
+  pinching[i] = true;
+}
+function pinchUp(i, k) { src[i][k] = false; if (!src[i].sel && !src[i].jt) pinching[i] = false; }
+const _ta = new V3(), _ia = new V3();
+function jointPinch() {
+  for (let i = 0; i < 2; i++) {
+    const a = joint(i, 'thumb-tip'), b = joint(i, 'index-finger-tip');
+    if (!a || !b) { if (src[i].jt) pinchUp(i, 'jt'); continue; }
+    const d = a.getWorldPosition(_ta).distanceTo(b.getWorldPosition(_ia));
+    if (!src[i].jt && d < PINCH_ON) pinchDown(i, 'jt');
+    else if (src[i].jt && d > PINCH_OFF) pinchUp(i, 'jt');
+  }
+}
+// 结束画面留 1 秒冷却，免得最后一下捏合 / 点击直接又开一局
+let overT = 0;
+function tryStart() { if (state === 'title' || (state === 'over' && overT > 1)) startGame(); }
+// 双手同时捏住 1.2 秒 = 把水体重新摆到眼前
+let bothT = 0;
+function xrControl(dt) {
+  jointPinch();
+  const both = pinching[0] && pinching[1];
+  bothT = both ? bothT + dt : 0;
+  if (bothT > 1.2) { bothT = -999; needPlace = true; placeWait = 99; flash = 0.25; }
+  gather = pinching[0] || pinching[1] || mouseDown || keys.has('Space');
+  // 鼠标 / 键盘最近 1.5 秒动过：它们说了算，手先不接管（手回来时重新对齐基准，光不会跳）
+  if (keyMove(dt) || performance.now() - lastMouse < 1500) { anchor.set = false; return; }
   const i = steerHand(); if (i < 0) return;
   const l = world.worldToLocal(handPos(i));
   // 第一次看到手：此刻手的位置对应光现在的位置
@@ -779,30 +864,42 @@ function xrControl() {
   if (state === 'play' || state === 'over') { lure.tx = cx; lure.ty = cy; lure.tz = cz; }
 }
 // 桌面：鼠标指到哪，光就去哪；按住鼠标 / 空格 抱团；滚轮调远近；WASD / 方向键也能动
-const rc = new THREE.Raycaster(), ndc = new THREE.Vector2(); let mouseOn = false, mouseDown = false;
+const rc = new THREE.Raycaster(), ndc = new THREE.Vector2(); let mouseOn = false, mouseDown = false, lastMouse = -1e9;
 const keys = new Set();
 const cv = renderer.domElement;
 cv.addEventListener('contextmenu', e => e.preventDefault());
-cv.addEventListener('pointermove', e => { if (renderer.xr.isPresenting) return; ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseOn = true; });
+// 头显里也能用鼠标：点一下锁住指针，之后鼠标的相对移动推着光走（每像素 0.6 mm，和 Webspace 的鼠标模式一致：锁进眼镜）
+const MOUSE_XR = 0.0006;
+cv.addEventListener('pointermove', e => {
+  if (renderer.xr.isPresenting) {
+    if (document.pointerLockElement !== cv || state === 'title') return;
+    lure.tx = clamp(lure.tx + e.movementX * MOUSE_XR, -LX, LX); lure.ty = clamp(lure.ty - e.movementY * MOUSE_XR, CY - LY, CY + LY);
+    lastMouse = performance.now(); return;
+  }
+  ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseOn = true;
+});
 cv.addEventListener('pointerdown', e => {
-  if (renderer.xr.isPresenting) return;
-  initAudio(); ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseOn = true;
-  if (state !== 'play') { startGame(); return; }
+  initAudio();
+  if (renderer.xr.isPresenting) {
+    if (document.pointerLockElement !== cv) { try { cv.requestPointerLock(); } catch (er) { } }
+    lastMouse = performance.now();
+  } else { ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); mouseOn = true; }
+  if (state !== 'play') { tryStart(); return; }
   mouseDown = true;
 });
 addEventListener('pointerup', () => { mouseDown = false; });
 cv.addEventListener('wheel', e => { e.preventDefault(); lure.tz = clamp(lure.tz + e.deltaY * 0.0004, LZ0, LZ1); }, { passive: false });
 addEventListener('keydown', e => {
   keys.add(e.code);
-  if (e.code === 'Space') { e.preventDefault(); initAudio(); if (state !== 'play' && !e.repeat) startGame(); }
+  if (e.code === 'Space') { e.preventDefault(); initAudio(); if (state !== 'play' && !e.repeat) tryStart(); }
   if (e.code === 'KeyR' && renderer.xr.isPresenting) { needPlace = true; anchor.set = false; }
   if (/^(Arrow|Key[WASDQE])/.test(e.code)) mouseOn = false;
 });
 addEventListener('keyup', e => keys.delete(e.code));
 const lPlane = new THREE.Plane(new V3(0, 0, 1), 0);
-function deskControl(dt) {
-  gather = mouseDown || keys.has('Space');
-  if (state === 'title') return;
+// 键盘移动光（桌面和头显共用）；返回这一帧有没有按方向键
+function keyMove(dt) {
+  if (state === 'title') return false;
   let kx = 0, ky = 0, kz = 0;
   if (keys.has('KeyA') || keys.has('ArrowLeft')) kx--;
   if (keys.has('KeyD') || keys.has('ArrowRight')) kx++;
@@ -810,8 +907,13 @@ function deskControl(dt) {
   if (keys.has('KeyS') || keys.has('ArrowDown')) ky--;
   if (keys.has('KeyQ')) kz--;
   if (keys.has('KeyE')) kz++;
-  if (kx || ky || kz) { lure.tx = clamp(lure.tx + kx * 0.3 * dt, -LX, LX); lure.ty = clamp(lure.ty + ky * 0.3 * dt, CY - LY, CY + LY); lure.tz = clamp(lure.tz + kz * 0.3 * dt, LZ0, LZ1); return; }
-  if (!mouseOn) return;
+  if (!(kx || ky || kz)) return false;
+  lure.tx = clamp(lure.tx + kx * 0.3 * dt, -LX, LX); lure.ty = clamp(lure.ty + ky * 0.3 * dt, CY - LY, CY + LY); lure.tz = clamp(lure.tz + kz * 0.3 * dt, LZ0, LZ1);
+  return true;
+}
+function deskControl(dt) {
+  gather = mouseDown || keys.has('Space');
+  if (state === 'title' || keyMove(dt) || !mouseOn) return;
   rc.setFromCamera(ndc, camera); lPlane.constant = -lure.tz;
   const q = rc.ray.intersectPlane(lPlane, new V3()); if (!q) return;
   lure.tx = clamp(q.x, -LX, LX); lure.ty = clamp(q.y, CY - LY, CY + LY);
@@ -836,7 +938,8 @@ function place() {
 // ---------- 桌面后处理 ----------
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.4, 0.55);
+// bloom 只是桌面上的锦上添花：发光已经做进材质，关掉它画面也成立（眼镜里本来就没有后处理）
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.2, 0.4, 0.6);
 composer.addPass(bloom); composer.addPass(new OutputPass());
 function onResize() {
   camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 1 ? 64 : 30;
@@ -849,26 +952,41 @@ addEventListener('resize', onResize); onResize();
 
 applyLang();
 const clock = new THREE.Clock();
+// 测量：每帧 CPU 用时（更新 + 提交渲染），环形缓冲 300 帧，__swarm.perf() 读均值 / p95
+const perfBuf = new Float32Array(300); let perfI = 0, perfN = 0;
 renderer.setAnimationLoop(() => {
+  const t0 = performance.now();
+  loop();
+  perfBuf[perfI] = performance.now() - t0; perfI = (perfI + 1) % 300; perfN = Math.min(300, perfN + 1);
+});
+function loop() {
   const dt = Math.min(1 / 30, clock.getDelta()), t = clock.elapsedTime, xr = renderer.xr.isPresenting;
   if (needPlace && xr && ++placeWait > 5) place();
   if (!xr) { camera.position.set(0, 0, 0); camera.lookAt(0, CY * 0.5, -1); }
   world.updateMatrixWorld();
-  if (xr) xrControl(); else deskControl(dt);
+  if (xr) xrControl(dt); else deskControl(dt);
+  if (state === 'over') overT += dt;
   update(dt, t);
-  fishMat.uniforms.uTime.value = t;
+  fishMat.uniforms.uTime.value = t; fishMat.uniforms.uGather.value = lure.g;
   draw(t, dt);
   hudT -= dt;
   if (state === 'play' && hudT <= 0) hudDirty = true;
   if (hudDirty && hudT <= 0) { drawHud(); hudDirty = false; hudT = 0.25; }
   if (state !== 'play' || panelDirty) { drawPanel(t); panelDirty = false; }
   panel.m.visible = state !== 'play';
-  pMat.uniforms.uScale.value = xr ? ((renderer.xr.getCamera().cameras[0] || {}).viewport || { w: 1200 }).w / 2 : renderer.domElement.height / 2;
+  // 点大小按竖直方向算（着色器乘 projectionMatrix[1][1]），所以这里取视口高度的一半；XR 以前取的是宽度，点会大约 1.8 倍
+  pMat.uniforms.uScale.value = xr ? ((renderer.xr.getCamera().cameras[0] || {}).viewport || { h: 1200 }).h / 2 : renderer.domElement.height / 2;
   if (xr) renderer.render(scene, camera); else composer.render();
-});
+}
 
 // 测试用
-window.__swarm = { get state() { return state; }, get fish() { return nF; }, get score() { return score; }, lure, startGame, spawnPike, spawnJelly, spawnEel, spawnBloom, pikes, motes, jump: s => { gameT = s; }, get gather() { return lure.g; } };
+const perf = () => {
+  const a = Array.from(perfBuf.subarray(0, perfN)).sort((x, y) => x - y);
+  return { frames: perfN, avgMs: +(a.reduce((s, x) => s + x, 0) / (a.length || 1)).toFixed(2), p95Ms: +(a[Math.floor(a.length * 0.95)] || 0).toFixed(2), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, points: pN, fish: nF };
+};
+// 面板隐藏时 rAF 不跑：bench(n) 同步跑 n 帧（只计 CPU，不含 GPU），每帧之间 gl.finish 防止命令堆积
+const bench = n => { const gl = renderer.getContext(); perfN = 0; perfI = 0; for (let k = 0; k < n; k++) { const t0 = performance.now(); loop(); gl.finish(); perfBuf[perfI] = performance.now() - t0; perfI = (perfI + 1) % 300; perfN = Math.min(300, perfN + 1); } return perf(); };
+window.__swarm = { perf, bench, fill: n => { while (nF < Math.min(n, FMAX)) addFish(lure.x + rand(-0.08, 0.08), lure.y + rand(-0.05, 0.05), lure.z + rand(-0.08, 0.08)); }, get state() { return state; }, get fish() { return nF; }, get score() { return score; }, lure, startGame, spawnPike, spawnJelly, spawnEel, spawnBloom, pikes, motes, jump: s => { gameT = s; }, get gather() { return lure.g; } };
 </script>
 </body>
 </html>

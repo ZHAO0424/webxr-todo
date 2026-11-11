@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Swarm Concept</title>
+<!-- 美术方向概念图（不是游戏）：深海生物发光的鱼 + X 光掠食者 + 水母。定稿后再并进 index.html -->
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { display: block; }
+  #cap { position: fixed; left: 20px; bottom: 16px; color: #8fd0c0; font: 12px/1.6 "Segoe UI", "Microsoft YaHei", sans-serif; letter-spacing: .08em; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="cap">CONCEPT · 深海生物发光 · 背景纯黑 = 眼镜里透明 · 无后处理（光晕全部做在材质里）</div>
+<script type="module">
+import * as THREE from 'three';
+const V3 = THREE.Vector3, TAU = Math.PI * 2;
+let seed = 7; const rnd = (a = 0, b = 1) => { seed = (seed * 16807) % 2147483647; return a + (b - a) * (seed / 2147483647); };
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x000000);
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.01, 40);
+camera.position.set(0, 0, 0); camera.lookAt(0, -0.01, -1);
+
+// ---------- 共用：只加不减的发光材质（眼镜上只有「加光」，所以一切亮度都是正的） ----------
+const glowMat = (vs, fs, uniforms = {}) => new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, ...uniforms }, vertexShader: vs, fragmentShader: fs, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+
+// ---------- 鱼：沿脊线放样的身体 + 背鳍 / 尾鳍 / 胸鳍薄片 ----------
+// 头朝 +z，全长约 3 cm。uv.x = 沿身长 0(头)→1(尾)，uv.y = 绕身一圈
+function fishGeometry() {
+  const L = 0.03, SEG = 18, RAD = 10, pos = [], uv = [], idx = [];
+  // 身形：钝圆的头 → 最宽处在 0.3 → 细细的尾柄 → 尾柄末端略张开接尾鳍
+  const w = t => 0.0040 * (t < 0.3 ? Math.sqrt(Math.sin(t / 0.3 * Math.PI / 2)) : 0.18 + 0.82 * Math.pow(Math.cos((t - 0.3) / 0.7 * Math.PI / 2), 1.3)) + 0.0002;
+  const h = t => w(t) * (1.45 - 0.5 * t);
+  for (let i = 0; i <= SEG; i++) {
+    const t = i / SEG, z = L * (0.42 - t);
+    for (let j = 0; j <= RAD; j++) {
+      const a = j / RAD * TAU;
+      pos.push(Math.cos(a) * w(t), Math.sin(a) * h(t), z); uv.push(t, j / RAD);
+    }
+  }
+  for (let i = 0; i < SEG; i++) for (let j = 0; j < RAD; j++) { const a = i * (RAD + 1) + j, b = a + RAD + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  // 鳍：用 uv.x > 1 标记成「鳍」，着色器里单独上色
+  // 鳍的 uv：x = 1.5（标记），y = 0 根部 → 1 鳍缘，着色器里从根部往外淡出
+  const fin = (verts, rim) => { const base = pos.length / 3; verts.forEach((v, k) => { pos.push(...v); uv.push(1.5, rim[k]); }); idx.push(base, base + 1, base + 2); if (verts.length === 4) idx.push(base, base + 2, base + 3); };
+  fin([[0, 0.0055, 0.0035], [0, 0.0082, -0.0015], [0, 0.0046, -0.0055]], [0, 1, 0]);                        // 背鳍
+  fin([[0, 0.0007, -0.0168], [0, 0.0062, -0.0245], [0, 0.0, -0.0205], [0, -0.0062, -0.0245]], [0, 1, 0.6, 1]); // 叉形尾鳍
+  for (const s of [1, -1]) fin([[s * 0.0034, -0.0014, 0.0055], [s * 0.0064, -0.0036, 0.0015], [s * 0.0030, -0.0024, 0.0015]], [0, 1, 0]); // 胸鳍
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+const fishMat = glowMat(`
+  attribute vec3 aColor; attribute float aPhase;
+  uniform float uTime;
+  varying vec3 vColor, vN, vV; varying vec2 vUv;
+  void main() {
+    vec3 p = position; vUv = uv;
+    // S 形摆动：从胸往尾传，尾巴相位落后
+    float k = clamp((0.006 - p.z) / 0.032, 0.0, 1.0);
+    p.x += sin(uTime * 14.0 + aPhase - p.z * 220.0) * 0.0038 * k * k;
+    vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
+    vN = normalize(normalMatrix * mat3(instanceMatrix) * normal); vV = normalize(-mv.xyz);
+    vColor = aColor; gl_Position = projectionMatrix * mv;
+  }`, `
+  uniform float uTime;
+  varying vec3 vColor, vN, vV; varying vec2 vUv;
+  void main() {
+    if (vUv.x > 1.2) { // 鳍：冷光薄膜，根部最亮、往鳍缘淡出，鳍缘留一道细亮边
+      float e = vUv.y;
+      gl_FragColor = vec4(vColor * (0.32 * (1.0 - e) + 0.5 * smoothstep(0.85, 1.0, e)), 1.0); return;
+    }
+    float rim = 1.0 - abs(dot(vN, vV));
+    float t = vUv.x;
+    // 身体：通透的芯 + 菲涅尔亮边；头部偏暖、尾部偏冷；背深腹浅
+    float belly = 0.5 + 0.5 * sin(vUv.y * 6.2832);         // 1 = 背，0 = 腹（y=0.25 是背）
+    vec3 base = mix(vColor * vec3(1.1, 1.05, 0.9), vColor * vec3(0.6, 0.85, 1.25), t);
+    vec3 col = base * (0.05 + 0.18 * belly + 0.8 * pow(rim, 2.6));
+    // 侧线发光点：身体左右两侧的中线（y = 0 / 0.5 / 1），从鳃后到尾柄一串
+    float side = min(min(abs(vUv.y), abs(vUv.y - 0.5)), abs(vUv.y - 1.0));
+    float row = smoothstep(0.04, 0.01, side);
+    float dots = smoothstep(0.2, 0.04, abs(fract(t * 10.0) - 0.5)) * smoothstep(0.15, 0.2, t) * smoothstep(0.85, 0.78, t);
+    col += vec3(0.8, 1.0, 0.95) * row * dots * (0.75 + 0.25 * sin(uTime * 3.0 + t * 20.0));
+    // 眼睛：头部两侧偏上一点的亮点 + 一圈暗环（暗 = 透明，靠它勾出眼睛）
+    float er = length(vec2((t - 0.075) * 2.2, side - 0.0) - vec2(0.0, 0.0));
+    col = col * smoothstep(0.05, 0.075, er) + vec3(1.0) * smoothstep(0.04, 0.015, er);
+    gl_FragColor = vec4(col, 1.0);
+  }`);
+
+const FN = 110, fishGeo = fishGeometry();
+const fCol = new Float32Array(FN * 3), fPh = new Float32Array(FN);
+fishGeo.setAttribute('aColor', new THREE.InstancedBufferAttribute(fCol, 3));
+fishGeo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(fPh, 1));
+const fish = new THREE.InstancedMesh(fishGeo, fishMat, FN); scene.add(fish);
+// 鱼群：一个绕引路光旋转的扁球饵球，偏左下；方向沿切线
+const lure = new V3(-0.06, -0.035, -1.0), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), c = new THREE.Color();
+for (let i = 0; i < FN; i++) {
+  // 饵球：扁球壳上分几层，越外层越稀；每条鱼沿绕竖轴的切线游
+  const a = rnd(0, TAU), el = Math.asin(rnd(-0.85, 0.85)), r = 0.03 + 0.07 * Math.pow(rnd(), 0.7);
+  const p = new V3(lure.x + Math.cos(a) * Math.cos(el) * r, lure.y + Math.sin(el) * r * 0.75, lure.z + Math.sin(a) * Math.cos(el) * r);
+  const tangent = new V3(-Math.sin(a), rnd(-0.15, 0.15), Math.cos(a) * 0.8).normalize();
+  q.setFromUnitVectors(new V3(0, 0, 1), tangent);
+  m4.compose(p, q, new V3().setScalar(rnd(0.85, 1.2))); fish.setMatrixAt(i, m4);
+  const gold = rnd() < 0.05; c.setHSL(gold ? 0.11 : rnd(0.45, 0.53), 0.9, gold ? 0.62 : rnd(0.52, 0.62));
+  fCol.set([c.r, c.g, c.b], i * 3); fPh[i] = rnd(0, TAU);
+}
+
+// ---------- 点精灵：引路光、浮游光点、海雪（和游戏里同一套「光晕烤进精灵」） ----------
+const pts = [], addP = (p, col, size, a = 1, shape = 0) => pts.push({ p, col, size, a, shape });
+addP(lure, [1, 0.85, 0.5], 0.011, 0.95); addP(lure, [1, 0.85, 0.5], 0.07, 0.22, 1);
+for (let i = 0; i < 9; i++) { const p = new V3(0.14 + rnd(-0.05, 0.05), 0.05 + rnd(-0.03, 0.03), -1.15 + rnd(-0.05, 0.05)); addP(p, [1, 0.8, 0.45], 0.006, 0.8); addP(p, [1, 0.8, 0.45], 0.022, 0.15, 1); }
+addP(new V3(0.2, -0.09, -1.05), [1, 0.72, 0.22], 0.014, 0.9); addP(new V3(0.2, -0.09, -1.05), [1, 0.72, 0.22], 0.06, 0.25, 1);
+for (let i = 0; i < 320; i++) { const z = rnd(-3, -0.6); addP(new V3(rnd(-1.2, 1.2), rnd(-0.7, 0.7), z), [0.35, 0.6, 0.9], rnd(0.003, 0.007), 0.15 + 0.35 * (z + 3) / 2.4, 1); }
+const pg = new THREE.BufferGeometry();
+pg.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap(o => [o.p.x, o.p.y, o.p.z]), 3));
+pg.setAttribute('aColor', new THREE.Float32BufferAttribute(pts.flatMap(o => o.col.map(v => v * o.a)), 3));
+pg.setAttribute('aSize', new THREE.Float32BufferAttribute(pts.map(o => o.size), 1));
+pg.setAttribute('aShape', new THREE.Float32BufferAttribute(pts.map(o => o.shape), 1));
+const pMat = glowMat(`
+  attribute vec3 aColor; attribute float aSize, aShape; uniform float uScale; varying vec3 vC; varying float vS;
+  void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv;
+    gl_PointSize = aSize * uScale * projectionMatrix[1][1] / -mv.z; vC = aColor; vS = aShape; }`, `
+  varying vec3 vC; varying float vS;
+  void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = length(c);
+    float a = vS < 0.5 ? smoothstep(0.5, 0.15, r) + exp(-r * r * 5.0) * 0.5 : exp(-r * r * 4.5);
+    vec3 col = vC * a; // screen 式压顶：越亮越收，避免死白
+    col = col / (1.0 + col);
+    if (a < 0.003) discard; gl_FragColor = vec4(col * 1.6, 1.0); }`, { uScale: { value: 500 } });
+scene.add(new THREE.Points(pg, pMat));
+
+// ---------- 掠食者 · X 光画法：没有实心身体（黑 = 透明，也不挡后面的鱼）；外轮廓菲涅尔 + 脊椎肋骨发光 ----------
+function xrayShell(geo, col) { // 只亮边缘的外壳
+  return new THREE.Mesh(geo, glowMat(`varying vec3 vN, vV; void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }`,
+    `uniform vec3 uCol; varying vec3 vN, vV; void main(){ float rim = 1.0 - abs(dot(vN, vV)); gl_FragColor = vec4(uCol * (0.03 + 1.25 * pow(rim, 3.0)), 1.0); }`, { uCol: { value: new THREE.Color(col) } }));
+}
+const bone = (pointsArr, r, col) => new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pointsArr), 24, r, 5), new THREE.MeshBasicMaterial({ color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+function makePike() {
+  const g = new THREE.Group(), red = 0xff3a5c, amber = 0xffa060;
+  const body = new THREE.SphereGeometry(1, 28, 16); body.scale(0.022, 0.028, 0.115);
+  g.add(xrayShell(body, red));
+  const jaw = new THREE.ConeGeometry(0.017, 0.07, 16, 1, true).rotateX(Math.PI / 2); jaw.translate(0, -0.004, 0.135); g.add(xrayShell(jaw, red));
+  // 脊椎：一串椎骨点 + 一根细骨
+  const spine = []; for (let i = 0; i <= 12; i++) { const z = 0.1 - i * 0.022; spine.push(new V3(0, 0.006 + Math.sin(i * 0.4) * 0.002, z)); }
+  g.add(bone(spine, 0.0012, amber));
+  for (let i = 1; i < 9; i++) { // 肋骨：两侧弯下来的弧
+    const s = spine[i];
+    for (const sd of [1, -1]) g.add(bone([s, new V3(sd * 0.014, s.y - 0.008, s.z + 0.004), new V3(sd * 0.012, s.y - 0.02, s.z + 0.008)], 0.0006, red));
+  }
+  // 尾鳍骨
+  const tb = spine[12]; for (const a of [-0.6, -0.2, 0.2, 0.6]) g.add(bone([tb, new V3(0, tb.y + a * 0.05, tb.z - 0.06)], 0.0007, red));
+  // 眼睛：两颗高亮的点
+  for (const s of [1, -1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff })); e.position.set(s * 0.012, 0.01, 0.075); g.add(e);
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.009, 12, 8), xrayShell(new THREE.SphereGeometry(1), red).material); halo.position.copy(e.position); g.add(halo); }
+  return g;
+}
+const pike = makePike(); pike.scale.setScalar(0.65); pike.position.set(0.17, 0.0, -1.18); pike.rotation.y = -1.9; scene.add(pike);
+// 蓄力预警：沿冲刺方向一串渐亮的菱形点
+for (let k = 1; k < 12; k++) { const p = pike.position.clone().lerp(lure, k / 12); addWarn(p, k); }
+function addWarn(p, k) { const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.0028), new THREE.MeshBasicMaterial({ color: 0xff3a5c, transparent: true, opacity: 0.25 + 0.06 * k, blending: THREE.AdditiveBlending, depthWrite: false })); m.position.copy(p); scene.add(m); }
+
+// ---------- 水母：伞盖菲涅尔 + 放射管 + 飘带触手 ----------
+function makeJelly() {
+  const g = new THREE.Group(), pink = 0xd08aff;
+  const bell = new THREE.SphereGeometry(0.03, 32, 12, 0, TAU, 0, Math.PI / 2); g.add(xrayShell(bell, pink));
+  for (let k = 0; k < 8; k++) { const a = k / 8 * TAU, arc = []; for (let i = 0; i <= 8; i++) { const th = i / 8 * Math.PI / 2; arc.push(new V3(Math.cos(a) * Math.sin(th) * 0.0298, Math.cos(th) * 0.0298, Math.sin(a) * Math.sin(th) * 0.0298)); } g.add(bone(arc, 0.0005, 0xf0c0ff)); }
+  for (let k = 0; k < 10; k++) { const a = k / 10 * TAU, line = []; for (let i = 0; i <= 10; i++) line.push(new V3(Math.cos(a) * (0.026 - i * 0.0008) + Math.sin(i * 0.9 + k) * 0.003, -i * 0.011, Math.sin(a) * (0.026 - i * 0.0008))); g.add(bone(line, 0.0006, pink)); }
+  return g;
+}
+const jelly = makeJelly(); jelly.position.set(-0.2, 0.045, -1.2); jelly.rotation.x = 0.25; scene.add(jelly);
+
+// ---------- 水体光束：几道从上方斜下来的淡光锥（加法，不压暗任何东西） ----------
+for (let i = 0; i < 4; i++) {
+  const geo = new THREE.ConeGeometry(0.12 + i * 0.03, 1.6, 24, 1, true); geo.translate(0, -0.8, 0);
+  const beam = new THREE.Mesh(geo, glowMat(`varying float vY; varying vec3 vN, vV; void main(){ vY = position.y; vec4 mv = modelViewMatrix*vec4(position,1.0); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }`,
+    `varying float vY; varying vec3 vN, vV; void main(){ float f = abs(dot(vN, vV)); float fade = smoothstep(-1.6, -0.2, vY) * smoothstep(0.0, -0.3, vY); gl_FragColor = vec4(vec3(0.10, 0.25, 0.32) * f * f * fade * ${(0.22 + 0.1 * (i % 2)).toFixed(2)}, 1.0); }`));
+  beam.position.set(-0.6 + i * 0.4 + rnd(-0.1, 0.1), 0.75, -2.4 - i * 0.25); beam.rotation.z = 0.32 - i * 0.07 + rnd(-0.05, 0.05); scene.add(beam);
+}
+
+// ---------- 渲染（不用后处理；时间冻结在 2.3 s 做静帧，再跑起来看动态） ----------
+function render(t) {
+  scene.traverse(o => { if (o.material && o.material.uniforms && o.material.uniforms.uTime) o.material.uniforms.uTime.value = t; });
+  pMat.uniforms.uScale.value = renderer.domElement.height / 2;
+  pike.position.y = Math.sin(t * 0.8) * 0.004; jelly.scale.set(1 + 0.08 * Math.sin(t * 2.2), 1 - 0.1 * Math.sin(t * 2.2), 1 + 0.08 * Math.sin(t * 2.2));
+  renderer.render(scene, camera);
+}
+render(2.3);
+const clock = new THREE.Clock(); renderer.setAnimationLoop(() => render(2.3 + clock.getElapsedTime()));
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); render(2.3 + clock.getElapsedTime()); });
+// 特写：把相机缩到 9° 视场对准鱼群，看单条鱼的形体
+const closeUp = (on, target) => { camera.fov = on ? 9 : 30; camera.lookAt(target || (on ? new V3(-0.03, -0.035, -1) : new V3(0, -0.01, -1))); camera.updateProjectionMatrix(); render(2.3); };
+window.__concept = { render, renderer, closeUp };
+</script>
+</body>
+</html>
