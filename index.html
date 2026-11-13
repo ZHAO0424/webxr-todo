@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>WebXR 作品 · WebXR Works</title>
+<title>Web 宇宙 · Web Universe</title>
 <meta name="description" content="一个像素太阳系：七件 WebXR 作品和小游戏，每件是一颗绕太阳转的星球。A pixel solar system: seven WebXR works and games, each a planet orbiting the sun.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -209,14 +209,14 @@ const SUN = { at: [0, 0], r: 86, planet: { type: 5, ext: 1.55, spin: 0.05, A: C(
 const DISK = { ratio: 0.46, angle: -0.1, period: 110, aRef: 314 };   // a = aRef 的轨道转一圈 period 秒，其余按开普勒第三定律 T ∝ a^1.5
 
 const I18N = {
-  zh: { kicker: `WEBXR · ${WORKS.length} 件作品`, title: '伸手进去的空间',
-        lede: '每颗星球是一件作品。电脑上用鼠标，头显里用手。',
-        hint: '指向星球看看，点一下靠近 · Esc 返回', xrPick: '捏一下取出 · 捏住可拖动', xrGo: '进入作品', xrReset: '捏住星球往前推，放回星系', hintTouch: '点星球靠近，再点一下进入', enter: '进入', back: '返回星图',
-        foot: '<a href="https://github.com/ZHAO0424/webxr-todo">GitHub</a> · MIT · 像素星球画法参考 Deep-Fold', docTitle: 'WebXR 作品', langBtn: 'EN' },
-  en: { kicker: `WebXR · ${WORKS.length} works`, title: 'Spaces to reach into',
-        lede: 'Every planet is a work. Mouse on desktop, hands in a headset.',
-        hint: 'Point at a planet to look · click to fly closer · Esc to go back', xrPick: 'Pinch to bring it close · hold to move', xrGo: 'Open', xrReset: 'Hold the planet and push it back', hintTouch: 'Tap a planet to fly closer, tap again to enter', enter: 'Enter', back: 'Back to the map',
-        foot: '<a href="https://github.com/ZHAO0424/webxr-todo">GitHub</a> · MIT · pixel planets after Deep-Fold', docTitle: 'WebXR Works', langBtn: '中文' },
+  zh: { kicker: `WEBXR 作品集 · ${String(WORKS.length).padStart(2, '0')}`, title: 'Web 宇宙',
+        lede: `${WORKS.length} 件 WebXR 作品，以行星形式环绕同一颗恒星运行。桌面端以鼠标浏览，XR 设备中以手势交互；选择太阳进入 XR。`,
+        hint: '悬停预览 · 单击聚焦 · Esc 返回', xrGo: '进入作品', hintTouch: '轻点聚焦，再次轻点进入', enter: '进入', back: '返回星图',
+        foot: '<a href="https://github.com/ZHAO0424/webxr-todo">GitHub</a> · MIT · 像素星球画法参考 Deep-Fold', docTitle: 'Web 宇宙 · WebXR 作品集', langBtn: 'EN' },
+  en: { kicker: `WebXR Collection · ${String(WORKS.length).padStart(2, '0')}`, title: 'Web Universe',
+        lede: `${WORKS.length} WebXR works, each a planet orbiting the same star. Browse with a mouse on desktop or with hand gestures in XR; select the sun to enter XR.`,
+        hint: 'Hover to preview · Click to focus · Esc to return', xrGo: 'Open', hintTouch: 'Tap to focus, tap again to enter', enter: 'Enter', back: 'Back to the map',
+        foot: '<a href="https://github.com/ZHAO0424/webxr-todo">GitHub</a> · MIT · pixel planets after Deep-Fold', docTitle: 'Web Universe · WebXR Works', langBtn: '中文' },
 };
 let LANG = '';
 try { LANG = localStorage.getItem('pf-lang') || ''; } catch (e) { LANG = ''; }
@@ -582,11 +582,12 @@ function fillCard(i) {
   $('c-tags').innerHTML = t.tags.map(g => `<span>${esc(g)}</span>`).join('');
   $('c-go').href = w.dir + '/'; $('c-go').textContent = T.enter + ' ▶';
 }
-$('lang').addEventListener('click', () => {
+function toggleLang() {   // 页面右上角的按钮和 XR 里的按钮共用
   LANG = LANG === 'en' ? 'zh' : 'en';
   try { localStorage.setItem('pf-lang', LANG); } catch (e) { /* 隐私模式：只是不记 */ }
   renderText();
-});
+}
+$('lang').addEventListener('click', toggleLang);
 
 // ---------- 渲染 ----------
 let renderer;
@@ -989,6 +990,9 @@ for (const w of WORKS) {
 // 相邻两层间距 152 > 两颗最大星体（带环的节拍门、带卫星的 NEXUS）外缘之和，所以不同层永不相碰；
 // 同一层上的星球周期相同、夹角永远不变，放下时保证和同层邻居隔开，所以同层也永不相碰。
 const XR_RINGS = [314, 466, 618, 800, 952];
+const XR_HBAND = 300;   // 轨道可以离开主盘面的高度（盘面单位，约 ±0.4 米）；放得比这更高 / 更低 = 被太阳吸进去
+const XR_CAPTURE = 150; // 放下时离太阳中心比这还近（盘面单位，约 0.2 米，几乎贴着太阳）= 被太阳吸进去
+const xrCaptured = p => Math.abs(p.y) > XR_HBAND || p.length() < XR_CAPTURE;   // p：盘面局部坐标（盘面单位）
 const reachR = w => w.planet.type === 3 ? w.r * 2.15 : w.moonBody ? w.r * 2 : sizeOf(w);   // 星体视觉外缘（盘面单位）
 const ringT = a => DISK.period * Math.pow(a / DISK.aRef, 1.5);
 const xrRingLines = XR_RINGS.map(a => {
@@ -999,18 +1003,20 @@ const xrRingLines = XR_RINGS.map(a => {
   l.frustumCulled = false; l.visible = false; xrRoot.add(l); return l;
 });
 // 每颗星球在 XR 里的轨道 = { a: 哪一层, ph: 相位 }，存在本机（下次进来还在你放的位置）
-const ORBIT_KEY = 'webxr-home-xr-orbits-v1';
+const ORBIT_KEY = 'webxr-home-xr-orbits-v2';   // v2：默认轨道带高低差，旧的存档不再沿用
+// 默认高度（盘面单位，约 0.00135 米 / 单位）：同一层的星球一上一下，外层起伏大、内层小；七个加起来是 0
+const XR_DEFAULT_H = { 'neon-strike': 70, 'pixel-village': -60, 'particle-fields': 120, 'masterpieces': -90, 'jelly-harbor': -30, 'swarm': -130, 'beat-gates': 120 };
 const nearestRing = rho => XR_RINGS.reduce((b, a) => Math.abs(a - rho) < Math.abs(b - rho) ? a : b);
 function loadOrbits() {
   let saved = {}; try { saved = JSON.parse(localStorage.getItem(ORBIT_KEY) || '{}') || {}; } catch (e) {}
   for (const w of WORKS) {
     const s = saved[w.dir];
-    if (s && XR_RINGS.includes(s.a) && Number.isFinite(s.ph)) w.xo = { a: s.a, ph: s.ph };
-    else { const kp = kepler(w.kepler, 0); w.xo = { a: nearestRing(w.kepler.a), ph: Math.atan2(kp.py, kp.px) }; }   // 默认：页面上的那套轨道，就近归到一层
+    if (s && XR_RINGS.includes(s.a) && Number.isFinite(s.ph)) w.xo = { a: s.a, ph: s.ph, h: Math.max(-XR_HBAND, Math.min(XR_HBAND, +s.h || 0)) };
+    else { const kp = kepler(w.kepler, 0); w.xo = { a: nearestRing(w.kepler.a), ph: Math.atan2(kp.py, kp.px), h: XR_DEFAULT_H[w.dir] || 0 }; }   // 默认：页面上的那套轨道，就近归到一层，带一点高低差
   }
 }
 function saveOrbits() {
-  const o = {}; for (const w of WORKS) o[w.dir] = { a: w.xo.a, ph: +w.xo.ph.toFixed(4) };
+  const o = {}; for (const w of WORKS) o[w.dir] = { a: w.xo.a, ph: +w.xo.ph.toFixed(4), h: Math.round(w.xo.h) };
   try { localStorage.setItem(ORBIT_KEY, JSON.stringify(o)); } catch (e) {}
 }
 const xrAngle = (w, t) => w.xo.ph + Math.PI * 2 * t / ringT(w.xo.a);
@@ -1024,20 +1030,23 @@ function xrSlot(w, rho, th) {
   }
   return { a: w.xo.a, th: xrAngle(w, orbitT) };
 }
-// 名字牌：一张小画布，按最近邻放大成像素字
-const lc = document.createElement('canvas'); lc.width = 256; lc.height = 64;
-const ltex = new THREE.CanvasTexture(lc); ltex.magFilter = THREE.NearestFilter; ltex.minFilter = THREE.NearestFilter; ltex.colorSpace = THREE.SRGBColorSpace;
-const xrLabel = new THREE.Mesh(new THREE.PlaneGeometry(.32, .08), new THREE.MeshBasicMaterial({ map: ltex, transparent: true, depthTest: false }));
-xrLabel.renderOrder = 100; xrLabel.visible = false; xrScene.add(xrLabel);
-let labelKey = '';
-function drawLabel(title, sub) {
-  const key = title + '|' + sub; if (key === labelKey) return; labelKey = key;
-  const g = lc.getContext('2d'); g.clearRect(0, 0, 256, 64);
-  g.fillStyle = 'rgba(14,12,25,.92)'; g.fillRect(4, 4, 248, 56);
-  g.fillStyle = '#e2b65c'; g.fillRect(4, 4, 248, 3); g.fillRect(4, 57, 248, 3);
-  g.textAlign = 'center'; g.fillStyle = '#ece7dc'; g.font = 'bold 22px "Microsoft YaHei", "PingFang SC", sans-serif'; g.fillText(title, 128, 31);
-  g.fillStyle = '#e2b65c'; g.font = '13px Silkscreen, "Microsoft YaHei", monospace'; g.fillText(sub, 128, 51);
-  ltex.needsUpdate = true;
+// 名字：每颗星球正下方一行小字（没有框），面向头；指着的那颗亮一点
+const XR_NAME_H = .025;   // 字行高（米）；宽度跟着文字走
+for (const w of WORKS) {
+  w.xl = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+  w.xl.renderOrder = 90; w.xl.visible = false; w.xlKey = ''; xrScene.add(w.xl);
+}
+function drawName(w) {
+  if (w.xlKey === LANG) return; w.xlKey = LANG;
+  const c = document.createElement('canvas'), font = '30px "Microsoft YaHei", "PingFang SC", sans-serif';
+  let g = c.getContext('2d'); g.font = font;
+  c.width = Math.ceil(g.measureText(w[LANG].title).width) + 16; c.height = 64;   // 改宽度会清空画布和字体设置，重新取
+  g = c.getContext('2d'); g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ece7dc';
+  g.fillText(w[LANG].title, c.width / 2, 32);
+  if (w.xl.material.map) w.xl.material.map.dispose();
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  w.xl.material.map = tex; w.xl.material.needsUpdate = true;
+  w.xl.scale.set(XR_NAME_H * c.width / c.height, XR_NAME_H, 1);
 }
 // 手的射线：从手伸出去一条细线，末端一个像素小方块；指中东西时变金色
 const XR_RAY_LEN = 1.4;
@@ -1052,7 +1061,7 @@ function makeRay() {
 let xrPlaced = 0, xrPoint = -1, xrSunPoint = false, xrLast = 0;
 function xrLocal(w, t) {   // 轨道 → 房间里的位置（xrRoot 的本地坐标，单位米）；盘面水平
   const th = xrAngle(w, t), a = w.xo.a;
-  return { v: new V3(Math.cos(th) * a, 0, -Math.sin(th) * a).multiplyScalar(XR.S), dist: a };
+  return { v: new V3(Math.cos(th) * a, w.xo.h, -Math.sin(th) * a).multiplyScalar(XR.S), dist: a };
 }
 // 介绍卡：取出的星球右边，内容和页面上的卡片一样，最后一个「进入作品」按钮（手的射线指着捏一下）
 const CW = 512, CH = 320, BTN = { x: 24, y: 262, w: 196, h: 40 };
@@ -1065,7 +1074,7 @@ let cardKey = '';
 function drawCard(w, hot) {
   const key = w.i + LANG + hot; if (key === cardKey) return; cardKey = key;
   const g = cc.getContext('2d'), t = w[LANG], T = I18N[LANG];
-  g.clearRect(0, 0, CW, CH);
+  g.clearRect(0, 0, CW, CH); g.textAlign = 'left';   // 画布状态会保留：上一次画按钮留下的居中对齐要先复位
   g.fillStyle = 'rgba(14,12,25,.94)'; g.fillRect(6, 6, CW - 12, CH - 12);
   g.fillStyle = '#e2b65c'; g.fillRect(6, 6, CW - 12, 30); g.fillRect(6, CH - 12, CW - 12, 6); g.fillRect(6, 6, 6, CH - 12); g.fillRect(CW - 12, 6, 6, CH - 12);
   g.textBaseline = 'middle'; g.fillStyle = '#1a1424'; g.font = '15px Silkscreen, "Microsoft YaHei", monospace';
@@ -1075,7 +1084,7 @@ function drawCard(w, hot) {
   g.fillStyle = '#c9c2b4'; g.font = '17px "Microsoft YaHei", "PingFang SC", sans-serif';
   const toks = t.blurb.match(/[　-鿿＀-￯]|[^\s　-鿿＀-￯]+\s*|\s+/g) || [];
   let line = '', y = 136;
-  for (const k of toks) { if (g.measureText(line + k).width > 460 && line) { g.fillText(line.trim(), 24, y); y += 25; line = ''; if (y > 211) break; } line += k; }
+  for (const k of toks) { if (g.measureText(line + k).width > 448 && line) { g.fillText(line.trim(), 24, y); y += 25; line = ''; if (y > 211) break; } line += k; }
   if (y <= 211 && line) g.fillText(line.trim(), 24, y);
   g.fillStyle = '#8f879c'; g.font = '14px "Microsoft YaHei", sans-serif'; g.fillText(t.tags.join(' · '), 24, 240);
   // 按钮：像素描边，指着时填满
@@ -1083,8 +1092,58 @@ function drawCard(w, hot) {
   if (!hot) { g.fillStyle = '#1a1424'; g.fillRect(BTN.x + 4, BTN.y + 4, BTN.w - 8, BTN.h - 8); }
   g.fillStyle = hot ? '#1a1424' : '#e2b65c'; g.font = 'bold 18px "Microsoft YaHei", sans-serif'; g.textAlign = 'center';
   g.fillText(T.xrGo + ' ▶', BTN.x + BTN.w / 2, BTN.y + 27);
-  g.fillStyle = '#8f879c'; g.font = '13px "Microsoft YaHei", sans-serif'; g.textAlign = 'right'; g.fillText(T.xrReset, CW - 24, BTN.y + 26); g.textAlign = 'left';
   ctex.needsUpdate = true;
+}
+// 重置按钮：进 XR 时放在身前左下方（固定在房间里），面向头
+const XR_RESET_S = .045;
+const rc = document.createElement('canvas'); rc.width = rc.height = 32;
+const rtex = new THREE.CanvasTexture(rc); rtex.magFilter = THREE.NearestFilter; rtex.minFilter = THREE.NearestFilter; rtex.colorSpace = THREE.SRGBColorSpace;
+const xrResetBtn = new THREE.Mesh(new THREE.PlaneGeometry(XR_RESET_S, XR_RESET_S), new THREE.MeshBasicMaterial({ map: rtex, transparent: true, depthTest: false }));
+xrResetBtn.renderOrder = 100; xrResetBtn.visible = false; xrScene.add(xrResetBtn);
+let resetKey = '';
+function drawReset(hot) {   // 像素画：圆框 + 逆时针箭头
+  if (resetKey === String(hot)) return; resetKey = String(hot);
+  const g = rc.getContext('2d'); g.clearRect(0, 0, 32, 32);
+  const fg = hot ? '#1a1424' : '#e2b65c', px = (x, y) => g.fillRect(x, y, 2, 2);
+  g.fillStyle = hot ? '#e2b65c' : 'rgba(14,12,25,.9)';
+  for (let y = 0; y < 32; y += 2) for (let x = 0; x < 32; x += 2) if (Math.hypot(x - 15, y - 15) < 15) px(x, y);
+  g.fillStyle = fg;
+  for (let a = .9; a < Math.PI * 2 - .2; a += .12) px(Math.round((15 + Math.cos(a) * 8) / 2) * 2, Math.round((15 - Math.sin(a) * 8) / 2) * 2);
+  [[20, 6], [22, 8], [18, 8], [20, 10]].forEach(([x, y]) => px(x, y));   // 箭头
+  rtex.needsUpdate = true;
+}
+// 中英切换按钮：重置按钮右边，同样大小；上面写要切过去的语言（和页面右上角的按钮一样）
+const lgc = document.createElement('canvas'); lgc.width = lgc.height = 64;
+const lgtex = new THREE.CanvasTexture(lgc); lgtex.colorSpace = THREE.SRGBColorSpace;
+const xrLangBtn = new THREE.Mesh(new THREE.PlaneGeometry(XR_RESET_S, XR_RESET_S), new THREE.MeshBasicMaterial({ map: lgtex, transparent: true, depthTest: false }));
+xrLangBtn.renderOrder = 100; xrLangBtn.visible = false; xrScene.add(xrLangBtn);
+let langKey = '';
+function drawLangBtn(hot) {
+  const key = LANG + hot; if (langKey === key) return; langKey = key;
+  const g = lgc.getContext('2d'); g.clearRect(0, 0, 64, 64);
+  g.fillStyle = hot ? '#e2b65c' : 'rgba(14,12,25,.9)';
+  for (let y = 0; y < 64; y += 4) for (let x = 0; x < 64; x += 4) if (Math.hypot(x - 30, y - 30) < 30) g.fillRect(x, y, 4, 4);   // 像素圆
+  g.fillStyle = hot ? '#1a1424' : '#e2b65c'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = LANG === 'en' ? 'bold 30px "Microsoft YaHei", "PingFang SC", sans-serif' : 'bold 22px Silkscreen, "Microsoft YaHei", monospace';
+  g.fillText(LANG === 'en' ? '中' : 'EN', 32, 33);
+  lgtex.needsUpdate = true;
+}
+// 射线打到一块面向头的平板上：返回距离和板上坐标（0..1）
+function planeHit(mesh, wid, hgt, o, dir) {
+  if (!mesh.visible) return null;
+  const n = new V3(0, 0, 1).applyQuaternion(mesh.quaternion), den = dir.dot(n);
+  if (Math.abs(den) < 1e-4) return null;
+  const d = mesh.position.clone().sub(o).dot(n) / den; if (d <= 0) return null;
+  mesh.updateMatrixWorld();
+  const q = mesh.worldToLocal(o.clone().addScaledVector(dir, d)), u = q.x / wid + .5, v = .5 - q.y / hgt;
+  return u >= 0 && u <= 1 && v >= 0 && v <= 1 ? { d, u, v } : null;
+}
+function xrResetAll() {   // 视角回正；取出的星球放回去；所有星球回到默认轨道（清掉本机存的位置），飞过去
+  xrView.Qt.copy(xrView.homeQ);
+  xrSetFocus(-1);
+  try { localStorage.removeItem(ORBIT_KEY); } catch (e) {}
+  loadOrbits();
+  for (const w of WORKS) if (w.xs === 'orbit') { w.xp.copy(w.xw); w.xs = 'fly'; }
 }
 // 射线打到卡片上：返回距离和是不是按在按钮上
 function cardHit(o, dir) {
@@ -1105,7 +1164,7 @@ const XR_HOLD_MS = 280;   // 捏住超过这么久（或捏着移动了）= 拿�
 const XR_NEAR = .05;      // 手离星球表面这么近时直接用手抓（不用射线）
 let xrFocus = -1, xrGrabV = null;
 const xrHands = [0, 1].map(i => ({ c: renderer.xr.getController(i), hand: renderer.xr.getHand(i), down: false, t0: 0, both: false,
-  hit: { i: -1, sun: false, card: false, btn: false, near: false, d: XR_RAY_LEN }, press: null, drag: null, ray: makeRay(), pp: new V3() }));
+  hit: { i: -1, sun: false, card: false, btn: false, near: false, reset: false, lang: false, d: XR_RAY_LEN }, press: null, drag: null, ray: makeRay(), pp: new V3() }));
 xrHands.forEach(h => xrScene.add(h.c, h.hand));
 // 捏合点：有手部关节时取拇指尖和食指尖的中点，否则用射线起点
 function pinchPoint(h) {
@@ -1113,7 +1172,8 @@ function pinchPoint(h) {
   if (a && b && a.visible && b.visible) return h.pp.copy(a.position).add(b.position).multiplyScalar(.5);
   return h.pp.copy(h.c.position);
 }
-const rayDir = h => new V3(0, 0, -1).applyQuaternion(h.c.quaternion);
+const XR_RAY_TILT = .35;   // 射线相对手的朝向往下压的角度（弧度）
+const rayDir = h => new V3(0, -Math.sin(XR_RAY_TILT), -Math.cos(XR_RAY_TILT)).applyQuaternion(h.c.quaternion);
 const focusMult = w => XR_FOCUS_R / (sizeOf(w) * XR.S);
 function xrSetFocus(i) {
   if (xrFocus >= 0 && xrFocus !== i && WORKS[xrFocus].xs === 'focus') WORKS[xrFocus].xs = 'fly';   // 上一颗飞回自己的轨道
@@ -1129,13 +1189,40 @@ function xrTap(hit) {
   if (hit.card) { if (hit.btn && xrFocus >= 0) location.href = WORKS[xrFocus].dir + '/'; return; }   // 在 Liquid 里，XR 中跳转的页面会自己进 XR
   if (hit.sun) { renderer.xr.getSession().end(); return; }
   if (hit.i >= 0) { if (hit.i !== xrFocus) xrSetFocus(hit.i); return; }
-  xrSetFocus(-1); xrView.Qt.copy(xrView.homeQ);   // 空白处：星球回轨道，星系回正
+  if (hit.reset) { xrResetAll(); return; }
+  if (hit.lang) { toggleLang(); return; }
+  xrSetFocus(-1);   // 空白处：取出的星球回轨道（视角不动）
 }
-function xrDrop(h) {   // 放手：就近吸附到一层轨道上，飞过去
-  const w = h.drag.w, p = xrRoot.worldToLocal(w.xp.clone()).divideScalar(XR.S);
+function xrDrop(h) {   // 放手：就近吸附到一层轨道上（保留高度），飞过去；放得太高 / 太低 = 被太阳吸进去，爆炸后在原位置重生
+  const w = h.drag.w, p = xrRoot.worldToLocal(w.xp.clone()).divideScalar(XR.S), prev = h.drag.prev; h.drag = null;
+  if (xrCaptured(p)) {   // 被吸进去：带一点切向速度开始下落，之后交给引力
+    const tan = new V3(-p.z, 0, p.x).normalize().multiplyScalar(45);
+    w.xs = 'fall'; w.fp = p.clone(); w.fv = tan; w.fr0 = p.length(); w.xo = prev; return;
+  }
   const s = xrSlot(w, Math.hypot(p.x, p.z), Math.atan2(-p.z, p.x));
-  w.xo = { a: s.a, ph: s.th - Math.PI * 2 * orbitT / ringT(s.a) }; w.xs = 'fly'; h.drag = null;
+  w.xo = { a: s.a, ph: s.th - Math.PI * 2 * orbitT / ringT(s.a), h: p.y }; w.xs = 'fly';
   saveOrbits();
+}
+// 爆炸：从太阳中心炸开一团像素碎片（带这颗星球的颜色），太阳跟着鼓一下
+const BOOM_N = 180, boomVel = new Float32Array(BOOM_N * 3);
+const boom = (() => {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(BOOM_N * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(BOOM_N * 3), 3));
+  const m = new THREE.Points(g, new THREE.PointsMaterial({ size: .012, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  m.frustumCulled = false; m.visible = false; xrScene.add(m); return m;
+})();
+let boomT = -1;
+function xrBoom(at, w) {
+  const pos = boom.geometry.attributes.position.array, col = boom.geometry.attributes.color.array;
+  const pal = [new THREE.Color('#fff3cf'), new THREE.Color('#ffb347'), new THREE.Color('#ff5a2a'), w.orbitCol];
+  for (let i = 0; i < BOOM_N; i++) {
+    const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, q = Math.sqrt(1 - u * u), sp = .12 + Math.random() * .45;
+    boomVel[i * 3] = Math.cos(a) * q * sp; boomVel[i * 3 + 1] = u * sp; boomVel[i * 3 + 2] = Math.sin(a) * q * sp;
+    at.toArray(pos, i * 3); pal[Math.floor(Math.random() * pal.length)].toArray(col, i * 3);
+  }
+  boom.geometry.attributes.position.needsUpdate = boom.geometry.attributes.color.needsUpdate = true;
+  boomT = 0; boom.visible = true; SUN.sv += 5;
 }
 // 捏一下（松手时结算）= 单击；捏住不放 = 拿起星球拖动；两只手同时捏住（都没拿星球）= 旋转星系
 xrHands.forEach((h, i) => {
@@ -1157,6 +1244,7 @@ renderer.xr.addEventListener('sessionstart', () => {
   for (const h of xrHands) { h.down = h.both = false; h.drag = null; }
 });
 renderer.xr.addEventListener('sessionend', () => {
+  xrResetBtn.visible = xrLangBtn.visible = false;
   for (const b of [...xrList, nexus.moonBody]) b.u.uQuant.value = 0;
   xrPoint = -1; xrFocus = -1; hovered = -1; focused = -1; mode = 'idle'; document.body.classList.remove('focused');
 });
@@ -1171,6 +1259,9 @@ function xrFrame(now) {
     const f = fwd.clone(); f.y = 0; f.normalize();
     const v = xrView; v.homeP.copy(headPos).addScaledVector(f, XR.dist); v.homeP.y -= XR.drop;
     v.homeQ.setFromAxisAngle(new V3(0, 1, 0), Math.atan2(-f.x, -f.z)); v.Q.copy(v.homeQ); v.Qt.copy(v.homeQ);
+    const left = new V3(f.z, 0, -f.x);   // 重置按钮：身前 0.45 米、偏左 0.22 米、比眼睛低 0.3 米
+    xrResetBtn.position.copy(headPos).addScaledVector(f, .45).addScaledVector(left, .22); xrResetBtn.position.y -= .3; xrResetBtn.visible = true;
+    xrLangBtn.position.copy(xrResetBtn.position).addScaledVector(left, -.06); xrLangBtn.visible = true;
   }
   const dragging = xrHands.some(h => h.drag);
   { // 双手旋转：两手连线从上一帧转到这一帧的那个旋转，放大一点后加到星系朝向上（绕太阳转）
@@ -1181,14 +1272,14 @@ function xrFrame(now) {
         d.normalize();
         if (xrGrabV) {
           const dq = new THREE.Quaternion().setFromUnitVectors(xrGrabV, d), ang = 2 * Math.acos(Math.min(1, Math.abs(dq.w)));
-          if (ang > 1e-5) { const ax = new V3(dq.x, dq.y, dq.z).normalize().multiplyScalar(Math.sign(dq.w) || 1); dq.setFromAxisAngle(ax, ang * 1.6); }
-          v.Q.premultiply(dq); v.Qt.premultiply(dq);
+          if (ang > 1e-5) { const ax = new V3(dq.x, dq.y, dq.z).normalize().multiplyScalar(Math.sign(dq.w) || 1); dq.setFromAxisAngle(ax, ang * .7); }
+          v.Qt.premultiply(dq);   // 只改目标朝向，实际朝向带阻尼地跟过去（转起来有分量）
         }
         xrGrabV = d;
       }
     } else xrGrabV = null;
   }
-  if (!xrGrabV) xrView.Q.slerp(xrView.Qt, 1 - Math.exp(-dt * 5));
+  xrView.Q.slerp(xrView.Qt, 1 - Math.exp(-dt * (xrGrabV ? 4 : 3)));
   xrRoot.position.copy(xrView.homeP); xrRoot.quaternion.copy(xrView.Q); xrRoot.scale.setScalar(1);
   const K = 1;
   const busy = xrPoint >= 0 || xrGrabV || WORKS.some(w => w.xs !== 'orbit');
@@ -1203,8 +1294,21 @@ function xrFrame(now) {
     if (w.xs === 'focus') { w.xp.lerp(xrView.anchor, 1 - Math.exp(-dt * 6)); mk = focusMult(w); }
     else if (w.xs === 'fly') { w.xp.lerp(ow, 1 - Math.exp(-dt * 7)); if (w.xp.distanceTo(ow) < .003) w.xs = 'orbit'; }
     else if (w.xs === 'drag') mk = w.dragMult;
-    spring(w.xk, mk, .35, dt);
-    w.xw = w.xs === 'orbit' ? ow : w.xp;
+    if (w.xs === 'fall') {   // 引力：加速度 ∝ 1/r²，切向速度慢慢被磨掉 → 越转越快地螺旋掉进去；速度封顶，整体是慢慢被吸走
+      const r = w.fp.length(), acc = 4e7 / Math.max(r * r, 140 * 140);
+      w.fv.addScaledVector(w.fp, -acc / Math.max(r, 1) * dt);
+      const radial = w.fp.clone().normalize(), vr = w.fv.dot(radial), vt = w.fv.clone().addScaledVector(radial, -vr);
+      w.fv.copy(radial.multiplyScalar(vr)).add(vt.multiplyScalar(Math.exp(-dt * 1.4)));
+      const cap = 70 + 150 * Math.min(1, r / 600); if (w.fv.length() > cap) w.fv.setLength(cap);   // 离太阳越近封顶越低：最后一段也是慢慢被吞进去
+      w.fp.addScaledVector(w.fv, dt);
+      w.xp.copy(xrRoot.localToWorld(w.fp.clone().multiplyScalar(XR.S)));
+      w.xk.x = .25 + .75 * Math.min(1, Math.max(0, (r - SUN.r) / Math.max(1, w.fr0 - SUN.r))); w.xk.v = 0;
+      if (r < SUN.r * .7) { xrBoom(sunW, w); w.xs = 'respawn'; w.ft = 0; }
+    } else if (w.xs === 'respawn') {   // 炸完停一下，在原来的轨道位置从小长出来
+      w.ft += dt; const f = Math.max(0, Math.min(1, (w.ft - .8) / .5)); w.xk.x = f * f * (3 - 2 * f); w.xk.v = 0;
+      if (f >= 1) w.xs = 'orbit';
+    } else spring(w.xk, mk, .35, dt);
+    w.xw = w.xs === 'orbit' || w.xs === 'respawn' ? ow : w.xp;
   }
   // 拖动：近处手抓 = 星球跟着捏合点；远处射线 = 星球留在射线上，手往前推 / 往回拉能调远近（放大 3 倍）
   for (const h of xrHands) {
@@ -1212,22 +1316,35 @@ function xrFrame(now) {
     const w = WORKS[h.press.i], pp = pinchPoint(h);
     if (!h.drag && (performance.now() - h.t0 > XR_HOLD_MS || pp.distanceTo(h.press.at) > .025) && w.xs !== 'drag') {
       if (xrFocus === w.i) xrFocus = -1;   // 从眼前拿走：介绍卡收起
-      h.drag = { w, near: h.press.near, off: w.xw.clone().sub(pp), at: pp.clone(), dist: w.xw.distanceTo(h.c.position), from: w.xs === 'focus' ? w.xp.clone() : null, big: w.xk.x };
+      h.drag = { w, near: h.press.near, off: w.xw.clone().sub(pp), at: pp.clone(), dist: w.xw.distanceTo(h.c.position), from: w.xs === 'focus' ? w.xp.clone() : null, big: w.xk.x, prev: { ...w.xo } };
       w.xp.copy(w.xw); w.xs = 'drag';
     }
     if (!h.drag) continue;
     const g = h.drag, dir = rayDir(h);
     const target = g.near ? pp.clone().add(g.off.multiplyScalar(Math.exp(-dt * 6)))
-      : h.c.position.clone().addScaledVector(dir, Math.max(.15, Math.min(3, g.dist + pp.clone().sub(g.at).dot(dir) * 3)));
+      : (() => {   // 远处：星球留在射线上；手往前推 / 往回拉 = 星球沿水平方向远近移动（放大 3 倍），不会因为射线斜向上而越推越高
+          const flat = dir.clone().setY(0).normalize(), push = pp.clone().sub(g.at).dot(flat) * 3;
+          return h.c.position.clone().addScaledVector(dir, g.dist).addScaledVector(flat, Math.max(.15 - g.dist, Math.min(3 - g.dist, push)));
+        })();
     w.xp.lerp(target, 1 - Math.exp(-dt * 20));
     // 从眼前拿起的大球：离开取出点越远越接近原来大小（往前推 15 厘米就完全变回去）
     w.dragMult = g.from ? 1 + (g.big - 1) * (1 - Math.min(1, w.xp.distanceTo(g.from) / .15)) : 1.12;
     w.xw = w.xp;
   }
   // 拖动时显出轨道，离星球最近的那层亮一点
-  { const dw = xrHands.find(h => h.drag)?.drag?.w; let near = -1;
-    if (dw) { const p = xrRoot.worldToLocal(dw.xp.clone()).divideScalar(XR.S); near = XR_RINGS.indexOf(nearestRing(Math.hypot(p.x, p.z))); }
-    xrRingLines.forEach((l, k) => { const want = !dw ? 0 : k === near ? .75 : .16; l.material.opacity += (want - l.material.opacity) * Math.min(1, dt * 10); l.visible = l.material.opacity > .01; });
+  { const dw = xrHands.find(h => h.drag)?.drag?.w; let near = -1, hy = 0, lost = false;
+    if (dw) { const p = xrRoot.worldToLocal(dw.xp.clone()).divideScalar(XR.S); near = XR_RINGS.indexOf(nearestRing(Math.hypot(p.x, p.z))); lost = xrCaptured(p); hy = Math.max(-XR_HBAND, Math.min(XR_HBAND, p.y)); }
+    xrRingLines.forEach((l, k) => {
+      const want = !dw ? 0 : lost ? .35 + .25 * Math.sin(t * 14) : k === near ? .75 : .16;
+      l.material.opacity += (want - l.material.opacity) * Math.min(1, dt * 10); l.visible = l.material.opacity > .01;
+      if (dw) { l.position.y = hy * XR.S; l.material.color.set(lost ? '#ff4a2a' : '#e2b65c'); }
+    });
+  }
+  if (boomT >= 0) {   // 爆炸碎片：飞散、减速、变淡
+    boomT += dt; const pos = boom.geometry.attributes.position.array, damp = Math.exp(-dt * 1.6);
+    for (let i = 0; i < BOOM_N * 3; i++) { pos[i] += boomVel[i] * dt; boomVel[i] *= damp; }
+    boom.geometry.attributes.position.needsUpdate = true; boom.material.opacity = Math.max(0, 1 - boomT / 1.4);
+    if (boomT > 1.4) { boomT = -1; boom.visible = false; }
   }
   // 介绍卡：贴在取出的星球右边，面向头（先摆好，射线才能打到它）
   if (xrFocus >= 0) {
@@ -1237,7 +1354,7 @@ function xrFrame(now) {
   } else xrCard.visible = false;
   // 指向：手靠近星球 = 直接指中它；否则射线前方最近的东西（卡片、星球、太阳）
   for (const h of xrHands) {
-    const hit = h.hit; hit.i = -1; hit.sun = hit.card = hit.btn = hit.near = false; hit.d = XR_RAY_LEN;
+    const hit = h.hit; hit.i = -1; hit.sun = hit.card = hit.btn = hit.near = hit.reset = hit.lang = false; hit.d = XR_RAY_LEN;
     if (!h.c.visible || h.drag) continue;
     const pp = pinchPoint(h); let nd = 1e9;
     for (const w of WORKS) { const d = pp.distanceTo(w.xw) - reachR(w) * XR.S * K * w.xk.x; if (d < XR_NEAR && d < nd) { nd = d; hit.i = w.i; hit.near = true; hit.d = 0; } }
@@ -1251,8 +1368,12 @@ function xrFrame(now) {
       if (along > 0 && miss < SUN.r * XR.S * K && (hit.i < 0 || along < hit.d)) { hit.sun = true; hit.i = -1; hit.d = along; } }
     const ch = cardHit(o, dir);   // 卡片在最前面
     if (ch && (ch.d < hit.d || (hit.i < 0 && !hit.sun))) { hit.card = true; hit.btn = ch.btn; hit.i = -1; hit.sun = false; hit.d = ch.d; }
+    const lh = planeHit(xrLangBtn, XR_RESET_S, XR_RESET_S, o, dir);
+    if (lh && Math.hypot(lh.u - .5, lh.v - .5) < .5 && (lh.d < hit.d || (hit.i < 0 && !hit.sun && !hit.card))) { hit.lang = true; hit.i = -1; hit.sun = hit.card = hit.btn = false; hit.d = lh.d; }
+    const rh = planeHit(xrResetBtn, XR_RESET_S, XR_RESET_S, o, dir);
+    if (rh && Math.hypot(rh.u - .5, rh.v - .5) < .5 && (rh.d < hit.d || (hit.i < 0 && !hit.sun && !hit.card))) { hit.reset = true; hit.lang = false; hit.i = -1; hit.sun = hit.card = hit.btn = false; hit.d = rh.d; }
   }
-  { const a = xrHands.find(h => h.down && !h.drag) || xrHands.find(h => h.hit.i >= 0 || h.hit.sun || h.hit.btn);
+  { const a = xrHands.find(h => h.down && !h.drag) || xrHands.find(h => h.hit.i >= 0 || h.hit.sun || h.hit.btn || h.hit.reset || h.hit.lang);
     xrPoint = a ? a.hit.i : -1; xrSunPoint = !!a && a.hit.sun; }
   SUN.xw = sunW;
   for (const b of xrList) {
@@ -1289,22 +1410,29 @@ function xrFrame(now) {
   xrBelt.rotation.y += dt * .01;
   xrRing.position.copy(ringBody.xw); xrRing.scale.setScalar(ringBody.r * XR.S * K * ringBody.scale * ringBody.xk.x); xrRing.quaternion.copy(xrView.Q).multiply(XR_RING_Q);
   xrStars.position.copy(headPos); for (const nb of xrNebulae) nb.visible = true;   // 星空跟着头走 = 无限远
-  // 名字牌：指着轨道上的星球时
-  const T = I18N[LANG];
+  // 名字：星球正下方；取出到眼前（介绍卡里有名字）/ 掉进太阳 / 重生时不显示
   const up = new V3(0, 1, 0).applyQuaternion(headQ);
-  if (xrPoint >= 0 && WORKS[xrPoint].xs === 'orbit') {
-    const w = WORKS[xrPoint];
-    drawLabel(w[LANG].title, T.xrPick);
-    xrLabel.position.copy(w.xw).addScaledVector(up, (w.planet.type === 3 ? 2.2 : 1.3) * w.r * XR.S * K * w.scale + .06);
-    xrLabel.quaternion.copy(headQ); xrLabel.visible = true;
-  } else xrLabel.visible = false;
+  for (const w of WORKS) {
+    const show = w.xs === 'orbit' || w.xs === 'fly' || w.xs === 'drag';
+    w.xl.visible = show; if (!show) continue;
+    drawName(w);
+    const R = w.r * XR.S * K * w.scale * w.xk.x, toHead = headPos.clone().sub(w.xw).normalize();
+    w.xl.position.copy(w.xw).addScaledVector(up, -(R * (w.planet.type === 3 ? 1.25 : 1) + XR_NAME_H * .7)).addScaledVector(toHead, R);
+    w.xl.quaternion.copy(headQ);
+    // 星球在太阳后面、视线被太阳挡住：名字也藏起来（名字是画在最前面的，不藏会透出来）
+    const ts = sunW.clone().sub(headPos), tw = w.xw.clone().sub(headPos), al = ts.dot(tw.clone().normalize());
+    const hidden = tw.length() > ts.length() && ts.clone().addScaledVector(tw.normalize(), -al).length() < SUN.r * XR.S * K * 1.1;
+    w.xl.material.opacity = hidden ? 0 : w.i === xrPoint ? 1 : xrFocus >= 0 ? .35 : .7;
+  }
   if (xrFocus >= 0) drawCard(WORKS[xrFocus], xrHands.some(h => h.hit.btn));
+  drawReset(xrHands.some(h => h.hit.reset)); xrResetBtn.quaternion.copy(headQ);
+  drawLangBtn(xrHands.some(h => h.hit.lang)); xrLangBtn.quaternion.copy(headQ);
   for (const h of xrHands) {   // 射线：指中东西时到它为止、变金色；手直接抓 / 双手旋转时不画
     const { line, dot } = h.ray, on = h.c.visible && !xrGrabV && !h.hit.near && !(h.drag && h.drag.near);
     line.visible = dot.visible = on; if (!on) continue;
     const o = h.c.position, end = h.drag ? h.drag.w.xw.clone() : o.clone().addScaledVector(rayDir(h), h.hit.d);
     const arr = line.geometry.attributes.position.array; o.toArray(arr, 0); end.toArray(arr, 3); line.geometry.attributes.position.needsUpdate = true;
-    const hot = h.drag || h.hit.i >= 0 || h.hit.sun || h.hit.btn, col = hot ? '#e2b65c' : '#fff3cf';
+    const hot = h.drag || h.hit.i >= 0 || h.hit.sun || h.hit.btn || h.hit.reset || h.hit.lang, col = hot ? '#e2b65c' : '#fff3cf';
     line.material.color.set(col); dot.material.color.set(col); line.material.opacity = hot ? .8 : .45;
     dot.position.copy(end); dot.quaternion.copy(headQ); dot.scale.setScalar(h.down ? .6 : 1);
   }
