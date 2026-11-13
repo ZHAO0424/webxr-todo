@@ -894,8 +894,8 @@ async function enterXR() {
 // 同一套星球着色器：行星画在真的球体上（图案钉在星球上、光从太阳的真实方向来、带深度遮挡），
 // 太阳和彗星画在面向头部的方块上；节拍门的环是一圈真的倾斜圆环。盘面水平放在面前，三条轨道按各自倾角微微立起。
 // 四周一层星空 + 几团淡星云。
-// 操作（和页面一致）：看着星球 = 指向（放大 + 描边 + 名字）；捏一下 = 聚焦（星系把它拉到面前放大，旁边出信息卡），
-// 聚焦后再捏一下 = 进入作品；看着空白处捏一下 = 回到初始位置；看着太阳捏一下 = 退出 XR；双手同时捏住转动 = 旋转整个星系。
+// 操作（和页面一致，只用手，头不参与确认）：手的射线指着星球 = 指向（放大 + 描边 + 名字）；捏一下 = 聚焦（星系把它拉到面前放大，旁边出信息卡），
+// 聚焦后再捏一下 = 进入作品；指着空白处捏一下 = 回到初始位置；指着太阳捏一下 = 退出 XR；双手同时捏住转动 = 旋转整个星系。
 const XR = { S: .00135, dist: 1.6, drop: .28, quant: 24, incl: 1.8 };
 const xrScene = new THREE.Scene(), xrCam = new THREE.PerspectiveCamera(50, 1, .02, 60), xrRoot = new THREE.Group();
 xrScene.add(xrRoot);
@@ -996,11 +996,17 @@ function drawLabel(title, sub) {
   g.fillStyle = '#e2b65c'; g.font = '13px Silkscreen, "Microsoft YaHei", monospace'; g.fillText(sub, 128, 51);
   ltex.needsUpdate = true;
 }
-// 准星：视线正前方一个像素小十字
-const xrDot = new THREE.Mesh(new THREE.PlaneGeometry(.008, .008), new THREE.MeshBasicMaterial({ color: '#fff3cf', depthTest: false, transparent: true, opacity: .8 }));
-xrDot.renderOrder = 101; xrScene.add(xrDot);
+// 手的射线：从手伸出去一条细线，末端一个像素小方块；指中东西时变金色
+const XR_RAY_LEN = 1.4;
+function makeRay() {
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: '#fff3cf', transparent: true, opacity: .45, depthWrite: false }));
+  const dot = new THREE.Mesh(new THREE.PlaneGeometry(.01, .01), new THREE.MeshBasicMaterial({ color: '#fff3cf', depthTest: false, transparent: true, opacity: .9 }));
+  line.frustumCulled = false; dot.renderOrder = 101; xrScene.add(line, dot);
+  return { line, dot };
+}
 
-let xrPlaced = 0, xrGaze = -1, xrSunGaze = false, xrLast = 0;
+let xrPlaced = 0, xrPoint = -1, xrSunPoint = false, xrLast = 0;
 function xrLocal(w, t) {   // 盘面坐标 → 房间里的位置（xrRoot 的本地坐标，单位米）
   const kp = kepler(w.kepler, t), v = new V3(kp.px, 0, -kp.py);
   v.applyAxisAngle(new V3(1, 0, 0), (w.kepler.xi || 0) * XR.incl);
@@ -1040,7 +1046,7 @@ const xrView = { Q: new THREE.Quaternion(), Qt: new THREE.Quaternion(), k: { x: 
 const XR_FOCUS_R = .06;   // 聚焦时星球的半径（米），放在面前 XR_FOCUS_D 米
 const XR_FOCUS_D = .6;
 let xrFocus = -1, xrGrabV = null;
-const xrHands = [0, 1].map(i => ({ c: renderer.xr.getController(i), down: false, t0: 0, both: false }));
+const xrHands = [0, 1].map(i => ({ c: renderer.xr.getController(i), down: false, t0: 0, both: false, hit: { i: -1, sun: false, d: XR_RAY_LEN }, press: null, ray: makeRay() }));
 xrHands.forEach(h => xrScene.add(h.c));
 function xrSetFocus(i) {
   xrFocus = i;
@@ -1050,11 +1056,11 @@ function xrSetFocus(i) {
   const r = new V3(-f.z, 0, f.x);
   xrView.anchor.copy(headPos).addScaledVector(f, XR_FOCUS_D).addScaledVector(r, -.07); xrView.anchor.y -= .06;
 }
-function xrTap() {
-  if (xrSunGaze) { renderer.xr.getSession().end(); return; }
-  if (xrGaze >= 0) {
-    if (xrFocus === xrGaze) location.href = WORKS[xrGaze].dir + '/';   // 在 Liquid 里，XR 中跳转的页面会自己进 XR
-    else xrSetFocus(xrGaze);
+function xrTap(hit) {
+  if (hit.sun) { renderer.xr.getSession().end(); return; }
+  if (hit.i >= 0) {
+    if (xrFocus === hit.i) location.href = WORKS[hit.i].dir + '/';   // 在 Liquid 里，XR 中跳转的页面会自己进 XR
+    else xrSetFocus(hit.i);
     return;
   }
   xrSetFocus(-1);
@@ -1063,21 +1069,21 @@ function xrTap() {
 xrHands.forEach((h, i) => {
   h.c.addEventListener('selectstart', () => {
     if (!renderer.xr.isPresenting) return;
-    h.down = true; h.t0 = performance.now(); h.both = false;
+    h.down = true; h.t0 = performance.now(); h.both = false; h.press = { ...h.hit };
     const o = xrHands[1 - i]; if (o.down) h.both = o.both = true;
   });
   h.c.addEventListener('selectend', () => {
     if (!h.down) return; h.down = false;
-    if (!h.both && performance.now() - h.t0 < 700) xrTap();
+    if (!h.both && h.press && performance.now() - h.t0 < 700) xrTap(h.press);
   });
 });
 renderer.xr.addEventListener('sessionstart', () => {
-  xrPlaced = 0; xrGaze = -1; xrLast = 0; xrFocus = -1; xrGrabV = null; card.classList.remove('on');
+  xrPlaced = 0; xrPoint = -1; xrLast = 0; xrFocus = -1; xrGrabV = null; card.classList.remove('on');
   for (const h of xrHands) h.down = h.both = false;
 });
 renderer.xr.addEventListener('sessionend', () => {
   for (const b of [...xrList, nexus.moonBody]) b.u.uQuant.value = 0;
-  xrGaze = -1; xrFocus = -1; hovered = -1; focused = -1; mode = 'idle'; document.body.classList.remove('focused');
+  xrPoint = -1; xrFocus = -1; hovered = -1; focused = -1; mode = 'idle'; document.body.classList.remove('focused');
 });
 function xrFrame(now) {
   const dt = xrLast ? Math.min(.05, (now - xrLast) / 1000) : 0; xrLast = now;
@@ -1118,24 +1124,28 @@ function xrFrame(now) {
     xrRoot.position.set(v.px.x, v.py.x, v.pz.x); xrRoot.quaternion.copy(v.Q); xrRoot.scale.setScalar(k);
   }
   const K = xrRoot.scale.x;
-  spring(orbitRate, xrGaze >= 0 || xrFocus >= 0 || xrGrabV ? 0 : 1, .6, dt);
+  spring(orbitRate, xrPoint >= 0 || xrFocus >= 0 || xrGrabV ? 0 : 1, .6, dt);
   orbitT += dt * orbitRate.x;
   xrRoot.updateMatrixWorld();
   const sunW = xrRoot.localToWorld(new V3());
-  // 视线选中：离视线最近、且在视线前方的那颗
-  let best = -1, bd = 1e9; xrSunGaze = false;
-  for (const w of WORKS) {
-    const L = xrLocal(w, orbitT); w.xw = xrRoot.localToWorld(L.v); w.dist = L.dist;
-    const to = w.xw.clone().sub(headPos), along = to.dot(fwd), miss = to.clone().addScaledVector(fwd, -along).length();
-    const rad = sizeOf(w) * XR.S * K * 1.5;
-    if (along > 0 && miss < rad && along < bd) { bd = along; best = w.i; }
+  for (const w of WORKS) { const L = xrLocal(w, orbitT); w.xw = xrRoot.localToWorld(L.v); w.dist = L.dist; }
+  // 手的射线选中：射线前方、离射线足够近的星球里最近的那颗；都没有再看太阳
+  for (const h of xrHands) {
+    const hit = h.hit; hit.i = -1; hit.sun = false; hit.d = XR_RAY_LEN;
+    if (!h.c.visible) continue;
+    const o = h.c.position, dir = new V3(0, 0, -1).applyQuaternion(h.c.quaternion);
+    for (const w of WORKS) {
+      const to = w.xw.clone().sub(o), along = to.dot(dir), miss = to.clone().addScaledVector(dir, -along).length();
+      if (along > 0 && miss < sizeOf(w) * XR.S * K * 1.5 && along < hit.d + (hit.i < 0 ? 9 : 0)) { hit.d = along; hit.i = w.i; }
+    }
+    { const to = sunW.clone().sub(o), along = to.dot(dir), miss = to.clone().addScaledVector(dir, -along).length();   // 太阳挡在前面就算太阳
+      if (along > 0 && miss < SUN.r * XR.S * K && (hit.i < 0 || along < hit.d)) { hit.sun = true; hit.i = -1; hit.d = along; } }
   }
-  { const to = sunW.clone().sub(headPos), along = to.dot(fwd), miss = to.clone().addScaledVector(fwd, -along).length();
-    if (best < 0 && along > 0 && miss < SUN.r * XR.S * K) xrSunGaze = true; }
-  xrGaze = best;
+  { const a = xrHands.find(h => h.down) || xrHands.find(h => h.hit.i >= 0 || h.hit.sun);
+    xrPoint = a ? a.hit.i : -1; xrSunPoint = !!a && a.hit.sun; }
   SUN.xw = sunW;
   for (const b of xrList) {
-    const isW = b.i !== undefined, gz = isW && b.i === xrGaze, fz = isW && b.i === xrFocus;
+    const isW = b.i !== undefined, gz = isW && b.i === xrPoint, fz = isW && b.i === xrFocus;
     const s = { x: b.scale, v: b.sv }; spring(s, fz ? 1 : gz ? 1.25 : 1, .3, dt); b.scale = s.x; b.sv = s.v;
     b.hov += ((gz ? 1 : 0) - b.hov) * Math.min(1, dt * 10);
     b.xm.position.copy(b.xw); if (!b.sphere) b.xm.quaternion.copy(headQ); b.xm.scale.setScalar(b.r * XR.S * K * b.scale);
@@ -1166,8 +1176,8 @@ function xrFrame(now) {
   // 名字牌
   const T = I18N[LANG];
   const up = new V3(0, 1, 0).applyQuaternion(headQ);
-  if (xrGaze >= 0 && xrGaze !== xrFocus) {
-    const w = WORKS[xrGaze];
+  if (xrPoint >= 0 && xrPoint !== xrFocus) {
+    const w = WORKS[xrPoint];
     drawLabel(w[LANG].title, T.xrPick);
     xrLabel.position.copy(w.xw).addScaledVector(up, (w.planet.type === 3 ? 2.2 : 1.3) * w.r * XR.S * K * w.scale + .06);
     xrLabel.quaternion.copy(headQ); xrLabel.visible = true;
@@ -1178,7 +1188,15 @@ function xrFrame(now) {
     xrCard.position.copy(w.xw).addScaledVector(right, (w.planet.type === 3 ? 2 : 1.15) * w.r * XR.S * K + .02 + XR_CARD_W / 2);
     xrCard.quaternion.copy(headQ); xrCard.visible = true;
   } else xrCard.visible = false;
-  xrDot.position.copy(headPos).addScaledVector(fwd, 1); xrDot.quaternion.copy(headQ);
+  for (const h of xrHands) {   // 射线：指中东西时到它为止、变金色
+    const { line, dot } = h.ray, on = h.c.visible && !xrGrabV;
+    line.visible = dot.visible = on; if (!on) continue;
+    const o = h.c.position, end = o.clone().addScaledVector(new V3(0, 0, -1).applyQuaternion(h.c.quaternion), h.hit.d);
+    const arr = line.geometry.attributes.position.array; o.toArray(arr, 0); end.toArray(arr, 3); line.geometry.attributes.position.needsUpdate = true;
+    const hot = h.hit.i >= 0 || h.hit.sun, col = hot ? '#e2b65c' : '#fff3cf';
+    line.material.color.set(col); dot.material.color.set(col); line.material.opacity = hot ? .8 : .45;
+    dot.position.copy(end); dot.quaternion.copy(headQ); dot.scale.setScalar(h.down ? .6 : 1);
+  }
   renderer.render(xrScene, xrCam);
 }
 
