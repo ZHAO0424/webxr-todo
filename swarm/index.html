@@ -785,19 +785,6 @@ function draw(t, dt) {
 const flashMesh = new THREE.Mesh(new THREE.PlaneGeometry(3, 2), new THREE.MeshBasicMaterial({ color: 0x80ffe0, transparent: true, opacity: 0, ...AR_GLOW, depthWrite: false, depthTest: false }));
 flashMesh.position.set(0, 0, -0.5); flashMesh.renderOrder = 20; world.add(flashMesh);
 
-// ---------- 水体光束：远处几道从上方斜下来的淡光锥，给「深海」一个方向感（加法，不压暗任何东西） ----------
-const beamMat = k => new THREE.ShaderMaterial({
-  vertexShader: `varying float vY; varying vec3 vN, vV; void main(){ vY = position.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
-  fragmentShader: `varying float vY; varying vec3 vN, vV; void main(){ float f = abs(dot(vN, vV)); float fade = smoothstep(-1.6, -0.2, vY) * smoothstep(0.0, -0.3, vY); gl_FragColor = vec4(vec3(0.10, 0.25, 0.32) * f * f * fade * ${k.toFixed(2)}, 1.0);
-    #include <colorspace_fragment>
-    }`,
-  transparent: true, depthWrite: false, ...AR_GLOW, side: THREE.DoubleSide,
-});
-[[-0.62, 0.30, 0.10, 0.12], [-0.18, 0.22, 0.13, 0.16], [0.27, 0.12, 0.09, 0.13], [0.66, 0.04, 0.12, 0.18]].forEach(([x, rz, k, r], i) => {
-  const geo = new THREE.ConeGeometry(r, 1.6, 24, 1, true); geo.translate(0, -0.8, 0);
-  const beam = new THREE.Mesh(geo, beamMat(k)); beam.position.set(x, 0.75, -2.4 - i * 0.25); beam.rotation.z = rz; beam.renderOrder = 1; world.add(beam);
-});
-
 // ---------- 面板：左上鱼群 / 光点，右上时间 / 最高，正中标题 / 结束 ----------
 function canvasPanel(w, h, pw, ph) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
