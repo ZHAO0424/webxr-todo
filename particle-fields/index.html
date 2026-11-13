@@ -2330,7 +2330,13 @@ async function enterXRInner() {
   });
   lastT = performance.now();
   xrSession.requestAnimationFrame(onXRFrame);
+  // 进 XR 后网页同步显示眼镜里的画面：每帧把左眼那块拷到网页画布上（在 onXRFrame 之后登记，所以排在它后面跑）
+  const mirrored = xrSession;
+  import("../shared/xr-mirror.js").then(m => m.mirrorSession(gl, mirrored,
+    () => mirrorRect && mirrored.renderState.baseLayer ? { fb: mirrored.renderState.baseLayer.framebuffer, rect: mirrorRect } : null))
+    .catch(e => console.warn("xr-mirror", e));
 }
+let mirrorRect = null;          // 左眼在头显帧缓冲里的像素范围（onXRFrame 每帧更新）
 
 function updateHands(frame, dt) {
   stirW.fill(0); stirGrab.fill(0); handCount = 0; injectN = 0;
@@ -2469,6 +2475,7 @@ const onXRFrame = guardFrame(function (t, frame) {
     rects.push([vp.x, vp.y, vp.width, vp.height]);
   }
   postProcess(layer.framebuffer, rects);
+  mirrorRect = rects[0];
 });
 
 // ── UI ───────────────────────────────────────────────────────────────────────

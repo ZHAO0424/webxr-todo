@@ -8,6 +8,7 @@
 // 场景里不再有任何会换画的东西：以前视野下方有一条切换栏，进场自动露出 7 秒、看住 1.4 秒就换，
 // 捏合作品自己的交互时射线扫过它也会换，观众不知道是什么触发的。XR_SWITCH 打开可以恢复。
 import * as THREE from 'three';
+import { mirrorThree } from '../shared/xr-mirror.js';   // 进 XR 后网页同步显示眼镜里的画面
 
 const works = () => window.WORKS || [];
 const onWork = () => works().some(w => w.slug === slugNow());
@@ -624,6 +625,7 @@ export const hop = {
     if (R) return;
     R = r;
     untracked(buildOverlay);
+    untracked(() => mirrorThree(R));   // 渲染器只建一次、换画不换：镜像挂一次，所有作品和画廊都跟着
     const sal = R.setAnimationLoop.bind(R);
     R.setAnimationLoop = cb => { workLoop = cb; sal(master); };
     // 兜底：作品在 XR 帧里算完 GPU 模拟后写 setRenderTarget(null)，桌面上没事，头显里却把整幅场景

@@ -37,6 +37,7 @@
 <div id="btns"><button id="lang"></button><button id="mute"></button></div>
 <script type="module">
 import * as THREE from 'three';
+import { mirrorThree } from '../shared/xr-mirror.js';   // 进 XR 后网页同步显示眼镜里的画面
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -90,6 +91,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.setSize(innerWidth, innerHeight);
 renderer.xr.enabled = true;
+mirrorThree(renderer);
 document.body.appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x02030a);

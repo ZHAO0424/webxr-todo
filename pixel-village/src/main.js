@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mirrorThree } from '../../shared/xr-mirror.js';   // 进 XR 后网页同步显示眼镜里的画面
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { buildVillage } from './village.js';
@@ -58,6 +59,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.shadowMap.autoUpdate = false; // 阴影隔一帧重画一次（每帧重画要把三百来个投影的东西再画一遍；人走得慢，看不出差别）
 renderer.xr.enabled = true;
+mirrorThree(renderer);
 document.body.append(renderer.domElement); // 进入 VR 的按钮在设置里（下面 vrBtn）
 
 const scene = new THREE.Scene();

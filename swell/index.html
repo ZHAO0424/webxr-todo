@@ -39,6 +39,7 @@
 <button id="mute">Sound off</button>
 <script type="module">
 import * as THREE from 'three';
+import { mirrorThree } from '../shared/xr-mirror.js';   // 进 XR 后网页同步显示眼镜里的画面
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -54,6 +55,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.xr.enabled = true;
+mirrorThree(renderer);
 document.body.appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 

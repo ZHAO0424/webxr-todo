@@ -144,6 +144,7 @@
 // 思路参考 Deep-Fold 的 PixelPlanets（MIT）。文字都在 DOM 里；#list 是给键盘、读屏器和没有 WebGL 时用的真链接。
 // 语言跟各作品共用 localStorage 键 pf-lang。
 import * as THREE from 'three';
+import { mirrorThree } from './shared/xr-mirror.js';   // 进 XR 后网页同步显示眼镜里的画面
 
 // ---------- 手感参数（集中在这里调） ----------
 const TUNE = {
@@ -596,6 +597,7 @@ renderText();
 if (!renderer) { document.body.classList.add('nogl'); throw new Error('no WebGL: showing the plain list'); }
 renderer.setPixelRatio(1);
 renderer.xr.enabled = true;
+mirrorThree(renderer);
 const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100);
 camera.position.z = 10;
