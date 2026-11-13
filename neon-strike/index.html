@@ -100,9 +100,10 @@ scene.add(new THREE.HemisphereLight(0x6fa0ff, 0x180818, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(0.5, 1, 0.8); scene.add(sun);
 
 // 坐标（米）：观者在原点看 -z。自机在眼前 PZ 处一块竖直平面里上下左右飞（AX × AY 的半宽半高），
-// 敌机停在前方 2.5–4.5 米的纵深里，子弹从深处朝你飞来。全部落在眼镜正前方 40°×24° 以内
+// 敌机停在前方 2.5–4.5 米的纵深里，子弹从深处朝你飞来。
+// 自机平面 60 × 30 cm（约 46°×24°）：原来 40 × 22 cm 太局促，横向放大 1.5 倍、竖向 1.36 倍，两边稍出眼镜视场，转一点头就能看到
 const world = new THREE.Group(); scene.add(world);
-const PZ = -0.7, AX = 0.2, AY = 0.11, PY0 = -0.03;
+const PZ = -0.7, AX = 0.3, AY = 0.15, PY0 = -0.03;
 
 // 自机平面的边框：四条发光细条，飞机顶到边上那条亮一下
 const edges = {};
@@ -215,9 +216,18 @@ function P(x, y, z, c, size, shape, dx = 0, dy = 0, dz = 0, a = 1) {
 }
 
 // ---------- 机体：低多边形 3D 模型，暗色金属 + 发光棱线 ----------
+// AR（头显里）机体换亮色：暗色金属在透视眼镜里接近透明、在投屏里是一团黑剪影；换成带本色的浅灰金属 + 更强的自发光
+let arLook = false;
+function hullLook(mat) {
+  const c = mat.userData.hull;
+  if (arLook) { mat.color.copy(c).multiplyScalar(0.35).add(new THREE.Color(0x3a4252)); mat.emissive.copy(c).multiplyScalar(0.5); mat.metalness = 0.25; }
+  else { mat.color.set(0x141824); mat.emissive.copy(c).multiplyScalar(0.18); mat.metalness = 0.7; }
+}
+function setArLook(on) { arLook = on; scene.traverse(o => { if (o.material && o.material.userData.hull) hullLook(o.material); }); }
 function hull(geo, color, parent, opts = {}) {
   const c = new THREE.Color(color);
-  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x141824, metalness: 0.7, roughness: 0.35, emissive: c.clone().multiplyScalar(0.18), flatShading: true }));
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.35, flatShading: true }));
+  m.material.userData.hull = c; hullLook(m.material);
   const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), new THREE.LineBasicMaterial({ color: c, transparent: true }));
   m.add(e); parent.add(m); m.userData.edge = e; if (opts.pos) m.position.set(...opts.pos); if (opts.rot) m.rotation.set(...opts.rot);
   return m;
@@ -843,7 +853,7 @@ const music = {
 // 头显：右手控制飞机——右手捏住 = 抓住飞机，捏着移动手，飞机跟着走（手移多少，飞机移 GAIN 倍）；松开，飞机停在原地。
 // 左手捏合 = 炸弹（只有右手时：右手快速捏两下也是炸弹）。没开始 / 结束时任意一只手捏合 = 开始。
 // 分不出左右（老设备 / 手柄没报 handedness）时，第一只手当右手
-const GAIN = 1.6;   // 手移 10 cm ≈ 飞机移 16 cm（自机平面宽 40 cm）
+const GAIN = 2.0;   // 手移 10 cm ≈ 飞机移 20 cm（自机平面宽 60 cm，手横扫 30 cm 走满一整宽）
 const drag = { on: false, i: -1, hx: 0, hy: 0, px: 0, py: 0 };
 const ctrls = [], hands = [], side = ['', ''];
 let lastRightPinch = -1;
@@ -930,8 +940,8 @@ let needPlace = false, placeWait = 0;
 // AR：头显里不画背景色、清屏透明。原来深色背景按不透明写进帧缓冲，投屏 / 相机透视按 alpha 叠画面时，
 // 整个背景是一面黑墙，发光特效周围看起来全是黑的。光学透视眼镜里黑本来就是透明，看起来不变；不透明头显里清屏也还是黑。
 const BG = scene.background;
-renderer.xr.addEventListener('sessionstart', () => { needPlace = true; scene.background = null; renderer.setClearColor(0x000000, 0); placeWait = 0; drag.on = false; document.getElementById('card').style.opacity = 0; document.getElementById('btns').style.opacity = 0; });
-renderer.xr.addEventListener('sessionend', () => { world.position.set(0, 0, 0); scene.background = BG; renderer.setClearColor(0x000000, 1); world.rotation.set(0, 0, 0); document.getElementById('card').style.opacity = 1; document.getElementById('btns').style.opacity = 1; onResize(); });
+renderer.xr.addEventListener('sessionstart', () => { needPlace = true; scene.background = null; renderer.setClearColor(0x000000, 0); setArLook(true); placeWait = 0; drag.on = false; document.getElementById('card').style.opacity = 0; document.getElementById('btns').style.opacity = 0; });
+renderer.xr.addEventListener('sessionend', () => { world.position.set(0, 0, 0); scene.background = BG; renderer.setClearColor(0x000000, 1); setArLook(false); world.rotation.set(0, 0, 0); document.getElementById('card').style.opacity = 1; document.getElementById('btns').style.opacity = 1; onResize(); });
 function place() {
   const cam = renderer.xr.getCamera(), p = new V3().setFromMatrixPosition(cam.matrixWorld);
   const d = new V3(0, 0, -1).transformDirection(cam.matrixWorld);
