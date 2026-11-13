@@ -10,9 +10,9 @@
   const I18N = window.MP_I18N;
   const DICT = {
     zh: { navLabel: '作品切换', prev: '上一幅', next: '下一幅', home: '回到博物馆的画廊', gallery: '画廊', lang: 'EN', langTitle: 'Switch to English',
-          xrExit: '退出 XR', xrNo: '此设备不支持 XR', xrEnter: '进入 XR', music: m => `配乐：${m.title} — ${m.by}（${m.lic}）` },
+          xrExit: '退出 XR', xrNoVR: '此设备不支持 VR', xrNoAR: '此设备不支持 AR', xrEnterVR: '进入 VR · 展厅', xrEnterAR: '进入 AR · 实景', music: m => `配乐：${m.title} — ${m.by}（${m.lic}）` },
     en: { navLabel: 'Switch works', prev: 'Previous', next: 'Next', home: 'Back to the gallery', gallery: 'Gallery', lang: '中文', langTitle: '切换到中文',
-          xrExit: 'Exit XR', xrNo: 'XR not supported', xrEnter: 'Enter XR', music: m => `Music: ${m.title} — ${m.by} (${m.lic})` },
+          xrExit: 'Exit XR', xrNoVR: 'VR not supported', xrNoAR: 'AR not supported', xrEnterVR: 'Enter VR · Gallery', xrEnterAR: 'Enter AR · Your room', music: m => `Music: ${m.title} — ${m.by} (${m.lic})` },
   };
   const L = k => I18N ? I18N.t(DICT, k) : DICT.zh[k];
   const T = w => window.workText ? workText(w) : { title: w.zh, sub: w.en, blurb: w.blurb, tags: w.tags };
@@ -102,31 +102,33 @@
   const dock = document.createElement('div'); dock.id = 'st-xr';
   const isXRBtn = el => el.nodeType === 1 && el.parentNode === document.body &&
     (el.id === 'VRButton' || el.id === 'ARButton' || (el.tagName === 'A' && /immersive-web|webxr/i.test(el.href + el.textContent)));
-  // 只留一个「进入 XR」：作品自己按 environmentBlendMode 判断要不要画背景，所以 VR / AR 两个入口在眼镜上
-  // 进去是一样的（光学透视的眼镜上黑 = 透明，两种都等于把画挂在房间里）。优先 VR；设备只支持 AR 时
-  // （手机）才换成 AR 那个按钮。three 的按钮会自己改字、改 display，这里每次按状态改回来
+  // VR / AR 两个入口都显示：VR = 带展厅 / 背景的完整场景；AR = 去掉背景，只把画挂在真实房间里。
+  // 点了哪个就记在 window.__mpAR 上，之后头显里换的每一件作品都按这个模式（不再看设备报的 environmentBlendMode）。
+  // 设备两种都不支持时只留一个提示。three 的按钮会自己改字、改 display，这里每次按状态改回来
   const presenting = () => !!(window.mpHop && window.mpHop.presenting());
   const relabel = () => {
     const vr = dock.querySelector('#VRButton'), ar = dock.querySelector('#ARButton');
     const ok = b => b && b.tagName === 'BUTTON' && !/NOT|不支持/i.test(b.textContent);
-    const use = ok(vr) ? vr : ok(ar) ? ar : vr || ar;
-    for (const b of [vr, ar]) if (b) {
-      const want = b === use ? '' : 'none';
+    const live = presenting(), any = ok(vr) || ok(ar);
+    const cur = (window.__mpAR ? ar : vr) || vr || ar;   // 头显里只留当前模式那一个，当「退出」用
+    for (const [b, kind] of [[vr, 'VR'], [ar, 'AR']]) if (b) {
+      const show = live ? b === cur : any || b === (vr || ar);
+      const want = show ? '' : 'none';
       if (b.style.display !== want || (want && b.style.getPropertyPriority('display'))) b.style.setProperty('display', want, want ? '' : 'important');
-    }
-    if (use && use.tagName === 'BUTTON') {
-      const s = use.textContent;
-      // 头显里换过画：新页面的按钮是新建的，不知道会话还在，会写「ENTER」——以会话实际状态为准
-      // 认 three 的原文，也认这里自己改过的中 / 英文（换语言时要从一种改成另一种）
-      const t = presenting() ? L('xrExit') : /EXIT|STOP|退出/i.test(s) ? L('xrEnter') : /NOT|不支持/i.test(s) ? L('xrNo') : /ENTER|START|进入/i.test(s) ? L('xrEnter') : null;
-      if (t && s !== t) use.textContent = t;
+      if (b.tagName === 'BUTTON') {
+        // 头显里换过画：新页面的按钮是新建的，不知道会话还在，会写「ENTER」——以会话实际状态为准
+        const s = b.textContent;
+        const t = live ? L('xrExit') : /NOT|不支持/i.test(s) ? L('xrNo' + kind) : L('xrEnter' + kind);
+        if (s !== t) b.textContent = t;
+      }
     }
   };
   const watch = new MutationObserver(relabel);
   // 正在 XR 里时点按钮 = 退出：直接结束当前会话（新建的按钮自己不知道有会话，会去再申请一次）
   dock.addEventListener('click', e => {
     const b = e.target.closest && e.target.closest('#VRButton, #ARButton');
-    if (!b || !presenting()) return;
+    if (!b) return;
+    if (!presenting()) { window.__mpAR = b.id === 'ARButton'; return; }   // 记下选的模式，换画后的作品照这个来
     e.stopImmediatePropagation(); e.preventDefault();
     const sess = window.mpHop._r().xr.getSession(); if (sess) sess.end();
   }, true);

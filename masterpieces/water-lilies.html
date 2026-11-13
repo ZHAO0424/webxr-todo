@@ -514,7 +514,7 @@ document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  const opaque = window.__mpAR != null ? !window.__mpAR : renderer.xr.getSession().environmentBlendMode === 'opaque';   // 观众点的 VR / AR 优先（画廊里选了，后面每件都跟着）；没点过才看设备
   sky.visible = opaque; plaque.visible = false;
   waterMat.uniforms.uEdge.value = opaque ? 0 : 3.0;   // 3 米：视线往下 25° 左右开始见水，比较贴近平视时的视场
   renderer.setClearColor(0xd9d3e2, opaque ? 1 : 0);

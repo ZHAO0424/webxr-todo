@@ -856,7 +856,7 @@ document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  const opaque = window.__mpAR != null ? !window.__mpAR : renderer.xr.getSession().environmentBlendMode === 'opaque';   // 观众点的 VR / AR 优先（画廊里选了，后面每件都跟着）；没点过才看设备
   voidSphere.visible = opaque; plaque.visible = false;
   // 不再缩成桌上的小岛、也不自转：真实比例，人站在岛南缘（观看点见下面 hop.eye），面朝北边崖口的两人
   world.scale.setScalar(1); world.position.set(0, 0, 0); world.rotation.set(0, 0, 0);

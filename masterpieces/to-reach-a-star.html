@@ -700,7 +700,7 @@ function relayout(kh, kv) {
 }
 renderer.xr.addEventListener('sessionstart', () => {
   relayout(XR_KH, XR_KV);
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  const opaque = window.__mpAR != null ? !window.__mpAR : renderer.xr.getSession().environmentBlendMode === 'opaque';   // 观众点的 VR / AR 优先（画廊里选了，后面每件都跟着）；没点过才看设备
   dome.visible = opaque;                       // AR：去掉夜空背景，笔触漂在真实房间里
   plaque.visible = false;
   renderer.setClearColor(0x0a1230, opaque ? 1 : 0);

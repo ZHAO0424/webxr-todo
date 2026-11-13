@@ -458,7 +458,7 @@ for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 let quoteShown = false;
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  const opaque = window.__mpAR != null ? !window.__mpAR : renderer.xr.getSession().environmentBlendMode === 'opaque';   // 观众点的 VR / AR 优先（画廊里选了，后面每件都跟着）；没点过才看设备
   dome.visible = opaque; plaque.visible = false;
   renderer.setClearColor(0x3a3730, opaque ? 1 : 0);
 });

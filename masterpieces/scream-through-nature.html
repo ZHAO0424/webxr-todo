@@ -739,9 +739,9 @@ document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 // AR 模式：去掉黄昏的底色和画框外延展的笔触，只留五幅画漂在真实房间里。
-// 进头显时设备报透视、或在画廊点的是 START AR，自动打开；有的眼镜把自己报成 opaque，所以页面上也给一个开关（进头显前点）
+// 点的是 AR 按钮（画廊或本页）自动打开，点 VR 不开；都没点过才看设备是否透视；有的眼镜把自己报成 opaque，所以页面上也给一个开关（进头显前点）
 let arManual = null;                      // null = 跟着设备；true / false = 观众手动选的
-const xrSees = () => renderer.xr.isPresenting && (renderer.xr.getSession().environmentBlendMode !== 'opaque' || !!window.__mpAR);
+const xrSees = () => renderer.xr.isPresenting && (window.__mpAR != null ? !!window.__mpAR : renderer.xr.getSession().environmentBlendMode !== 'opaque');   // 观众点的 VR / AR 优先（画廊里选了，后面每件都跟着）；没点过才看设备
 function applyAR() {
   const on = arManual !== null ? arManual : xrSees();
   U.uAR.value = on ? 1 : 0;

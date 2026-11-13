@@ -395,8 +395,8 @@ for (let i = 0; i < 2; i++) {
   rig.add(renderer.xr.getHand(i));
 }
 renderer.xr.addEventListener('sessionstart', () => {
-  // AR：设备报的是透视（光学 / 摄像头），或者观众点的是「START AR」—— 有的眼镜把自己报成 opaque，按钮比它准
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque' && !window.__mpAR;
+  // AR：观众点的是 AR 按钮；没点过（会话从别处来）才看设备报的是不是透视 —— 有的眼镜把自己报成 opaque，按钮比它准
+  const opaque = window.__mpAR != null ? !window.__mpAR : renderer.xr.getSession().environmentBlendMode === 'opaque';
   rig.position.y = -EYE_H;                                  // 地板在脚下，画挂在眼睛的高度
   wall.visible = floor.visible = opaque;                    // AR：只留下画，挂在真实的房间里
   flatU.value = opaque ? 0 : 1;                             // AR：灯光也去掉
