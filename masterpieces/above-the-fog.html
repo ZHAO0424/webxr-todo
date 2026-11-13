@@ -298,12 +298,13 @@ const W = {
   tRock: { value: null },
   uBaseC: { value: 0 }, uTopMax: { value: STAGES[0] + 1.0 },
   uSteps: { value: 26 },
+  uAR: { value: 0 },                                     // 1 = 实景透视：天、山脊、谷底、太阳都不画，只留画窗和雾（透出真实房间）
 };
 const worldMat = new THREE.ShaderMaterial({
   uniforms: W, side: THREE.BackSide, depthWrite: false,
   vertexShader: `varying vec3 vW; void main(){ vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
   fragmentShader: NOISE + STAGE_GLSL + FOG_GLSL + /* glsl */`
-    uniform sampler2D tPaint; uniform float uSteps, uTopMax;
+    uniform sampler2D tPaint; uniform float uSteps, uTopMax, uAR;
     varying vec3 vW;
     const float R0 = ${R.toFixed(3)}, EYE_Y = ${EYE.y.toFixed(3)}, HM0 = ${HM.toFixed(4)}, HORV = ${HOR_V.toFixed(3)}, PARC = ${PIC_ARC.toFixed(5)}, FOGT = ${FOG_TOP.toFixed(3)}, GY = ${GROUND_Y.toFixed(2)};
     const float PI = 3.14159265;
@@ -378,7 +379,7 @@ const worldMat = new THREE.ShaderMaterial({
       float el = asin(clamp(d.y, -1.0, 1.0));
       vec3 tint = dawnTint();
       // ---- 背景：画 / 天 / 山脊 / 雾下的山谷 ----
-      vec3 bg; float hitT = 1e4; float inPic = 0.0; float mask = 1.0;
+      vec3 bg; float hitT = 1e4; float inPic = 0.0; float mask = 1.0; vec3 picC = vec3(0.0);
       float hor = length(d.xz);
       float tCyl = hor > 1e-4 ? R0 / hor : 1e4;
       float yC = o.y + d.y * tCyl;
@@ -397,12 +398,14 @@ const worldMat = new THREE.ShaderMaterial({
         // 画只留地平线往上：天空和远山（完整的，不抠）；中景的岩柱、旅人和他脚下的岩石都换成了真的 3D
         vec3 pc = texture2D(tPaint, vec2(u, v)).rgb * tint;
         float edge = smoothstep(0.0, 0.1, u) * smoothstep(1.0, 0.9, u) * smoothstep(1.0, 0.96, v) * smoothstep(0.535, 0.585, v);
-        inPic = edge; mask = 1.0 - edge;
+        inPic = edge; mask = 1.0 - edge; picC = pc * edge;
         bg = mix(bg, pc, edge);
         // 远山当作无穷远的背景：雾和画外完全一样地算（不会显出画的方框），雾海自然漫上它的山脚
       }
       // ---- 雾海 ----
       vec4 fog = marchFog(o, d, hitT, hitT);
+      // 实景透视：输出预乘 alpha —— 画窗（边缘本来就是软的）在下，雾盖在上，其余透明
+      if (uAR > 0.5) { gl_FragColor = vec4(picC * (1.0 - fog.a) + fog.rgb, inPic * (1.0 - fog.a) + fog.a); return; }
       vec3 c = mix(bg, fog.rgb, fog.a);
       float haze = smoothstep(0.12, -0.01, el) * smoothstep(-0.30, -0.06, el) * (1.0 - fog.a) * 0.45;   // 只在地平线附近；往下看的谷底不罩灰
       c = mix(c, hazeC, haze * (1.0 - inPic * (1.0 - mask)));
@@ -751,8 +754,12 @@ vrBtn.style.display = arBtn.style.display = 'none';
 document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { entered = true; startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
-renderer.xr.addEventListener('sessionstart', () => { plaque.visible = false; W.uSteps.value = 16; });
-renderer.xr.addEventListener('sessionend', () => { plaque.visible = false; W.uSteps.value = 26; });
+renderer.xr.addEventListener('sessionstart', () => {
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  plaque.visible = false; W.uSteps.value = 16; W.uAR.value = opaque ? 0 : 1;
+  renderer.setClearColor(0x8d97a9, opaque ? 1 : 0);
+});
+renderer.xr.addEventListener('sessionend', () => { plaque.visible = false; W.uSteps.value = 26; W.uAR.value = 0; renderer.setClearColor(0x8d97a9, 1); });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 // ---------- 载入 ----------

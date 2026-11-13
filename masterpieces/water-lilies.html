@@ -269,10 +269,11 @@ const waterGeo = new THREE.CircleGeometry(POND_R, 256, 0, Math.PI * 2);
 waterGeo.rotateX(-Math.PI / 2);
 const waterMat = new THREE.ShaderMaterial({
   uniforms: { uH: { value: simA.texture }, uPaint: { value: paintTex }, uSize: { value: SIM_SIZE }, uTexel: { value: 1 / SIM }, uT: { value: 0 },
-              uSun: { value: new THREE.Vector3(-0.35, 0.55, -0.75).normalize() }, uWind: { value: wind.dir }, uWindAmp: { value: wind.amp } },
+              uSun: { value: new THREE.Vector3(-0.35, 0.55, -0.75).normalize() }, uWind: { value: wind.dir }, uWindAmp: { value: wind.amp },
+              uEdge: { value: 0 } },   // 实景透视时水面只留脚下这一圈（米），往外淡出、透出真实地板；0 = 整个池塘
   vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
   fragmentShader: PAINT_MAP + SKY_GLSL + /* glsl */`
-    uniform sampler2D uH; uniform float uSize, uTexel, uT, uWindAmp; uniform vec3 uSun; uniform vec2 uWind;
+    uniform sampler2D uH; uniform float uSize, uTexel, uT, uWindAmp, uEdge; uniform vec3 uSun; uniform vec2 uWind;
     varying vec3 vW;
     float H(vec2 uv) { return texture2D(uH, uv).r; }
     // 风吹出的毛细波（渲染层）：在风坐标系里，顺风方向密、横风方向拉长的细纹，整体顺风漂。
@@ -350,7 +351,9 @@ const waterMat = new THREE.ShaderMaterial({
       float fog = smoothstep(4.5, ${(POND_R - 0.5).toFixed(2)}, dist);
       vec3 haze = mix(vec3(0.86, 0.82, 0.88), skyColor(normalize(vec3(-v.x, 0.05, -v.z)), t), 0.4);
       c = mix(c, haze, fog * 0.92);
-      gl_FragColor = vec4(c, 1.0);
+      // 实景透视：池子收成脚下一圈，边缘淡出（预乘 alpha）
+      float a = uEdge > 0.0 ? 1.0 - smoothstep(uEdge * 0.55, uEdge, rr) : 1.0;
+      gl_FragColor = vec4(c * a, a);
     }`,
 });
 const water = new THREE.Mesh(waterGeo, waterMat);
@@ -513,9 +516,10 @@ $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('
 renderer.xr.addEventListener('sessionstart', () => {
   const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
   sky.visible = opaque; plaque.visible = false;
+  waterMat.uniforms.uEdge.value = opaque ? 0 : 3.0;   // 3 米：视线往下 25° 左右开始见水，比较贴近平视时的视场
   renderer.setClearColor(0xd9d3e2, opaque ? 1 : 0);
 });
-renderer.xr.addEventListener('sessionend', () => { sky.visible = true; plaque.visible = false; renderer.setClearColor(0xd9d3e2, 1); });
+renderer.xr.addEventListener('sessionend', () => { sky.visible = true; plaque.visible = false; waterMat.uniforms.uEdge.value = 0; renderer.setClearColor(0xd9d3e2, 1); });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 // 测试钩子
