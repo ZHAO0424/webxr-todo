@@ -55,7 +55,7 @@
     <div class="how" data-xr="发出声音或捏住手指，画才游回来" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>声音</em><span>哼、说话、喊都可以；麦克风只在本地测音量，不录音、不上传</span><em>没有麦克风</em><span>按住空格或鼠标</span><em>耳机</em><span>建议戴上，免得扬声器的声音被麦克风收回去</span></div>
   </div>
 </div>
-<div id="hud"><span id="micState">麦克风：未开启</span><button id="mute">静音</button><div id="meter"><i id="lvl"></i></div><span data-i18n="hint">发出声音才看得见画；安静时它散成一群游动的颜色，过一会儿自然会回应</span></div>
+<div id="hud"><span id="micState">麦克风：未开启</span><button id="mute">静音</button><button id="ar">AR 模式：关</button><div id="meter"><i id="lvl"></i></div><span data-i18n="hint">发出声音才看得见画；安静时它散成一群游动的颜色，过一会儿自然会回应</span></div>
 <div id="pname"></div>
 <div id="quote" data-i18n-html="quoteBanner">“我感到一声巨大的、无尽的尖叫穿过了自然。”<small>— 蒙克的笔记，1892 年</small></div>
 
@@ -84,6 +84,7 @@ const T = {
     how: '<em>声音</em><span>哼、说话、喊都可以；麦克风只在本地测音量，不录音、不上传</span><em>没有麦克风</em><span>按住空格或鼠标</span><em>耳机</em><span>建议戴上，免得扬声器的声音被麦克风收回去</span>',
     micOff: '麦克风：未开启', micOn: '麦克风：已开启', micDenied: '麦克风：未授权（按住空格或鼠标代替声音）',
     mute: '静音', unmute: '开声音',
+    arOff: 'AR 模式：关', arOn: 'AR 模式：开',
     hint: '发出声音才看得见画；安静时它散成一群游动的颜色，过一会儿自然会回应',
     quoteBanner: '“我感到一声巨大的、无尽的尖叫穿过了自然。”<small>— 蒙克的笔记，1892 年</small>',
     pname: p => p.name,
@@ -102,6 +103,7 @@ const T = {
     how: '<em>Voice</em><span>Hum, talk or shout. The microphone only measures loudness on your device; nothing is recorded or uploaded</span><em>No mic</em><span>Hold Space or the mouse button</span><em>Headphones</em><span>Recommended, so the mic doesn’t pick up the speakers</span>',
     micOff: 'Mic: off', micOn: 'Mic: on', micDenied: 'Mic blocked · hold Space or the mouse',
     mute: 'Mute', unmute: 'Sound on',
+    arOff: 'AR mode: off', arOn: 'AR mode: on',
     hint: 'The painting appears only when you make a sound. In silence it scatters into a shoal of drifting color, and after a while nature answers',
     quoteBanner: '“I sensed an infinite scream passing through nature.”<small>— Munch’s notes, 1892</small>',
     pname: p => p.en,
@@ -119,6 +121,7 @@ I18N.apply(T, document.body);
 setLoad('loading');
 $('micState').textContent = t(micKey);
 $('mute').textContent = t('mute');
+$('ar').textContent = t('arOff');
 const DEG = Math.PI / 180;
 const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
 const pick = a => a[(Math.random() * a.length) | 0];
@@ -180,7 +183,7 @@ const RIPPLES = 24;
 const U = {
   uTime: { value: 0 }, uA: { value: 0 }, uEcho: { value: 0 }, uC: { value: 0 }, uPx: { value: innerHeight },   // uC = 画面清晰度（出声才看得见）
   uWa: { value: new THREE.Vector4(1, 0, 0, 0) }, uWb: { value: 0 },                                             // 五个状态的权重：当前聚成哪一幅
-  uYaw: { value: 0 },                                                                                           // 这一次聚成的画转到哪个方向（你看着的方向）
+  uYaw: { value: 0 }, uAR: { value: 0 },                                                                                           // 这一次聚成的画转到哪个方向（你看着的方向）
   uRip: { value: Array.from({ length: RIPPLES }, () => new THREE.Vector3(-999, 0, 1)) },   // (出生时间, 强度, 方向 1 外扩 / -1 回涌)
 };
 let N = 0, gpu = null, posVar = null, velVar = null, strokeMat = null;
@@ -321,10 +324,10 @@ const POS_FS = SIM_COMMON + /* glsl */`
   }`;
 
 const STROKE_VS = /* glsl */`
-      attribute vec2 aRef; attribute vec3 aC0, aC1, aC2, aC3, aC4; attribute float aW, aLen, aAl;
+      attribute vec2 aRef; attribute vec3 aC0, aC1, aC2, aC3, aC4; attribute float aW, aLen, aAl, aBgB; attribute vec4 aBgA;
       uniform sampler2D tPos, tVel, tD0, tD1, tD2, tD3, tD4, tS;
       uniform float uTime, uA, uEcho, uC, uPx;
-      uniform vec4 uWa; uniform float uWb, uYaw;
+      uniform vec4 uWa; uniform float uWb, uYaw, uAR;
       uniform vec3 uRip[${RIPPLES}];
       varying vec3 vCol; varying float vAlpha, vAng, vW, vPx;
       void main() {
@@ -359,6 +362,7 @@ const STROKE_VS = /* glsl */`
         float rp = fract(uTime * (0.012 + 0.01 * fract(seed * 3.7)) + seed);
         float drift = smoothstep(0.0, 0.08, rp) * smoothstep(1.0, 0.92, rp);
         vCol = c; vAlpha = aAl * mix(0.7, 1.0, uC) * mix(drift, 1.0, smoothstep(0.0, 0.25, uC));
+        vAlpha *= 1.0 - 0.92 * uAR * (dot(aBgA, uWa) + aBgB * uWb);   // AR 模式：画框外延展的笔触几乎隐去，只留五幅画本身
       }`;
 const STROKE_FS = /* glsl */`
       varying vec3 vCol; varying float vAlpha, vAng, vW, vPx;
@@ -425,6 +429,7 @@ async function buildScene(onProgress) {
   // 低频的"疏密 / 大小"起伏：不要处处一样
   const lowNoise = (th, ph, s) => 0.5 + 0.25 * Math.sin(th * 3 + ph * 5 + s) + 0.25 * Math.sin(th * 7 - ph * 4 + s * 2.3);
   const H = [], Dt = [], Cc = [], Ln = [], Al = [];
+  const BgA = new Uint8Array(NP * 4), BgB = new Uint8Array(NP);   // 每个状态里这一笔是不是"背景"：画框以外、为铺满 360° 延展出来的那部分（AR 模式里隐去）
   for (let k = 0; k < NS; k++) { H.push(new Float32Array(NP * 4)); Dt.push(new Float32Array(NP * 4)); Cc.push(new Float32Array(NP * 3)); Ln.push(new Float32Array(NP)); Al.push(new Float32Array(NP)); }
   const S = new Float32Array(NP * 4);
   const pt = new THREE.Vector3(), dv = new THREE.Vector3(), eT = new THREE.Vector3(), eP = new THREE.Vector3();
@@ -482,6 +487,7 @@ async function buildScene(onProgress) {
       lumSum += 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2];
       Ln[k][i] = lenBase * (0.85 + 0.3 * A.coh);
       Al[k][i] = 0.92 * edgeFade;
+      if (!A.inCore) { if (k < 4) BgA[i * 4 + k] = 255; else BgB[i] = 255; }
     }
     // 散开时的位置在着色器里算（gatherTarget）；这里只存这一笔在三幅画里的明暗，用来在河里按明暗排开
     S.set([lumSum / NS, 0, 0, rnd], i * 4);
@@ -538,6 +544,8 @@ async function buildScene(onProgress) {
   geo.setAttribute('aLen', new THREE.Float32BufferAttribute(L1, 1));
   geo.setAttribute('aAl', new THREE.Float32BufferAttribute(A1, 1));
   geo.setAttribute('aW', new THREE.Float32BufferAttribute(W1, 1));
+  geo.setAttribute('aBgA', new THREE.Uint8BufferAttribute(BgA, 4, true));
+  geo.setAttribute('aBgB', new THREE.Uint8BufferAttribute(BgB, 1, true));
   strokeMat = new THREE.ShaderMaterial({
     uniforms: { ...U, tS: { value: tS }, tPos: { value: null }, tVel: { value: null }, ...Object.fromEntries(tD.map((t, k) => ['tD' + k, { value: t }])) },
     transparent: true, depthWrite: false,
@@ -730,12 +738,20 @@ vrBtn.style.display = arBtn.style.display = 'none';
 document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
-renderer.xr.addEventListener('sessionstart', () => {
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
-  dome.visible = opaque; plaque.visible = false;
-  renderer.setClearColor(0x2a1410, opaque ? 1 : 0);
-});
-renderer.xr.addEventListener('sessionend', () => { dome.visible = true; plaque.visible = false; renderer.setClearColor(0x2a1410, 1); });
+// AR 模式：去掉黄昏的底色和画框外延展的笔触，只留五幅画漂在真实房间里。
+// 进头显时设备报透视、或在画廊点的是 START AR，自动打开；有的眼镜把自己报成 opaque，所以页面上也给一个开关（进头显前点）
+let arManual = null;                      // null = 跟着设备；true / false = 观众手动选的
+const xrSees = () => renderer.xr.isPresenting && (renderer.xr.getSession().environmentBlendMode !== 'opaque' || !!window.__mpAR);
+function applyAR() {
+  const on = arManual !== null ? arManual : xrSees();
+  U.uAR.value = on ? 1 : 0;
+  dome.visible = !on;
+  renderer.setClearColor(0x2a1410, on && renderer.xr.isPresenting ? 0 : 1);   // 桌面上没有真实房间可透：底色照旧，只预览笔触
+  $('ar').textContent = t(on ? 'arOn' : 'arOff');
+}
+$('ar').onclick = () => { arManual = !(U.uAR.value > 0.5); applyAR(); };
+renderer.xr.addEventListener('sessionstart', () => { plaque.visible = false; applyAR(); });
+renderer.xr.addEventListener('sessionend', () => { plaque.visible = false; applyAR(); });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 window.__forceNext = () => { curPainting = (curPainting + 1) % PANELS.length; cyclePeak = 0; nameShown = false; };
@@ -751,6 +767,7 @@ I18N.onChange(() => {
   $('enter').textContent = t(loadKey, loadArg);
   $('micState').textContent = t(micKey);
   $('mute').textContent = muted ? t('unmute') : t('mute');
+  $('ar').textContent = t(U.uAR.value > 0.5 ? 'arOn' : 'arOff');
   if (namePanel) $('pname').textContent = t('pname', namePanel);
   drawPlaque();                             // 展签画在画布上：按新语言重画
 });

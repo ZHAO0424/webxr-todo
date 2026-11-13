@@ -156,6 +156,7 @@ scene.add(room);
 // 画框里靠边的地方（比如右边那个人的右侧）就空出一块
 const art = new THREE.Group(); scene.add(art);
 const XR_NARROW = 0.55;   // 3 米宽的画在 3.2 米外约占 50°；收到约 28° 宽、20° 高，连画框都在眼镜视场里
+const arU = { value: 0 };   // 1 = 实景透视：点不再掺展厅的米白底色（那是这间暗白展厅的颜色，叠在真实房间上只会发白发雾）
 
 // ---------- 修拉的调色：有限的几种纯色颜料 ----------
 const PIGMENTS = ['#f6f1e2', '#e2b23a', '#f0d45a', '#d9643a', '#c0392b', '#b0507a', '#6b4fa0', '#3c6eb4', '#2c4f8c', '#3a8a8c', '#5a9650', '#2f6b3a', '#a8b84a', '#8a5a34', '#1f2a3a']
@@ -211,14 +212,14 @@ const pointVS = /* glsl */`
     vColor = aColor; vC = c;
   }`;
 const pointFS = /* glsl */`
-  varying vec3 vColor; varying float vC;
+  varying vec3 vColor; varying float vC; uniform float uAR;
   void main() {
     vec2 q = gl_PointCoord - 0.5;
     float d = length(q);
     if (d > 0.5) discard;
     // 点的边缘略淡，像颜料在画布纹理上的落点
     float edge = smoothstep(0.5, 0.32, d);
-    gl_FragColor = vec4(mix(vec3(0.95,0.93,0.88), vColor, 0.75 + 0.25 * edge), 1.0);
+    gl_FragColor = vec4(mix(vec3(0.95,0.93,0.88), vColor, uAR > 0.5 ? 1.0 : 0.75 + 0.25 * edge), 1.0);
   }`;
 let points, pointMat;
 
@@ -290,7 +291,7 @@ async function build() {
   geo.setAttribute('aUv', new THREE.BufferAttribute(uv, 2));
   geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
   geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
-  pointMat = new THREE.ShaderMaterial({ uniforms: { uCoh: { value: cohTex }, uTime: { value: 0 }, uPx: { value: innerHeight }, uSizeK: { value: renderer.xr.isPresenting ? XR_NARROW : 1 } }, vertexShader: pointVS, fragmentShader: pointFS });
+  pointMat = new THREE.ShaderMaterial({ uniforms: { uCoh: { value: cohTex }, uTime: { value: 0 }, uPx: { value: innerHeight }, uSizeK: { value: renderer.xr.isPresenting ? XR_NARROW : 1 }, uAR: arU }, vertexShader: pointVS, fragmentShader: pointFS });
   points = new THREE.Points(geo, pointMat);
   points.frustumCulled = false;
   art.add(points);
@@ -344,12 +345,12 @@ function buildAmbient() {
   g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   g.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
   const m = new THREE.ShaderMaterial({
-    uniforms: { uPx: pointMat.uniforms.uPx },
+    uniforms: { uPx: pointMat.uniforms.uPx, uAR: arU },
     vertexShader: `attribute vec3 color; attribute float aSize; uniform float uPx; varying vec3 vC;
       void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position,1.); gl_Position = projectionMatrix * mv;
         gl_PointSize = clamp(aSize * projectionMatrix[1][1] * uPx * 0.5 / -mv.z, 1.5, 40.); }`,
-    fragmentShader: `varying vec3 vC; void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard;
-      gl_FragColor = vec4(mix(vec3(0.95,0.93,0.88), vC, 0.4), 1.); }`,   // 颜色压淡，靠近背景色，不抢画面
+    fragmentShader: `varying vec3 vC; uniform float uAR; void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard;
+      gl_FragColor = vec4(mix(vec3(0.95,0.93,0.88), vC, uAR > 0.5 ? 1.0 : 0.4), 1.); }`,   // 颜色压淡，靠近背景色，不抢画面
   });
   const pts = new THREE.Points(g, m);
   pts.frustumCulled = false;
@@ -541,13 +542,13 @@ document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
 renderer.xr.addEventListener('sessionstart', () => {
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
-  room.visible = opaque; plaque.visible = false;
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque' && !window.__mpAR;   // __mpAR：在画廊点的是 START AR
+  room.visible = opaque; plaque.visible = false; arU.value = opaque ? 0 : 1;
   art.scale.set(XR_NARROW, XR_NARROW, 1); art.position.set(EYE.x * (1 - XR_NARROW), EYE.y * (1 - XR_NARROW), 0);
   if (pointMat) pointMat.uniforms.uSizeK.value = XR_NARROW;          // 点距跟着收窄，点也跟着变小
   renderer.setClearColor(0xf4f0e6, opaque ? 1 : 0);
 });
-renderer.xr.addEventListener('sessionend', () => { room.visible = true; plaque.visible = false; art.scale.set(1, 1, 1); art.position.set(0, 0, 0); if (pointMat) pointMat.uniforms.uSizeK.value = 1; renderer.setClearColor(0xf4f0e6, 1); });
+renderer.xr.addEventListener('sessionend', () => { room.visible = true; plaque.visible = false; arU.value = 0; art.scale.set(1, 1, 1); art.position.set(0, 0, 0); if (pointMat) pointMat.uniforms.uSizeK.value = 1; renderer.setClearColor(0xf4f0e6, 1); });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 // 测试钩子
