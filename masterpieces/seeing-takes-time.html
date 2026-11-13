@@ -63,7 +63,7 @@
     <div class="how" data-xr="慢慢地看，目光停留之处聚成画" data-i18n-html="how" data-i18n-attr="data-xr:xr"><em>视线</em><span>慢慢地看，视线停在哪里哪里聚拢；尽量站稳</span><em>鼠标</em><span>在画面上停留；甩得太快不会聚拢；左下进度条可直接看到最终效果</span><em>声音</em><span>建议戴耳机</span></div>
   </div>
 </div>
-<div id="hud"><span id="pct">已看见 0%</span><button id="mute">静音</button><input type="range" id="prog" min="0" max="100" step="1" value="0" title="拖动直接设定整幅画的聚拢程度" data-i18n-attr="title:progTitle"><span data-i18n="hint">目光停留之处聚拢，看过的会留下；看到 80% 后才慢慢散去；看过 60% 后视线离开画面会飞速散去。拖动进度条可直接看到最终效果</span></div>
+<div id="hud"><span id="pct">已看见 0%</span><button id="mute">静音</button><button id="ar">AR 模式：关</button><input type="range" id="prog" min="0" max="100" step="1" value="0" title="拖动直接设定整幅画的聚拢程度" data-i18n-attr="title:progTitle"><span data-i18n="hint">目光停留之处聚拢，看过的会留下；看到 80% 后才慢慢散去；看过 60% 后视线离开画面会飞速散去。拖动进度条可直接看到最终效果</span></div>
 <div id="finale" data-i18n-html="finale">你用目光完成了这幅画。<small>它会在你移开视线后，慢慢退回成颜色。</small></div>
 
 <script type="module">
@@ -89,7 +89,7 @@ const T = {
     stFail: msg => '载入失败（需要用本地服务器打开，并且 data/grande-jatte 已烘焙）：' + msg,
     xr: '慢慢地看，目光停留之处聚成画',
     how: '<em>视线</em><span>慢慢地看，视线停在哪里哪里聚拢；尽量站稳</span><em>鼠标</em><span>在画面上停留；甩得太快不会聚拢；左下进度条可直接看到最终效果</span><em>声音</em><span>建议戴耳机</span>',
-    seen: n => `已看见 ${n}%`, mute: '静音', unmute: '开声音',
+    seen: n => `已看见 ${n}%`, mute: '静音', unmute: '开声音', arOff: 'AR 模式：关', arOn: 'AR 模式：开',
     progTitle: '拖动直接设定整幅画的聚拢程度',
     hint: '目光停留之处聚拢，看过的会留下；看到 80% 后才慢慢散去；看过 60% 后视线离开画面会飞速散去。拖动进度条可直接看到最终效果',
     finale: '你用目光完成了这幅画。<small>它会在你移开视线后，慢慢退回成颜色。</small>',
@@ -106,7 +106,7 @@ const T = {
     stFail: msg => 'Failed to load (open it from a local server, with data/grande-jatte already baked): ' + msg,
     xr: 'Look slowly — the painting gathers where your gaze rests',
     how: '<em>Gaze</em><span>Look slowly: the dots gather wherever your gaze rests. Try to stand still</span><em>Mouse</em><span>Let the pointer rest on the painting; sweeping too fast gathers nothing. The slider at bottom left jumps to the finished picture</span><em>Sound</em><span>Best with headphones</span>',
-    seen: n => `${n}% seen`, mute: 'Mute', unmute: 'Sound on',
+    seen: n => `${n}% seen`, mute: 'Mute', unmute: 'Sound on', arOff: 'AR mode: off', arOn: 'AR mode: on',
     progTitle: 'Drag to set how far the whole painting has gathered',
     hint: 'The painting gathers where your gaze rests, and what you’ve seen stays. Past 80% it slowly drifts apart; after 60%, looking away from the painting scatters it fast. Drag the slider to see the finished picture.',
     finale: 'You have finished this painting with your eyes.<small>Once you look away, it will slowly dissolve back into colour.</small>',
@@ -120,6 +120,7 @@ const setStatus = (key, arg = '') => { statusKey = key; statusArg = arg; $('stat
 I18N.apply(T, document.body);
 $('enter').textContent = t('loading');
 $('mute').textContent = t('mute');
+$('ar').textContent = t('arOff');
 $('pct').textContent = t('seen', 0);
 const DEG = Math.PI / 180;
 const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
@@ -541,14 +542,25 @@ vrBtn.style.display = arBtn.style.display = 'none';
 document.body.append(vrBtn, arBtn);
 for (const b of [vrBtn, arBtn]) b.addEventListener('click', startAudio);
 $('enter').onclick = () => { startAudio(); $('intro').classList.add('gone'); $('hud').classList.add('on'); vrBtn.style.display = arBtn.style.display = ''; };
+// AR 模式：去掉展厅（墙、地、米白底色），点只用纯颜料色，画漂在真实房间里。
+// 进头显时设备报透视、或在画廊点的是 START AR，自动打开；有的眼镜把自己报成 opaque，所以页面上也给一个开关（进头显前点）
+let arManual = null;                      // null = 跟着设备；true / false = 观众手动选的
+const xrSees = () => renderer.xr.isPresenting && (renderer.xr.getSession().environmentBlendMode !== 'opaque' || !!window.__mpAR);
+function applyAR() {
+  const on = arManual !== null ? arManual : xrSees();
+  arU.value = on ? 1 : 0;
+  room.visible = !on;
+  renderer.setClearColor(0xf4f0e6, on && renderer.xr.isPresenting ? 0 : 1);   // 桌面上没有真实房间可透：底色照旧，只预览纯色的点
+  $('ar').textContent = t(on ? 'arOn' : 'arOff');
+}
+$('ar').onclick = () => { arManual = !(arU.value > 0.5); applyAR(); };
 renderer.xr.addEventListener('sessionstart', () => {
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque' && !window.__mpAR;   // __mpAR：在画廊点的是 START AR
-  room.visible = opaque; plaque.visible = false; arU.value = opaque ? 0 : 1;
+  plaque.visible = false;
   art.scale.set(XR_NARROW, XR_NARROW, 1); art.position.set(EYE.x * (1 - XR_NARROW), EYE.y * (1 - XR_NARROW), 0);
   if (pointMat) pointMat.uniforms.uSizeK.value = XR_NARROW;          // 点距跟着收窄，点也跟着变小
-  renderer.setClearColor(0xf4f0e6, opaque ? 1 : 0);
+  applyAR();
 });
-renderer.xr.addEventListener('sessionend', () => { room.visible = true; plaque.visible = false; arU.value = 0; art.scale.set(1, 1, 1); art.position.set(0, 0, 0); if (pointMat) pointMat.uniforms.uSizeK.value = 1; renderer.setClearColor(0xf4f0e6, 1); });
+renderer.xr.addEventListener('sessionend', () => { plaque.visible = false; art.scale.set(1, 1, 1); art.position.set(0, 0, 0); if (pointMat) pointMat.uniforms.uSizeK.value = 1; applyAR(); });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 // 测试钩子
@@ -567,6 +579,7 @@ I18N.onChange(() => {
   $('enter').textContent = loaded ? t('enter') : t('loading');
   if (statusKey) setStatus(statusKey, statusArg);
   $('mute').textContent = muted ? t('unmute') : t('mute');
+  $('ar').textContent = t(arU.value > 0.5 ? 'arOn' : 'arOff');
   $('pct').textContent = t('seen', coh ? Math.round(coh.reduce((a, b) => a + b, 0) / coh.length * 100) : 0);
   drawPlaque();                             // 展签画在画布上：按新语言重画（边上的彩点会重新撒一遍）
 });
