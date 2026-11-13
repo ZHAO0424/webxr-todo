@@ -1038,8 +1038,11 @@ document.getElementById('mute').onclick = () => {
 
 // ---------- XR 摆放 ----------
 let needPlace = false, placeWait = 0;
-renderer.xr.addEventListener('sessionstart', () => { needPlace = true; placeWait = 0; anchor.set = false; document.getElementById('card').style.opacity = 0; document.getElementById('btns').style.opacity = 0; });
-renderer.xr.addEventListener('sessionend', () => { world.position.set(0, 0, 0); world.rotation.set(0, 0, 0); document.getElementById('card').style.opacity = 1; document.getElementById('btns').style.opacity = 1; onResize(); });
+// AR：头显里不画背景色、清屏透明。原来深色背景按不透明写进帧缓冲，投屏 / 相机透视按 alpha 叠画面时，
+// 整个背景是一面黑墙，发光特效周围看起来全是黑的。光学透视眼镜里黑本来就是透明，看起来不变；不透明头显里清屏也还是黑。
+const BG = scene.background;
+renderer.xr.addEventListener('sessionstart', () => { needPlace = true; scene.background = null; renderer.setClearColor(0x000000, 0); placeWait = 0; anchor.set = false; document.getElementById('card').style.opacity = 0; document.getElementById('btns').style.opacity = 0; });
+renderer.xr.addEventListener('sessionend', () => { world.position.set(0, 0, 0); scene.background = BG; renderer.setClearColor(0x000000, 1); world.rotation.set(0, 0, 0); document.getElementById('card').style.opacity = 1; document.getElementById('btns').style.opacity = 1; onResize(); });
 function place() {
   const cam = renderer.xr.getCamera(), p = new V3().setFromMatrixPosition(cam.matrixWorld);
   const d = new V3(0, 0, -1).transformDirection(cam.matrixWorld);
