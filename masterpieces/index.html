@@ -174,9 +174,10 @@ floor.rotation.x = -Math.PI / 2; floor.position.y = FLOOR; floor.renderOrder = -
 
 // 画：一块平面同时画画框和画；正对你的那幅亮，其余的暗；提灯照到哪里哪里亮
 const ring = new THREE.Group(); scene.add(ring);
+const flatU = { value: 0 };                                // 1 = AR：所有画共用，平光不打灯
 const paintVS = `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`;
 const paintFS = reflect => `
-  uniform sampler2D tMap; uniform vec2 uSize; uniform float uFrame, uLit, uHover, uTime, uReady; uniform vec3 uTorch;
+  uniform sampler2D tMap; uniform vec2 uSize; uniform float uFrame, uLit, uHover, uTime, uReady, uFlat; uniform vec3 uTorch;
   varying vec2 vUv; varying vec3 vW;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   void main() {
@@ -202,6 +203,8 @@ const paintFS = reflect => `
     // 光：从上方打下来的一束，正中那幅最亮
     float spot = 0.55 + 0.45 * smoothstep(-1.3, 1.1, p.y) * exp(-p.x * p.x * 0.12);
     vec3 lit = c * (0.12 + 0.95 * uLit * spot + 0.12 * uHover);
+    // AR：没有暗室和灯，画按原色、同样亮；画框暗边、清漆光泽、上下明暗都不要，只留对准时一点提亮。uLit 这时只管两头淡出
+    if (uFlat > 0.5) { vec2 qf = abs(p) - uSize * 0.5; vec3 cf = qf.x < 0.0 && qf.y < 0.0 ? mix(vec3(0.08), texture2D(tMap, p / uSize + 0.5).rgb, uReady) : vec3(0.62, 0.46, 0.22); lit = cf * uLit * (1.0 + 0.15 * uHover); }
     vec2 d = gl_FragCoord.xy - uTorch.xy;
     lit += c * vec3(1.0, 0.86, 0.66) * 0.55 * uTorch.z * exp(-dot(d, d) / 26000.0);
     lit += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
@@ -209,7 +212,7 @@ const paintFS = reflect => `
   }`;
 const loader = new THREE.TextureLoader();
 const paintings = W.map((w, k) => {
-  const u = { tMap: { value: null }, uSize: { value: new THREE.Vector2(2, 2) }, uFrame: { value: 0.11 }, uLit: { value: 0.2 }, uHover: { value: 0 }, uTime: { value: 0 }, uReady: { value: 0 }, uTorch: { value: torch } };
+  const u = { tMap: { value: null }, uSize: { value: new THREE.Vector2(2, 2) }, uFrame: { value: 0.11 }, uLit: { value: 0.2 }, uHover: { value: 0 }, uTime: { value: 0 }, uReady: { value: 0 }, uTorch: { value: torch }, uFlat: flatU };
   const mat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: paintVS, fragmentShader: paintFS(false) });
   const rmat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: paintVS, fragmentShader: paintFS(true), transparent: true, depthWrite: false, side: THREE.DoubleSide });
   const holder = new THREE.Group();
@@ -354,10 +357,33 @@ const label = (() => {
   };
   return { m, draw, k: -1 };
 })();
+// 名牌下面的语言按钮：「中文 · EN」，当前那种亮；射线对准它快捏一下就切换。头显里没有网页上的胶囊可点
+const langBtn = (() => {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 160;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9 * 160 / 512), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, toneMapped: false }));
+  m.visible = false; m.renderOrder = 5;
+  const g = c.getContext('2d');
+  let key = '';
+  const draw = hot => {
+    const en = !!I18N && I18N.lang === 'en', k = `${en}|${hot}`; if (k === key) return; key = k;
+    g.clearRect(0, 0, c.width, c.height);
+    g.lineWidth = 4; g.strokeStyle = hot ? 'rgba(222,186,110,.95)' : 'rgba(201,164,92,.45)'; g.fillStyle = hot ? 'rgba(40,32,20,.55)' : 'rgba(20,16,12,.35)';
+    g.beginPath(); g.roundRect(6, 6, c.width - 12, c.height - 12, 70); g.fill(); g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.letterSpacing = '2px';
+    g.font = '500 64px "Songti SC", "STSong", "SimSun", serif'; g.fillStyle = en ? 'rgba(232,224,210,.4)' : '#f3ede2'; g.fillText('中文', 150, 84);
+    g.font = '500 60px Georgia, serif'; g.fillStyle = en ? '#f3ede2' : 'rgba(232,224,210,.4)'; g.fillText('EN', 372, 84);
+    g.fillStyle = 'rgba(201,164,92,.6)'; g.fillRect(c.width / 2 - 2, 50, 4, 60);
+    m.material.map.needsUpdate = true;
+  };
+  return { m, draw, hot: false };
+})();
 const cap = xrCaption({ renderer, scene, camera });
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
 const arBtn = ARButton.createButton(renderer, { optionalFeatures: ['hand-tracking', 'local-floor'] });
 document.body.append(vrBtn, arBtn);
+// 记下观众点的是哪个：换到作品再换回画廊时页面脚本会重跑，所以记在 window 上
+vrBtn.addEventListener('click', () => { window.__mpAR = false; });
+arBtn.addEventListener('click', () => { window.__mpAR = true; });
 const rayGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]);
 for (let i = 0; i < 2; i++) {
   const c = renderer.xr.getController(i);
@@ -369,9 +395,11 @@ for (let i = 0; i < 2; i++) {
   rig.add(renderer.xr.getHand(i));
 }
 renderer.xr.addEventListener('sessionstart', () => {
-  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque';
+  // AR：设备报的是透视（光学 / 摄像头），或者观众点的是「START AR」—— 有的眼镜把自己报成 opaque，按钮比它准
+  const opaque = renderer.xr.getSession().environmentBlendMode === 'opaque' && !window.__mpAR;
   rig.position.y = -EYE_H;                                  // 地板在脚下，画挂在眼睛的高度
   wall.visible = floor.visible = opaque;                    // AR：只留下画，挂在真实的房间里
+  flatU.value = opaque ? 0 : 1;                             // AR：灯光也去掉
   renderer.setClearColor(0x0b0a0d, opaque ? 1 : 0);
   entering = null; torch.z = 0; mouse.set(9, 9);
   xr.anchored = false; xr.drag = null;
@@ -380,10 +408,10 @@ renderer.xr.addEventListener('sessionstart', () => {
   cap.show(() => L('xrIntro'), 9);                          // 传函数：显示中换了语言会按新语言重画
 });
 renderer.xr.addEventListener('sessionend', () => {
-  rig.position.y = 0; wall.visible = floor.visible = true; renderer.setClearColor(0x0b0a0d, 1);
+  rig.position.y = 0; wall.visible = floor.visible = true; flatU.value = 0; renderer.setClearColor(0x0b0a0d, 1);
   ring.position.set(0, 0, 0); xr.drag = null; xr.hoverK = -1;
   paintings.forEach((p, k) => { p.holder.position.copy(homeXf[k].p); p.holder.quaternion.copy(homeXf[k].q); p.holder.scale.setScalar(1); p.holder.visible = true; p.refl.visible = true; });
-  label.m.visible = false; label.m.scale.setScalar(1); wallU.uView.value = 0;
+  label.m.visible = langBtn.m.visible = false; label.m.scale.setScalar(1); wallU.uView.value = 0;
 });
 const xrTmp = { o: new THREE.Vector3(), d: new THREE.Vector3(), p: new THREE.Vector3(), q: new THREE.Vector3(), m: new THREE.Matrix4(), v: new THREE.Vector3() };
 const meshes = paintings.map(p => p.mesh);
@@ -401,15 +429,16 @@ function aimX(c) {
 function pinchStart(c) {
   if (xr.drag || entering) return;                          // 一次只认一只手在拨
   const x = aimX(c), now = performance.now();
-  xr.drag = { c, x0: x, lx: x, t0: now, tgt0: target, moved: 0, v: 0 };
+  xr.drag = { c, x0: x, lx: x, t0: now, tgt0: target, moved: 0, v: 0, lang: !!c.userData.lang };   // 按下时对着语言按钮：捏住时按钮会收起，所以这里先记下
 }
 function pinchEnd(c) {
   const g = xr.drag; if (!g || g.c !== c) return;
   xr.drag = null;
-  if (g.moved < XRC.TAP && performance.now() - g.t0 < 700) return tap(c, g.x0);
+  if (g.moved < XRC.TAP && performance.now() - g.t0 < 700) return tap(c, g.x0, g.lang);
   target = Math.round(target + Math.max(-2, Math.min(2, g.v * 0.18)));   // 甩一下多翻一两张
 }
-function tap(c, x) {
+function tap(c, x, lang) {
+  if (lang) { if (I18N) I18N.toggle(); hop.sfx('note', { deg: 4, gain: 0.5 }); return; }   // 语言按钮
   const k = c.userData.k, f = mod(Math.round(target), N);
   if (k === f) enter(k);                                    // 正中那幅：走进去
   else if (k >= 0) target = Math.round(target) + shortest(f, k);   // 旁边那张：转过来
@@ -449,21 +478,26 @@ function xrStep(dt) {
     h.position.set(Math.sin(a) * r, 0, -Math.cos(a) * r);
     h.rotation.set(0, -a - Math.sign(off) * Math.min(ao, 1) * 0.45, 0);
     h.scale.setScalar(XRC.S * (1 - 0.2 * Math.min(ao, 2)));
-    pt.u.uLit.value = Math.exp(-off * off * 1.6) * (1 - Math.max(0, Math.min(1, (ao - 2) / 0.7)));
+    const fade = 1 - Math.max(0, Math.min(1, (ao - 2) / 0.7));
+    pt.u.uLit.value = flatU.value ? fade : Math.exp(-off * off * 1.6) * fade;   // AR 平光：只在最外侧淡出
   });
   // 手 / 手柄的射线指着哪幅
   for (const c of xr.ctrls) {
     m.identity().extractRotation(c.matrixWorld);
     c.userData.k = c.visible ? hitK(p.setFromMatrixPosition(c.matrixWorld), q.set(0, 0, -1).applyMatrix4(m)) : -1;
+    c.userData.lang = c.visible && langBtn.m.visible && ray.intersectObject(langBtn.m).length > 0;   // hitK 刚用同一条射线
   }
+  const langHot = xr.ctrls.some(c => c.userData.lang);
+  langBtn.draw(langHot);
   const pointed = xr.ctrls.map(c => c.userData.k).find(k => k >= 0);
   xr.hoverK = pointed !== undefined ? pointed : -1;
   paintings.forEach((pt, k) => { pt.u.uHover.value += ((xr.hoverK === k ? 1 : 0) - pt.u.uHover.value) * Math.min(1, dt * 8); });
   // 名牌挂在正中那幅下面；牌在转的时候先收起来
   const f = mod(Math.round(target), N), pt = paintings[f];
-  if (label.k !== f) { pt.holder.add(label.m); label.draw(f); label.k = f; }
+  if (label.k !== f) { pt.holder.add(label.m, langBtn.m); label.draw(f); label.k = f; }
   label.m.position.set(0, 0.35 - pt.size.y / 2 - 0.11 - 0.5, 0.02);
-  label.m.visible = Math.abs(cur - target) < 0.25 && !g;
+  langBtn.m.position.set(0, label.m.position.y - 0.3 - 0.24, 0.02);   // 名牌（高 0.6）下面
+  label.m.visible = langBtn.m.visible = Math.abs(cur - target) < 0.25 && !g;
   return { hoverK: xr.hoverK, cur: +cur.toFixed(2), target: +target.toFixed(2), drag: !!g, label: label.m.visible, yaw: +xr.yaw.toFixed(2) };
 }
 window.__xrStep = xrStep;   // 测试钩子
