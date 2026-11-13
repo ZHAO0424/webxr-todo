@@ -83,7 +83,7 @@ const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,unif
 #include <colorspace_fragment>
 }`});
 skyMat.fragmentShader=skyMat.fragmentShader.replace('uniform float uNight,uFlash;','uniform float uNight,uFlash,uEco,uWaste;').replace('c*=1.-uNight*.8;','c=mix(c,mix(vec3(.045,.13,.15),vec3(.018,.065,.09),pow(h,.6)),uEco*.96);c=mix(c,mix(vec3(.26,.17,.085),vec3(.095,.077,.055),pow(h,.5)),uWaste*.95);c*=1.-uNight*.8;');
-const sky=new THREE.Mesh(new THREE.SphereGeometry(95,32,20),skyMat);sky.frustumCulled=false;scene.add(sky);
+const sky=new THREE.Mesh(new THREE.SphereGeometry(95,32,20),skyMat);sky.frustumCulled=false;sky.rotation.y=Math.PI;scene.add(sky);   // 云层 atan 接缝在 -Z（XR 里正前方），转 180° 放到身后
 const envScene=new THREE.Scene();envScene.add(new THREE.Mesh(new THREE.SphereGeometry(30,32,20),skyMat));const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(envScene,.025).texture;pmrem.dispose();
 const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,.03,120);camera.position.set(15,17.8,29);const rig=new THREE.Group();rig.add(camera);scene.add(rig);
 if(innerWidth/innerHeight<1.2)camera.position.multiplyScalar(Math.min(3,1.2/(innerWidth/innerHeight)));const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,6.0,0);controls.enableDamping=true;controls.minDistance=19;controls.maxDistance=64;controls.maxPolarAngle=1.25;controls.autoRotate=false;controls.autoRotateSpeed=.1;let lastInput=0,viewMove=null;controls.addEventListener('start',()=>{viewMove=null;lastInput=performance.now();controls.autoRotate=false});controls.addEventListener('end',()=>lastInput=performance.now());
@@ -1206,13 +1206,15 @@ const xrMenu=(()=>{
  }
  function signature(){return [LANG,active,flipping,weather,eco.running,eco.shade,eco.irrigation,waste.running,waste.pump,waste.gateOpen,hover?.id,pressed?pressT.toFixed(2):'',infoRender?infoRender():''].join('|')}
  // 哪个控制器是左手：connected 事件里的 handedness
- const srcs=[],beams=[],ctrls=[];
- function track(i,controller,beam){ctrls[i]=controller;beams[i]=beam;controller.addEventListener('connected',e=>srcs[i]=e.data);controller.addEventListener('disconnected',()=>srcs[i]=null);
+ const srcs=[],beams=[],ctrls=[],handHover=[];
+ // 手部追踪的目标射线偏高：射线绕手的 X 轴往下压 HAND_TILT；aim 和场景点选都按 beam 的朝向算
+ const HAND_TILT=THREE.MathUtils.degToRad(30);
+ function track(i,controller,beam){ctrls[i]=controller;beams[i]=beam;controller.addEventListener('connected',e=>{srcs[i]=e.data;beam.rotation.x=e.data.hand?-HAND_TILT:0});controller.addEventListener('disconnected',()=>srcs[i]=null);
   const hand=renderer.xr.getHand(i);rig.add(hand);const grip=renderer.xr.getControllerGrip(i);rig.add(grip);ctrls[i].userData.hand=hand;ctrls[i].userData.grip=grip}
  const leftIndex=()=>srcs.findIndex(s=>s?.handedness==='left');
  const hit=new THREE.Raycaster(),tmpM=new THREE.Matrix4();
- function aim(i){const c=ctrls[i];tmpM.extractRotation(c.matrixWorld);hit.ray.origin.setFromMatrixPosition(c.matrixWorld);hit.ray.direction.set(0,0,-1).applyMatrix4(tmpM);return hit}
- function buttonAt(r){if(shown<.5)return null;const h=r.intersectObject(mesh,false)[0];if(!h)return undefined;const px=h.uv.x*W,py=(1-h.uv.y)*H;return buttons.find(b=>px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h)||null}
+ function aim(i){const b=beams[i];b.updateWorldMatrix(true,false);tmpM.extractRotation(b.matrixWorld);hit.ray.origin.setFromMatrixPosition(b.matrixWorld);hit.ray.direction.set(0,0,-1).applyMatrix4(tmpM);return hit}
+ let lastHit=null;function buttonAt(r){lastHit=null;if(shown<.5)return null;const h=r.intersectObject(mesh,false)[0];if(!h)return undefined;lastHit=h;const px=h.uv.x*W,py=(1-h.uv.y)*H;return buttons.find(b=>px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h)||null}
  // 掌心法线：左手 wrist→食指掌骨 × wrist→小指掌骨 指向手背，取反就是掌心
  const vW=new THREE.Vector3(),vI=new THREE.Vector3(),vP=new THREE.Vector3(),vM=new THREE.Vector3(),palm=new THREE.Vector3(),head=new THREE.Vector3(),toHead=new THREE.Vector3(),target=new THREE.Vector3(),fwd=new THREE.Vector3(),q=new THREE.Quaternion();
  const UP=new THREE.Vector3(0,1,0);let placed=false;
@@ -1236,20 +1238,23 @@ const xrMenu=(()=>{
   shown=THREE.MathUtils.damp(shown,want?1:0,10,dt);mat.opacity=shown;mesh.visible=shown>.02;
   // 右手（不是挂菜单的那只）射线：悬停加亮；挂在左手时左手射线隐藏
   const li=leftIndex();let h=null;
-  ctrls.forEach((c,i)=>{const own=i===li&&anchored!=='view'&&shown>.5;if(beams[i])beams[i].visible=!own;if(own||!srcs[i])return;const b=buttonAt(aim(i));if(b)h=b});
+  ctrls.forEach((c,i)=>{const own=i===li&&anchored!=='view'&&shown>.5;if(beams[i])beams[i].visible=!own;handHover[i]=undefined;if(own||!srcs[i])return;const b=buttonAt(aim(i));handHover[i]=b;
+   beams[i].scale.z=lastHit?lastHit.distance/5:1;   // 射线停在菜单上，看得出指到哪
+   if(b)h=b});
   hover=h;if(pressed){pressT+=dt;if(pressT>.18)pressed=null}
   const s=signature();if(s!==sig){sig=s;draw()}
  }
  // 捏合 / 扳机：命中菜单就吃掉这次选择（返回 true），不再传给场景
  function select(i,r){if(!renderer.xr.isPresenting)return false;const li=leftIndex();if(i===li&&anchored!=='view'&&shown>.5)return true;
-  const b=buttonAt(r);if(b===undefined||b===null&&shown<.5)return false;if(b&&!b.off?.()){b.press();pressed=b;pressT=0;sig=''}return true}
- return {track,update,select,dirty:()=>{sig=''},hide:()=>{mesh.visible=false;shown=0;mat.opacity=0;placed=false;infoRender=null;$('#info').style.display='none';beams.forEach(b=>b&&(b.visible=true))},
+  const now=buttonAt(aim(i)),b=handHover[i]||now;   // 捏合瞬间手部射线会跳，优先用上一帧悬停的按钮
+  if(b===undefined||b===null&&shown<.5)return false;if(b&&!b.off?.()){b.press();pressed=b;pressT=0;sig=''}return true}
+ return {track,update,select,dirty:()=>{sig=''},hide:()=>{mesh.visible=false;shown=0;mat.opacity=0;placed=false;infoRender=null;$('#info').style.display='none';beams.forEach(b=>b&&(b.visible=true,b.scale.z=1))},
   _debug:{mesh,canvas,draw,buttons:()=>buttons,press:id=>{layout();const b=buttons.find(x=>x.id===id);b?.press();return !!b},setVisible:v=>{want=v;shown=v?1:0;mat.opacity=shown;mesh.visible=v},buttonAt}};
 })();
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down=null;renderer.domElement.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)return;pointer.set(e.clientX/innerWidth*2-1,-e.clientY/innerHeight*2+1);ray.setFromCamera(pointer,camera);selectRay(ray)});
 function selectRay(r,infoOnly=false){if(flipping&&!infoOnly)return;let hits=r.intersectObjects(world.children,true).filter(h=>{for(let o=h.object;o;o=o.parent)if(!o.visible)return false;return true});for(let hit of hits){let o=hit.object;if(o.userData.action&&!infoOnly){o.userData.action();return}if(o.userData.water!==undefined){return}if(o.userData.info){const key=o.userData.info;showInfo(()=>tr(key));return}return}}
 let vrButton=VRButton.createButton(renderer,{optionalFeatures:['local-floor','bounded-floor','hand-tracking']});$('#xr-slot').append(vrButton);let savedCamera,savedTarget;renderer.xr.addEventListener('sessionstart',()=>{savedCamera=camera.position.clone();savedTarget=controls.target.clone();controls.enabled=false;renderer.shadowMap.enabled=false;world.scale.setScalar(.12);camera.position.set(0,0,0);rig.position.set(0,0,2.8);scene.fog=null;warmFlipPrograms()});renderer.xr.addEventListener('sessionend',()=>{renderer.shadowMap.enabled=quality!=='low';renderer.shadowMap.needsUpdate=true;xrMenu.hide();world.scale.setScalar(1);rig.position.set(0,0,0);camera.position.copy(savedCamera);controls.target.copy(savedTarget);controls.enabled=true;scene.fog=new THREE.FogExp2('#68747b',.008);warmFlipPrograms()});
-for(let i=0;i<2;i++){let controller=renderer.xr.getController(i);rig.add(controller);let beam=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-5)]),new THREE.LineBasicMaterial({color:0xb5f7d3}));controller.add(beam);controller.addEventListener('selectstart',()=>{let rot=new THREE.Matrix4().extractRotation(controller.matrixWorld);ray.ray.origin.setFromMatrixPosition(controller.matrixWorld);ray.ray.direction.set(0,0,-1).applyMatrix4(rot);if(xrMenu.select(i,ray))return;selectRay(ray,true)});xrMenu.track(i,controller,beam)}
+for(let i=0;i<2;i++){let controller=renderer.xr.getController(i);rig.add(controller);let beam=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-5)]),new THREE.LineBasicMaterial({color:0xb5f7d3}));controller.add(beam);controller.addEventListener('selectstart',()=>{beam.updateWorldMatrix(true,false);let rot=new THREE.Matrix4().extractRotation(beam.matrixWorld);ray.ray.origin.setFromMatrixPosition(beam.matrixWorld);ray.ray.direction.set(0,0,-1).applyMatrix4(rot);if(xrMenu.select(i,ray))return;selectRay(ray,true)});xrMenu.track(i,controller,beam)}
 let prev=0,frame=0,fpsTime=0;const dark=new THREE.Color('#12191d'),bright=new THREE.Color('#394449');
 function solveLoadingArm(o,target){
  const arm=o.arm,dx=target.x-arm.base.position.x,dz=target.z-arm.base.position.z,dy=target.y-arm.base.position.y-.17,r=Math.hypot(dx,dz),d=Math.hypot(r,dy),l1=.95,l2=.8;
