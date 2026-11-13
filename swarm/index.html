@@ -1092,7 +1092,7 @@ function loop() {
   if (state !== 'play' || panelDirty) { drawPanel(t); panelDirty = false; }
   panel.m.visible = state !== 'play';
   // 点大小按竖直方向算（着色器乘 projectionMatrix[1][1]），所以这里取视口高度的一半；XR 以前取的是宽度，点会大约 1.8 倍
-  pMat.uniforms.uScale.value = xr ? ((renderer.xr.getCamera().cameras[0] || {}).viewport || { h: 1200 }).h / 2 : renderer.domElement.height / 2;
+  pMat.uniforms.uScale.value = xr ? ((renderer.xr.getCamera().cameras[0] || {}).viewport || { w: 1200 }).w / 2 : renderer.domElement.height / 2;   // three 的 viewport 是 Vector4，高度在 .w（.h 是 undefined → 点大小 NaN，眼镜里所有光点都不见）
   if (xr) renderer.render(scene, camera); else composer.render();
 }
 
