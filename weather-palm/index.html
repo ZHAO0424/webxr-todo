@@ -335,7 +335,7 @@ const treeSpots = [];
   for (const b of L.bigTrees) { const x = snapB(b.x), z = snapB(b.z); treeSpots.push({ x, z, kind: 'big', v: 0 }); taken.add(K(x, z)); }
   // 树种按高度分带（像山里的植被带）：低处橡树、白桦、几棵秋色的黄栌（红）和银杏色的（黄）；半山云杉、油松、侧柏；岩壁上零星油松
   const pick = (opts) => { let r = rand() * opts.reduce((s2, o) => s2 + o[1], 0); for (const [k, wgt] of opts) if ((r -= wgt) <= 0) return k; return opts[0][0]; };
-  const GAP = { oak: 5, maple: 5, golden: 5, rust: 5, blossom: 5, jacaranda: 5, bluespruce: 4, willow: 6, acacia: 6, palm: 5, cactus: 4, birch: 4, spruce: 4, pine: 5, cypress: 3, bush: 3 };
+  const GAP = { oak: 7, maple: 7, golden: 7, rust: 7, blossom: 7, jacaranda: 7, bluespruce: 5, willow: 6, acacia: 6, palm: 5, cactus: 4, birch: 4, spruce: 5, pine: 6, cypress: 3, bush: 3 };
   for (let tries = 0; tries < 30000; tries++) {
     const a = rand(0, TAU), rr = Math.sqrt(rand()) * (R - 0.012), x = snapB(Math.cos(a) * rr), z = snapB(Math.sin(a) * rr), t = S.cellType(x, z);
     if (isWaterish(x, z) || H(x + 2 * B, z) < H(x, z) - 4 * B || H(x - 2 * B, z) < H(x, z) - 4 * B || H(x, z + 2 * B) < H(x, z) - 4 * B) continue;   // 不种在崖边
@@ -1341,7 +1341,7 @@ function visuals(dt, Js, states) {
   const flash = terrainMat.uniforms.uFlash.value = Math.max(0, terrainMat.uniforms.uFlash.value - dt * 5);
   // 光照：夜里也不能太暗（光学透视下暗 = 看不见），用偏蓝的高环境光
   // 方块游戏的光：白天就是贴图本来的颜色（顶面 1.0）；夜里偏蓝、压暗，但不能太暗（光学透视里暗 = 看不见）；阴天、雷雨压一点
-  const sp = sunPos(), ambLvl = lerp(0.68, 0.92, dayK) * (1 - 0.15 * cover) * (1 - 0.2 * storm) + flash * 0.3;
+  const sp = sunPos(), ambLvl = lerp(0.66, 0.84, dayK) * (1 - 0.15 * cover) * (1 - 0.2 * storm) + flash * 0.3;
   const ambC = terrainMat.uniforms.uAmbC.value.setRGB(lerp(0.72, 1.0, dayK), lerp(0.78, 0.99, dayK), lerp(1.0, 0.95, dayK)).multiplyScalar(ambLvl);
   const sunK = Math.max(0, w.sun) * 0.35 * (1 - 0.5 * storm);
   terrainMat.uniforms.uSunC.value.setRGB(1.0, lerp(0.7, 0.92, smooth(0, 0.5, sh)), lerp(0.5, 0.8, smooth(0, 0.5, sh))).multiplyScalar(sunK);
@@ -1353,6 +1353,8 @@ function visuals(dt, Js, states) {
   hemi.intensity = 2.4 * ambLvl; hemi.color.setRGB(ambC.r, ambC.g, ambC.b).multiplyScalar(1 / Math.max(0.01, ambLvl));
   sunL.position.copy(sp).multiplyScalar(4); sunL.intensity = 2.6 * sunK + flash * 3;
   waterU.uWater.value += (w.water + (w.flood ? 0.25 : 0) - waterU.uWater.value) * Math.min(1, dt * 2); waterU.uRain.value = w.rainNow; waterU.uIce.value += (w.ice - waterU.uIce.value) * Math.min(1, dt * 2); waterU.uLight.value.copy(ambC).multiplyScalar(1.15).add(terrainMat.uniforms.uSunC.value);   // 水也跟着昼夜变亮变暗
+  { const cw = new V3(); (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(cw); waterU.uCam.value.copy(world.worldToLocal(cw)); }   // 水的反光要知道人从哪看
+  waterU.uSunDir.value.copy(sp).normalize(); waterU.uSunK.value = smooth(0.0, 0.15, sh) * (1 - 0.8 * cover);
   U.uWind.value.set(w.wind[0] * 0.9, w.wind[1] * 0.9);
   if ((plantT -= dt) <= 0) { plantT = 0.25; updatePlants(); }
 

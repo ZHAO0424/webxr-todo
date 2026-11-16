@@ -441,9 +441,10 @@ export function buildWater(shared) {
   g.setAttribute('aD', new THREE.Float32BufferAttribute(dA, 1)); g.setAttribute('aPond', new THREE.Float32BufferAttribute(pondA, 1));
   g.setAttribute('aV', new THREE.Float32BufferAttribute(vA, 1));
   g.setIndex(idx);
-  const u = { uIce: { value: 0 }, uWater: { value: 0.3 }, uRain: { value: 0 }, uTime: shared.uTime, uFill: { value: null }, uR: { value: S.R }, uLight: { value: new THREE.Color(1, 1, 1) } };
+  const u = { uIce: { value: 0 }, uWater: { value: 0.3 }, uRain: { value: 0 }, uTime: shared.uTime, uFill: { value: null }, uR: { value: S.R }, uLight: { value: new THREE.Color(1, 1, 1) },
+    uCam: { value: new THREE.Vector3(0, 0.4, 0.4) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunK: { value: 1 } };
   const mat = new THREE.ShaderMaterial({
-    uniforms: u, transparent: true, side: THREE.DoubleSide,
+    uniforms: u, transparent: true, side: THREE.DoubleSide, depthWrite: false,
     vertexShader: `attribute float aD, aPond, aV; uniform float uWater; varying float vD, vPond, vCov, vV; varying vec3 vP;
       void main() {
         float cov = aPond > 0.5 ? 0.82 + 0.32 * uWater : 0.0034 + 0.0062 * uWater;
@@ -451,33 +452,57 @@ export function buildWater(shared) {
         vec3 p = position; p.y += 0.0009 + 0.0032 * uWater; vP = p;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       }`,
+    // 照 Terraglass 的水：清的水体（浅处看得见底、越深越蓝越不透明）、平滑的小波浪、
+    // 斜着看反射天光（菲涅尔）、太阳的高光一闪一闪、岸边一圈白浪；波浪按 0.4 mm 的格子取样，和方块世界的颗粒一致
     fragmentShader: COMMON_GLSL + `
-      uniform float uTime, uRain, uR, uIce; uniform sampler2D uFill; uniform vec3 uLight; varying float vD, vPond, vCov, vV; varying vec3 vP;
+      uniform float uTime, uRain, uR, uIce, uSunK; uniform sampler2D uFill; uniform vec3 uLight, uCam, uSunDir; varying float vD, vPond, vCov, vV; varying vec3 vP;
+      const float TXS = ${TX.toFixed(6)};
       void main() {
         if (vD > vCov) discard;
         if (texture(uFill, (vP.xz + uR) / (2.0 * uR)).r > 0.5) discard;   // 被岩浆石、沙子填出来的陆地
-        // 水的贴图：贴图像素上缓缓流动的两三种蓝，越往中间越深
-        vec2 t = floor(vP.xz / ${TX.toFixed(6)});
-        float flow = vnoise(t * 0.22 + vec2(uTime * 0.6, uTime * 0.25)) + 0.5 * vnoise(t * 0.5 - vec2(uTime * 0.4, 0.0));
-        if (vV > 0.5) { vec2 tv = floor(vec2(vP.x + vP.z, vP.y) / ${TX.toFixed(6)}); flow = vnoise(vec2(tv.x * 0.6, tv.y * 0.25 + uTime * 6.0)) * 1.4; }   // 落下来的水：竖着往下流
-        float depth = 1.0 - vD / vCov;
-        vec3 c = mix(vec3(0.3, 0.72, 0.76), vec3(0.27, 0.5, 0.86), smoothstep(0.05, 0.4, depth)); c = mix(c, vec3(0.2, 0.4, 0.8), smoothstep(0.45, 0.85, depth));
-        c *= flow > 1.05 ? 1.14 : flow < 0.55 ? 0.92 : 1.0;
-        if (h21(t + floor(uTime * 5.0)) > 0.996 - uRain * 0.02) c = vec3(0.86, 0.93, 1.0);   // 偶尔一点反光；下雨时是雨点
-        // 浅水的焦散：一道道亮的网纹在水底慢慢晃
-        if (vV < 0.5 && depth < 0.55) { float ca = abs(sin(t.x * 0.55 + uTime * 1.3 + sin(t.y * 0.4 + uTime))) * abs(sin(t.y * 0.5 - uTime * 1.1 + sin(t.x * 0.35))); if (ca > 0.72) c = mix(c, vec3(0.75, 0.95, 0.98), 0.55 * (1.0 - depth / 0.55)); }
-        // 岸边一圈白浪：贴着岸，一涌一涌
-        float surf = 0.09 + 0.05 * sin(uTime * 1.6 + (t.x + t.y) * 0.18) + 0.03 * h21(floor(t / 2.0));
-        if (vV < 0.5 && depth < surf) c = vec3(0.93, 0.97, 1.0) * (0.94 + 0.06 * h21(t + floor(uTime * 3.0)));
-        if (vV > 0.5 && h21(vec2(t.x, floor(uTime * 8.0 + t.y * 0.3))) > 0.8) c = vec3(0.92, 0.97, 1.0);   // 瀑布上的白水
-        float al = 0.78;
-        // 结冰：淡蓝白的冰面，一道道白的裂纹；冰从岸边往里结
-        if (vV < 0.5 && uIce > 0.02 && h21(floor(t / 2.0) + 2.3) < uIce * (1.2 - depth * 0.6)) {
-          c = vec3(0.78, 0.88, 0.96) * (0.94 + 0.08 * h21(t));
-          if (mod(t.x + t.y * 2.0, 9.0) < 1.0 && h21(t * 0.3) > 0.4) c = vec3(0.95, 0.98, 1.0);
-          al = 0.93;
+        vec2 t = floor(vP.xz / TXS);
+        vec2 q = (t + 0.5) * TXS;
+        float depth = clamp(1.0 - vD / vCov, 0.0, 1.0);
+        if (vV > 0.5) {   // 落下来的水：竖着一道道往下冲的白和浅蓝
+          vec2 tv = floor(vec2(vP.x + vP.z, vP.y) / TXS);
+          float st = h21(vec2(tv.x, floor(tv.y * 0.35 + uTime * 9.0 + h21(vec2(tv.x, 1.0)) * 7.0)));
+          vec3 c = st > 0.78 ? vec3(0.94, 0.98, 1.0) : st > 0.4 ? vec3(0.56, 0.8, 0.94) : vec3(0.42, 0.68, 0.9);
+          gl_FragColor = vec4(s2l(c) * min(uLight, vec3(1.1)), st > 0.78 ? 0.95 : 0.8);
+          #include <colorspace_fragment>
+          return;
         }
-        gl_FragColor = vec4(s2l(c) * min(uLight, vec3(1.1)), al);
+        // 小波浪的法线（三组正弦叠起来；下雨时更碎）
+        float a = 0.00007 + 0.00006 * uRain;
+        float p1 = q.x * 900.0 + uTime * 1.7, p2 = q.y * 760.0 - uTime * 1.3, p3 = (q.x + q.y) * 1400.0 + uTime * 2.6, p4 = (q.x - q.y) * 2100.0 - uTime * 3.4;
+        float dx = a * (900.0 * cos(p1) + 0.6 * 1400.0 * cos(p3) + uRain * 0.5 * 2100.0 * cos(p4));
+        float dz = a * (760.0 * cos(p2) + 0.6 * 1400.0 * cos(p3) - uRain * 0.5 * 2100.0 * cos(p4));
+        vec3 N = normalize(vec3(-dx, 1.0, -dz)), V = normalize(uCam - vP), L = normalize(uSunDir);
+        float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+        vec3 R = reflect(-V, N);
+        vec3 sky = mix(vec3(0.8, 0.88, 0.96), vec3(0.5, 0.7, 0.94), clamp(R.y * 1.4, 0.0, 1.0));
+        float spec = pow(max(dot(R, L), 0.0), 140.0) * uSunK;
+        // 水体：浅处青绿（透得见底）→ 深处蓝
+        vec3 body = mix(vec3(0.36, 0.8, 0.8), vec3(0.2, 0.5, 0.78), smoothstep(0.1, 0.6, depth));
+        body = mix(body, vec3(0.14, 0.36, 0.66), smoothstep(0.6, 1.0, depth));
+        float al = mix(0.32, 0.86, smoothstep(0.05, 0.75, depth));
+        // 浅水底的焦散：水底一道道亮纹
+        float ca = abs(sin(t.x * 0.55 + uTime * 1.3 + sin(t.y * 0.4 + uTime))) * abs(sin(t.y * 0.5 - uTime * 1.1 + sin(t.x * 0.35)));
+        body += vec3(0.25, 0.3, 0.25) * smoothstep(0.7, 0.9, ca) * (1.0 - smoothstep(0.2, 0.6, depth));
+        vec3 c = mix(body, sky, fres * 0.85);
+        al = max(al, fres * 0.9);
+        c += vec3(1.0, 0.95, 0.85) * spec * 1.6; al = min(1.0, al + spec);
+        if (h21(t + floor(uTime * 4.0)) > 0.997 - uRain * 0.02) { c = vec3(0.9, 0.96, 1.0); al = 0.95; }   // 雨点溅起的白点
+        // 岸边一圈白浪：贴着岸，一涌一涌
+        float surf = vPond > 0.5 ? 0.07 + 0.05 * sin(uTime * 1.6 + (t.x + t.y) * 0.18) + 0.025 * h21(floor(t / 2.0)) : 0.04 * step(0.7, h21(floor(t / 2.0) + floor(uTime * 3.0)));   // 溪边只零星几点白（不然整条溪发白）
+        if (depth < surf) { c = vec3(0.95, 0.98, 1.0); al = 0.92; }
+        else if (depth < surf + 0.035 && h21(t + floor(uTime * 2.0)) > 0.5) { c = mix(c, vec3(0.95, 0.98, 1.0), 0.6); al = max(al, 0.7); }
+        // 结冰：淡蓝白的冰面，一道道白的裂纹；冰从岸边往里结
+        if (uIce > 0.02 && h21(floor(t / 2.0) + 2.3) < uIce * (1.2 - depth * 0.6)) {
+          c = vec3(0.8, 0.9, 0.97) * (0.95 + 0.05 * h21(floor(t / 3.0)));
+          if (mod(t.x + t.y * 2.0, 9.0) < 1.0 && h21(t * 0.3) > 0.4) c = vec3(0.96, 0.99, 1.0);
+          al = 0.94;
+        }
+        gl_FragColor = vec4(s2l(c) * min(uLight, vec3(1.15)), al);
         #include <colorspace_fragment>
       }`,
   });
@@ -487,10 +512,10 @@ export function buildWater(shared) {
 // ---------- 树：按方块搭（1.6 mm 一块）。树冠是几团"球"拼起来、边上啃掉几块；顶上一层亮、底下一层暗（像素村落的两色树冠） ----------
 const LOG = '#7a5a3c', BIRCH = '#e4e0d6', SPRUCE_LOG = '#5e4630';
 export const LEAF = {
-  oak: ['#5a8a3a', '#62923e', '#548436'], birch: ['#86a24c', '#90aa54'], spruce: ['#4a7a54', '#50805a'], pine: ['#4c7a4c', '#548252'],
-  cypress: ['#467446'], big: ['#58883a', '#609040'], bush: ['#5e8c3e', '#669444'],
+  oak: ['#4e8434', '#568c38', '#4a7e32'], birch: ['#6e9440', '#789c46'], spruce: ['#3f7450', '#447a54'], pine: ['#467648', '#4c7c4c'],
+  cypress: ['#467446'], big: ['#4e8436', '#56883a'], bush: ['#527e38', '#5a863c'],
   maple: ['#c06a40', '#c87848', '#b86240'], golden: ['#c8a44c', '#d0ae56', '#c09a48'], rust: ['#c08048', '#b87844'], blossom: ['#e0a8b4', '#e8b8c2'], plum: ['#9a7aa0', '#a484aa'],
-  jacaranda: ['#a090c8', '#a898d0'], bluespruce: ['#5a8a8a', '#60908e'], willow: ['#8cae54', '#96b65c'], acacia: ['#9caa4c', '#a6b254'], palm: ['#60984a', '#68a050'], cactus: ['#64965a', '#6c9e60'],
+  jacaranda: ['#a090c8', '#a898d0'], bluespruce: ['#5a8a8a', '#60908e'], willow: ['#6e9a44', '#78a24a'], acacia: ['#86983e', '#8ea044'], palm: ['#60984a', '#68a050'], cactus: ['#64965a', '#6c9e60'],
 };
 const shadeHex = (hex, k) => { const c = new THREE.Color(hex); c.r = Math.min(1, c.r * k); c.g = Math.min(1, c.g * k); c.b = Math.min(1, c.b * k); return '#' + c.getHexString(); };
 export const TREE_KINDS_ALL = ['oak', 'birch', 'spruce', 'pine', 'cypress', 'bush', 'big', 'maple', 'golden', 'rust', 'blossom', 'jacaranda', 'bluespruce', 'willow', 'acacia', 'palm', 'cactus'];
@@ -514,27 +539,39 @@ export function treeGeometry(kind, seed = 1) {
   };
   const branch = (x0, y0, dx, dz, n, c) => { for (let i = 1; i <= n; i++) put(x0 + dx * i, y0 + Math.floor(i / 2), dz * i, [c, 1]); };
   if (kind === 'oak' || kind === 'maple' || kind === 'golden' || kind === 'rust' || kind === 'blossom' || kind === 'jacaranda') {
-    const pal = LEAF[kind], h = 5 + Math.floor(q() * 3), r = 2.9 + q() * 0.8;
-    trunk(h, LOG);
-    branch(0, h - 2, 1, 0, 2, LOG); branch(0, h - 1, -1, 0, 2, LOG);
-    blob(0, h + 1, 0, r, r * 0.78, r, pal);
-    for (let i = 0; i < 3; i++) { const a = q() * 6.28; blob(Math.cos(a) * r * 0.7, h + 0.5 + q() * 2, Math.sin(a) * r * 0.7, r * 0.62, r * 0.55, r * 0.62, pal); }
+    // 盆景式：主干往上，分出 2–3 根斜枝；每根枝头一片扁平的云团，顶上一片最大的；云团之间留缝，看得见枝
+    const pal = LEAF[kind], h = 6 + Math.floor(q() * 3);
+    const lean = [Math.round((q() - 0.5) * 2), Math.round((q() - 0.5) * 2)];
+    trunk(h, LOG, 1, 1, lean);
+    const tx = lean[0], tz = lean[1];
+    const nb = 2 + Math.floor(q() * 2);
+    for (let i = 0; i < nb; i++) {
+      const an = i / nb * 6.283 + q() * 0.8, len = 3 + Math.floor(q() * 2), y0 = h - 3 + Math.floor(q() * 2);
+      const dx = Math.cos(an), dz = Math.sin(an);
+      let x = tx, z = tz, y = y0;
+      for (let k = 1; k <= len; k++) { x = tx + Math.round(dx * k); z = tz + Math.round(dz * k); y = y0 + Math.floor(k * 0.7); put(x, y, z, [LOG, 1]); }
+      blob(x, y + 1, z, 2.4 + q() * 0.8, 1.2, 2.2 + q() * 0.8, pal, 0.3);
+    }
+    blob(tx, h + 2, tz, 3.0 + q() * 0.6, 1.6, 2.8 + q() * 0.6, pal, 0.3);
+    if (q() < 0.6) blob(tx + Math.round((q() - 0.5) * 2), h + 4, tz, 1.8, 0.9, 1.8, pal, 0.35);
   } else if (kind === 'birch') {
     const h = 7 + Math.floor(q() * 3), r = 2 + q() * 0.6;
     blob(0, h, 0, r, r * 1.5, r, LEAF.birch, 0.45);
     blob((q() - 0.5) * 2, h - 2.5, (q() - 0.5) * 2, r * 0.8, r * 0.8, r * 0.8, LEAF.birch, 0.5);
     trunk(h + 1, BIRCH, 3);
-  } else if (kind === 'spruce' || kind === 'bluespruce') {   // 云杉：一层层伸出来的枝，越往上越窄
-    const h = 11 + Math.floor(q() * 4), start = 2;
-    for (let y = start; y <= h; y++) {
-      const t = (y - start) / (h - start), rr = (1 - t) * (3.6 + q() * 0.4) + ((y - start) % 2 === 0 ? 0.6 : -0.3);
-      for (let x = -4; x <= 4; x++) for (let z = -4; z <= 4; z++) {
-        const d = Math.hypot(x, z) + (q() - 0.5) * 0.5;
-        if (d <= Math.max(0.5, rr)) leaf(x, y, z, leafCol(LEAF[kind]));
+  } else if (kind === 'spruce' || kind === 'bluespruce') {   // 云杉：一层层枝盘，越往上越窄；每层边上往下垂一格；层间露树干
+    const h = 12 + Math.floor(q() * 4), tiers = 5 + Math.floor(q() * 2), pal = LEAF[kind];
+    trunk(h, SPRUCE_LOG);
+    for (let i = 0; i < tiers; i++) {
+      const y = 3 + Math.round(i * (h - 3) / tiers), r = (1 - i / tiers) * (3.8 + q() * 0.5) + 0.6;
+      for (let x = -5; x <= 5; x++) for (let z = -5; z <= 5; z++) {
+        const d = Math.hypot(x, z) + (q() - 0.5) * 0.6;
+        if (d <= r) leaf(x, y, z, leafCol(pal));
+        if (d <= r - 1.1) leaf(x, y + 1, z, leafCol(pal));
+        if (d > r - 1.0 && d <= r && q() < 0.55) leaf(x, y - 1, z, leafCol(pal));   // 枝梢下垂
       }
     }
-    leaf(0, h + 1, 0, LEAF.spruce[0]); leaf(0, h + 2, 0, LEAF.spruce[0]);
-    trunk(h, SPRUCE_LOG);
+    leaf(0, h, 0, pal[0]); leaf(0, h + 1, 0, pal[0]); leaf(0, h + 2, 0, pal[0]);
   } else if (kind === 'pine') {     // 油松：树干高、微微歪，顶上两三片平平的松针盘
     const h = 10 + Math.floor(q() * 4), lean = [Math.round((q() - 0.5) * 3), Math.round((q() - 0.5) * 3)];
     trunk(h, SPRUCE_LOG, 1, 1, lean);
@@ -587,14 +624,19 @@ export function treeGeometry(kind, seed = 1) {
     blob(0.5, h + 2, 0.5, 5.6, 3.6, 5.6, LEAF.big);
     for (let i = 0; i < 5; i++) { const a = i * 1.26 + q(); blob(0.5 + Math.cos(a) * 4.5, h + 1 + q() * 2.5, 0.5 + Math.sin(a) * 4.5, 3, 2.4, 3, LEAF.big); }
   }
-  // 两色树冠：上面露天的叶子亮一档，下面悬空的暗一档
+  // 三色树冠（Terraglass 的树就是靠这个立起来的）：顶上露天的亮、偏暖黄；底下悬空的暗、偏冷；朝太阳那侧（+x、−z）再亮一点
+  const HI = new THREE.Color('#e8f0a0'), LO = new THREE.Color('#3a5a6a');
   for (const [k, c] of cells) {
     if (c[2] !== 'L') continue;
     const [x, y, z] = k.split(',').map(Number);
-    const up = cells.get(key(x, y + 1, z)), dn = cells.get(key(x, y - 1, z));
-    if (!up) cells.set(k, [shadeHex(c[0], 1.14), 2]);
-    else if (!dn) cells.set(k, [shadeHex(c[0], 0.84), 2]);
-    else cells.set(k, [c[0], 2]);
+    const up = cells.has(key(x, y + 1, z)), dn = cells.has(key(x, y - 1, z));
+    const sunSide = !cells.has(key(x + 1, y, z)) || !cells.has(key(x, y, z - 1));
+    const col = new THREE.Color(c[0]);
+    if (!up) col.lerp(HI, 0.12).multiplyScalar(1.06);
+    else if (!dn) col.lerp(LO, 0.35).multiplyScalar(0.78);
+    else if (!sunSide) col.multiplyScalar(0.86);
+    if (sunSide && up) col.multiplyScalar(1.05);
+    cells.set(k, ['#' + col.getHexString(), 2]);
   }
   let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
   for (const k of cells.keys()) { const p = k.split(',').map(Number); for (let a = 0; a < 3; a++) { mn[a] = Math.min(mn[a], p[a]); mx[a] = Math.max(mx[a], p[a] + 1); } }
