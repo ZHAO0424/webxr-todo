@@ -44,6 +44,12 @@ if (res) {
   console.log('perf', JSON.stringify(res.perf));
 }
 // 2) 截图：标题、比赛中、过线庆祝
+// 1b) 开局那几秒也要逐帧画一遍：?ff=120 只画最后 1.2 s，开局（镜头在起点、河岸米为负）的代码路径会漏测（11-16 黑屏就是这么漏的）
+for (const ff of [2, 6]) {
+  const d = (await run([...flags, '--virtual-time-budget=8000', '--dump-dom', url(`?ff=${ff}&probe`)])).stdout || '';
+  const mm = d.match(/data-result="([^"]*)"/), r = mm ? JSON.parse(mm[1].replace(/&quot;/g, '"')) : null;
+  check(`开局 ${ff} s 无脚本错误`, !!r && !r.errors.length, r ? r.errors.join(' | ') : d.slice(0, 200));
+}
 for (const [name, q] of [['title', '?title'], ['race', '?ff=40'], ['finish', '?ff=73']]) {
   await run([...flags, '--virtual-time-budget=4000', `--screenshot=${join(out, name + '.png')}`, url(q)]);
   check('截图 ' + name, existsSync(join(out, name + '.png')));

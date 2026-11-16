@@ -183,6 +183,14 @@ export class Boat {
     if (j.judge !== 'set') { this.judged++; if (j.judge === 'steady') { this.steady++; this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak); } else if (j.judge === 'off') this.streak = 0; }
     return j;
   }
+  // 拍间的花点（谱面上的八分音符）：不进节奏（不改划频、不拽桨手），只算左右交替 + 给一点推力
+  flourish(t, hand = -1) {
+    if (this.finishT !== null) return { alt: false };
+    const alt = hand >= 0 && hand !== this.lastHand;
+    this.alt += 0.4 * ((alt ? 1 : 0) - this.alt); if (hand >= 0) this.lastHand = hand;
+    if (alt) this.v += 0.04;
+    return { alt };
+  }
   step(dt, t) {
     const seg = SEGS[segAt(this.pos)], done = this.finishT !== null;
     const waiting = done || this.tempo.waiting(t);
@@ -245,6 +253,10 @@ export class Race {
   hit(t, hand = -1, heavy = false) {
     if (this.state !== 'race' && this.state !== 'finish') return null;
     return this.you.drum(t, hand, heavy);
+  }
+  flourish(t, hand = -1) {
+    if (this.state !== 'race' && this.state !== 'finish') return null;
+    return this.you.flourish(t, hand);
   }
   // 推进到时间 t；产生的事件（AI 敲鼓、过线、倒数）放进 this.events 由外面取走
   step(t, dt) {

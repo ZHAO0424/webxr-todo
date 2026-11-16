@@ -173,6 +173,18 @@ test('节奏判定：间隔≈两拍算漏了一拍（skip），不判"乱"', as
   assert.ok(Math.abs(tp.interval() - 0.7) < 1e-9);
 });
 
+test('谱面花点：拍间的八分音符不改节奏、不打乱桨手，只算交替并给一点推力', async () => {
+  const { Race } = await import('./core.js');
+  const r = new Race(5); r.start(0); for (let t = 0; t < 4; t += 1 / 60) r.step(t, 1 / 60);
+  [4, 4.73, 5.46, 6.19].forEach((t, i) => r.hit(t, i % 2));
+  const iv = r.you.tempo.interval(), sync = r.you.crew.sync, v = r.you.v;
+  const f = r.flourish(6.55, 0);
+  assert.equal(f.alt, true);
+  assert.equal(r.you.tempo.interval(), iv);
+  assert.equal(r.you.crew.sync, sync);
+  assert.ok(r.you.v > v);
+});
+
 test('玩法：一局时长 60–90 s', () => {
   const { stats } = sim(1, steady(bandBpm, 0.05));
   assert.ok(stats.time > 60 && stats.time < 90, `${stats.time}`);

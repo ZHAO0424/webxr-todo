@@ -422,6 +422,9 @@ export function createWorld3D(parent, opts) {
   const plankTex = canvasTex(64, 64, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(255,200,100,1)'; g.fillRect(0, 0, w, 3); });
   const standMat = T({ tint: [0.012, 0.008, 0.007], rimK: 0 });   // 线性 0.012 ≈ sRGB 10%：真正的近黑（之前的 0.05 经 sRGB 转换后是 25% 灰）   // 审查 #7-5：看台近黑 = 眼镜里几乎透明，只剩每级前沿的金描边   // 近黑漆 + 每级前沿一道金线   // 审查 #3-5：看台近黑，只留金边   // 深漆色台阶 + 金色板缝   // 审查 #5：看台是画面最大的亮块，压暗 40%
   const stands = [];
+  // 对岸街面：看台最高一级的高度上铺一条街（近黑台面 + 前沿金线），小摊、行人、铺面、民居都站在上面——不再被看台挡住
+  const STREET_Y = 0.0165;
+  { const st = pair(prep(at(new THREE.BoxGeometry(0.44, STREET_Y, 0.07), 0, STREET_Y / 2, 0), COL.white, 1), T({ tint: [0.012, 0.008, 0.007], rimK: 0 }), outlineMat([1, 0.8, 0.42], 0.00022)); st.position.set(0, 0, -0.175); stands.push(st); }
   for (let k = 0; k < 3; k++) { const st = pair(prep(new THREE.BoxGeometry(0.44, 0.0055 * (k + 1), 0.008), COL.white, 1), standMat, outlineMat([1, 0.8, 0.42], 0.00028)); st.position.set(0, 0.0055 * (k + 1) / 2, -0.12 - k * 0.008); stands.push(st); }
   const piers = [];
   // 两岸收口：每条堤和看台两端一座石墩（金顶 + 小灯柱），不是被窗口一刀切断（审查 #3-7）
@@ -455,6 +458,26 @@ export function createWorld3D(parent, opts) {
       for (const sd of [-1, 1]) seg(_a.set(x + sd * 0.8 * s, y + 3.2 * s, p.z), _d.set(x + sd * (1.8 - up * 0.6 + sw * 0.3) * s, y + (1.6 + up * 4.4) * s, p.z), 0.32 * s, p.robe);
       if (p.prop === 1) { cone(_a.set(x, y + 6.4 * s, p.z), 3.4 * s, 1.2 * s, p.robe, _q.setFromAxisAngle(new V3(1, 0, 0), Math.PI)); seg(_a.set(x, y + 3 * s, p.z), _d.set(x, y + 7.2 * s, p.z), 0.18 * s, COL.wood); }
       if (p.prop === 2) seg(_a.set(x + 1.4 * s, y + 3 * s, p.z), _d.set(x + 1.4 * s, y + 9 * s, p.z), 0.16 * s, COL.wood);
+    }
+    // 街上行人：沿街走（循环），走路时身体起伏、手臂前后摆；道具：1 扁担两筐 2 油纸伞 3 提灯
+    if (!tallHidden) for (const p of walkers) {
+      p.m += p.v * Math.min(0.05, ctx.dt || 0.016);
+      const x = toX(wrapM(p.m, CROWD_SPAN)), e = edge(x); if (e < 0.25) continue;
+      const s = p.s * 0.0011 * (0.6 + 0.4 * e), st = t * 6 * Math.abs(p.v) + p.ph, y = STREET_Y + Math.abs(Math.sin(st)) * 0.0005, z = p.z;
+      for (const sd of [-1, 1]) seg(_a.set(x, y + 1.9 * s, z + sd * 0.4 * s), _d.set(x + Math.sin(st) * sd * 0.9 * s, y, z + sd * 0.4 * s), 0.3 * s, p.robe.map(v => v * 0.7));   // 腿
+      cone(_a.set(x, y + 1.6 * s, z), 1.1 * s, 3.2 * s, p.robe);
+      sph(_b.set(x, y + 5.2 * s, z), 1.0 * s, 1.05 * s, 1.0 * s, SKIN_BG);
+      for (const sd of [-1, 1]) seg(_a.set(x, y + 4.1 * s, z + sd * 0.9 * s), _d.set(x - Math.sin(st) * sd * 1.0 * s, y + 2.4 * s, z + sd * 1.1 * s), 0.28 * s, p.robe);   // 臂
+      if (p.prop === 1) { seg(_a.set(x - 4 * s, y + 6 * s, z), _d.set(x + 4 * s, y + 6 * s, z), 0.18 * s, COL.wood); for (const sd of [-1, 1]) { seg(_a.set(x + sd * 3.6 * s, y + 6 * s, z), _d.set(x + sd * 3.6 * s, y + 3.2 * s, z), 0.08 * s, COL.wood); sph(_b.set(x + sd * 3.6 * s, y + 2.6 * s, z), 1.3 * s, 1.0 * s, 1.3 * s, [0.75, 0.55, 0.3]); } }
+      else if (p.prop === 2) { seg(_a.set(x, y + 4 * s, z), _d.set(x, y + 8 * s, z), 0.14 * s, COL.wood); cone(_a.set(x, y + 8.6 * s, z), 3.4 * s, 1.3 * s, [0.95, 0.45, 0.3], _q.setFromAxisAngle(new V3(1, 0, 0), Math.PI)); }
+      else if (p.prop === 3) { seg(_a.set(x + 1.2 * s, y + 3.4 * s, z), _d.set(x + 2.6 * s, y + 6.4 * s, z), 0.12 * s, COL.wood); sph(_b.set(x + 2.6 * s, y + 5.6 * s, z), 0.9 * s, 1.1 * s, 0.9 * s, [1.0, 0.4, 0.2]); }
+    }
+    // 摊主：每个小摊后面坐一个，招呼客人（手一扬一扬）
+    if (!tallHidden) for (const st of stallSpots) {
+      const x = st.x, s = 0.0011 * (0.6 + 0.4 * edge(x)), z = st.z - 0.004, y = STREET_Y, wv = Math.max(0, Math.sin(t * 2.2 + st.m)) ;
+      cone(_a.set(x, y + 1.2 * s, z), 1.2 * s, 3.4 * s, st.robe); sph(_b.set(x, y + 4.8 * s, z), 1.0 * s, 1.05 * s, 1.0 * s, SKIN_BG);
+      if (st.hat) cone(_a.set(x, y + 5.6 * s, z), 1.7 * s, 0.9 * s, HAT_BG, _q.setFromAxisAngle(new V3(1, 0, 0), Math.PI));
+      seg(_a.set(x + 0.9 * s, y + 3.6 * s, z), _d.set(x + (1.6 + wv) * s, y + (3.2 + wv * 3) * s, z + 0.8 * s), 0.28 * s, st.robe);
     }
     // 看台分间：每 6 米一根朱柱，柱顶金珠，柱间一条横枋
     for (let m = Math.floor((cx - HM) / 6) * 6; m < cx + HM; m += 6) { const x = toX(m), e = edge(x); if (e < 0.2) continue; seg(_a.set(x, 0.0, -0.137), _d.set(x, 0.034, -0.137), 0.0008, COL.verm); sph(_b.set(x, 0.0348, -0.137), 0.0011, 0.0011, 0.0011, COL.goldHi); seg(_a.set(x, 0.031, -0.137), _d.set(toX(m + 6), 0.031, -0.137), 0.0003, COL.verm);
@@ -512,6 +535,7 @@ export function createWorld3D(parent, opts) {
     sprint: { a: new THREE.Color(1.0, 0.42, 0.18), b: new THREE.Color(1.0, 0.86, 0.4), br: 0.34, flow: 2.2 },
   };
   let segTarget = WATER_SEG.start, flow = 1, lastT = 0;
+  const stallSpots = [];
 
   // ---------- 亭、牌坊、柳、灯笼 ----------
   // 起翘屋面：四角上翘的歇山顶近似（由一圈截面放样）
@@ -599,6 +623,47 @@ export function createWorld3D(parent, opts) {
   })();
   const HOUSE = new THREE.InstancedMesh(houseGeo, T({ tint: [0.95, 0.9, 0.84], rimK: 0.35, emit: 0.08 }), 20), HOUSEO = new THREE.InstancedMesh(houseGeo, outlineMat([1, 0.82, 0.45], 0.0002), 20);
   HOUSEO.instanceMatrix = HOUSE.instanceMatrix; HOUSE.frustumCulled = HOUSEO.frustumCulled = false; root.add(HOUSE, HOUSEO);
+  // ---------- 对岸街市（用户 11-16：房子、街道、小摊贩） ----------
+  // 看台后面是一条街：临河一排小摊（条纹布篷、木摊台、摆满粽子 / 果子 / 香包，篷下挂一盏灯），街上人来人往；民居之间夹着二层铺面
+  const stallGeo = awning => {
+    const wood = [0.72, 0.42, 0.22], L = [];
+    L.push(prep(at(new THREE.BoxGeometry(12, 4, 5), 0, 2, 0), wood, 0));                                     // 摊台
+    L.push(prep(at(new THREE.BoxGeometry(12.2, 3.4, 0.3), 0, 2, 2.6), awning[0].map(v => v * 0.8), 0));        // 台前布帘
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) L.push(prep(at(new THREE.CylinderGeometry(0.3, 0.3, 10, 5), sx * 5.6, 5, sz * 2.2), wood, 0));
+    for (let k = 0; k < 5; k++) L.push(prep(at(new THREE.BoxGeometry(2.5, 0.4, 7.6), -4.8 + k * 2.4, 10.4, 0.6, 0.28, 0, 0), awning[k % 2], 0));   // 条纹布篷
+    L.push(prep(at(new THREE.BoxGeometry(12.4, 0.5, 0.5), 0, 9.5, 4.2), COL.goldHi, 0));                     // 篷沿金边
+    const goods = [[0.35, 0.75, 0.3], [1.0, 0.6, 0.15], [0.95, 0.2, 0.15], [0.9, 0.85, 0.4]];
+    for (let q = 0; q < 8; q++) L.push(prep(at(q % 3 ? new THREE.SphereGeometry(0.9, 6, 5) : new THREE.ConeGeometry(1, 1.8, 4), -4.6 + q * 1.3, 4.8, (q % 2) * 1.4 - 0.6), goods[q % 4], 0));   // 粽子（四面锥）、果子
+    L.push(prep(at(new THREE.SphereGeometry(1.1, 8, 6), 4, 7.6, 3.2), [1.0, 0.35, 0.18], 0));                  // 篷下一盏小灯
+    return merge(L);
+  };
+  const STALL = [[COL.verm, COL.ivory], [COL.qing, COL.ivory], [COL.lv, [1, 0.9, 0.5]]].map(aw => {
+    const geo = stallGeo(aw), m = new THREE.InstancedMesh(geo, T({ rimK: 0.35, emit: 0.06 }), 12), o = new THREE.InstancedMesh(geo, outlineMat([1, 0.82, 0.45], 0.00016), 12);
+    o.instanceMatrix = m.instanceMatrix; m.frustumCulled = o.frustumCulled = false; root.add(m, o); return { m, o };
+  });
+  // 二层铺面：一层开敞的店面（暖光）、二层带栏杆的楼台、飞檐、门口一条竖招幌
+  const shopGeo = (() => {
+    const wall = [0.66, 0.6, 0.52], tile = [0.12, 0.1, 0.12], L = [];
+    L.push(prep(at(new THREE.BoxGeometry(18, 12, 10), 0, 6, 0), wall, 0));
+    L.push(prep(at(new THREE.BoxGeometry(14, 7, 0.4), 0, 3.6, 5.2), [1.0, 0.72, 0.32], 0));                   // 一层店面透出暖光
+    L.push(prep(at(new THREE.BoxGeometry(20, 0.8, 12), 0, 12.4, 0), tile, 0));                               // 腰檐
+    L.push(prep(at(new THREE.BoxGeometry(20, 0.3, 0.4), 0, 12.9, 6), COL.goldHi, 0));
+    L.push(prep(at(new THREE.BoxGeometry(16, 9, 8.5), 0, 17.5, -0.5), wall, 0));                              // 二层
+    for (let k = 0; k < 7; k++) L.push(prep(at(new THREE.BoxGeometry(0.4, 2.4, 0.4), -6.6 + k * 2.2, 14.2, 4.4), [0.9, 0.3, 0.15], 0));   // 楼台栏杆
+    L.push(prep(at(new THREE.BoxGeometry(15, 0.4, 0.4), 0, 15.4, 4.4), [0.9, 0.3, 0.15], 0));
+    for (const sx of [-1, 1]) L.push(prep(at(new THREE.BoxGeometry(3.4, 3, 0.4), sx * 4.2, 18.4, 3.8), [1.0, 0.78, 0.38], 0));   // 二层窗
+    L.push(prep(roofGeoFn(11, 6, 5, 2.2), tile, 0).applyMatrix4(new THREE.Matrix4().makeTranslation(0, 22, -0.5)));
+    L.push(...eaveRim(11, 6, 5, 2.2, 0.35).map(g => at(g, 0, 22, -0.5)));
+    L.push(prep(at(new THREE.BoxGeometry(2.2, 8, 0.4), 8.4, 7, 5.6), [0.95, 0.25, 0.12], 0));                  // 竖招幌（不写字）
+    L.push(prep(at(new THREE.BoxGeometry(2.6, 0.5, 0.5), 8.4, 11.2, 5.6), COL.goldHi, 0));
+    return merge(L);
+  })();
+  const SHOP = new THREE.InstancedMesh(shopGeo, T({ tint: [0.95, 0.9, 0.84], rimK: 0.35, emit: 0.08 }), 16), SHOPO = new THREE.InstancedMesh(shopGeo, outlineMat([1, 0.82, 0.45], 0.0002), 16);
+  SHOPO.instanceMatrix = SHOP.instanceMatrix; SHOP.frustumCulled = SHOPO.frustumCulled = false; root.add(SHOP, SHOPO);
+  // 街上的行人：两个方向走，挑扁担的、打伞的、提灯的、空手的
+  const walkers = [];
+  { const Rw = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(777);
+    for (let k = 0; k < 30; k++) { const dir = k % 2 ? 1 : -1; walkers.push({ m: Rw() * 116, dir, v: (0.5 + Rw() * 0.6) * dir, z: dir > 0 ? -0.1605 : -0.1655, ph: Rw() * TAU, robe: bgDim(robes[Math.floor(Rw() * robes.length)]).map(v => v * 1.5), prop: Math.floor(Rw() * 4), s: 0.9 + Rw() * 0.2 }); } }
   // 近岸：岸顶一丛丛菖蒲、艾草（端午挂的），矮，不挡你的船
   const reedGeo = (() => {
     const L = [];
@@ -633,10 +698,14 @@ export function createWorld3D(parent, opts) {
   flagCloth.position.set(-0.5, 0.31, 0); flagG.add(flagCloth);
   const flagPole = pair(prep(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 8).translate(0, -0.2, 0), COL.goldHi), T({ rimK: 0.6 }), outlineMat([1, 0.9, 0.6], 0.0002), flagG);
   pair(prep(at(new THREE.SphereGeometry(0.07, 10, 8), 0, 0.62, 0), COL.goldHi), T({ emit: 0.4 }), outlineMat([1, 0.9, 0.6], 0.0002), flagG);
+  // 终点浮标：朱漆鼓形浮筒 + 金箍，标杆插在上面（夺标前一直立在终点、你的车道旁边）
+  const buoy = new THREE.Group(); root.add(buoy); buoy.visible = false;
+  pair(merge([prep(new THREE.CylinderGeometry(0.9, 1.0, 0.9, 14), COL.verm, 0), prep(at(new THREE.TorusGeometry(0.95, 0.09, 5, 16), 0, 0.42, 0, Math.PI / 2), COL.goldHi, 0), prep(at(new THREE.TorusGeometry(0.98, 0.09, 5, 16), 0, -0.3, 0, Math.PI / 2), COL.goldHi, 0)]), T({ rimK: 0.6, emit: 0.1 }), outlineMat([1, 0.86, 0.5], 0.0002), buoy);
   function flag(ctx) {
-    const f = ctx.flag; flagG.visible = !!f; if (!f) return;
-    const rise = f.stage === 'up' ? smooth(0, 0.6, f.t) * 0.03 : Math.sin(ctx.t * 2) * 0.002;
-    flagG.position.set(f.p.x, f.p.y + rise, f.p.z); flagG.scale.setScalar(0.026);
+    const f = ctx.flag, show = !!f && Math.abs(f.p.x) < W + 0.01; flagG.visible = show; buoy.visible = show && !!f.buoy; if (!show) return;
+    flagG.position.copy(f.p); flagG.scale.setScalar(f.scale * (0.6 + 0.4 * edge(f.p.x))); flagG.rotation.set(0, f.spin || 0, f.tilt || 0);
+    if (f.buoy) { buoy.position.copy(f.buoy); buoy.scale.setScalar(0.008 * (0.6 + 0.4 * edge(f.buoy.x))); }
+    flagCloth.material.uniforms.uEmit.value = 0.15 + (f.glow || 0) * 0.5;   // 等你夺标时旗面一明一暗
     const pos = flagGeo.attributes.position;
     for (let k = 0; k < pos.count; k++) { const x = flagBase[k * 3], y = flagBase[k * 3 + 1], u = x + 0.5; pos.setXYZ(k, x, y + Math.sin(ctx.t * 5 - u * 4) * 0.04 * u, Math.sin(ctx.t * 6 - u * 5 + y * 2) * 0.09 * u); }
     pos.needsUpdate = true; flagGeo.computeVertexNormals();
@@ -648,10 +717,10 @@ export function createWorld3D(parent, opts) {
     // 亭子：每 50 米
     let n = 0;
     // 远岸亭台：每 15 米一座，大小错落、前后错开（避开牌坊附近）
-    for (let m = Math.floor((cx - HM) / 15) * 15 + 4; m < cx + HM && n < 10; m += 15) { const x = toX(m); if (Math.abs(x) > W + 0.03 || Math.abs(m - raceLen) < 12) continue; const k = ((m / 15) % 3 + 3) % 3; _q.setFromEuler(new THREE.Euler(0, (k - 1) * 0.25, 0)); _m.compose(_a.set(x, 0.004, -0.158 - k * 0.012), _q, _s.setScalar(0.001 * (0.85 + 0.25 * k) * (0.6 + 0.4 * edge(x)))); PAV.setMatrixAt(n++, _m); }
+    for (let m = Math.floor((cx - HM) / 15) * 15 + 4; m < cx + HM && n < 10; m += 15) { const x = toX(m); if (Math.abs(x) > W + 0.03 || Math.abs(m - raceLen) < 12) continue; const k = ((m / 15) % 3 + 3) % 3; _q.setFromEuler(new THREE.Euler(0, (k - 1) * 0.25, 0)); _m.compose(_a.set(x, STREET_Y, -0.158 - k * 0.012), _q, _s.setScalar(0.001 * (0.85 + 0.25 * k) * (0.6 + 0.4 * edge(x)))); PAV.setMatrixAt(n++, _m); }
     PAV.count = PAVO.count = n; PAV.instanceMatrix.needsUpdate = true;
     // 牌坊
-    const ax = toX(raceLen); archG.visible = Math.abs(ax) < W + 0.06 && !tallHidden; archG.position.set(ax, 0.003, -0.176); archG.scale.setScalar(0.0015 * (0.5 + 0.5 * edge(ax)));
+    const ax = toX(raceLen); archG.visible = Math.abs(ax) < W + 0.06 && !tallHidden; archG.position.set(ax, STREET_Y, -0.176); archG.scale.setScalar(0.0015 * (0.5 + 0.5 * edge(ax)));
     // 柳：近岸每 20 米，枝条随风轻摆（整棵小幅摆动）
     n = 0;
     // 柳树只在两头（|x| > 13 cm），不挡主角
@@ -663,12 +732,28 @@ export function createWorld3D(parent, opts) {
     for (let m = Math.floor((cx - HM) / 7) * 7 + 2; m < cx + HM && n < 20; m += 7) {
       const x = toX(m); if (n >= 20 || Math.abs(x) > W + 0.02 || Math.abs(m - raceLen) < 9) continue;
       const k = ((Math.round(m / 7) % 4) + 4) % 4; _q.setFromEuler(new THREE.Euler(0, (k - 1.5) * 0.08, 0));
-      _m.compose(_a.set(x + (k % 2) * 0.006, 0.004, -0.178 - (k % 3) * 0.008), _q, _s.set(0.0011 * (0.85 + 0.12 * k), 0.0011 * (0.8 + 0.25 * (k % 2)), 0.0011).multiplyScalar(0.6 + 0.4 * edge(x))); HOUSE.setMatrixAt(n++, _m);
+      _m.compose(_a.set(x + (k % 2) * 0.006, STREET_Y, -0.178 - (k % 3) * 0.008), _q, _s.set(0.0011 * (0.85 + 0.12 * k), 0.0011 * (0.8 + 0.25 * (k % 2)), 0.0011).multiplyScalar(0.6 + 0.4 * edge(x))); HOUSE.setMatrixAt(n++, _m);
     }
     HOUSE.count = HOUSEO.count = n; HOUSE.instanceMatrix.needsUpdate = true;
+    // 小摊：每 5 米一个，三种布篷轮换；位置同时记下来给摊主用
+    stallSpots.length = 0; const sn = [0, 0, 0];
+    for (let m = Math.floor((cx - HM) / 5) * 5 + 1.5; m < cx + HM; m += 5) {
+      const x = toX(m); if (Math.abs(x) > W || Math.abs(m - raceLen) < 6) continue;
+      const k = ((Math.round((m - 1.5) / 5) % 3) + 3) % 3; if (sn[k] >= 12) continue;
+      _q.setFromEuler(new THREE.Euler(0, Math.sin(m * 2.1) * 0.12, 0)); _m.compose(_a.set(x, STREET_Y, -0.149), _q, _s.setScalar(0.0011 * (0.6 + 0.4 * edge(x)))); STALL[k].m.setMatrixAt(sn[k]++, _m);
+      stallSpots.push({ x, z: -0.149, m, robe: bgDim(robes[(((k * 3 + Math.round(m)) % robes.length) + robes.length) % robes.length]).map(v => v * 1.5), hat: ((Math.round(m) % 3) + 3) % 3 === 0 });
+    }
+    STALL.forEach((S_, k) => { S_.m.count = S_.o.count = sn[k]; S_.m.instanceMatrix.needsUpdate = true; S_.m.visible = S_.o.visible = !tallHidden; });
+    // 二层铺面：民居之间（每 7 米错开半格），比民居略靠前
+    n = 0;
+    for (let m = Math.floor((cx - HM) / 7) * 7 + 5.5; m < cx + HM && n < 16; m += 7) {
+      const x = toX(m); if (Math.abs(x) > W + 0.02 || Math.abs(m - raceLen) < 9) continue;
+      _q.setFromEuler(new THREE.Euler(0, Math.sin(m) * 0.06, 0)); _m.compose(_a.set(x, STREET_Y, -0.183), _q, _s.setScalar(0.00105 * (0.6 + 0.4 * edge(x)))); SHOP.setMatrixAt(n++, _m);
+    }
+    SHOP.count = SHOPO.count = n; SHOP.instanceMatrix.needsUpdate = true; SHOP.visible = SHOPO.visible = !tallHidden;
     // 远岸小柳：看台和民居之间，每 9 米
     n = 0;
-    for (let m = Math.floor((cx - HM) / 9) * 9 + 5; m < cx + HM && n < 14; m += 9) { const x = toX(m); if (Math.abs(x) > W) continue; _q.setFromEuler(new THREE.Euler(Math.sin(t * 1.2 + m) * 0.03, m * 1.7, Math.sin(t + m) * 0.04)); _m.compose(_a.set(x, 0.004, -0.15), _q, _s.setScalar(0.0007 * edge(x))); FWIL.setMatrixAt(n++, _m); }
+    for (let m = Math.floor((cx - HM) / 9) * 9 + 5; m < cx + HM && n < 14; m += 9) { const x = toX(m); if (Math.abs(x) > W) continue; _q.setFromEuler(new THREE.Euler(Math.sin(t * 1.2 + m) * 0.03, m * 1.7, Math.sin(t + m) * 0.04)); _m.compose(_a.set(x, STREET_Y, -0.172), _q, _s.setScalar(0.0007 * edge(x))); FWIL.setMatrixAt(n++, _m); }   // 挪到街的后侧，不挡小摊
     FWIL.count = FWILO.count = n; FWIL.instanceMatrix.needsUpdate = true;
     // 近岸菖蒲 / 艾草：每 2.6 米一丛，随风摆
     n = 0;

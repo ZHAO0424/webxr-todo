@@ -683,7 +683,14 @@ export function createArt(THREE, AR_GLOW, parent, GAIN) {
   }
   // 夺标旗
   function drawFlag(ctx) {
-    const f = ctx.flag; if (!f) return; const t = ctx.t;
+    const f = ctx.flag; if (!f || Math.abs(f.p.x) > WX) return; const t = ctx.t;
+    // 等你夺标：旗周围一圈转动的金色光晕 + 向外扩的环，提示"去抓它"
+    if (f.stage === 'wait') {
+      const cx0 = f.p.x - 0.014, cy0 = f.p.y + 0.012, ring = (r, a, w) => { const pts = []; for (let q = 0; q <= 40; q++) { const th = q / 40 * TAU; pts.push([cx0 + Math.cos(th) * r, cy0 + Math.sin(th) * r, f.p.z]); } stroke(pts, C.goldHi, a, w, { tin: 0, tout: 0, dry: 0 }); };
+      const u = (t * 0.8) % 1; ring(0.022 + 0.03 * u, 0.8 * (1 - u), 0.0012); ring(0.024, 0.5 + 0.3 * Math.sin(t * 4), 0.0008);
+      for (let q = 0; q < 12; q++) { const th = q / 12 * TAU + t; stroke([[cx0 + Math.cos(th) * 0.027, cy0 + Math.sin(th) * 0.027, f.p.z], [cx0 + Math.cos(th) * 0.032, cy0 + Math.sin(th) * 0.032, f.p.z]], C.gold, 0.7, 0.0007, { tin: 0, tout: 0.5, dry: 0 }); }
+    }
+    return;
     const rise = f.stage === 'up' ? smooth(0, 0.6, f.t) * 0.06 : Math.sin(t * 2) * 0.003;
     const fx0 = f.p.x, fy = f.p.y + rise * 0.6, fz = f.p.z, k = 0.55;
     stroke([[fx0, fy - 0.05 * k, fz], [fx0, fy + 0.032 * k, fz]], C.goldHi, 0.9, 0.0012, { tin: 0, tout: 0.1 });
