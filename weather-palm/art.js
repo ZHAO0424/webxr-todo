@@ -194,11 +194,15 @@ export function buildTerrain(shared, SHADE_GLSL) {
       if (t !== T.FOREST && h + wob > 0.058) return 6;
       if (t === T.ROCK) return 6;
     }
-    return KIND[t] ?? 0;
+    const x = -S.R + (i + 0.5) * CELL, z = -S.R + (j + 0.5) * CELL;
+    if (t === T.ROCK && S.inCanyon(x, z)) return 7;
+    const kk = KIND[t] ?? 0;
+    if (kk <= 2) { const b = S.biomeAt(x, z); if (b === 'sakura') return 8; if (b === 'maple') return 9; if (b === 'ginkgo') return 10; }
+    return kk;
   };
   // 顶面：二维贪心，同高同种类的拼成矩形
   const KA = new Int8Array(NG * NG).fill(-1), used = new Uint8Array(NG * NG);
-  for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) if (!Number.isNaN(hq[j * NG + i])) { const kk = kindAt(i, j); KA[j * NG + i] = kk <= 2 ? kk + 10 * sq[j * NG + i] : kk; }
+  for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) if (!Number.isNaN(hq[j * NG + i])) { const kk = kindAt(i, j); KA[j * NG + i] = (kk <= 2 || kk >= 8) ? kk + 16 * sq[j * NG + i] : kk; }
   const same = (a, b) => KA[b] >= 0 && !used[b] && hq[b] === hq[a] && KA[b] === KA[a];
   for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) {
     const a = j * NG + i; if (KA[a] < 0 || used[a]) continue;
@@ -286,16 +290,25 @@ export function buildTerrain(shared, SHADE_GLSL) {
         vec3 col = hb < 0.45 ? a : hb < 0.75 ? b : c;
         return col * (0.97 + 0.05 * n);
       }
+      // 红石峡谷的岩层（照美国西南 / 新疆的红砂岩）：深红、橙、奶白、锈红、橙粉一层层，层厚 1–3 块，层线微微起伏
+      vec3 canyonStrata(vec3 P, vec2 t, float n) {
+        float y = P.y / BK + 0.5 * sin(P.x * 120.0 + P.z * 70.0);
+        float band = floor(y / 2.0), hb = h21(vec2(band, 3.9));
+        vec3 c = hb < 0.3 ? vec3(0.78, 0.34, 0.24) : hb < 0.5 ? vec3(0.9, 0.54, 0.28) : hb < 0.64 ? vec3(0.94, 0.85, 0.68) : hb < 0.82 ? vec3(0.7, 0.38, 0.28) : vec3(0.9, 0.62, 0.52);
+        return c * (0.95 + 0.07 * n);
+      }
       vec3 texStone(vec2 t, float n) { float b = vnoise(t * 0.5); return STONE * (b > 0.62 ? 1.06 : b < 0.3 ? 0.93 : 1.0) * (0.97 + 0.05 * n); }
       vec3 texSand(float n, float n2) { return SAND * (0.96 + 0.05 * n); }
       vec3 texGravel(vec2 t, float n) { float c = h21(t); return (c > 0.6 ? vec3(0.64, 0.62, 0.6) : c > 0.3 ? vec3(0.58, 0.56, 0.56) : vec3(0.62, 0.56, 0.5)) * (0.97 + 0.04 * n); }
       vec3 texSnow(float n) { return SNOWC * (0.97 + 0.03 * n); }
       // 草的颜色（群系色调）：长得好是绿，缺水发黄，烧过发灰
+      bool canyonZone(vec3 P) { return P.x > 0.034 + 0.007 * sin(P.z * 50.0) && P.z > -0.032 && P.z < 0.088 && length(P.xz) < ${(S.R - 0.018).toFixed(4)}; }
       vec2 gXZ;   // 当前像素的位置（群系色按地方变）
       vec3 grassTint(float G, float M, int k) {
         float reg = vnoise(gXZ * 38.0 + 3.0), reg2 = vnoise(gXZ * 21.0 - 7.0);
-        vec3 lush = k == 1 ? vec3(0.4, 0.58, 0.3) : k == 2 ? vec3(0.46, 0.56, 0.34) : vec3(0.52, 0.68, 0.32);
+        vec3 lush = k == 1 || k >= 8 ? vec3(0.4, 0.58, 0.3) : k == 2 ? vec3(0.46, 0.56, 0.34) : vec3(0.52, 0.68, 0.32);
         lush *= 0.97 + 0.06 * reg;                                       // 大片的明暗起伏，色相不变
+        if (canyonZone(vec3(gXZ.x, 0.0, gXZ.y))) lush = mix(lush, vec3(0.72, 0.68, 0.4), 0.6);   // 峡谷台地上是干黄的荒漠草
         vec3 dry = vec3(0.76, 0.7, 0.44);
         vec3 c = mix(dry, lush, smoothstep(0.08, 0.32, M) * smoothstep(0.1, 0.5, G));
         return G < 0.11 ? vec3(0.5, 0.47, 0.42) : c;
@@ -306,23 +319,29 @@ export function buildTerrain(shared, SHADE_GLSL) {
         // 去噪：t 是方块坐标（不是贴图像素），每块一个随机数 → 一块一个颜色
         vec2 t = floor(faceUV(Pc, N) / BK + 0.001);
         float n = h21(t + floor(Pc.y / BK) * 0.37), n2 = h21(t * 1.37 + 7.1);
-        int kraw = int(vK + 0.5), soil = kraw / 10, k = kraw - soil * 10; gXZ = (floor((Pc.xz + uR) / BK) + 0.5) * BK - uR;
+        int kraw = int(vK + 0.5), soil = kraw / 16, k = kraw - soil * 16; gXZ = (floor((Pc.xz + uR) / BK) + 0.5) * BK - uR;
         vec4 s = texture(uMG, (Pc.xz + uR) / (2.0 * uR)); float M = s.r, G = s.g, SN = s.b, SM = s.a;
         vec3 col;
         if (N.y > 0.5) {
           vec3 tint = grassTint(G, M, k);
-          if (k == 0 || k == 1 || k == 2) {
+          if (k == 0 || k == 1 || k == 2 || k >= 8) {
             // 草：一个个贴图像素深浅不一；长得不好的地方露出土
             bool bare = h21(t * 0.71 + 3.3) > smoothstep(0.05, 0.45, G) + 0.15;
             col = tint * (0.95 + 0.07 * n);
             if (bare) col = soil == 0 ? texDirt(n, n2) : texSoil(soil, t, Pc, n, n2);
             if (k == 1 && n2 > 0.94) col = vec3(0.56, 0.44, 0.3);   // 林地：零星落叶
+            // 樱花林地上落满粉色花瓣、枫林地上是红叶、银杏林地上是金叶（树长起来才有：G 越高越多）
+            float lit = smoothstep(0.35, 0.8, G);
+            if (k == 8 && n2 < 0.55 * lit) col = n > 0.5 ? vec3(0.97, 0.76, 0.84) : vec3(0.99, 0.88, 0.92);
+            if (k == 9 && n2 < 0.5 * lit) col = n > 0.6 ? vec3(0.9, 0.36, 0.22) : n > 0.25 ? vec3(0.94, 0.52, 0.24) : vec3(0.82, 0.3, 0.26);
+            if (k == 10 && n2 < 0.5 * lit) col = n > 0.5 ? vec3(0.96, 0.8, 0.32) : vec3(0.92, 0.7, 0.26);
             if (k == 2 && M > 0.3 && vnoise(t * 0.7) > 0.62) col = vec3(0.4, 0.6, 0.7);   // 湿地：一洼洼浅水
             // 湿透了：草地上积水
             if (k == 0 && M > 0.8 && vnoise(t * 0.6 + 5.0) > 0.76 - (M - 0.8)) col = vec3(0.4, 0.6, 0.76);
           } else if (k == 3) col = texSnow(n);
           else if (k == 4) col = n2 > 0.8 ? texGravel(t, n) : texSand(n, n2);
           else if (k == 5) col = texGravel(t, n);
+          else if (k == 7) col = vec3(0.82, 0.48, 0.32) * (0.93 + 0.1 * n);   // 峡谷台地顶的红砂岩
           else col = texStone(t, n);
           if (SN > 0.08 && h21(t * 0.53 + 9.1) < smoothstep(0.08, 0.6, SN)) col = texSnow(n);   // 积雪：一个个像素慢慢盖满
         } else {
@@ -331,13 +350,14 @@ export function buildTerrain(shared, SHADE_GLSL) {
           float ty = mod(floor((vTop - Pc.y) / TXS), 4.0);   // 方块里从上往下第几个贴图像素
           float fringe = 1.0 + floor(h21(vec2(t.x, kb)) * 2.0);   // 草皮、雪往下挂 1–2 个像素，参差不齐
           if ((vTop - vBot) / BK < 1.5) fringe += 1.0;             // 只有一格高的小坎：草皮盖得更多，草地上不会满是褐色的线
-          bool grassy = k == 0 || k == 1 || k == 2;
+          bool grassy = k == 0 || k == 1 || k == 2 || k >= 8;
           float stoneFrom = grassy ? 4.0 : k == 4 ? 3.0 : 0.0;
           if (vE > 0.5) stoneFrom += floor(h21(vec2(floor(Pc.x / BK), floor(Pc.z / BK))) * 2.0);
           if (kb < 0.5 && SN > 0.3) col = texSnow(n);   // 积了雪，侧面上沿也是白的
           else if (kb < 0.5 && grassy && G > 0.2 + 0.3 * h21(vec2(t.x, 3.0))) col = grassTint(G, M, k) * (0.92 + 0.05 * n);   // 荒的时候坎子上沿没有草皮
           else if (kb < 0.5 && k == 3) col = texSnow(n);
           else if (kb < stoneFrom) col = k == 4 ? texSand(n, n2) : (soil == 1 || soil == 2) ? texSoil(soil, t, Pc, n, n2) * 0.95 : texDirt(n, n2);
+          else if (k == 7 || canyonZone(Pc)) col = canyonStrata(Pc, t, n);   // 峡谷：红、橙、奶白、锈红一层层
           else col = (k == 6 || k == 3 || kb > 5.0) && Pc.y > 0.016 ? strata(Pc, t, n) : texStone(t, n);
           // 岛的外沿最底下两个方块：更深的基岩
           if (vE > 0.5 && kb >= stoneFrom) {
@@ -514,11 +534,11 @@ const LOG = '#7a5a3c', BIRCH = '#e4e0d6', SPRUCE_LOG = '#5e4630';
 export const LEAF = {
   oak: ['#4e8434', '#568c38', '#4a7e32'], birch: ['#6e9440', '#789c46'], spruce: ['#3f7450', '#447a54'], pine: ['#467648', '#4c7c4c'],
   cypress: ['#467446'], big: ['#4e8436', '#56883a'], bush: ['#527e38', '#5a863c'],
-  maple: ['#c06a40', '#c87848', '#b86240'], golden: ['#c8a44c', '#d0ae56', '#c09a48'], rust: ['#c08048', '#b87844'], blossom: ['#e0a8b4', '#e8b8c2'], plum: ['#9a7aa0', '#a484aa'],
+  maple: ['#d24a2c', '#e0622e', '#c63e30', '#e8823a'], sakura: ['#f2b2c6', '#f6c6d6', '#eaa0b8'], ginkgo: ['#e8c040', '#f0cc52', '#dcb438'], golden: ['#c8a44c', '#d0ae56', '#c09a48'], rust: ['#c08048', '#b87844'], blossom: ['#e0a8b4', '#e8b8c2'], plum: ['#9a7aa0', '#a484aa'],
   jacaranda: ['#a090c8', '#a898d0'], bluespruce: ['#5a8a8a', '#60908e'], willow: ['#6e9a44', '#78a24a'], acacia: ['#86983e', '#8ea044'], palm: ['#60984a', '#68a050'], cactus: ['#64965a', '#6c9e60'],
 };
 const shadeHex = (hex, k) => { const c = new THREE.Color(hex); c.r = Math.min(1, c.r * k); c.g = Math.min(1, c.g * k); c.b = Math.min(1, c.b * k); return '#' + c.getHexString(); };
-export const TREE_KINDS_ALL = ['oak', 'birch', 'spruce', 'pine', 'cypress', 'bush', 'big', 'maple', 'golden', 'rust', 'blossom', 'jacaranda', 'bluespruce', 'willow', 'acacia', 'palm', 'cactus'];
+export const TREE_KINDS_ALL = ['sakura', 'ginkgo', 'oak', 'birch', 'spruce', 'pine', 'cypress', 'bush', 'big', 'maple', 'golden', 'rust', 'blossom', 'jacaranda', 'bluespruce', 'willow', 'acacia', 'palm', 'cactus'];
 export function treeGeometry(kind, seed = 1) {
   const q = rng(seed * 7919 + kind.length * 31);
   const cells = new Map(), key = (x, y, z) => `${x},${y},${z}`;
@@ -538,11 +558,11 @@ export function treeGeometry(kind, seed = 1) {
     for (let y = 0; y < h; y++) { const ox = Math.round(lean[0] * y / h), oz = Math.round(lean[1] * y / h); for (let x = 0; x < w; x++) for (let z = 0; z < w; z++) put(x + ox, y, z + oz, [c, pat]); }
   };
   const branch = (x0, y0, dx, dz, n, c) => { for (let i = 1; i <= n; i++) put(x0 + dx * i, y0 + Math.floor(i / 2), dz * i, [c, 1]); };
-  if (kind === 'oak' || kind === 'maple' || kind === 'golden' || kind === 'rust' || kind === 'blossom' || kind === 'jacaranda') {
+  if (kind === 'oak' || kind === 'maple' || kind === 'golden' || kind === 'rust' || kind === 'blossom' || kind === 'jacaranda' || kind === 'sakura') {
     // 盆景式：主干往上，分出 2–3 根斜枝；每根枝头一片扁平的云团，顶上一片最大的；云团之间留缝，看得见枝
-    const pal = LEAF[kind], h = 6 + Math.floor(q() * 3);
+    const pal = LEAF[kind], sak = kind === 'sakura', h = (sak ? 5 : 6) + Math.floor(q() * 3);
     const lean = [Math.round((q() - 0.5) * 2), Math.round((q() - 0.5) * 2)];
-    trunk(h, LOG, 1, 1, lean);
+    trunk(h, sak ? '#5e3e38' : LOG, 1, 1, lean);   // 樱花：深褐带紫的树干，枝更平、更散
     const tx = lean[0], tz = lean[1];
     const nb = 2 + Math.floor(q() * 2);
     for (let i = 0; i < nb; i++) {
@@ -554,6 +574,10 @@ export function treeGeometry(kind, seed = 1) {
     }
     blob(tx, h + 2, tz, 3.0 + q() * 0.6, 1.6, 2.8 + q() * 0.6, pal, 0.3);
     if (q() < 0.6) blob(tx + Math.round((q() - 0.5) * 2), h + 4, tz, 1.8, 0.9, 1.8, pal, 0.35);
+  } else if (kind === 'ginkgo') {   // 银杏：直直的干，往上一团团收窄（像火苗），满树金黄
+    const h = 8 + Math.floor(q() * 3);
+    trunk(h, LOG);
+    for (let i = 0; i < 4; i++) { const r = 2.8 - i * 0.55, y = h - 2 + i * 2.2; blob((q() - 0.5) * 1.2, y, (q() - 0.5) * 1.2, r, 1.5, r, LEAF.ginkgo, 0.3); }
   } else if (kind === 'birch') {
     const h = 7 + Math.floor(q() * 3), r = 2 + q() * 0.6;
     blob(0, h, 0, r, r * 1.5, r, LEAF.birch, 0.45);
@@ -625,14 +649,15 @@ export function treeGeometry(kind, seed = 1) {
     for (let i = 0; i < 5; i++) { const a = i * 1.26 + q(); blob(0.5 + Math.cos(a) * 4.5, h + 1 + q() * 2.5, 0.5 + Math.sin(a) * 4.5, 3, 2.4, 3, LEAF.big); }
   }
   // 三色树冠（Terraglass 的树就是靠这个立起来的）：顶上露天的亮、偏暖黄；底下悬空的暗、偏冷；朝太阳那侧（+x、−z）再亮一点
-  const HI = new THREE.Color('#e8f0a0'), LO = new THREE.Color('#3a5a6a');
+  const HI = new THREE.Color('#e8f0a0'), LO = new THREE.Color('#3a5a6a'), WHITE_HI = new THREE.Color('#fff6ee');
+  const GREENISH = new Set(['oak', 'birch', 'spruce', 'bluespruce', 'pine', 'cypress', 'bush', 'big', 'willow', 'acacia', 'palm', 'cactus']);
   for (const [k, c] of cells) {
     if (c[2] !== 'L') continue;
     const [x, y, z] = k.split(',').map(Number);
     const up = cells.has(key(x, y + 1, z)), dn = cells.has(key(x, y - 1, z));
     const sunSide = !cells.has(key(x + 1, y, z)) || !cells.has(key(x, y, z - 1));
     const col = new THREE.Color(c[0]);
-    if (!up) col.lerp(HI, 0.12).multiplyScalar(1.06);
+    if (!up) col.lerp(GREENISH.has(kind) ? HI : WHITE_HI, 0.12).multiplyScalar(1.06);
     else if (!dn) col.lerp(LO, 0.35).multiplyScalar(0.78);
     else if (!sunSide) col.multiplyScalar(0.86);
     if (sunSide && up) col.multiplyScalar(1.05);

@@ -57,12 +57,24 @@ test('岩浆点着林子，火会蔓延；下雨灭火', () => {
   assert.equal(left, 0, 'rain put out fire');
 });
 
-test('湿的林子点不着', () => {
+test('湿的林子不会马上着：岩浆先把它烤干，过一阵才烧起来；干的林子一下就着', () => {
+  const count = m => { let f = 0; for (let k = 0; k < MG * MG; k++) if (m.fire[k] > 0 || m.burnt[k]) f++; return f; };
+  const wetM = createMatter(() => 0.02, kindOf), dryM = createMatter(() => 0.02, kindOf);
+  pour(wetM, 'lava', 0, -0.07, 0.004); pour(dryM, 'lava', 0, -0.07, 0.004);
+  run(wetM, 0.5, { wet: () => 0.9 }); run(dryM, 0.5, { wet: () => 0.1 });
+  const lavaCells = m => { let c = 0; for (let k = 0; k < MG * MG; k++) if (m.lava[k] > 1e-6) c++; return c; };
+  assert.ok(count(dryM) > count(wetM), `dry ${count(dryM)} wet ${count(wetM)}`);
+  const w0 = count(wetM);
+  run(wetM, 10, { wet: () => 0.9 });
+  assert.ok(count(wetM) > w0 + 5, `wet forest dried out and caught fire: ${w0} → ${count(wetM)}`);
+});
+
+test('植被能烧多少按实际长了多少：荒地上的岩浆点不着东西', () => {
   const m = createMatter(() => 0.02, kindOf);
   pour(m, 'lava', 0, -0.07, 0.004);
-  run(m, 5, { wet: () => 0.9 });
-  let fires = 0; for (let k = 0; k < MG * MG; k++) if (m.fire[k] > 0) fires++;
-  assert.equal(fires, 0);
+  run(m, 6, { wet: () => 0.1, fuel: () => 0 });
+  let f = 0; for (let k = 0; k < MG * MG; k++) if (m.fire[k] > 0) f++;
+  assert.equal(f, 0);
 });
 
 test('沙子堆起来，陡了就往下滑（堆尖不超过休止角）', () => {

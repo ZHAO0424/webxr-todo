@@ -29,9 +29,9 @@ export const LAYOUT = {
     [[0.074, -0.04], [0.078, -0.016], [0.062, 0.006], [0.07, 0.03], [0.052, 0.05], [0.06, 0.09]],
   ],
   lakes: [{ x: -0.042, z: 0.092, r: 0.036 }, { x: 0.064, z: 0.112, r: 0.019 }],
-  meadows: [{ x: 0.1, z: 0.03 }, { x: 0.012, z: 0.112 }, { x: -0.11, z: 0.05 }, { x: 0.118, z: -0.012 }, { x: 0.024, z: 0.06 }],
+  meadows: [{ x: -0.045, z: 0.02 }, { x: 0.012, z: 0.112 }, { x: -0.11, z: 0.05 }, { x: 0.025, z: 0.0 }, { x: 0.024, z: 0.06 }],   // 东边是峡谷，草甸都在中间和西边
   flowers: { x0: -0.02, x1: 0.035, z0: 0.09, z1: 0.14 },
-  bigTrees: [{ x: 0.09, z: 0.06 }, { x: -0.105, z: 0.085 }],      // 草甸里孤零零的两棵大树（雷最爱劈）
+  bigTrees: [{ x: -0.012, z: 0.078 }, { x: -0.105, z: 0.085 }],      // 草甸里孤零零的两棵大树（雷最爱劈）
 };
 
 const segDist = (P, x, z) => {
@@ -61,6 +61,26 @@ function vnoise(x, z) {
   return (hh(i, j) * (1 - u) + hh(i + 1, j) * u) * (1 - v) + (hh(i, j + 1) * (1 - u) + hh(i + 1, j + 1) * u) * v;
 }
 
+// 东边的红石峡谷（照美国西南、新疆那种红色砂岩峡谷）
+export const CANYON = {
+  buttes: [{ x: 0.142, z: 0.03, r: 0.011, h: 0.05 }, { x: 0.128, z: -0.008, r: 0.008, h: 0.04 }, { x: 0.118, z: 0.075, r: 0.007, h: 0.034 }],
+  spires: [{ x: 0.135, z: 0.055, r: 0.0035, h: 0.03 }, { x: 0.112, z: 0.022, r: 0.003, h: 0.024 }, { x: 0.146, z: 0.0, r: 0.003, h: 0.026 }],
+};
+export function inCanyon(x, z) {
+  return x > 0.034 + 0.007 * Math.sin(z * 50) && z > -0.032 && z < 0.088 && Math.hypot(x, z) < R - 0.018;
+}
+const canyonRiver = (x, z) => { const P = LAYOUT.rivers[2]; let best = 1; for (let i = 0; i < P.length - 1; i++) { const [ax, az] = P[i], [bx, bz] = P[i + 1], dx = bx - ax, dz = bz - az; const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz))); best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t)); } return best; };
+// 植被分区（种什么树、地上落什么叶）：maple 枫林 / sakura 樱花林 / ginkgo 银杏 / conifer 针叶林 / canyon 峡谷 / mixed 杂树
+export function biomeAt(x, z) {
+  if (inCanyon(x, z)) return 'canyon';
+  if (z < -0.035) return 'conifer';
+  const w1 = vnoise(x * 9 + 2, z * 9 - 5) * 0.03;
+  if (Math.hypot(x + 0.1, z + 0.005) < 0.05 + w1) return 'maple';            // 西坡
+  if (Math.hypot(x + 0.035, z - 0.125) < 0.05 + w1 && lakeDist(x, z) > 0.004) return 'sakura';   // 南湖边
+  if (Math.hypot(x - 0.0, z - 0.03) < 0.028 + w1) return 'ginkgo';           // 中间
+  if (Math.hypot(x - 0.03, z - 0.11) < 0.03 + w1) return 'sakura';
+  return 'mixed';
+}
 // 地形高度（岛底到地面），渲染层建网格也用它
 export function height(x, z) {
   const r = Math.hypot(x, z);
@@ -106,6 +126,19 @@ export function height(x, z) {
   h -= 0.007 * Math.exp(-(rd * rd) / (2 * 0.006 * 0.006));
   const ld = lakeDist(x, z);
   if (ld < 0.012) h = Math.min(h, PLINTH + 0.003 + Math.max(-0.006, ld * 0.5));
+  // 红石峡谷：溪两侧是平顶的台地（一溜竖直的崖壁），溪在中间切出两级峡谷：崖腰一级窄平台、谷底是溪
+  if (inCanyon(x, z)) {
+    const base = PLINTH + 0.003, rd2 = canyonRiver(x, z), wob = 0.0025 * Math.sin(z * 90 + x * 40) + 0.0015 * Math.sin(z * 210);
+    const plateauW = 0.04 + 0.008 * Math.sin(z * 55 + 1.0);
+    let hc;
+    if (rd2 + wob < 0.009) hc = base + 0.002;                      // 谷底（溪）
+    else if (rd2 + wob < 0.016) hc = base + 0.021;                 // 崖腰平台
+    else if (rd2 + wob < plateauW) hc = base + 0.04 + 0.003 * (vnoise(x * 40, z * 40) > 0.6 ? 1 : 0);   // 台地顶
+    else hc = base + 0.004 + 0.002 * vnoise(x * 60, z * 60);       // 台地外的荒漠
+    for (const b of CANYON.buttes) if (Math.hypot(x - b.x, z - b.z) < b.r * (1 + 0.15 * Math.sin(Math.atan2(z - b.z, x - b.x) * 5))) hc = Math.max(hc, base + b.h);
+    for (const sp of CANYON.spires) { const d = Math.hypot(x - sp.x, z - sp.z); if (d < sp.r) hc = Math.max(hc, base + sp.h * (d < sp.r * 0.6 ? 1 : 0.7)); }
+    h = hc;
+  }
   // 边缘是卵石滩，往下收
   const e = Math.max(0, (r - (R - 0.014)) / 0.014);
   h = h * (1 - e) + (PLINTH + 0.0015) * e;
@@ -117,6 +150,7 @@ export const SOIL = { DIRT: 0, SAND: 1, CLAY: 2, SCREE: 3, MUD: 4 };
 export const SOIL_GROW = [1, 0.45, 0.8, 0.55, 1.15];
 export function soilAt(x, z) {
   const h = height(x, z) - PLINTH, ld = lakeDist(x, z), rd = riverDist(x, z);
+  if (inCanyon(x, z)) return canyonRiver(x, z) < 0.012 && h < 0.01 ? SOIL.MUD : SOIL.CLAY;   // 峡谷：红土，谷底是泥
   if (ld < 0.02 || (rd < 0.012 && h < 0.012)) return SOIL.MUD;
   if (h > 0.03 || slope(x, z) > 1.0) return SOIL.SCREE;
   const a = vnoise(x * 13 + 4.2, z * 13 - 1.3), b = vnoise(x * 24 - 7, z * 24 + 2);
@@ -146,6 +180,7 @@ export function cellType(x, z) {
   if (x > f.x0 && x < f.x1 && z > f.z0 && z < f.z1 && ld > 0.008) return T.FLOWER;
   if (ld < 0.016 && height(x, z) < PLINTH + 0.01) return T.MARSH;
   const h = height(x, z) - PLINTH;
+  if (inCanyon(x, z)) return slope(x, z) > 0.8 ? T.ROCK : T.GRASS;
   if (h > 0.078) return T.SNOW;
   if (h > 0.06 || (h > 0.034 && slope(x, z) > 1.35)) return T.ROCK;
   const forest = vnoise(x * 32 + 3, z * 32 - 1);
@@ -360,6 +395,8 @@ export function step(w, inputs = {}, dt = DT) {
 
   // --- 火 / 岩浆烧过的地方：植物没了，慢慢再长 ---
   for (const b of inputs.burns || []) forCells(b.x, b.z, b.r || 0.01, k => { w.G[k] = Math.min(w.G[k], 0.1); w.burnt[k] = 1; });
+  // 岩浆烤：周围的地水分被蒸干、草发黄枯掉一些
+  for (const s of inputs.scorch || []) forCells(s.x, s.z, 0.012, k => { w.M[k] = Math.max(0, w.M[k] - 0.08 * s.a); w.G[k] = Math.max(0.1, w.G[k] - 0.02 * s.a); w.dryT[k] += 2; });
 
   // --- 云：放手后自己下完，被风吹着走 ---
   w.rainCell.fill(0); w.snowCell.fill(0);
@@ -621,7 +658,8 @@ function updateAnimals(w, hands, dt, blocked) {
     const dx = a.tx - a.x, dz = a.tz - a.z, d = Math.hypot(dx, dz);
     if (!still && d > 0.0015) {
       const s = Math.min(d, sp * dt), nx = a.x + dx / d * s, nz = a.z + dz / d * s;
-      if (walkable(nx, nz, a.act === 'flee' ? null : blocked) || a.act === 'flee') { a.x = nx; a.z = nz; a.face = Math.atan2(dx, dz); a.moving = true; }
+      // 逃跑时可以踩过岩浆 / 火（不然逃不出来），但不会跑进水里、跑出岛；已经困在走不了的地方就先挪出来
+      if (walkable(nx, nz, a.act === 'flee' ? null : blocked) || (a.act === 'flee' && !walkable(a.x, a.z) && cellType(nx, nz) !== T.WATER && Math.hypot(nx, nz) < R - 0.012)) { a.x = nx; a.z = nz; a.face = Math.atan2(dx, dz); a.moving = true; }
       else { a.tx = a.x; a.tz = a.z; a.moving = false; }
     } else a.moving = false;
     if (a.look != null) a.face = a.look;

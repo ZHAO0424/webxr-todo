@@ -71,7 +71,12 @@ export function pour(m, what, x, z, amount) {
 
 export function step(m, dt, env = {}) {
   m.t += dt;
-  const rain = env.rain || (() => 0), wet = env.wet || (() => 0.3), wind = env.wind || [0, 0];
+  const rain = env.rain || (() => 0), wet0 = env.wet || (() => 0.3), wind = env.wind || [0, 0];
+  // 植被能烧多少：外面给（按模拟里实际长了多少）；没给就用开局的草木
+  if (env.fuel) for (let k = 0; k < MG * MG; k++) if (!m.burnt[k] && m.fire[k] <= 0) m.fuel[k] = env.fuel(...center(k % MG, (k / MG) | 0));
+  // 岩浆的辐射热把周围烤干：dry 0–1，越近越干；湿度按 (1 − dry) 打折
+  m.dry ??= new Float32Array(MG * MG);
+  const wet = (x, z) => { const k = index(x, z); return wet0(x, z) * (k >= 0 ? 1 - m.dry[k] : 1); };
   const n = MG * MG;
   const dLava = new Float32Array(n), dSand = new Float32Array(n);
   // 1. 岩浆往低处流、沙子往下滑（先按快照算出变化量，再一起加上）
@@ -107,6 +112,7 @@ export function step(m, dt, env = {}) {
     if (dLava[k]) m.lava[k] = Math.max(0, m.lava[k] + dLava[k]);
     if (dSand[k]) m.sand[k] = Math.max(0, m.sand[k] + dSand[k]);
   }
+  for (let k = 0; k < n; k++) if (m.dry[k] > 0) m.dry[k] = Math.max(0, m.dry[k] - dt * (0.02 + 0.4 * rain(...center(k % MG, (k / MG) | 0))));
   // 2. 冷却、遇水、点火
   for (let k = 0; k < n; k++) {
     const i = k % MG, j = (k / MG) | 0, [x, z] = center(i, j);
@@ -121,12 +127,14 @@ export function step(m, dt, env = {}) {
         m.heat[k] = Math.max(0, m.heat[k] - dt * (0.018 + r * 0.3 + (L < 0.0012 ? 0.03 : 0)));   // 一摊岩浆能烫上半分钟
         if (r > 0.2 && rnd(m) < dt * 2 * r) { m.events.push({ type: 'steam', x, z, a: 0.0005 }); m.stats.steam++; }
         if (m.heat[k] < 0.35) { const c = Math.min(L, (0.0016 + 0.25 * L) * dt * (1 + r * 4)); m.lava[k] -= c; m.rock[k] += c; }
-        // 烫的岩浆点着四周干的草木
-        if (m.heat[k] > 0.4) for (const [di, dj] of N4) {
-          const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= MG || nj >= MG) continue;
-          const nk = nj * MG + ni;
-          if (m.fuel[nk] > 0.2 && m.fire[nk] <= 0 && !m.burnt[nk] && wet(...center(ni, nj)) < 0.6) { m.fire[nk] = 6 + 4 * m.fuel[nk]; m.events.push({ type: 'ignite', x: center(ni, nj)[0], z: center(ni, nj)[1] }); }
+        // 烫的岩浆：三格内的草木被烤干（越近越快），烤干了就着；紧挨着的直接点着
+        if (m.heat[k] > 0.3) for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) {
+          const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= MG || nj >= MG || (di === 0 && dj === 0)) continue;
+          const nk = nj * MG + ni, d = Math.hypot(di, dj); if (d > 3.2 || m.lava[nk] > 1e-6) continue;
+          m.dry[nk] = Math.min(1, m.dry[nk] + dt * m.heat[k] * 0.5 / (d * d));
+          if (m.fuel[nk] > 0.15 && m.fire[nk] <= 0 && !m.burnt[nk] && wet(...center(ni, nj)) < (d < 1.5 ? 0.4 : 0.25) && rnd(m) < dt * (d < 1.5 ? 3 : 0.6)) { m.fire[nk] = 6 + 4 * m.fuel[nk]; m.events.push({ type: 'ignite', x: center(ni, nj)[0], z: center(ni, nj)[1] }); }
         }
+        if (m.heat[k] > 0.3 && rnd(m) < dt * 0.6) m.events.push({ type: 'scorch', x, z, a: m.heat[k] });   // 给模拟：这一片的地被烤干
         if (m.fuel[k] > 0 && !m.burnt[k]) { m.burnt[k] = 1; m.fuel[k] = 0; m.events.push({ type: 'burn', x, z, r: MC }); m.stats.burnt++; }
       }
     }
