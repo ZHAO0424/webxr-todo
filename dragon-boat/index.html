@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>龙舟鼓手 · Dragon Boat Drummer</title>
+<style>
+  :root { --fg: #fff3d6; --dim: #b39a6a; --bg: #050302; --acc: #ffc860; --red: #ff5a3c; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden;
+    font-family: "Helvetica Neue", "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  canvas { display: block; touch-action: none; }
+  #card { position: fixed; left: 26px; top: 24px; max-width: 310px; pointer-events: none; transition: opacity 1s; }
+  #card h1 { font-weight: 300; font-size: 30px; letter-spacing: .16em; margin: 0; font-family: "STKaiti", "KaiTi", "Kaiti SC", serif; color: #ffd98a; }
+  #card .alt { display: block; font-size: 11px; color: var(--dim); letter-spacing: .32em; margin: 8px 0 12px 2px; }
+  #card p { margin: 4px 0; font-size: 13px; line-height: 1.8; color: var(--dim); }
+  #card ul { margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.9; color: #e6d2a8; }
+  #card ul li::before { content: "▸ "; color: var(--red); }
+  #card .credit { margin-top: 14px; font-size: 11px; opacity: .8; }
+  #btns { position: fixed; right: 18px; top: 16px; display: flex; gap: 8px; }
+  #btns button { background: none; border: 1px solid #4a3418; color: var(--dim); font: inherit; font-size: 12px; padding: 6px 12px; border-radius: 16px; cursor: pointer; }
+  #btns button:hover { color: var(--fg); border-color: #8a6428; }
+  @media (max-width: 760px) { #card { left: 16px; right: 16px; top: 14px; } #card h1 { font-size: 22px; } #card p, #card ul { display: none; } }
+</style>
+<script>window.__errs = []; addEventListener('error', e => __errs.push(String(e.message))); addEventListener('unhandledrejection', e => __errs.push(String(e.reason)));</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="card">
+  <h1 id="t-name"></h1><span class="alt" id="t-alt"></span>
+  <p id="t-tag"></p>
+  <ul id="t-how"></ul>
+  <p id="t-credit" class="credit"></p>
+</div>
+<div id="btns"><button id="lang"></button><button id="mute"></button></div>
+<script type="module">
+import * as THREE from 'three';
+import { mirrorThree } from '../shared/xr-mirror.js';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { Race, StrikeDetector, RACE_LEN, SEGS, segAt } from './core.js';
+import { createArt } from './art.js';
+import { createWorld3D } from './world3d.js';
+
+const V3 = THREE.Vector3, clamp = THREE.MathUtils.clamp, TAU = Math.PI * 2;
+const QS = new URLSearchParams(location.search);
+// 发光物的混合（同节拍门 / 萤群）：颜色相加；alpha 取亮度，Liquid 投屏按 alpha 叠图时暗的光晕外圈不会盖出黑边
+const AR_GLOW = {
+  blending: THREE.CustomBlending, premultipliedAlpha: true,
+  blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+  onBeforeCompile: s => { s.fragmentShader = s.fragmentShader.replace(/\}\s*$/, 'gl_FragColor.a = max(gl_FragColor.r, max(gl_FragColor.g, gl_FragColor.b));\n}'); },
+};
+
+// ---------- 双语 ----------
+const STR = {
+  zh: {
+    name: '龙舟鼓手', alt: 'DRAGON BOAT DRUMMER', tag: '桌上一段描金的河，四条龙舟竞渡。你是船头的鼓手：手往下一敲，二十支桨跟着你入水。',
+    how: ['手在空中往下敲：一下就是一记鼓点；捏合手指也算敲一下（敲不准时用它保底）', '敲得稳，桨就齐、船就快；乱敲桨就乱；停下，桨手举桨等你', '起航敲快些（约 100），中段稳住（约 80），最后冲刺（约 105）', '左右手交替敲最快；一直用同一只手，船只出一半多的力', '双手同时落下 = 重鼓', '领先过线：捏合举起标旗', '电脑：F / ← 左手，J / → 右手，鼠标左键 / 右键 = 左 / 右手；R 重新摆放'],
+    credit: '声音全部实时合成 · three.js', start: '往下敲两下  开始', startPc: '敲两下 / 点击 开始',
+    seg: { start: '起航', cruise: '巡航', sprint: '冲刺' }, rank: n => `第 ${n} 名`, bpm: '鼓', sync: '齐',
+    judge: { steady: '稳', ok: '可', off: '乱', perfect: '完美', good: '好', fast: '太快', slow: '慢了' }, guide: '跟着闪的鼓敲', ready: ['三', '二', '一'], go: '起！',
+    result: '终点', time: '用时', avgSync: '平均整齐', steadyPct: '稳拍', streak: '最长连稳', again: '敲两下 / 捏合 再来一局',
+    win: '夺 冠', places: ['夺 冠', '第 二', '第 三', '第 四'], grab: '捏合 举标', grabPc: '点击 / 空格 举标', grabbed: '夺标！',
+    names: ['你', '稳', '猛', '后发'], altHint: '左右交替！', same: '换手', mute: '关声音', unmute: '开声音', lang: 'EN', handHint: '手抬高一点',
+  },
+  en: {
+    name: 'DRAGON BOAT DRUMMER', alt: '龙舟鼓手', tag: 'A gold-lined river on your desk, four dragon boats racing. You are the drummer: strike down in the air and twenty paddles dig in on your beat.',
+    how: ['Strike down in the air: each strike is a drum beat; a pinch also counts as one beat (fallback when strikes are not detected)', 'Steady beats line the paddles up and the boat flies; erratic beats scatter them; stop and the crew waits for you', 'Start fast (~100), hold steady mid-race (~80), sprint at the end (~105)', 'Alternate left and right for top speed; one hand alone gives barely half the power', 'Both hands at once = a heavy beat', 'Cross first: pinch to raise the flag', 'Desktop: F / ← left hand, J / → right hand, left / right mouse button = left / right; R to re-place'],
+    credit: 'All sound synthesized live · three.js', start: 'STRIKE TWICE TO START', startPc: 'STRIKE TWICE / CLICK TO START',
+    seg: { start: 'START', cruise: 'CRUISE', sprint: 'SPRINT' }, rank: n => ['1st', '2nd', '3rd', '4th'][n - 1], bpm: 'BPM', sync: 'SYNC',
+    judge: { steady: 'STEADY', ok: 'OK', off: 'OFF', perfect: 'PERFECT', good: 'GOOD', fast: 'TOO FAST', slow: 'TOO SLOW' }, guide: 'Hit with the flashing drum', ready: ['3', '2', '1'], go: 'GO!',
+    result: 'FINISH', time: 'Time', avgSync: 'Avg sync', steadyPct: 'Steady', streak: 'Best streak', again: 'STRIKE TWICE / PINCH TO RACE AGAIN',
+    win: 'CHAMPION', places: ['CHAMPION', '2ND', '3RD', '4TH'], grab: 'PINCH TO RAISE THE FLAG', grabPc: 'CLICK / SPACE TO RAISE THE FLAG', grabbed: 'FLAG TAKEN!',
+    names: ['YOU', 'STEADY', 'BURST', 'CLOSER'], altHint: 'ALTERNATE L / R!', same: 'SWITCH', mute: 'Sound off', unmute: 'Sound on', lang: '中文', handHint: 'Raise your hands a little',
+  },
+};
+let lang = 'zh';
+try { lang = localStorage.getItem('dragon-lang') || (/^zh/i.test(navigator.language) ? 'zh' : 'en'); } catch (e) { lang = /^zh/i.test(navigator.language) ? 'zh' : 'en'; }
+const S = () => STR[lang];
+const FONT = () => lang === 'zh' ? '"STKaiti","KaiTi","Kaiti SC","Songti SC",serif' : '"Georgia","Times New Roman",serif';
+let muted = false;
+try { muted = localStorage.getItem('dragon-mute') === '1'; } catch (e) { }
+function applyLang() {
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.getElementById('t-name').textContent = S().name;
+  document.getElementById('t-alt').textContent = S().alt;
+  document.getElementById('t-tag').textContent = S().tag;
+  document.getElementById('t-how').innerHTML = S().how.map(s => `<li>${s}</li>`).join('');
+  document.getElementById('t-credit').textContent = S().credit;
+  document.getElementById('lang').textContent = S().lang;
+  document.getElementById('mute').textContent = muted ? S().unmute : S().mute;
+  makeWordTextures(); panelDirty = hudDirty = true;
+}
+
+// ---------- 渲染 ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.info.autoReset = false;   // 每帧开头手动清零，后处理多遍渲染也能数全
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+mirrorThree(renderer);
+document.body.appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x050302);
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.01, 20);
+const world = new THREE.Group(); scene.add(world);
+// 沙盘：视点前 0.55 m、低 0.28 m；宽 40 cm（x 沿河道，y 向上，z 朝观者）
+const DIO = new V3(0, -0.32, -0.52);   // 俯角约 32°：车道在视线里分得开（审查 #2-7）
+const dio = new THREE.Group(); dio.position.copy(DIO); world.add(dio);
+const WX = 0.2, SCALE = 0.01;                    // 窗口半宽（米）；1 游戏米 = 1 cm
+const LANE_Z = [0.078, 0.026, -0.026, -0.078];   // 你的船离观者最近；间距 48 mm > 船宽 + 桨展（审查 #1：桨不能伸进隔壁车道）
+const RIVER_Z = 0.088, FAR_Z = -0.1, NEAR_Z = 0.1;
+
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+// ---------- 画面：笔墨描金（见 art.js） ----------
+const GAIN = { value: 1 };
+const art = createArt(THREE, AR_GLOW, dio, GAIN);
+const C = art.C;
+// 3D 层：船、人、堤、亭、牌坊、柳、灯笼、水面（卡通着色 + 描金描边）
+const w3d = createWorld3D(dio, { laneZ: LANE_Z, raceLen: 200, AR_GLOW, onSplash: (x, z, i) => art.splash(x, z, i) });
+// 主角船：Tripo 生成的整条龙舟（vermilion 漆 + 金鳞 + 龙头龙尾 + 鼓），套卡通着色 + 描金；加载失败就保留程序船
+w3d.loadHeroHead('assets/models/hero-boat.glb', { replaceBody: true, rot: [0, Math.PI / 2, 0], len: 96, at: [7, -4.6, 0], squash: [1, 0.7, 0.55] }).then(info => { heroModelInfo = info; document.body.dataset.hero = JSON.stringify(info); }).catch(e => { console.warn('hero model', e); heroModelInfo = { error: String(e) }; document.body.dataset.hero = JSON.stringify(heroModelInfo); });
+let heroModelInfo = null;
+// 对手三条船：同样是 Tripo 生成（青银 / 翠金 / 紫银），压扁到同一船宽；紫船的龙头朝 -Z，要反过来转
+const OPP_MODELS = [
+  [1, 'assets/models/opp-blue.glb', { rot: [0, Math.PI / 2, 0], squash: [1, 0.6, 0.63] }],
+  [2, 'assets/models/opp-green.glb', { rot: [0, Math.PI / 2, 0], squash: [1, 0.66, 0.75] }],
+  [3, 'assets/models/opp-purple.glb', { rot: [0, -Math.PI / 2, 0], squash: [1, 0.66, 0.75] }],
+];
+for (const [i, url, o] of OPP_MODELS) w3d.loadBoatModel(i, url, { replaceBody: true, len: 96, at: [7, -4.6, 0], ...o }).catch(e => console.warn('opp model', i, e));
+
+// ---------- 场景状态（画面每帧从这里取） ----------
+const race = new Race(20261113 + Math.floor(Math.random() * 1000));
+let cx = -3, wave = { x: -9, t: 9 }, excite = 0.3, flagGrab = null, archReveal = 0, roarT = -9;
+const toX = m => (m - cx) * SCALE;
+const lastHand = [{ t: -9 }, { t: -9 }];   // 你的鼓手左右手上一次落槌
+// 鼓点反馈：墨花。头显里画在手落下的地方（大）；桌面上没有手，画在你船上的鼓面（小）
+function ripple(worldP, judge) {
+  const p = dio.worldToLocal(worldP.clone()), xr = renderer.xr.isPresenting;
+  const col = judge === 'steady' ? C.goldHi : judge === 'ok' ? C.gold : judge === 'off' ? C.dim : C.verm;
+  if (xr) art.inkBloom(p.x, p.y, p.z, col, 1, judge === 'heavy');
+  // 你船上的鼓面：每一下都炸一圈金环（头显里和手上的墨花呼应）
+  if (race.state === 'race' || race.state === 'finish') { w3d.hitSpray(0); syncFlare = now(); art.waterRing(toX(race.you.pos) - 36 * 0.00135 + 25.5 * 0.00135, LANE_Z[0], col, judge === 'off', judge === 'steady' || judge === 'heavy' ? 1 : judge === 'ok' ? 0.7 : 0.85); const S = 0.00135; art.drumPulse(toX(race.you.pos) - 36 * S + 25.5 * S, 9.4 * S + 0.0008, LANE_Z[0], col, judge === 'heavy', judge === 'off'); }   // 水面金环从鼓的位置发出（审查 #8-3）
+}
+
+// 判定字：小块画布贴图
+// 太鼓式判定字：完美 / 好 / 太快 / 慢了 / 乱 / 换手（眼镜里黑 = 透明，颜色都要亮）
+const WORDS = ['steady', 'ok', 'off', 'grabbed', 'same', 'perfect', 'good', 'fast', 'slow'], wordTex = {};
+const WORD_COL = { steady: '#ffe6a0', ok: '#e8c27a', off: '#c0a8e0', grabbed: '#ff7a50', same: '#ff8a60', perfect: '#fff0a0', good: '#ffd27a', fast: '#ff6a40', slow: '#80d8ff' };
+function makeWordTextures() {
+  for (const w of WORDS) {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
+    const g = cv.getContext('2d'), txt = w === 'grabbed' ? S().grabbed : w === 'same' ? S().same : S().judge[w];
+    g.font = `${lang === 'zh' ? 400 : 700} ${lang === 'zh' ? 64 : (txt.length > 6 ? 34 : 40)}px ${FONT()}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = WORD_COL[w]; g.shadowBlur = 18; g.fillStyle = WORD_COL[w]; g.fillText(txt, 128, 50);
+    if (w === 'perfect') { g.shadowBlur = 0; g.lineWidth = 1.5; g.strokeStyle = '#ffffff'; g.strokeText(txt, 128, 50); }
+    if (wordTex[w]) wordTex[w].dispose();
+    wordTex[w] = new THREE.CanvasTexture(cv); wordTex[w].colorSpace = THREE.SRGBColorSpace;
+  }
+  for (const s of words) { s.m.material.map = wordTex[s.w] || null; s.m.material.needsUpdate = true; }
+}
+const words = Array.from({ length: 8 }, () => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.019), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, depthTest: false }));   // 用户 11-16：眼镜里看不见 → 改成和 HUD 一样的普通混合、最后画
+  m.visible = false; m.renderOrder = 997; world.add(m); return { m, t: 9, w: 'ok' };
+});
+let wordI = 0;
+function word(w, worldP, big = 1) {
+  const s = words[wordI++ % words.length];
+  s.w = w; s.t = 0; s.big = big; s.m.material.map = wordTex[w]; s.m.material.needsUpdate = true;
+  s.m.position.copy(worldP).add(new V3(0, 0.025, 0)); s.m.lookAt(headLocal()); s.m.visible = true;
+}
+
+// 判定：换手 > 太快 / 慢了（相对本段节奏带，用最近 4 拍的中位数，不会一下一闪）> 完美 / 好 / 乱
+function hitWord(j) {
+  const y = race.you;
+  if (j.judge === 'set') return null;
+  if (!j.alt && y.hits > 2) return 'same';
+  const band = SEGS[segAt(y.pos)].band, bpm = y.tempo.bpm();
+  if (bpm > band[1] + 4) return 'fast';
+  if (bpm < band[0] - 4) return 'slow';
+  const d = laneOffset(now());   // 和轨道上最近音符的时间差（负 = 抢拍）
+  return Math.abs(d) <= 0.07 ? 'perfect' : Math.abs(d) <= 0.14 ? 'good' : d < 0 ? 'fast' : 'slow';
+}
+const drumLocal = () => new V3(toX(race.you.pos) - 36 * 0.00135 + 25.5 * 0.00135, 0.012, LANE_Z[0]).add(DIO);
+// 节拍引导：按本段的建议节奏（起航 100 / 巡航 82 / 冲刺 105）左右交替"闪"一面鼓；你敲得准时引导会向你的拍子对齐
+const GUIDE_BPM = pos => pos < 25 ? 100 : pos > RACE_LEN - 50 ? 105 : 82;
+let guideT = 0, guideHand = 0, guideFlash = -9, musDone = false;
+function guideStep(t) {
+  if (race.state !== 'race') { guideT = t; return; }
+  const iv = 60 / GUIDE_BPM(race.you.pos);
+  if (t - guideT > iv) { guideT = t; musDone = false; }   // 落后太多（刚开赛 / 卡顿）：从现在起拍
+  // 配乐提前约 0.1 s 按音频时钟排好这一拍（帧抖动不影响节奏）
+  if (AC && !musDone && guideT - t < 0.1) {
+    musDone = true;   // 每拍只排一次（之后你的鼓点把引导拍挪一点点也不重排）
+    const band = SEGS[segAt(race.you.pos)].band, bpm = race.you.tempo.bpm(), lost = race.you.tempo.waiting(t) || bpm > band[1] + 4 || bpm < band[0] - 4;
+    musicBeat(AC.currentTime + Math.max(0, guideT - t), iv, segAt(race.you.pos), lost && race.you.hits > 2);
+  }
+  if (t >= guideT) { guideT += iv; musDone = false; guideHand ^= 1; guideFlash = t; hudDirty = true; hudT = 0; }
+}
+function guideNudge(t) {
+  const iv = 60 / GUIDE_BPM(race.you.pos), prev = guideT - iv, d = Math.abs(t - prev) < Math.abs(t - guideT) ? t - prev : t - guideT;
+  if (Math.abs(d) < iv * 0.3) guideT += d * 0.3;
+}
+
+// ---------- 打击轨道（太鼓式，用户 11-16）：河道下方 / 靠近你的一条描金漆条 ----------
+// 音符 = 引导节拍（本段建议节奏），左右手交替上色（左朱、右青）；滑到左端判定圈时敲。敲中的音符炸成金环，判定字在圈上方弹出
+// 画布 1536 px：中间 1024 px 是主体（判定圈 + 音符区，和之前一样大），左右各 256 px 是渐隐的描金尾巴（用户 11-16：轨道长一点）
+const LANE_PAD = 256, LANE_MAIN = 1024, LANE_W = LANE_MAIN + 2 * LANE_PAD, LANE_H = 192, LANE_HIT = LANE_PAD + 132, LANE_PX = 360;   // 判定圈 x、每秒滑多少像素（约 2.5 s 预告）
+const lane = canvasPanel(LANE_W, LANE_H, 0.45, 0.05625);
+lane.m.material = new THREE.MeshBasicMaterial({ map: lane.tx, transparent: true, depthWrite: false, depthTest: false }); lane.m.renderOrder = 998;
+let laneDone = [], lanePop = null;
+const laneBeats = t => {   // 前后的引导拍：[{ t, hand }]
+  const iv = 60 / GUIDE_BPM(race.you.pos), out = [];
+  for (let k = -3; k <= 8; k++) out.push({ t: guideT + k * iv, hand: guideHand ^ ((k + 1) & 1) });
+  return out;
+};
+function laneOffset(t) { let best = 9; for (const b of laneBeats(t)) if (Math.abs(t - b.t) < Math.abs(best)) best = t - b.t; return best; }
+function laneHit(t, pop) {
+  let best = null; for (const b of laneBeats(t)) if (Math.abs(t - b.t) < 0.3 && (!best || Math.abs(t - b.t) < Math.abs(t - best.t))) best = b;
+  if (best && (pop === 'perfect' || pop === 'good')) laneDone.push(best.t);
+  lanePop = { w: pop, t };
+}
+// 笔触：沿折线画一条两头尖的描金笔画（和沙盘里的描金线同一套语言）
+function brush(g, pts, w, col, alpha = 1) {
+  const L = [], R = []; for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, u = i / (pts.length - 1);
+    const ww = w * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, u * 1.08 - 0.04))), 0.55) * (0.85 + 0.15 * Math.sin(i * 1.7));
+    L.push([pts[i][0] - dy / l * ww, pts[i][1] + dx / l * ww]); R.push([pts[i][0] + dy / l * ww, pts[i][1] - dx / l * ww]);
+  }
+  g.globalAlpha = alpha; g.fillStyle = col; g.beginPath(); L.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); R.reverse().forEach(p => g.lineTo(p[0], p[1])); g.closePath(); g.fill(); g.globalAlpha = 1;
+}
+// 鼓面音符：朱漆鼓圈 + 金箍 + 一圈鼓钉 + 暖白鼓皮（和船上的鼓一个样子）；不分左右手
+function drumNote(g, x, y, r, a, glow) {
+  g.globalAlpha = a;
+  if (glow) { g.shadowColor = '#ffc860'; g.shadowBlur = 18; }
+  g.fillStyle = '#c8321c'; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.shadowBlur = 0;
+  const skin = g.createRadialGradient(x - r * 0.25, y - r * 0.3, r * 0.1, x, y, r * 0.72); skin.addColorStop(0, '#fff3dc'); skin.addColorStop(1, '#e8c89a');
+  g.fillStyle = skin; g.beginPath(); g.arc(x, y, r * 0.7, 0, TAU); g.fill();
+  g.strokeStyle = '#ffd27a'; g.lineWidth = 3; g.beginPath(); g.arc(x, y, r, 0, TAU); g.stroke();
+  g.fillStyle = '#ffe6a8'; for (let q = 0; q < 10; q++) { const th = q / 10 * TAU; g.beginPath(); g.arc(x + Math.cos(th) * r * 0.85, y + Math.sin(th) * r * 0.85, 2.2, 0, TAU); g.fill(); }
+  g.strokeStyle = 'rgba(200,60,30,0.55)'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, r * 0.32, 0, TAU); g.stroke();   // 鼓皮中心一圈朱纹
+  g.globalAlpha = 1;
+}
+function drawLane(t) {
+  const g = lane.g; g.clearRect(0, 0, LANE_W, LANE_H);
+  const y0 = 96, xr = renderer.xr.isPresenting;
+  laneDone = laneDone.filter(d => t - d < 1);
+  // 底：极淡的墨色晕（眼镜里黑 = 透明，只留一点托底），上下两笔描金长线（两头尖，像沙盘里的描金）
+  const bg = g.createLinearGradient(0, 40, 0, 152); bg.addColorStop(0, 'rgba(14,8,6,0)'); bg.addColorStop(0.5, xr ? 'rgba(14,8,6,0.35)' : 'rgba(14,8,6,0.6)'); bg.addColorStop(1, 'rgba(14,8,6,0)');
+  g.fillStyle = bg; g.fillRect(0, 40, LANE_W, 112);
+  const wav = (y, ph) => Array.from({ length: 36 }, (_, i) => [20 + i * (LANE_W - 40) / 35, y + Math.sin(i * 0.9 + ph) * 1.5]);
+  brush(g, wav(48, 0), 3.2, '#ffd27a', 0.9); brush(g, wav(144, 2), 3.2, '#ffd27a', 0.9);
+  // 青海波：沿下沿一排随水流移动的细弧（和水面同一纹样）
+  g.strokeStyle = 'rgba(120,200,230,0.28)'; g.lineWidth = 1.6;
+  for (let x = 40; x < LANE_W - 20; x += 40) { const ox = x - ((t * LANE_PX) % 40); for (const rr of [16, 10]) { g.beginPath(); g.arc(ox, 142, rr, Math.PI * 1.05, Math.PI * 1.95); g.stroke(); } }
+  // 判定圈：金色双环 + 鼓钉，中间空（不写字）；刚敲过时按判定炸开
+  const hitAge = lanePop ? t - lanePop.t : 9, w = lanePop && lanePop.w, good = w === 'perfect' || w === 'good';
+  g.strokeStyle = 'rgba(255,214,130,0.95)'; g.lineWidth = 4; g.shadowColor = '#ffc860'; g.shadowBlur = 14; g.beginPath(); g.arc(LANE_HIT, y0, 42, 0, TAU); g.stroke(); g.shadowBlur = 0;
+  g.lineWidth = 1.5; g.beginPath(); g.arc(LANE_HIT, y0, 33, 0, TAU); g.stroke();
+  g.fillStyle = '#ffe6a8'; for (let q = 0; q < 12; q++) { const th = q / 12 * TAU + t * 0.4; g.beginPath(); g.arc(LANE_HIT + Math.cos(th) * 48, y0 + Math.sin(th) * 48, 2, 0, TAU); g.fill(); }
+  if (hitAge < 0.45) {
+    const k = hitAge / 0.45, e = 1 - k;
+    if (good) {   // 完美 / 好：金色墨花——一圈放射的短笔触 + 外扩的金环（完美更大更亮）
+      const big = w === 'perfect' ? 1 : 0.7;
+      for (let q = 0; q < 14; q++) { const th = q / 14 * TAU + 0.3, r0 = 46 + 30 * k * big, r1 = r0 + (18 + (q % 3) * 8) * big * e; brush(g, [[LANE_HIT + Math.cos(th) * r0, y0 + Math.sin(th) * r0], [LANE_HIT + Math.cos(th) * (r0 + r1) / 2, y0 + Math.sin(th) * (r0 + r1) / 2], [LANE_HIT + Math.cos(th) * r1, y0 + Math.sin(th) * r1]], 3 * big, q % 2 ? '#ffe6a8' : '#ffc860', e); }
+      g.strokeStyle = `rgba(255,236,170,${e})`; g.lineWidth = 5 * big; g.beginPath(); g.arc(LANE_HIT, y0, 44 + 46 * k * big, 0, TAU); g.stroke();
+      if (w === 'perfect') { g.fillStyle = `rgba(255,244,210,${0.5 * e})`; g.beginPath(); g.arc(LANE_HIT, y0, 30 * e + 8, 0, TAU); g.fill(); }
+    } else if (w) {   // 太快 / 慢了 / 乱 / 换手：断开的朱色环，偏向早（右）或晚（左）一侧
+      const off = w === 'fast' ? 14 : w === 'slow' ? -14 : 0;
+      g.strokeStyle = `rgba(255,110,70,${0.9 * e})`; g.lineWidth = 4;
+      for (let q = 0; q < 8; q++) { const th = q / 8 * TAU; g.beginPath(); g.arc(LANE_HIT + off * k, y0, 44 + 22 * k, th, th + 0.45); g.stroke(); }
+    }
+  }
+  // 音符：鼓面，从右往左滑来；远处淡入，过了判定圈淡出；敲中的直接消失
+  for (const b of laneBeats(t)) {
+    const x = LANE_HIT + (b.t - t) * LANE_PX; if (x < LANE_PAD + 50 || x > LANE_PAD + LANE_MAIN - 50) continue;
+    if (laneDone.some(d => Math.abs(d - b.t) < 0.05)) continue;
+    const past = b.t < t - 0.15, fadeIn = Math.min(1, (LANE_PAD + LANE_MAIN - 50 - x) / 120), a = past ? Math.max(0, 1 - (t - b.t - 0.15) * 3) * 0.45 : fadeIn;
+    drumNote(g, x, y0, 28, a, !past && x < LANE_HIT + 90);
+  }
+  // 两头渐隐：主体全亮，尾巴淡出到透明
+  const fade = g.createLinearGradient(0, 0, LANE_W, 0), p0 = LANE_PAD / LANE_W, p1 = (LANE_PAD + LANE_MAIN) / LANE_W;
+  fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(p0 * 0.9, 'rgba(0,0,0,1)'); fade.addColorStop(p1 + (1 - p1) * 0.1, 'rgba(0,0,0,1)'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+  g.globalCompositeOperation = 'destination-in'; g.fillStyle = fade; g.fillRect(0, 0, LANE_W, LANE_H); g.globalCompositeOperation = 'source-over';
+  lane.tx.needsUpdate = true;
+}
+
+// ---------- 面板（标题 / 倒数 / 结算 / 比赛 HUD） ----------
+function canvasPanel(w, h, pw, ph) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({ map: tx, transparent: true, depthWrite: false, depthTest: false, ...AR_GLOW }));
+  m.renderOrder = 15; world.add(m); return { cv, g: cv.getContext('2d'), tx, m };
+}
+const panel = canvasPanel(1024, 512, 0.26, 0.13), hud = canvasPanel(512, 256, 0.11, 0.055);
+// 审查 #3-1：HUD 用正常混合 + 深色底板、永远画在最上层，读数不和远处亭台混在一起（眼镜里底板是暗色 = 透明，只是把身后场景挖空一块）
+hud.m.material = new THREE.MeshBasicMaterial({ map: hud.tx, transparent: true, depthWrite: false, depthTest: false }); hud.m.renderOrder = 999;
+panel.m.material = new THREE.MeshBasicMaterial({ map: panel.tx, transparent: true, depthWrite: false, depthTest: false }); panel.m.renderOrder = 998;   // 标题 / 结算同理：深色底板、最上层
+panel.m.position.copy(DIO).add(new V3(0, 0.122, -0.03));   // 审查 #5-1：卡片挂在山脊上方的空处，不压在船上
+hud.m.position.copy(DIO).add(new V3(0.105, 0.078, 0.02)); hud.m.scale.setScalar(0.85);   // 你的船（近道）右上方，和船同在视线里
+for (const p of [panel, hud]) p.m.lookAt(0, 0, 0);
+let panelDirty = true, hudDirty = true, hudT = 0;
+function glowText(g, s, x, y, size, col, align = 'center', weight = 400) {
+  g.font = `${weight} ${size}px ${FONT()}`; g.textAlign = align; g.textBaseline = 'middle';
+  // 大字的光晕不能太大：加光显示里会变成一块褐色底板
+  g.shadowColor = col; g.shadowBlur = Math.min(size * 0.45, 14); g.fillStyle = col; g.fillText(s, x, y); g.shadowBlur = 0;
+}
+function goldFrame(g, w, h, col, a = 0.7) {
+  g.save(); g.strokeStyle = col; g.lineWidth = 3; g.globalAlpha = a; g.shadowColor = col; g.shadowBlur = 10;
+  const c = 34; g.beginPath();
+  for (const [x, y, sx, sy] of [[18, 18, 1, 1], [w - 18, 18, -1, 1], [w - 18, h - 18, -1, -1], [18, h - 18, 1, -1]]) { g.moveTo(x, y + sy * c); g.lineTo(x, y); g.lineTo(x + sx * c, y); g.moveTo(x + sx * 8, y + sy * 8); g.lineTo(x + sx * 8, y + sy * 18); g.moveTo(x + sx * 8, y + sy * 8); g.lineTo(x + sx * 18, y + sy * 8); }
+  g.stroke(); g.restore();
+}
+const mmss = s => s == null ? '--' : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+let xrNow = false, countN = 0, goT = -9;
+function drawPanel(t) {
+  const s = S(), g = panel.g; g.clearRect(0, 0, 1024, 512);
+  const blink = 0.8 + 0.2 * Math.sin(t * 4);   // 号召行闪烁幅度小一点，最暗时也看得清
+  const backing = race.state === 'title' || race.state === 'result' || (race.state === 'finish' && flagGrab && flagGrab.stage === 'wait');
+  // 桌面上用深色底板；眼镜里底板会在场景里挖出一个方洞，只留金框（审查 #6-1）
+  if (backing && !xrNow) { g.fillStyle = 'rgba(12,7,5,0.94)'; g.beginPath(); g.roundRect(8, 8, 1008, 496, 36); g.fill(); }
+  if (race.state === 'title') {
+    goldFrame(g, 1024, 512, '#e8b860');
+    glowText(g, s.name, 512, 170, lang === 'zh' ? 128 : 76, '#ffd98a');
+    glowText(g, s.alt, 512, 270, 30, '#c09a5a');
+    g.globalAlpha = blink; glowText(g, xrNow ? s.start : s.startPc, 512, 395, 64, '#ffffff'); g.globalAlpha = 1;
+  } else if (race.state === 'ready' || (race.state === 'race' && t - goT < 0.9)) {
+    const txt = race.state === 'race' ? s.go : s.ready[Math.max(0, countN - 1)] || '';
+    glowText(g, txt, 512, 256, 220, race.state === 'race' ? '#ff6a40' : '#ffe0a0');
+  } else if (race.state === 'result' || (race.state === 'finish' && flagGrab && flagGrab.stage === 'wait')) {
+    if (race.state === 'finish') { goldFrame(g, 1024, 512, '#ff7a50'); glowText(g, s.win, 512, 190, 120, '#ffd98a'); g.globalAlpha = blink; glowText(g, xrNow ? s.grab : s.grabPc, 512, 350, 44, '#ffffff'); g.globalAlpha = 1; }
+    else {
+      const st = race.stats();
+      goldFrame(g, 1024, 512, st.rank === 1 ? '#ffd060' : '#b8945a');
+      glowText(g, s.places[st.rank - 1], 512, 105, lang === 'zh' ? 104 : 70, st.rank === 1 ? '#ffd98a' : '#e8c890');
+      glowText(g, `${s.time}  ${mmss(st.time)}     ${s.avgSync}  ${(st.sync * 100).toFixed(0)}%`, 512, 230, 38, '#fff0d0');
+      glowText(g, `${s.steadyPct}  ${(st.steady * 100).toFixed(0)}%     ${s.streak}  ${st.streak}`, 512, 300, 38, '#e8d0a0');
+      if (t - race.stateT > 1.5) { g.globalAlpha = blink; glowText(g, s.again, 512, 425, 52, '#ffffff'); g.globalAlpha = 1; }
+    }
+  }
+  panel.tx.needsUpdate = true;
+}
+// 比赛 HUD：朱印里写鼓速、一排十支桨表示整齐度、左右两面小鼓、五盏灯表示体力、名次写成大字
+// 印：金框 + 半透明朱底（加光显示里整块亮色会遮住现实，审查 #2-8）
+function seal(g, x, y, w, h, col) {
+  g.save(); g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 6; g.globalAlpha = 0.4;
+  g.beginPath(); g.moveTo(x + 6, y); g.lineTo(x + w - 4, y + 2); g.lineTo(x + w, y + h - 6); g.lineTo(x + w - 7, y + h); g.lineTo(x + 3, y + h - 2); g.lineTo(x, y + 5); g.closePath(); g.fill();
+  g.globalAlpha = 1; g.strokeStyle = '#ffd27a'; g.lineWidth = 4; g.shadowColor = '#ffb040'; g.shadowBlur = 8; g.stroke();
+  g.strokeStyle = 'rgba(255,210,122,0.6)'; g.lineWidth = 2; g.strokeRect(x + 9, y + 9, w - 18, h - 18);
+  g.restore();
+}
+function drawHud() {
+  const s = S(), g = hud.g; g.clearRect(0, 0, 512, 256);
+  if (race.state === 'race' || race.state === 'finish') {
+    // 底板：深漆色圆角板 + 一道金边
+    g.fillStyle = 'rgba(14,8,6,0.78)'; g.strokeStyle = 'rgba(255,200,110,0.7)'; g.lineWidth = 3; g.beginPath(); g.roundRect(4, 4, 504, 248, 22); g.fill(); g.stroke();
+    const y = race.you, seg = segAt(y.pos), band = SEGS[seg].band, bpm = y.tempo.n >= 3 && !y.tempo.waiting(now()) ? Math.round(y.tempo.bpm()) : null;
+    const inBand = bpm && bpm >= band[0] - 3 && bpm <= band[1] + 3, nowT = now();
+    // 朱印：鼓速（在节奏带里是朱红，偏了变暗紫）
+    if (race.state === 'race') {
+      const gp = Math.max(0, 1 - (nowT - guideFlash) / 0.22);   // 引导拍：印章外圈跟着建议节奏闪
+      g.strokeStyle = `rgba(255,230,160,${0.25 + 0.75 * gp})`; g.lineWidth = 2 + 5 * gp; g.shadowColor = '#ffe0a0'; g.shadowBlur = 20 * gp; g.beginPath(); g.roundRect(8, 8, 162, 142, 14); g.stroke(); g.shadowBlur = 0;
+      seal(g, 14, 14, 150, 130, inBand ? '#e8502a' : '#b0602a');
+      glowText(g, bpm ? String(bpm) : '—', 89, 74, 78, '#fff0d0', 'center', 400);
+      glowText(g, `${s.seg[seg]} ${band[0]}–${band[1]}`, 89, 126, 22, '#ffe0b8');
+    }
+    // 名次
+    const rk = race.rankOf(y);
+    glowText(g, s.rank(rk), 492, 66, 60, rk === 1 ? '#ffd060' : '#e8c890', 'right', 400);
+    // 体力：五盏灯笼
+    for (let k = 0; k < 5; k++) { const on = y.stamina > k / 5 + 0.05, x = 300 + k * 40; g.fillStyle = on ? '#ff8a30' : '#3a2410'; g.shadowColor = '#ff9a40'; g.shadowBlur = on ? 12 : 0; g.beginPath(); g.ellipse(x, 128, 10, 13, 0, 0, TAU); g.fill(); g.shadowBlur = 0; g.fillStyle = '#c89040'; g.fillRect(x - 6, 112, 12, 3); g.fillRect(x - 6, 141, 12, 3); }
+    // 整齐度：一道弧上十颗金珠，齐几成亮几颗
+    const sy = clamp(y.crew.sync, 0, 1), lit = Math.round(sy * 10);
+    const fl = Math.max(0, 1 - (now() - syncFlare) / 0.25);
+    g.strokeStyle = `rgba(255,${180 + 60 * fl | 0},100,${0.5 + 0.5 * fl})`; g.lineWidth = 2 + 3 * fl; g.shadowColor = '#ffd870'; g.shadowBlur = 14 * fl; g.beginPath(); g.arc(150, 330, 150, -Math.PI * 0.78, -Math.PI * 0.22); g.stroke(); g.shadowBlur = 0;
+    for (let k = 0; k < 10; k++) { const a = -Math.PI * 0.76 + k / 9 * Math.PI * 0.52, x = 150 + Math.cos(a) * 150, yy = 330 + Math.sin(a) * 150, on = k < lit, top = k === lit - 1; g.fillStyle = on ? (top && fl > 0 ? '#ffffff' : '#ffd870') : '#5a3e18'; g.shadowColor = '#ffd870'; g.shadowBlur = on ? 12 + (top ? 20 * fl : 0) : 0; g.beginPath(); g.arc(x, yy, on ? 8 + (top ? 5 * fl : 0) : 5, 0, TAU); g.fill(); }
+    g.shadowBlur = 0; glowText(g, s.sync, 150, 222, 26, '#c8a060');
+    // 全程进度：一道细线 + 四色小点
+    g.strokeStyle = 'rgba(220,170,90,0.6)'; g.lineWidth = 2; g.beginPath(); g.moveTo(300, 178); g.lineTo(500, 178); g.stroke();
+    race.boats.forEach((b, k) => { g.fillStyle = ['#ff6040', '#4aa8ff', '#50e080', '#c080ff'][k]; g.beginPath(); g.arc(300 + 200 * clamp(b.pos / RACE_LEN, 0, 1), 178 + (k - 1.5) * 3, k ? 4 : 6, 0, TAU); g.fill(); });
+    // 左右两面小鼓：刚敲的亮；交替度低时闪"左右交替！"
+    const cue = race.state === 'race' ? Math.max(0, 1 - (nowT - guideFlash) / 0.25) : 0;
+    for (const hd of [0, 1]) { const x0 = 400 + (hd ? 52 : 0), c = hd === guideHand ? cue : 0; if (c > 0) { g.strokeStyle = `rgba(255,240,190,${c})`; g.lineWidth = 4; g.shadowColor = '#fff0c0'; g.shadowBlur = 16 * c; g.beginPath(); g.arc(x0, 205, 21 + 12 * (1 - c), 0, TAU); g.stroke(); g.shadowBlur = 0; } }   // 引导：该敲的那面鼓外圈闪一下、向外扩
+    for (const hd of [0, 1]) { const on = Math.max(0, 1 - (nowT - lastHand[hd].t) / 0.3), x = 400 + (hd ? 52 : 0); g.fillStyle = `rgba(255,90,40,${0.55 * on})`; g.strokeStyle = on > 0.05 ? '#fff0c0' : '#e0b060'; g.lineWidth = 3 + 2 * on; g.shadowColor = '#ffb050'; g.shadowBlur = 18 * on; g.beginPath(); g.arc(x, 205, 21, 0, TAU); g.fill(); g.stroke(); g.beginPath(); g.arc(x, 205, 14, 0, TAU); g.stroke(); g.shadowBlur = 0; glowText(g, hd ? 'R' : 'L', x, 206, 24, '#fff2c8', 'center', 600); }
+    if (y.alt < 0.55 && y.hits > 3 && Math.sin(nowT * 8) > -0.3) glowText(g, s.altHint, 400 + 26, 160, 30, '#ff7050', 'center', 400);
+  }
+  hud.tx.needsUpdate = true;
+}
+
+// ---------- 声音：全部 Web Audio 合成 ----------
+let AC = null, OUT, SFX, MUS, CROWD, CROWDG, NOISE;
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  OUT = AC.createGain(); OUT.gain.value = muted ? 0 : 0.9;
+  const comp = AC.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 3;
+  OUT.connect(comp).connect(AC.destination);
+  SFX = AC.createGain(); SFX.gain.value = 0.7; SFX.connect(OUT);
+  MUS = AC.createGain(); MUS.gain.value = 0.75; MUS.connect(OUT);   // 配乐总线（用户 11-16：音乐可以大一点）
+  // 混响：2 s 指数衰减的立体声噪声冲激，湿声 0.28——让民乐有"厅堂感"，不再干巴巴
+  { const len = AC.sampleRate * 2.2, ir = AC.createBuffer(2, len, AC.sampleRate); for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = AC.createConvolver(); cv.buffer = ir; const wet = AC.createGain(); wet.gain.value = 0.28; MUS.connect(cv).connect(wet).connect(OUT); }
+  NOISE = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
+  const d = NOISE.getChannelData(0); let b = 0; for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; b = 0.97 * b + 0.03 * w; d[i] = w * 0.5 + b * 3; }
+  // 人群底噪：两路滤波噪声，音量跟兴奋度
+  CROWDG = AC.createGain(); CROWDG.gain.value = 0; CROWDG.connect(OUT);
+  for (const [f, q] of [[520, 0.6], [1400, 0.9]]) { const s = AC.createBufferSource(); s.buffer = NOISE; s.loop = true; const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; s.connect(bp).connect(CROWDG); s.start(0, Math.random() * 2); }
+}
+const ok = () => AC && !muted && AC.state === 'running';
+function env(g, t, a, atk, dur) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(a, t + atk); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); }
+function osc(type, f0, f1, dur, amp, dst = SFX, t = AC.currentTime, atk = 0.004) {
+  const o = AC.createOscillator(), g = AC.createGain(); o.type = type;
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  env(g, t, amp, atk, dur); o.connect(g).connect(dst); o.start(t); o.stop(t + dur + 0.05);
+}
+function noise(type, f0, f1, q, dur, amp, dst = SFX, t = AC.currentTime) {
+  const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = NOISE; f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+  env(g, t, amp, 0.003, dur); s.connect(f).connect(g).connect(dst); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+}
+// 号子：锯齿波过两个共振峰带通（元音 ei / o）
+function voice(vowel, f0, dur, amp, t = AC.currentTime) {
+  const F = { ei: [480, 1900], o: [480, 820], a: [760, 1250] }[vowel];
+  const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(f0 * 1.06, t); o.frequency.exponentialRampToValueAtTime(f0 * 0.9, t + dur);
+  env(g, t, amp, 0.02, dur);
+  for (const [f, k] of [[F[0], 1], [F[1], 0.5]]) { const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 6; const gg = AC.createGain(); gg.gain.value = k; o.connect(bp).connect(gg).connect(g); }
+  g.connect(SFX); o.start(t); o.stop(t + dur + 0.05);
+}
+// 号子音节（用户 11-16：之前只有元音，听着是"诶诶"）：
+//   嘿 hei = 送气 h（噪声过 e 的共振峰）+ e→i 滑动；哟 yo = i→o 快速滑动；咻 xiu = 齿擦音 s（高通噪声）+ i→u
+// 共振峰用 peaking 提升（带通会滤掉能量），频率按音节自动滑动；离线渲染校准：4 人齐喊 ≈ 鼓声 RMS 的 55%
+const VOW = { e: [560, 1800, 2500], i: [300, 2250, 3000], o: [480, 820, 2400], u: [330, 750, 2300], a: [750, 1250, 2500] };
+const SYL = { hei: { asp: 'h', from: 'e', to: 'i', dur: 0.2, glide: 0.16 }, yo: { asp: null, from: 'i', to: 'o', dur: 0.26, glide: 0.07 }, xiu: { asp: 's', from: 'i', to: 'u', dur: 0.2, glide: 0.07 }, ho: { asp: 'h', from: 'a', to: 'o', dur: 0.32, glide: 0.18 } };
+function syllable(name, f0, amp, t = AC.currentTime, dst = SFX) {
+  const P = SYL[name], vt = t + (P.asp ? 0.05 : 0), o = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, vt); o.frequency.linearRampToValueAtTime(f0 * 1.06, vt + 0.04); o.frequency.exponentialRampToValueAtTime(f0 * 0.8, vt + P.dur);
+  lp.type = 'lowpass'; lp.frequency.value = 3500; o.connect(lp); let n = lp;
+  for (let k = 0; k < 3; k++) { const pk = AC.createBiquadFilter(); pk.type = 'peaking'; pk.Q.value = 3.5; pk.gain.value = 16; pk.frequency.setValueAtTime(VOW[P.from][k], vt); pk.frequency.linearRampToValueAtTime(VOW[P.to][k], vt + P.glide); n.connect(pk); n = pk; }
+  g.gain.setValueAtTime(0.0001, vt); g.gain.exponentialRampToValueAtTime(amp, vt + 0.02); g.gain.setValueAtTime(amp, vt + P.dur * 0.5); g.gain.exponentialRampToValueAtTime(0.0001, vt + P.dur);
+  n.connect(g).connect(dst); o.start(vt); o.stop(vt + P.dur + 0.05);
+  if (P.asp) {   // 送气 h / 齿擦 s
+    const sN = AC.createBufferSource(), f1 = AC.createBiquadFilter(), gg = AC.createGain(); sN.buffer = NOISE;
+    if (P.asp === 'h') { f1.type = 'bandpass'; f1.frequency.value = VOW.e[0] * 1.6; f1.Q.value = 1.2; } else { f1.type = 'highpass'; f1.frequency.value = 3200; }
+    env(gg, t, amp * (P.asp === 'h' ? 2.2 : 1.6), 0.01, P.asp === 'h' ? 0.09 : 0.1); sN.connect(f1).connect(gg).connect(dst); sN.start(t, Math.random()); sN.stop(t + 0.13);
+  }
+}
+let chantK = 0;
+const sfx = {
+  drum(strength = 1, hand = 0, heavy = false) {
+    if (!ok()) return; const a = clamp(0.35 + strength * 0.35, 0.4, 1), p = hand ? 1.03 : 1;
+    osc('sine', 150 * p, 52 * p, 0.32, a * 0.9); noise('lowpass', 1400, 500, 0.7, 0.035, a * 0.5); noise('bandpass', 190, 140, 1.2, 0.14, a * 0.45);
+    if (heavy) { osc('sine', 95, 38, 0.6, 0.8); noise('lowpass', 600, 120, 0.7, 0.25, 0.35); }
+  },
+  aiDrum(lane) { if (!ok()) return; const a = [0, 0.14, 0.1, 0.08][lane]; osc('sine', 140 + lane * 7, 55, 0.22, a); noise('lowpass', 700, 300, 0.7, 0.03, a * 0.5); },
+  // 号子：每一下鼓，一船人小声齐喊——"嘿" / "哟"交替（冲刺段都喊"嘿"，更短更高）。4 个人、音高和起声各错开一点，像一群人
+  // 号子：每一下鼓喊一个字，"嘿—哟—嘿—哟"（冲刺段"嘿—咻—嘿—咻"）；4 个人音高、起声错开，像一船人
+  // 号子（用户 11-16：太大、太单一 → 小声 + 变化）：领喊一人喊"嘿"，众人应；8 下一句：嘿哟 嘿哟 嘿哟 嘿嗬（冲刺：嘿咻 ×3 嘿嗬）
+  // 每声：音高 ±6% 随机、应和 2–4 人、起声错开；离线渲染校准：领喊 ≈ 鼓声 RMS 的 18%，众应 ≈ 28%
+  chant(sprint) {
+    if (!ok()) return; const i = chantK++ % 8, t = AC.currentTime + 0.05, lead = i % 2 === 0, jit = 1 + (Math.random() - 0.5) * 0.12;
+    const name = lead ? 'hei' : i === 7 ? 'ho' : sprint ? 'xiu' : 'yo', f = (sprint ? 172 : 158) * (lead ? 1.08 : 0.94) * jit * (Math.floor(chantK / 8) % 4 === 3 ? 1.06 : 1);
+    if (lead) syllable(name, f, 0.06, t);
+    else { const n = 2 + Math.floor(Math.random() * 3); for (let k = 0; k < n; k++) syllable(name, f * (0.92 + k * 0.05 + Math.random() * 0.02), 0.032 * (k ? 0.85 : 1), t + k * 0.015 + Math.random() * 0.03); }
+  },
+  splash(n, mine) { if (!ok() || !n) return; noise('bandpass', 1500, 900, 1.4, 0.09, Math.min(0.1, (mine ? 0.02 : 0.005) * n)); },   // 水声压到原来的 1/3（用户 11-16）
+  gong(big) {
+    if (!ok()) return; const f = big ? 150 : 260, dur = big ? 3.2 : 1.1;
+    [1, 1.47, 2.09, 2.56, 3.2, 4.1].forEach((r, i) => osc('sine', f * r, f * r * 0.985, dur * (1 - i * 0.1), (big ? 0.22 : 0.12) / (1 + i * 0.4), SFX, AC.currentTime, 0.006));
+    noise('bandpass', 2400, 1500, 0.8, 0.25, big ? 0.25 : 0.12);
+  },
+  cheer(n = 6) {
+    if (!ok()) return; const t = AC.currentTime;
+    for (let i = 0; i < n; i++) voice(['a', 'o', 'ei'][i % 3], 220 + Math.random() * 180, 0.35 + Math.random() * 0.4, 0.05, t + Math.random() * 0.4);
+    noise('bandpass', 1800, 2400, 0.6, 0.9, 0.12, SFX, t);
+  },
+  firework() { if (!ok()) return; noise('lowpass', 900, 80, 0.7, 0.5, 0.35); const t = AC.currentTime + 0.35; for (let i = 0; i < 6; i++) noise('highpass', 6000, 5000, 1, 0.05, 0.06, SFX, t + i * 0.06 + Math.random() * 0.05); },
+  tick() { if (!ok()) return; noise('bandpass', 3000, 2400, 3, 0.03, 0.08); },
+};
+
+// ---------- 配乐：龙舟锣鼓 + 五声旋律，速度 = 本段建议节奏，每一拍都和节拍引导对齐 ----------
+// 你的鼓就是"大鼓"：配乐只给框架（镲在后半拍、小锣在 2/4 拍、大锣在乐句头、笛子 + 扬琴旋律），你在拍上敲正好补满。
+// 旋律：江苏民歌《茉莉花》（传统民歌，公有领域）前四句，D 调五声，按龙舟锣鼓的节奏写成每拍两个八分音符；
+// 冲刺段加唢呐高八度 + 镲改成每半拍
+const PENTA = [146.83, 164.81, 185.0, 220.0, 246.94];   // D3 E3 F#3 A3 B3 = 简谱 1 2 3 5 6
+const nt = (deg, oct = 1) => PENTA[((deg % 5) + 5) % 5] * Math.pow(2, oct + Math.floor(deg / 5));
+// 简谱 → 五声序号：1→0 2→1 3→2 5→3 6→4 高音1→5；每拍两个音，null = 延长 / 休止
+// 三首曲子按赛段切换（用户 11-16：节奏不同换音乐）：
+//   起航《迎龙》（原创，五声跳进，喜庆）→ 巡航《茉莉花》（传统民歌）→ 冲刺《急急风》（京剧锣鼓经"急急风"的密锣密镲 + 原创唢呐短句）
+// 每首 8 拍一句；切段时从新曲的乐句头（大锣）起
+const TUNES = {
+  start: { name: '迎龙', lines: [
+    [[2, 4], [5, 4], [4, 2], [1, null], [2, 4], [5, 7], [6, 5], [4, null]],
+    [[5, 4], [2, 1], [0, 1], [2, null], [4, 5], [4, 2], [1, 0], [0, null]],
+  ] },
+  cruise: { name: '茉莉花', lines: [
+    [[2, 2], [3, 4], [5, 5], [4, 3], [3, 4], [3, null], [null, null], [null, null]],   // 3 3 5 6 i i 6 5 | 5 6 5 —   好一朵美丽的茉莉花
+    [[2, 2], [3, 4], [5, 5], [4, 3], [3, 4], [3, null], [null, null], [null, null]],   // （重复）
+    [[3, 3], [3, 2], [3, 4], [4, 3], [3, null], [null, null], [null, null], [null, null]],   // 5 5 5 3 5 6 6 5 —   芬芳美丽满枝桠
+    [[2, 1], [2, 3], [2, 1], [0, 0], [1, 0], [0, null], [null, null], [null, null]],   // 3 2 3 5 3 2 1 1 2 1 —   又香又白人人夸
+  ] },
+  sprint: { name: '急急风', lines: [
+    [[5, 5], [4, 5], [3, 4], [5, null], [5, 5], [4, 3], [2, 3], [3, null]],
+    [[5, 6], [7, 6], [5, 4], [5, null], [3, 4], [5, 4], [3, 2], [3, null]],
+  ] },
+};
+let musBeat = 0, musSeg = null, musChord = [0, 2, 3];
+const CHORDS = [[0, 2, 3], [4, 0, 2], [3, 1, 4], [1, 3, 4]];   // 五声和弦（序号同 PENTA）：D 宫 / B 羽 / A 徵 / E 商
+function pickChord(line, q0) {   // 数这一小节 4 拍里落在和弦音上的旋律音，最多的那个；平手偏向宫
+  let best = CHORDS[0], bs = -1;
+  CHORDS.forEach((c, k) => { let sc = k === 0 ? 0.5 : 0; for (let q = q0; q < q0 + 4 && q < 8; q++) for (const d of line[q]) if (d !== null && c.includes(((d % 5) + 5) % 5)) sc++; if (sc > bs) { bs = sc; best = c; } });
+  return best;
+}
+function sheng(f, t, dur, a) {   // 笙：两支略微失谐的锯齿波过低通，慢起慢收
+  for (const dt of [0.997, 1.004]) { const o = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(); o.type = 'sawtooth'; o.frequency.value = f * dt; lp.type = 'lowpass'; lp.frequency.value = 1300; lp.Q.value = 0.6;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(a, t + 0.18); g.gain.setValueAtTime(a, t + dur * 0.8); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(lp).connect(g).connect(MUS); o.start(t); o.stop(t + dur + 0.05); }
+}
+function ruan(f, t, a) { osc('triangle', f, f * 0.995, 0.5, a, MUS, t, 0.003); osc('sine', f * 2, f * 2, 0.25, a * 0.3, MUS, t, 0.003); }   // 阮：低音拨弦
+function zheng(t, seg) {   // 古筝刮奏：六个五声音上行，25 ms 一个
+  const base = seg === 'sprint' ? 3 : 0; for (let q = 0; q < 6; q++) pluck(nt(base + q, 1), t + q * 0.025, 0.03 + q * 0.004);
+}
+function pluck(f, t, a, dst = MUS) {   // 扬琴：三角波快衰 + 一点金属泛音
+  osc('triangle', f, f * 0.998, 0.35, a, dst, t, 0.002); osc('sine', f * 3.01, f * 3, 0.12, a * 0.25, dst, t, 0.002);
+}
+function flute(f, t, dur, a, dst = MUS) {   // 笛子：正弦 + 慢颤音 + 一点气声
+  const o = AC.createOscillator(), g = AC.createGain(), lfo = AC.createOscillator(), lg = AC.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(f * 0.985, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.04);
+  lfo.frequency.value = 5.5; lg.gain.value = f * 0.008; lfo.connect(lg).connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(a, t + 0.03); g.gain.setValueAtTime(a, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(dst); o.start(t); lfo.start(t); o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05);
+  noise('bandpass', f * 2, f * 2, 4, dur * 0.6, a * 0.08, dst, t);
+}
+function suona(f, t, dur, a, dst = MUS) {   // 唢呐：锯齿波过鼻音共振峰
+  const o = AC.createOscillator(), g = AC.createGain(), bp = AC.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f, t);
+  bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = 2.5;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(a, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(bp).connect(g).connect(dst); o.start(t); o.stop(t + dur + 0.05);
+}
+const cymbal = (t, a) => { noise('highpass', 7000, 5000, 0.7, 0.18, a, MUS, t); noise('bandpass', 4200, 3600, 2, 0.1, a * 0.6, MUS, t); };
+const smallGong = (t, a) => { osc('sine', 620, 540, 0.35, a, MUS, t, 0.003); osc('sine', 980, 860, 0.2, a * 0.4, MUS, t, 0.003); };
+function bigGong(t, a) { [1, 1.47, 2.09, 2.56].forEach((r, i) => osc('sine', 110 * r, 110 * r * 0.98, 2.2 - i * 0.3, a / (1 + i * 0.5), MUS, t, 0.006)); noise('bandpass', 1800, 1200, 0.8, 0.3, a * 0.5, MUS, t); }
+// 安排一拍：at = 这一拍在音频时钟上的时刻，iv = 拍长；lost = 你不在节奏带里（加一记清楚的低鼓领拍）
+function musicBeat(at, iv, seg, lost) {
+  if (!ok()) return;
+  if (seg !== musSeg) { musSeg = seg; musBeat = 0; }   // 换段 = 换曲，从乐句头起
+  const tune = TUNES[seg], b = musBeat++, inBar = b % 4, line = tune.lines[Math.floor(b / 8) % tune.lines.length], notes = line[b % 8], sprint = seg === 'sprint', k = seg === 'start' ? 0.9 : 1;
+  if (b % 8 === 0) bigGong(at, (b === 0 ? 0.24 : 0.16) * k);   // 新曲第一拍大锣更重
+  if (sprint) { smallGong(at, 0.07); smallGong(at + iv / 2, 0.05); if (inBar === 0) bigGong(at, 0.1); }   // 急急风：每半拍一记小锣，每小节一记大锣
+  else if (inBar === 1 || inBar === 3) smallGong(at, 0.09);
+  cymbal(at + iv / 2, sprint ? 0.07 : 0.05); if (sprint) cymbal(at, 0.05);
+  if (inBar === 0) { osc('sine', 73.4, 72, iv * 3.6, 0.06, MUS, at, 0.05); }   // 低音底座
+  // 和声：每小节按这一小节的旋律音挑一个五声和弦（D 宫 / B 羽 / A 徵 / E 商），笙长音 + 阮低音 + 扬琴分解
+  if (inBar === 0) musChord = pickChord(line, b % 8);
+  const ch = musChord;
+  if (inBar === 0) for (const d of ch) sheng(nt(d, 0) * 2, at, iv * 4, 0.016);
+  if (inBar === 0 || inBar === 2) ruan(nt(ch[inBar === 0 ? 0 : 2], -1) * 2, at, inBar === 0 ? 0.13 : 0.09);
+  const arp = sprint ? [0, 1] : seg === 'start' ? [1] : (inBar % 2 ? [1] : []);   // 扬琴分解：冲刺每个八分、起航每拍后半、巡航隔拍
+  for (const h of arp) pluck(nt(ch[(b * 2 + h) % ch.length], 2), at + h * iv / 2, 0.035);
+  if (b % 8 === 0) zheng(at, seg);   // 乐句头：古筝一串上行刮奏
+  notes.forEach((d, i) => {
+    if (d === null) return; const t = at + i * iv / 2, f = nt(d, 1);
+    pluck(f, t, 0.09);
+    // 长音按后面的延长拍拉长（笛子），扬琴每个音都弹
+    let hold = 0.48; if (i === 0 && notes[1] === null) { hold = 0.95; for (let q = (b % 8) + 1; q < 8 && line[q][0] === null; q++) hold += line[q][1] === null ? 1 : 0.5; }
+    flute(f * 2, t, iv * Math.min(3, hold), 0.07);
+    if (sprint) suona(f * 2, t, iv * 0.45, 0.05);
+  });
+  if (lost) osc('sine', 120, 50, 0.25, 0.35, MUS, at, 0.003);   // 领拍鼓：你跑出节奏带时，配乐在拍上替你敲一记
+}
+
+// ---------- 游戏流程 ----------
+let clockT = performance.now() / 1000;
+const now = () => clockT;
+let sceneDim = 1, syncFlare = -9, titleHits = [], lastPlayerHit = null, prevRank = 4, fireT = 0, fireworks = 0;
+function headLocal() { return world.worldToLocal(renderer.xr.isPresenting ? new V3().setFromMatrixPosition(renderer.xr.getCamera().matrixWorld) : camera.position.clone()); }
+// 敲鼓入口：所有输入（手、键盘、鼠标）最后都走这里
+// hand：0 左 / 1 右（决定鼓手哪只胳膊落槌）；raceHand：算交替用的手，-1 = 分不出（空格）
+function playerHit(t, hand, strength, worldP, raceHand = hand) {
+  initAudio();
+  // 双手合并：120 ms 内另一只手也落下 = 重鼓（只加厚声音和涟漪，不多算一拍）。真机探针里双手同时敲，两手检出最多差约 80 ms
+  if (lastPlayerHit && t - lastPlayerHit.t < 0.12 && lastPlayerHit.hand !== hand) { sfx.drum(1.2, hand, true); lastHand[hand].t = t; ripple(worldP, 'heavy'); lastPlayerHit = null; if (race.state === 'race' || race.state === 'finish') race.you.lastHand = 2; return; }
+  lastPlayerHit = { t, hand };
+  lastHand[hand].t = t;
+  sfx.drum(strength, hand);
+  if (race.state === 'title' || (race.state === 'result' && t - race.stateT > 1.5)) {
+    ripple(worldP, 'set');
+    titleHits = titleHits.filter(h => t - h < 1.6); titleHits.push(t);
+    if (titleHits.length >= 2) { titleHits = []; startRace(t); }
+    return;
+  }
+  if (race.state === 'finish' && flagGrab && flagGrab.stage === 'wait') return;
+  const j = race.hit(t, raceHand);
+  if (!j) { ripple(worldP, 'set'); return; }
+  ripple(worldP, j.alt || j.judge === 'set' ? j.judge : 'off');
+  // 没换手：提示"换手"（优先于节奏判定字）
+  // 太鼓式弹字：在你船的鼓上方弹出。先看换没换手，再看鼓速是否在本段的节奏带里（太快 / 慢了），最后看稳不稳
+  const pop = hitWord(j);
+  if (pop) { word(pop, drumLocal(), pop === 'perfect' ? 1.25 : 1); laneHit(now(), pop); }
+  guideNudge(t);
+  sfx.chant(segAt(race.you.pos) === 'sprint');   // 每一下鼓都有号子（用户 11-16：小声的划船呼喊）
+  hudDirty = true;
+}
+function startRace(t) {
+  musBeat = 0; musSeg = null;   // 配乐从乐句头（大锣）起
+  initAudio(); race.start(t); countN = 0; flagGrab = null; archReveal = 0; prevRank = 4; fireworks = 0; cx = -3; panelDirty = hudDirty = true;
+}
+// 捏合：标题 / 结算时开局，夺标时举旗；比赛中每捏一下 = 这只手敲一下鼓（空中敲击判不准时的保底，用户 2026-11-16）
+function pinch(i = -1) {
+  initAudio();
+  if (race.state === 'title') { startRace(now()); return; }
+  if (race.state === 'result' && now() - race.stateT > 1.5) { startRace(now()); return; }
+  if (flagGrab && flagGrab.stage === 'wait') { grabFlag(); return; }
+  if ((race.state === 'race' || race.state === 'finish') && i >= 0) {
+    const hand = handIdx(i);
+    detectors[i].reset();   // 捏合那一下手也在动：清掉这只手的敲击检测状态，免得同一下又被当成一敲
+    playerHit(now(), hand, 0.7, palm[i] || deskPoint());
+  }
+}
+function grabFlag() {
+  flagGrab.stage = 'up'; flagGrab.t = 0; sfx.gong(true); sfx.cheer(14); roarT = now();
+  for (let k = 0; k < 3; k++) setTimeout(() => launchFirework(), k * 250);
+  panelDirty = true;   // 旗上已经写着"夺标"，不再另飘一个字（审查 #2-9）
+}
+function launchFirework() { art.firework(); sfx.firework(); }
+function handleEvents(t) {
+  for (const ev of race.events) {
+    if (ev.type === 'count') { countN = 4 - ev.n; sfx.gong(false); panelDirty = true; }
+    else if (ev.type === 'go') { goT = t; sfx.gong(true); sfx.cheer(8); panelDirty = hudDirty = true; }
+    else if (ev.type === 'aidrum') { sfx.aiDrum(ev.lane); }
+    else if (ev.type === 'cross') {
+      if (ev.lane === 0) {
+        const fx0 = toX(race.you.pos) - 0.02; for (let q = 0; q < 3; q++) setTimeout(() => art.waterRing(fx0, LANE_Z[0], C.goldHi, false, 2.0), q * 250);   // 夺冠：三道大金环从你的船扩开
+        sfx.gong(true); sfx.cheer(ev.rank === 1 ? 16 : 6); roarT = t; archReveal = 0.001;
+        if (ev.rank === 1) { flagGrab = { stage: 'wait', t: 0 }; fireworks = 6; } else fireworks = 2;
+        panelDirty = true;
+      } else if (race.you.finishT === null) sfx.cheer(3);
+    } else if (ev.type === 'result') { panelDirty = hudDirty = true; if (flagGrab && flagGrab.stage === 'wait') flagGrab.stage = 'gone'; }
+  }
+  race.events.length = 0;
+}
+
+function update(t, dt) {
+  // 赛程（逻辑按 1/120 s 子步推进）
+  const n = Math.max(1, Math.ceil(dt / (1 / 120)));
+  for (let i = 0; i < n; i++) race.step(t - dt + dt * (i + 1) / n, dt / n);
+  handleEvents(t);
+  // 镜头：船队中段，你的船保持在窗口里
+  const live = race.state === 'race' || race.state === 'finish' || race.state === 'result';
+  let target = -3;
+  if (live) {
+    const mean = race.boats.reduce((s, b) => s + b.pos, 0) / 4;
+    target = clamp(mean - 2, race.you.pos - 14, race.you.pos + 10);
+    target = Math.min(target, RACE_LEN - 2);
+  }
+  cx += (target - cx) * Math.min(1, dt * 1.6);
+  // 兴奋度：整齐、接近对手、接近终点
+  const y = race.you;
+  let ex = 0.25;
+  if (race.state === 'race') {
+    let gap = 99; for (const b of race.boats) if (b !== y) gap = Math.min(gap, Math.abs(b.pos - y.pos));
+    ex = 0.2 + 0.3 * y.crew.sync + 0.25 * Math.exp(-gap / 4) + 0.25 * y.pos / RACE_LEN;
+    const rk = race.rankOf(y);
+    if (rk < prevRank) { wave = { x: toX(y.pos) - 0.15, t: 0 }; sfx.cheer(5); }
+    prevRank = rk;
+  } else if (race.state === 'finish' || race.state === 'result') ex = race.rankOf(y) === 1 ? 1 : 0.7;
+  excite += (ex - excite) * Math.min(1, dt * 2);
+  wave.t += dt; wave.x += dt * 0.35;
+  if (AC) CROWDG.gain.setTargetAtTime(muted ? 0 : 0.012 + 0.1 * excite * excite, AC.currentTime, 0.3);   // 人群底噪也小一点，让音乐出来
+  if (archReveal > 0) archReveal = Math.min(1, archReveal + dt * 0.5);
+  // 烟花
+  fireT -= dt; if (fireworks > 0 && fireT <= 0) { launchFirework(); fireworks--; fireT = 0.5 + Math.random() * 0.5; }
+  if (flagGrab && flagGrab.stage === 'up') { flagGrab.t += dt; if (flagGrab.t > 1 && Math.random() < dt * 1.5) launchFirework(); }
+  // 水声：每帧入水的桨数
+  if (ok()) for (let i = 0; i < 4; i++) { sfx.splash(art.splashCount[i], i === 0); }
+  art.splashCount.fill(0);
+}
+
+function draw(t, dt) {
+  // 画面只读状态：把这一帧要画的东西装进 ctx
+  // 夺标旗：从你的船头升起
+  const flagP = flagGrab && (flagGrab.stage === 'wait' || flagGrab.stage === 'up') ? { stage: flagGrab.stage, t: flagGrab.t, p: new V3(toX(race.you.pos) + 0.012, 0.042, LANE_Z[0]) } : null;   // 挂在龙头上方
+  if (flagGrab && flagGrab.stage === 'up' && flagGrab.t > 2.5) flagGrab.stage = 'done';
+  const a0 = performance.now();
+  // 标题 / 结算卡出现时，场景压到 35%，卡片自然成为焦点
+  const overlay = race.state === 'title' || race.state === 'result';
+  sceneDim += ((overlay ? 0.35 : 1) - sceneDim) * Math.min(1, dt * 4); w3d.setDim(sceneDim); GAIN.value = (renderer.xr.isPresenting ? 1.25 : 1) * sceneDim;
+  // HUD 跟着你的船：船头上方 6 cm，缓动跟随，只绕竖轴转向观者（终审 #5）
+  if (race.state === 'race' || race.state === 'finish') {
+    // 固定在左前方近岸上空：镜头让船队偏右、领先时往右跑，左前方（船尾一侧）是空的，HUD 不会挡龙头和后面几条船
+    const want = dio.localToWorld(new V3(-0.15, 0.04, 0.035));   // 左侧中部的水面上方（审查 #10-4：不压近岸）
+    hud.m.position.lerp(want, Math.min(1, dt * 3));
+    const hl = headLocal(), wp = world.worldToLocal(hud.m.position.clone());
+    hud.m.rotation.set(0, Math.atan2(hl.x - wp.x, hl.z - wp.z), 0); hud.m.scale.setScalar(0.8);
+  }
+  // 打击轨道：沙盘近岸前方、略低，整体朝向观者（桌面看在画面下方，头显里靠近你）
+  lane.m.visible = race.state === 'race' || race.state === 'finish';
+  if (lane.m.visible) {
+    const xr = renderer.xr.isPresenting;
+    lane.m.position.copy(DIO).add(new V3(0, xr ? 0.03 : 0.006, xr ? 0.2 : 0.145)); lane.m.lookAt(headLocal()); lane.m.scale.setScalar(xr ? 1.15 : 0.8);
+    drawLane(now());
+  }
+  w3d.setLightFrom(dio);
+  w3d.setSeg(segAt(race.you.pos));
+  w3d.update({ t, cx, boats: race.boats, excite, wave, roarT, lastHand, mine: i => i === 0, flag: flagP });
+  art.frame({
+    cam: headLocal().sub(DIO),
+    t, dt, cx, state: race.state, boats: race.boats, laneZ: LANE_Z, raceLen: RACE_LEN, excite, wave, archReveal, roarT, lastHand,
+    sprint: segAt(race.you.pos) === 'sprint' && race.state === 'race', flag: flagP,
+    palms: palm.map(p => p ? dio.worldToLocal(p.clone()) : null),
+  });
+  artBuf[artI++ % 300] = performance.now() - a0;
+  for (const s of words) {
+    if (!s.m.visible) continue;
+    s.t += dt; if (s.t > 0.7) { s.m.visible = false; continue; }
+    s.m.position.y += dt * 0.03; s.m.material.opacity = Math.min(1, 1.8 * (1 - s.t / 0.7));
+    s.m.scale.setScalar((s.big || 1) * (renderer.xr.isPresenting ? 1.5 : 0.85) * (1 + 0.4 * Math.max(0, 1 - s.t / 0.12)));
+  }
+}
+
+// ---------- 输入 ----------
+// 头显：每只手一个敲击检测器（手掌中心 = 腕 + 食指掌骨的平均）；捏合（select 或指尖距离）用于开始 / 举标
+const ctrls = [], hands = [], side = ['', ''], palm = [null, null];
+const detectors = [new StrikeDetector(), new StrikeDetector()];
+const joint = (i, n) => { const j = hands[i].joints && hands[i].joints[n]; return j && j.visible !== false ? j : null; };
+const _a = new V3(), _b = new V3();
+function palmPos(i) {
+  const w = joint(i, 'wrist'), m = joint(i, 'index-finger-metacarpal');
+  if (w && m) return w.getWorldPosition(_a).add(m.getWorldPosition(_b)).multiplyScalar(0.5).clone();
+  const c = ctrls[i]; if (c.userData.connected && !hands[i].joints?.wrist) return new V3().setFromMatrixPosition(c.matrixWorld);
+  return null;
+}
+const handIdx = i => side[i] === 'left' ? 0 : side[i] === 'right' ? 1 : i;
+for (let i = 0; i < 2; i++) {
+  const c = renderer.xr.getController(i), h = renderer.xr.getHand(i);
+  c.addEventListener('connected', e => { c.userData.connected = true; side[i] = (e.data && e.data.handedness) || ''; });
+  c.addEventListener('disconnected', () => { c.userData.connected = false; side[i] = ''; detectors[i].reset(); });
+  scene.add(c, h); ctrls.push(c); hands.push(h);
+  c.addEventListener('selectstart', () => pinchDown(i, 'sel'));
+  c.addEventListener('selectend', () => pinchUp(i, 'sel'));
+}
+const PINCH_ON = 0.022, PINCH_OFF = 0.036, src = [{ sel: false, jt: false }, { sel: false, jt: false }];
+function pinchDown(i, k) { const was = src[i].sel || src[i].jt; src[i][k] = true; if (!was) pinch(i); }
+function pinchUp(i, k) { src[i][k] = false; }
+const _ta = new V3(), _ia = new V3();
+let lostHandT = 0;
+function xrControl(t, dt) {
+  const head = headLocal();
+  let any = false;
+  for (let i = 0; i < 2; i++) {
+    const a = joint(i, 'thumb-tip'), b = joint(i, 'index-finger-tip');
+    if (a && b) { const d = a.getWorldPosition(_ta).distanceTo(b.getWorldPosition(_ia)); if (!src[i].jt && d < PINCH_ON) pinchDown(i, 'jt'); else if (src[i].jt && d > PINCH_OFF) pinchUp(i, 'jt'); }
+    else if (src[i].jt) pinchUp(i, 'jt');
+    const pw = palmPos(i); palm[i] = pw;
+    if (pw) any = true;
+    // 捏着的时候不判敲击
+    const lp = pw && !(src[i].sel || src[i].jt) ? world.worldToLocal(pw.clone()) : null;
+    const hit = detectors[i].feed(t, lp, head);
+    if (hit) playerHit(hit.t, handIdx(i), clamp((hit.strength - 0.5) / 1.2, 0, 1), pw || world.localToWorld(DIO.clone().add(new V3(0, 0.12, 0.12))));
+  }
+  lostHandT = any ? 0 : lostHandT + dt;
+}
+// 桌面：空格 / F / J / 点击 敲鼓；R 重新摆放
+// 桌面上没有手：鼓面涟漪画在沙盘近岸前方
+const deskPoint = () => dio.localToWorld(new V3(toX(race.you.pos) - 0.035 + 0.0255, 0.0098, LANE_Z[0]));
+let deskHand = 0;
+const cv = renderer.domElement;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+// 点「进入 VR」那一下就建好声音（手势检测出来的敲击不算用户激活，届时再建会被浏览器静音）
+addEventListener('pointerdown', () => initAudio(), true);
+cv.addEventListener('pointerdown', e => {
+  initAudio();
+  if (renderer.xr.isPresenting) { if (document.pointerLockElement !== cv) { try { cv.requestPointerLock(); } catch (er) { } } }
+  if (flagGrab && flagGrab.stage === 'wait') { grabFlag(); return; }
+  // 鼠标：左键 = 左手，右键 = 右手；触屏：点屏幕左半 / 右半
+  const hand = e.pointerType === 'touch' ? (e.clientX < innerWidth / 2 ? 0 : 1) : e.button === 2 ? 1 : 0;
+  playerHit(e.timeStamp / 1000, hand, 0.6, deskPoint(hand));
+});
+addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const k = e.code;
+  if (k === 'Space' || k === 'KeyF' || k === 'KeyJ' || k === 'ArrowLeft' || k === 'ArrowRight') {
+    e.preventDefault();
+    if (flagGrab && flagGrab.stage === 'wait' && k === 'Space') { initAudio(); grabFlag(); return; }
+    // 空格分不出左右：鼓手动作轮换，但算"同一只手"（交替要用 F / J 或方向键）
+    const hand = k === 'KeyF' || k === 'ArrowLeft' ? 0 : k === 'KeyJ' || k === 'ArrowRight' ? 1 : (deskHand ^= 1);
+    playerHit(e.timeStamp / 1000, hand, 0.6, deskPoint(hand), k === 'Space' ? -1 : hand);
+  }
+  if (k === 'KeyR' && renderer.xr.isPresenting) needPlace = true;
+});
+document.getElementById('lang').onclick = () => { lang = lang === 'en' ? 'zh' : 'en'; try { localStorage.setItem('dragon-lang', lang); } catch (e) { } applyLang(); };
+document.getElementById('mute').onclick = () => {
+  muted = !muted; try { localStorage.setItem('dragon-mute', muted ? '1' : '0'); } catch (e) { }
+  initAudio(); OUT.gain.setTargetAtTime(muted ? 0 : 0.9, AC.currentTime, 0.05); applyLang();
+};
+
+// ---------- XR 摆放（同节拍门 / 萤群）----------
+let needPlace = false, placeWait = 0, bothT = 0;
+const BG = scene.background;
+renderer.xr.addEventListener('sessionstart', () => { w3d.setXR(true); art.setWidth(0.5); needPlace = true; placeWait = 0; xrNow = true; scene.background = null; renderer.setClearColor(0x000000, 0); GAIN.value = 1.25; panelDirty = true; document.getElementById('card').style.opacity = 0; document.getElementById('btns').style.opacity = 0; });
+renderer.xr.addEventListener('sessionend', () => { w3d.setXR(false); art.setWidth(0.2); xrNow = false; world.position.set(0, 0, 0); world.rotation.set(0, 0, 0); scene.background = BG; renderer.setClearColor(0x000000, 1); GAIN.value = 1; palm[0] = palm[1] = null; panelDirty = true; document.getElementById('card').style.opacity = 1; document.getElementById('btns').style.opacity = 1; onResize(); });
+function place() {
+  const cam = renderer.xr.getCamera(), p = new V3().setFromMatrixPosition(cam.matrixWorld);
+  const d = new V3(0, 0, -1).transformDirection(cam.matrixWorld);
+  world.position.copy(p); world.rotation.set(0, Math.atan2(-d.x, -d.z), 0); needPlace = false;
+  detectors.forEach(d => d.reset());
+}
+
+// ---------- 桌面后处理（眼镜里不跑；发光已做进材质） ----------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.25, 0.3, 0.82);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+function onResize() {
+  camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 1 ? 56 : 33;   // 两头石墩都收进画面
+  if (innerWidth > 900) camera.setViewOffset(innerWidth, innerHeight, -innerWidth * 0.06, 0, innerWidth, innerHeight); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', onResize); onResize();
+
+// ---------- 主循环 ----------
+applyLang();
+// 测量：每帧更新 + 提交渲染的 CPU 用时，环形缓冲
+const perfBuf = new Float32Array(300); let perfI = 0, perfN = 0;
+const artBuf = new Float32Array(300); let artI = 0;   // 只算画面组装（JS），不含 GPU
+function perf() { const a = Array.from(perfBuf.slice(0, perfN)).sort((x, y) => x - y); return { n: perfN, mean: a.reduce((s, v) => s + v, 0) / Math.max(1, a.length), p95: a[Math.floor(a.length * 0.95)] || 0, ...art.counts, artMs: (() => { const a = Array.from(artBuf.slice(0, Math.min(artI, 300))).sort((x, y) => x - y); return { mean: +(a.reduce((s, v) => s + v, 0) / Math.max(1, a.length)).toFixed(2), p95: a[Math.floor(a.length * 0.95)] || 0 }; })(), calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; }
+// 自动鼓手（测试用 ?auto）：按节奏带 + 4% 抖动敲
+const FF = +(QS.get('ff') || 0), AUTO = QS.has('auto') || FF > 0;
+if (QS.has('wide')) { w3d.setWidth(0.5); art.setWidth(0.5); }   // 桌面预览头显里的加长河道
+let autoNext = 0;
+function autoDrum(t) {
+  if (race.state === 'title') { if (t > 0.8 && !QS.has('title')) startRace(t); return; }
+  if (race.state === 'result') return;
+  if (race.state !== 'race' && race.state !== 'finish') return;
+  if (flagGrab && flagGrab.stage === 'wait') { grabFlag(); return; }
+  if (t < autoNext) return;
+  const p = race.you.pos, bpm = p < 25 ? 100 : p > RACE_LEN - 50 ? 105 : 82;
+  playerHit(t, race.you.hits % 2, 0.6, deskPoint(race.you.hits % 2));
+  autoNext = t + 60 / bpm * (1 + (Math.random() - 0.5) * 0.08);
+}
+let simT = 0, lastReal = performance.now();
+function frame(time, xrFrame) {
+  const t0 = performance.now();
+  renderer.info.reset();
+  const realDt = Math.min(1 / 20, (t0 - lastReal) / 1000); lastReal = t0;
+  const dt = Math.min(1 / 30, realDt);
+  const xr = renderer.xr.isPresenting;
+  const t = clockT = AUTO ? (simT += dt) : t0 / 1000;
+  if (needPlace && xr && ++placeWait > 5) place();
+  if (!xr) { camera.position.set(0, 0, 0); camera.lookAt(0, DIO.y + 0.045, DIO.z); }
+  world.updateMatrixWorld(true);
+  if (xr) xrControl(t, dt); else palm[0] = palm[1] = null;
+  if (AUTO) autoDrum(t);
+  guideStep(now());
+  update(t, dt);
+  draw(t, dt);
+  hudT -= dt;
+  if (hudDirty && hudT <= 0) { drawHud(); hudDirty = false; hudT = now() - syncFlare < 0.3 || now() - guideFlash < 0.3 ? 0.03 : 0.12; }
+  if ((race.state === 'race' || race.state === 'finish') && hudT <= 0) hudDirty = true;
+  const showPanel = race.state === 'title' || race.state === 'ready' || race.state === 'result' || (race.state === 'race' && t - goT < 0.9) || (flagGrab && flagGrab.stage === 'wait');
+  if (showPanel) drawPanel(t);
+  panel.m.visible = !!showPanel;
+  hud.m.visible = race.state === 'race' || race.state === 'finish';
+  const halfH = xr ? (((renderer.xr.getCamera().cameras[0] || {}).viewport || { w: 1200 }).w / 2) : renderer.domElement.height / 2;
+  art.setScale(halfH);
+  if (xr) renderer.render(scene, camera); else composer.render();
+  perfBuf[perfI] = performance.now() - t0; perfI = (perfI + 1) % perfBuf.length; perfN = Math.min(perfN + 1, perfBuf.length);
+  // ?probe：跑 12 帧后把结果写进 DOM，给无头检查读
+}
+// ?probe：快进之后同步画 30 帧，把结果写进 DOM 给无头检查读（无头 Chrome 的 rAF 不可靠）
+const PROBE = QS.has('probe');
+function probe() {
+  for (let i = 0; i < 30; i++) { lastReal = performance.now() - 1000 / 60; frame(); }
+  document.body.dataset.result = JSON.stringify({ hero: heroModelInfo, w3d: w3d.dbg(), errors: window.__errs, state: race.state, stats: race.stats(), ...art.counts, perf: perf() });
+}
+// ?ff=N：开局后先用逻辑快进 N 秒（截图 / 测试用，不画）
+if (FF > 0) {
+  startRace(0); simT = 0; let tt = 0;
+  while (tt < FF - 1.2) { tt += 1 / 60; simT = clockT = tt; autoDrum(tt); update(tt, 1 / 60); }
+  art.clearFx();
+  // 最后 1.2 秒逐帧走画面，让瞬时特效（鼓环、水花、烟花）按真实时长出现
+  while (tt < FF) { tt += 1 / 60; simT = clockT = tt; autoDrum(tt); update(tt, 1 / 60); draw(tt, 1 / 60); }
+}
+if (PROBE) probe();
+renderer.setAnimationLoop(frame);
+// 测试用
+window.__dragon = {
+  race, get state() { return race.state; }, perf, detectors, startRace, playerHit: (hand = 0) => playerHit(now(), hand, 0.6, deskPoint(hand)),
+  stats: () => race.stats(), get counts() { return art.counts; }, get excite() { return excite; },
+};
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

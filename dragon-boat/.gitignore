@@ -1,0 +1,7 @@
+shots/
+# Tripo 原始下载（13 MB + 9.5 MB），只提交压缩后的 assets/models/*.glb
+assets/models/dragon-boat/
+assets/models/dragon-head/
+assets/models/boat-blue/
+assets/models/boat-green/
+assets/models/boat-purple/

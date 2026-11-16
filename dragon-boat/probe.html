@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>龙舟鼓手 · 敲击探针</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #050302; color: #f0dcb0; font: 14px/1.8 "Segoe UI", "Microsoft YaHei", sans-serif; overflow: hidden; }
+  #info { position: fixed; left: 24px; top: 20px; max-width: 520px; }
+  #info h1 { font-weight: 300; font-size: 22px; margin: 0 0 8px; }
+  #info p { margin: 4px 0; color: #b39a6a; }
+  #stat { white-space: pre; font-family: Consolas, monospace; color: #ffe0a0; margin-top: 12px; }
+  a { color: #ff9a6a; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="info">
+  <h1>敲击探针 · Phase 0</h1>
+  <p>进 XR 后捏合一下开始：节拍器按 80 BPM 响 30 秒，跟着它在胸前往下敲（双手交替或单手都行）。</p>
+  <p>记录每帧双手的腕、食指掌骨、拇指尖、食指尖位置和帧时间，结束后自动下载 JSON；同时用 core.js 的检测器现场计数。</p>
+  <p>想测别的节奏：网址加 <code>?bpm=110</code>；测时长：<code>?sec=45</code>。</p>
+  <div id="stat"></div>
+</div>
+<script type="module">
+// 量三件事：VITURE 手追的实际采样率（关节位置真正变化的频率）、快速下敲时丢手的比例、下敲速度分布。
+// 数据存进 dragon-boat/tasks/ 作为检测器的真实回放用例；第 4 节的阈值据此再定。
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { mirrorThree } from '../shared/xr-mirror.js';
+import { StrikeDetector } from './core.js';
+
+const QS = new URLSearchParams(location.search), BPM = +(QS.get('bpm') || 80), SEC = +(QS.get('sec') || 30);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight); renderer.xr.enabled = true; mirrorThree(renderer);
+document.body.appendChild(renderer.domElement); document.body.appendChild(VRButton.createButton(renderer));
+const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.01, 10);
+renderer.xr.addEventListener('sessionstart', () => renderer.setClearColor(0x000000, 0));
+// 眼前一圈节拍灯：每拍闪一下
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.036, 48), new THREE.MeshBasicMaterial({ color: 0xffc860 }));
+ring.position.set(0, -0.1, -0.6); scene.add(ring);
+const hands = [0, 1].map(i => { const h = renderer.xr.getHand(i), c = renderer.xr.getController(i); scene.add(h, c); c.addEventListener('selectstart', start); return h; });
+const NAMES = ['wrist', 'index-finger-metacarpal', 'thumb-tip', 'index-finger-tip'];
+const det = [new StrikeDetector(), new StrikeDetector()];
+let AC = null, rec = null, t0 = 0, hits = [0, 0], merged = 0, lastPinch = [false, false];
+const stat = document.getElementById('stat');
+
+function click(t, accent) { const o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = accent ? 1600 : 1000; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + 0.08); }
+function start() {
+  if (rec) return;
+  AC = AC || new AudioContext(); AC.resume();
+  const at = AC.currentTime + 1.5, n = Math.floor(SEC * BPM / 60);
+  for (let k = 0; k < n; k++) click(at + k * 60 / BPM, k % 4 === 0);
+  // 节拍器时刻换算到 performance 时钟，和帧时间放在一起
+  const perfAt = performance.now() / 1000 + 1.5 + (AC.outputLatency || AC.baseLatency || 0);
+  rec = { ua: navigator.userAgent, bpm: BPM, sec: SEC, clicks: Array.from({ length: n }, (_, k) => perfAt + k * 60 / BPM), frames: [], detHits: [] };
+  t0 = perfAt; hits = [0, 0]; merged = 0; det.forEach(d => d.reset());
+}
+function finish() {
+  const blob = new Blob([JSON.stringify(rec)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `strike-probe-${BPM}bpm-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  document.body.appendChild(a); a.click();
+  stat.textContent += `\n已下载 ${a.download}`;
+  rec = null;
+}
+const _v = new THREE.Vector3();
+renderer.setAnimationLoop((time, frame) => {
+  const t = performance.now() / 1000;
+  // 节拍灯
+  if (rec) { const k = Math.round((t - t0) * BPM / 60), d = Math.abs(t - (t0 + k * 60 / BPM)); ring.material.color.setHex(d < 0.06 && k >= 0 ? 0xffffff : 0x5a4020); }
+  const head = new THREE.Vector3().setFromMatrixPosition((renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).matrixWorld);
+  const f = { t, xr: frame ? frame.predictedDisplayTime ?? null : null, h: [null, null] };
+  for (let i = 0; i < 2; i++) {
+    const J = hands[i].joints, js = NAMES.map(n => J && J[n] && J[n].visible !== false ? J[n].getWorldPosition(_v).toArray().map(v => +v.toFixed(4)) : null);
+    f.h[i] = js[0] ? js : null;
+    // 没开始时捏合也能开始（VITURE PC 上 select 可能不触发）
+    if (js[2] && js[3]) { const d = Math.hypot(js[2][0] - js[3][0], js[2][1] - js[3][1], js[2][2] - js[3][2]); const p = d < 0.022; if (p && !lastPinch[i]) start(); lastPinch[i] = p; }
+    const palm = js[0] && js[1] ? { x: (js[0][0] + js[1][0]) / 2, y: (js[0][1] + js[1][1]) / 2, z: (js[0][2] + js[1][2]) / 2 } : null;
+    const hit = det[i].feed(t, palm, head);
+    if (hit && rec) { hits[i]++; const last = rec.detHits.at(-1); if (!last || hit.t - last.t > 0.12 || last.hand === i) merged++; rec.detHits.push({ hand: i, t: hit.t, s: +hit.strength.toFixed(3) }); }
+  }
+  if (rec) {
+    f.head = head.toArray().map(v => +v.toFixed(4)); rec.frames.push(f);
+    if (t > t0 + SEC + 0.5) finish();
+  }
+  // 现场统计：最近 2 s 的帧率、手部位置真正更新的频率、丢手比例
+  const fr = rec ? rec.frames : [];
+  if (fr.length > 10) {
+    const w = fr.filter(x => x.t > t - 2), upd = [0, 1].map(i => { let n = 0, lost = 0; for (let k = 1; k < w.length; k++) { const a = w[k - 1].h[i], b = w[k].h[i]; if (!b) { lost++; continue; } if (!a || a[0].join() !== b[0].join()) n++; } return { hz: n / 2, lost: lost / Math.max(1, w.length) }; });
+    stat.textContent = `剩余 ${Math.max(0, t0 + SEC - t).toFixed(0)} s   帧率 ${(w.length / 2).toFixed(0)} fps\n左手 更新 ${upd[0].hz.toFixed(0)} Hz  丢 ${(upd[0].lost * 100).toFixed(0)}%  检出 ${hits[0]}\n右手 更新 ${upd[1].hz.toFixed(0)} Hz  丢 ${(upd[1].lost * 100).toFixed(0)}%  检出 ${hits[1]}\n双手合并后 ${merged} 下   节拍器 ${rec.clicks.filter(c => c < t).length} 拍`;
+  } else if (!rec) stat.textContent ||= '等待开始：进 XR，捏合一下';
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
