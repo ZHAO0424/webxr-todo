@@ -53,6 +53,7 @@ for (const s of scenes) {
   const url = base + (s === 'default' ? '?test=1' : `?scene=${s}`) + (process.env.Q ?? '');
   await run([...flags, `--virtual-time-budget=${process.env.VT ?? 20000}`, `--screenshot=${join(shots, s + '.png')}`, url]);
   console.log('shot', s);
+  if (process.env.DUMP) { const dom = await run([...flags, `--virtual-time-budget=${process.env.VT ?? 20000}`, '--dump-dom', url]); console.log('  ', process.env.DUMP + '=', attr(dom, process.env.DUMP), 'errors=', attr(dom, 'errors') ?? 0, attr(dom, 'errtext') ?? ''); }   // DUMP=terra：顺便读页面上的 data-terra
 }
 server.close();
 process.exit(fail ? 1 : 0);

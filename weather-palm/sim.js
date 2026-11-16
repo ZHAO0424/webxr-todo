@@ -476,7 +476,9 @@ export function step(w, inputs = {}, dt = DT) {
     // 积雪：下雪积起来；太阳、气温高就化，化的雪水渗进地里
     let sn = w.snow[k] + 0.06 * w.snowCell[k] * dt;
     const melt = Math.min(sn, (0.003 + 0.08 * w.sun * Math.max(0, w.T - 0.2)) * dt);
-    sn -= melt; m += melt * 0.9; w.snow[k] = sn;
+    sn -= melt; w.snow[k] = sn;
+    w.melt ??= new Float32Array(N * N);
+    if (m > 0.7) { m += melt * 0.45; w.melt[k] += melt * 0.45; } else m += melt * 0.9;   // 湿透了吸不动：一半雪水在地面上流走（外面读完清零）
     // 雾霾：被风吹散、被雨洗掉，自己也慢慢散
     const sm = w.smog[k];
     if (sm > 0.001) w.smog[k] = Math.max(0, sm - (0.004 + 0.35 * wmag + 0.5 * w.rainCell[k] + (w.whirls.length ? 0.02 : 0)) * sm * dt);
