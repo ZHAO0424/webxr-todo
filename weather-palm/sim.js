@@ -208,10 +208,16 @@ export function strikeTarget(w, x, z) {
 function rng(w) { let t = (w.seed += 0x6D2B79F5); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
 
 // ---------- 动物 ----------
+// green：荒岛上绿到多少它才来；where：在哪出生（不给就在草甸）；cap：吃饱了最多繁殖到几只
 export const SPECIES = {
-  rabbit: { speed: 0.016, range: 0.03, home: [T.GRASS, T.FLOWER], hides: true },
-  deer: { speed: 0.012, range: 0.045, home: [T.GRASS, T.FLOWER, T.FOREST] },
-  fox: { speed: 0.02, range: 0.05, home: [T.FOREST, T.GRASS], nocturnal: true },
+  rabbit: { speed: 0.016, range: 0.03, home: [T.GRASS, T.FLOWER], hides: true, green: 0.3, cap: 14 },
+  deer: { speed: 0.012, range: 0.045, home: [T.GRASS, T.FLOWER, T.FOREST], green: 0.45, cap: 7 },
+  fox: { speed: 0.02, range: 0.05, home: [T.FOREST, T.GRASS], nocturnal: true, green: 0.6, cap: 4 },
+  squirrel: { speed: 0.018, range: 0.02, home: [T.FOREST], green: 0.4, cap: 8, where: (x, z) => cellType(x, z) === T.FOREST && !inCanyon(x, z) },
+  heron: { speed: 0.007, range: 0.016, home: [T.MARSH, T.BEACH, T.GRASS], green: 0.35, cap: 3, where: (x, z) => lakeDist(x, z) > 0.002 && lakeDist(x, z) < 0.012 },
+  goat: { speed: 0.012, range: 0.03, home: [T.GRASS], green: 0.4, cap: 5, where: (x, z) => inCanyon(x, z) && cellType(x, z) === T.GRASS },
+  boar: { speed: 0.013, range: 0.05, home: [T.FOREST, T.GRASS], green: 0.55, cap: 4, where: (x, z) => cellType(x, z) === T.FOREST && !inCanyon(x, z) },
+  bear: { speed: 0.01, range: 0.05, home: [T.FOREST, T.GRASS], green: 0.7, cap: 2, where: (x, z) => cellType(x, z) === T.FOREST && z < -0.02 },
 };
 // 岛的等级（0–8）决定有几只：完成两个"需要"升一级，新来的物种从林子边走出来
 export function wantAnimals(level) {
@@ -219,6 +225,11 @@ export function wantAnimals(level) {
     rabbit: 3 + (level >= 2 ? 2 : 0) + (level >= 4 ? 1 : 0) + (level >= 6 ? 2 : 0),
     deer: (level >= 1 ? 2 : 0) + (level >= 5 ? 1 : 0) + (level >= 7 ? 1 : 0),
     fox: (level >= 3 ? 1 : 0) + (level >= 8 ? 1 : 0),
+    squirrel: (level >= 1 ? 2 : 0) + (level >= 5 ? 1 : 0),
+    heron: (level >= 2 ? 1 : 0) + (level >= 6 ? 1 : 0),
+    goat: (level >= 3 ? 2 : 0),
+    boar: (level >= 4 ? 2 : 0),
+    bear: (level >= 7 ? 1 : 0),
   };
 }
 export const MAX_LEVEL = 8;
@@ -269,6 +280,10 @@ export function greenness(w) { let s = 0, n = 0; for (let k = 0; k < N * N; k++)
 
 function spawnPoint(w, sp) {
   const S = SPECIES[sp];
+  if (S.where) for (let tries = 0; tries < 600; tries++) {   // 有自己的地方：林子、湖边、峡谷……
+    const a = rng(w) * Math.PI * 2, r = Math.sqrt(rng(w)) * (R - 0.02), x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (walkable(x, z) && S.where(x, z)) return [x, z];
+  }
   for (let tries = 0; tries < 200; tries++) {
     const m = LAYOUT.meadows[Math.floor(rng(w) * LAYOUT.meadows.length)];
     const a = rng(w) * Math.PI * 2, d = rng(w) * 0.03, x = m.x + Math.cos(a) * d, z = m.z + Math.sin(a) * d;
@@ -280,11 +295,12 @@ function spawnPoint(w, sp) {
 export function setLevel(w, level) { w.level = level; syncAnimals(w, true); }
 function syncAnimals(w, initial = false) {
   const want = wantAnimals(w.level);
-  if (w.barren) {   // 荒岛：绿到 0.3 才来第一批兔子，0.45 来鹿，0.6 来狐狸
+  if (w.barren) {   // 荒岛：绿到 0.3 才来第一批兔子，0.35 苍鹭，0.4 松鼠、岩羊，0.45 鹿，0.55 野猪，0.6 狐狸，0.7 熊
     const g = w.green;
     want.rabbit = Math.min(want.rabbit, Math.max(0, Math.floor((g - 0.24) / 0.05)));
     want.deer = g < 0.45 ? 0 : Math.max(want.deer, Math.min(2, Math.floor((g - 0.4) / 0.08)));
     want.fox = g < 0.6 ? 0 : Math.max(want.fox, 1);
+    for (const sp of ['squirrel', 'heron', 'goat', 'boar', 'bear']) want[sp] = g < SPECIES[sp].green ? 0 : Math.max(want[sp], 1);
   }
   for (const sp of Object.keys(want)) {
     let have = w.animals.filter(a => a.sp === sp).length;
@@ -644,7 +660,7 @@ function updateAnimals(w, hands, dt, blocked) {
         if (f.amt <= 0) { w.stats.eaten++; w.events.push({ type: 'eaten', x: f.x, z: f.z }); }
         if (a.fed >= 1) {
           a.fed = 0;
-          const cap = { rabbit: 14, deer: 7, fox: 4 }[a.sp], have = w.animals.filter(b => b.sp === a.sp).length;
+          const cap = SPECIES[a.sp].cap, have = w.animals.filter(b => b.sp === a.sp).length;
           if (have < cap && a.grow >= 1) {
             w.animals.push({ id: w.nextAnimalId++, sp: a.sp, x: a.x + 0.003, z: a.z + 0.003, hx: a.x, hz: a.z, tx: a.x, tz: a.z, act: 'graze', think: 0.5, timer: 1, face: a.face, moving: false, hidden: false, look: null, fed: 0, grow: 0.45 });
             w.stats.born++; w.events.push({ type: 'born', sp: a.sp, x: a.x, z: a.z });
@@ -660,6 +676,10 @@ function updateAnimals(w, hands, dt, blocked) {
       const s = Math.min(d, sp * dt), nx = a.x + dx / d * s, nz = a.z + dz / d * s;
       // 逃跑时可以踩过岩浆 / 火（不然逃不出来），但不会跑进水里、跑出岛；已经困在走不了的地方就先挪出来
       if (walkable(nx, nz, a.act === 'flee' ? null : blocked) || (a.act === 'flee' && !walkable(a.x, a.z) && cellType(nx, nz) !== T.WATER && Math.hypot(nx, nz) < R - 0.012)) { a.x = nx; a.z = nz; a.face = Math.atan2(dx, dz); a.moving = true; }
+      else if (a.act === 'flee') {   // 逃跑的路被水 / 崖挡住：换个方向（不然就卡在原地）
+        for (let k = 0; k < 10; k++) { const an = rng(w) * 6.283, cx = a.x + Math.cos(an) * 0.02, cz = a.z + Math.sin(an) * 0.02; if (walkable(cx, cz, blocked)) { a.tx = cx; a.tz = cz; break; } }
+        a.moving = false;
+      }
       else { a.tx = a.x; a.tz = a.z; a.moving = false; }
     } else a.moving = false;
     if (a.look != null) a.face = a.look;

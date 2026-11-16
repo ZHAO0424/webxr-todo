@@ -166,7 +166,7 @@ test('完成"需要" → 岛升级、来新的物种；满级的夜里萤火大�
   for (let i = 0; i < 2 * MAX_LEVEL; i++) { w.requests.push({ id: 100 + i, type: 'storm', x: 0, z: 0, p: 1, t0: w.t }); step(w); }
   assert.equal(w.level, MAX_LEVEL);
   const want = wantAnimals(MAX_LEVEL);
-  assert.equal(w.animals.length, want.rabbit + want.deer + want.fox);
+  assert.equal(w.animals.length, Object.values(want).reduce((a, b) => a + b, 0));
   assert.ok(w.animals.length > n0 + 5);
   w.day = 0.9; step(w);
   assert.ok(isNight(w) && w.festival);

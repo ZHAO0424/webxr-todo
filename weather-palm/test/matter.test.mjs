@@ -1,7 +1,7 @@
 // 岩浆 / 沙子 / 种子 / 火
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMatter, pour, step, totals, index, top, blocked, MG, MC } from '../matter.js';
+import { createMatter, pour, step, totals, index, top, blocked, ignite, MG, MC } from '../matter.js';
 
 // 一块斜坡地：x 越大越低；x > 0.08 是水；z < -0.05 是林子
 const slopeH = (x, z) => 0.03 - x * 0.1;
@@ -110,4 +110,28 @@ test('性能：一步 < 4 ms（有一大摊岩浆、沙子和火时）', () => {
   const t0 = performance.now(); run(m, 5, { wet: () => 0.1 });
   const per = (performance.now() - t0) / 50;
   assert.ok(per < 4, per + ' ms');
+});
+
+test('风把沙子往下风吹（沙堆整体挪过去）', () => {
+  const cx = m => { let s = 0, w = 0; for (let k = 0; k < MG * MG; k++) if (m.sand[k] > 1e-6) { s += m.sand[k] * (k % MG); w += m.sand[k]; } return s / w; };
+  const a = createMatter(() => 0.02, () => 'grass'), b = createMatter(() => 0.02, () => 'grass');
+  for (let i = 0; i < 20; i++) { pour(a, 'sand', 0, 0, 0.002); pour(b, 'sand', 0, 0, 0.002); step(a, 0.1); step(b, 0.1); }
+  run(a, 8); run(b, 8, { wind: [1, 0] });
+  assert.ok(cx(b) > cx(a) + 0.5, `wind ${cx(b).toFixed(2)} vs calm ${cx(a).toFixed(2)}`);
+});
+
+test('下雨：湿沙塌下来，沙堆变矮变宽', () => {
+  const peak = m => { let h = 0; for (let k = 0; k < MG * MG; k++) h = Math.max(h, m.sand[k]); return h; };
+  const a = createMatter(() => 0.02, () => 'grass'), b = createMatter(() => 0.02, () => 'grass');
+  for (let i = 0; i < 30; i++) { pour(a, 'sand', 0, 0, 0.002); pour(b, 'sand', 0, 0, 0.002); step(a, 0.1); step(b, 0.1); }
+  run(a, 6); run(b, 6, { rain: () => 1 });
+  assert.ok(peak(b) < peak(a) * 0.9, `rain ${peak(b).toFixed(4)} vs dry ${peak(a).toFixed(4)}`);
+});
+
+test('大风天林火飞火星：下风好几格外冒出新的火头', () => {
+  const m = createMatter(() => 0.02, () => 'forest');
+  ignite(m, 0, 0, 0.1);
+  let embers = 0;
+  for (let t = 0; t < 6; t += 0.1) { step(m, 0.1, { wind: [1, 0], wet: () => 0.1 }); embers += m.events.filter(e => e.type === 'ember').length; m.events.length = 0; }
+  assert.ok(embers > 0, 'embers flew');
 });

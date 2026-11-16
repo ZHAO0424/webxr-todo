@@ -462,7 +462,7 @@ export function buildWater(shared) {
   g.setAttribute('aV', new THREE.Float32BufferAttribute(vA, 1));
   g.setIndex(idx);
   const u = { uIce: { value: 0 }, uWater: { value: 0.3 }, uRain: { value: 0 }, uTime: shared.uTime, uFill: { value: null }, uR: { value: S.R }, uLight: { value: new THREE.Color(1, 1, 1) },
-    uCam: { value: new THREE.Vector3(0, 0.4, 0.4) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunK: { value: 1 } };
+    uCam: { value: new THREE.Vector3(0, 0.4, 0.4) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunK: { value: 1 }, uWind: { value: new THREE.Vector2() } };
   const mat = new THREE.ShaderMaterial({
     uniforms: u, transparent: true, side: THREE.DoubleSide, depthWrite: false,
     vertexShader: `attribute float aD, aPond, aV; uniform float uWater; varying float vD, vPond, vCov, vV; varying vec3 vP;
@@ -475,7 +475,7 @@ export function buildWater(shared) {
     // 照 Terraglass 的水：清的水体（浅处看得见底、越深越蓝越不透明）、平滑的小波浪、
     // 斜着看反射天光（菲涅尔）、太阳的高光一闪一闪、岸边一圈白浪；波浪按 0.4 mm 的格子取样，和方块世界的颗粒一致
     fragmentShader: COMMON_GLSL + `
-      uniform float uTime, uRain, uR, uIce, uSunK; uniform sampler2D uFill; uniform vec3 uLight, uCam, uSunDir; varying float vD, vPond, vCov, vV; varying vec3 vP;
+      uniform float uTime, uRain, uR, uIce, uSunK; uniform sampler2D uFill; uniform vec3 uLight, uCam, uSunDir; uniform vec2 uWind; varying float vD, vPond, vCov, vV; varying vec3 vP;
       const float TXS = ${TX.toFixed(6)};
       void main() {
         if (vD > vCov) discard;
@@ -499,23 +499,30 @@ export function buildWater(shared) {
         vec3 N = normalize(vec3(-dx, 1.0, -dz)), V = normalize(uCam - vP), L = normalize(uSunDir);
         float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         vec3 R = reflect(-V, N);
-        vec3 sky = mix(vec3(0.8, 0.88, 0.96), vec3(0.5, 0.7, 0.94), clamp(R.y * 1.4, 0.0, 1.0));
-        float spec = pow(max(dot(R, L), 0.0), 140.0) * uSunK;
+        vec3 sky = mix(vec3(0.62, 0.76, 0.9), vec3(0.42, 0.62, 0.88), clamp(R.y * 1.4, 0.0, 1.0));   // 天光偏蓝，不发白
+        float spec = pow(max(dot(R, L), 0.0), 400.0) * uSunK;   // 高光收小
         // 水体：浅处青绿（透得见底）→ 深处蓝
         vec3 body = mix(vec3(0.36, 0.8, 0.8), vec3(0.2, 0.5, 0.78), smoothstep(0.1, 0.6, depth));
         body = mix(body, vec3(0.14, 0.36, 0.66), smoothstep(0.6, 1.0, depth));
         float al = mix(0.32, 0.86, smoothstep(0.05, 0.75, depth));
         // 浅水底的焦散：水底一道道亮纹
         float ca = abs(sin(t.x * 0.55 + uTime * 1.3 + sin(t.y * 0.4 + uTime))) * abs(sin(t.y * 0.5 - uTime * 1.1 + sin(t.x * 0.35)));
-        body += vec3(0.25, 0.3, 0.25) * smoothstep(0.7, 0.9, ca) * (1.0 - smoothstep(0.2, 0.6, depth));
-        vec3 c = mix(body, sky, fres * 0.85);
-        al = max(al, fres * 0.9);
-        c += vec3(1.0, 0.95, 0.85) * spec * 1.6; al = min(1.0, al + spec);
-        if (h21(t + floor(uTime * 4.0)) > 0.997 - uRain * 0.02) { c = vec3(0.9, 0.96, 1.0); al = 0.95; }   // 雨点溅起的白点
+        body += vec3(0.1, 0.14, 0.12) * smoothstep(0.78, 0.95, ca) * (1.0 - smoothstep(0.15, 0.5, depth));   // 焦散淡一点
+        vec3 c = mix(body, sky, fres * 0.4);
+        al = max(al, fres * 0.6);
+        c += vec3(1.0, 0.95, 0.85) * spec * 0.7; al = min(1.0, al + spec * 0.5);
+        if (uRain > 0.05 && h21(t + floor(uTime * 4.0)) > 0.997 - uRain * 0.02) { c = vec3(0.9, 0.96, 1.0); al = 0.95; }   // 雨点溅起的白点（只在下雨时）
+        // 风浪：顺着风一道道的浪，风大时浪尖起白头（只在湖面上）
+        float wm = length(uWind);
+        if (wm > 0.15 && vPond > 0.5 && depth > 0.15) {
+          vec2 wd = uWind / wm; float crest = sin(dot(q, wd) * 2600.0 - uTime * 6.0 + 2.0 * vnoise(t * 0.2));
+          c *= 1.0 + 0.08 * crest * min(1.0, wm);
+          if (crest > 0.92 - 0.25 * min(1.0, wm - 0.15) && h21(floor(t / 2.0) + floor(uTime * 2.0)) > 0.45) { c = vec3(0.92, 0.96, 1.0); al = max(al, 0.85); }
+        }
         // 岸边一圈白浪：贴着岸，一涌一涌
         float surf = vPond > 0.5 ? 0.07 + 0.05 * sin(uTime * 1.6 + (t.x + t.y) * 0.18) + 0.025 * h21(floor(t / 2.0)) : 0.04 * step(0.7, h21(floor(t / 2.0) + floor(uTime * 3.0)));   // 溪边只零星几点白（不然整条溪发白）
         if (depth < surf) { c = vec3(0.95, 0.98, 1.0); al = 0.92; }
-        else if (depth < surf + 0.035 && h21(t + floor(uTime * 2.0)) > 0.5) { c = mix(c, vec3(0.95, 0.98, 1.0), 0.6); al = max(al, 0.7); }
+        else if (depth < surf + 0.025 && h21(t + floor(uTime * 2.0)) > 0.75) { c = mix(c, vec3(0.95, 0.98, 1.0), 0.4); al = max(al, 0.6); }
         // 结冰：淡蓝白的冰面，一道道白的裂纹；冰从岸边往里结
         if (uIce > 0.02 && h21(floor(t / 2.0) + 2.3) < uIce * (1.2 - depth * 0.6)) {
           c = vec3(0.8, 0.9, 0.97) * (0.95 + 0.05 * h21(floor(t / 3.0)));
@@ -769,14 +776,19 @@ vec4 plantTex(int kind, vec2 t, vec3 tint) {
 // 每朵云用固定的种子生成一张格子图（cell = 2 方块宽、1.25 方块厚），渲染层按 alpha 隐去一部分格子
 export const CLOUD_CELL = 0.0032, CLOUD_H = 0.0024;   // 云也按细格子（是地形方块的两倍）
 export function cloudCells(id, rCells = 7) {
+  // 积云：平平的底、圆鼓鼓的顶（中间高、边上低），顶上再鼓出两三团"花菜头"；高度按格子数（每格 CLOUD_H）
   const q = rng(id * 1013 + 7), out = [];
-  const ax = rCells * (0.9 + q() * 0.3), az = rCells * (0.65 + q() * 0.25), lumps = Array.from({ length: 4 }, () => [(q() - 0.5) * rCells, (q() - 0.5) * rCells * 0.7, 2 + q() * 3]);
+  const ax = rCells * (0.9 + q() * 0.3), az = rCells * (0.65 + q() * 0.25);
+  const lumps = Array.from({ length: 4 }, () => [(q() - 0.5) * rCells, (q() - 0.5) * rCells * 0.7, 2 + q() * 3]);
+  const tops = Array.from({ length: 3 }, () => [(q() - 0.5) * rCells * 0.9, (q() - 0.5) * rCells * 0.5, rCells * (0.3 + q() * 0.25), 2 + q() * 2.5]);
+  const maxH = Math.max(4, Math.round(rCells * 0.75));
   for (let i = -rCells - 2; i <= rCells + 2; i++) for (let j = -rCells - 2; j <= rCells + 2; j++) {
-    let inside = (i / ax) ** 2 + (j / az) ** 2 < 1;
-    for (const [lx, lz, lr] of lumps) if ((i - lx) ** 2 + (j - lz) ** 2 < lr * lr) inside = true;
-    if (!inside) continue;
-    const edge = (i / ax) ** 2 + (j / az) ** 2;
-    out.push({ i, j, h: edge < 0.35 && q() < 0.5 ? 2 : 1, r: q(), edge });
+    let e = (i / ax) ** 2 + (j / az) ** 2;
+    for (const [lx, lz, lr] of lumps) e = Math.min(e, ((i - lx) ** 2 + (j - lz) ** 2) / (lr * lr) * 0.9);
+    if (e >= 1) continue;
+    let h = maxH * Math.sqrt(1 - e) * 0.75 + 1;
+    for (const [tx, tz, tr, th] of tops) { const d = ((i - tx) ** 2 + (j - tz) ** 2) / (tr * tr); if (d < 1) h += th * Math.sqrt(1 - d); }
+    out.push({ i, j, h: Math.max(1, Math.round(h + (q() - 0.5) * 0.8)), r: q(), edge: e });
   }
   return out;
 }

@@ -98,11 +98,15 @@ export function step(m, dt, env = {}) {
       for (const [nk, a] of flows) { const v = a * lim; dLava[k] -= v; if (nk >= 0) { dLava[nk] += v; m.heat[nk] = Math.max(m.heat[nk], m.heat[k] * 0.97); } }
     }
     if (Sd > 1e-6) {   // 往所有比休止角还低的邻格分
-      const flows = []; let out = 0;
+      const flows = []; let out = 0; const [x0, z0] = center(i, j);
       for (const [di, dj] of N4) {
         const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= MG || nj >= MG) continue;
         const nk = nj * MG + ni; if (!m.kind[nk]) continue;
-        const diff = h - top(m, nk); if (diff > REPOSE) { const v = (diff - REPOSE) * 0.25; flows.push([nk, v]); out += v; }
+        const rep2 = REPOSE * (1 - 0.6 * Math.min(1, rain(x0, z0) * 2));   // 下雨：湿沙塌下来
+        const diff = h - top(m, nk); if (diff > rep2) { const v = (diff - rep2) * 0.25; flows.push([nk, v]); out += v; }
+        // 风：顺风的那一格分一点（吹沙），风越大越多
+        const wmg = Math.hypot(wind[0], wind[1]);
+        if (wmg > 0.15) { const along = (di * wind[0] + dj * wind[1]) / wmg; if (along > 0.5 && diff > -MC) { const v = Sd * 0.04 * (wmg - 0.15) * along; flows.push([nk, v]); out += v; } }
       }
       const lim = Math.min(1, Sd / Math.max(out, 1e-12)) * Math.min(1, dt * 8);
       for (const [nk, v] of flows) { dSand[k] -= v * lim; dSand[nk] += v * lim; }
@@ -155,6 +159,14 @@ export function step(m, dt, env = {}) {
       const along = wm > 0.05 ? (di * wind[0] + dj * wind[1]) / wm : 0;
       const dry = 1 - Math.min(1, wet(...center(ni, nj)) / 0.6);
       if (rnd(m) < dt * 0.2 * m.fuel[nk] * dry * (1 + 2.5 * Math.max(0, along) * wm)) { m.fire[nk] = 5 + 4 * m.fuel[nk]; m.events.push({ type: 'ignite', x: center(ni, nj)[0], z: center(ni, nj)[1] }); }
+    }
+    if (m.fire[k] > 0 && wm > 0.25 && r < 0.2 && rnd(m) < dt * 0.15 * wm) {
+      const d = 2 + Math.floor(rnd(m) * 3), ni = Math.round(i + wind[0] / wm * d), nj = Math.round(j + wind[1] / wm * d);
+      if (ni >= 0 && nj >= 0 && ni < MG && nj < MG) {
+        const nk = nj * MG + ni;
+        m.events.push({ type: 'ember', x, z, tx: center(ni, nj)[0], tz: center(ni, nj)[1] });
+        if (m.fuel[nk] > 0.2 && m.fire[nk] <= 0 && !m.burnt[nk] && wet(...center(ni, nj)) < 0.4) { m.fire[nk] = 5 + 4 * m.fuel[nk]; m.events.push({ type: 'ignite', x: center(ni, nj)[0], z: center(ni, nj)[1] }); }
+      }
     }
     if (m.fire[k] <= 0) { m.fire[k] = 0; m.burnt[k] = 1; m.fuel[k] = 0; m.events.push({ type: 'burn', x, z, r: MC * 1.2 }); m.stats.burnt++; }
   }
