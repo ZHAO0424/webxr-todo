@@ -22,7 +22,11 @@ export const MG = 96;
 export const R = 0.17;
 export const MC = (2 * R) / MG;
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-const YIELD = 0.00035;        // 岩浆薄到这个厚度就流不动了（黏）
+const YIELD = 0.00035;        // 最烫的岩浆薄到这个厚度就流不动了（黏）
+// 岩浆越冷越稠（宾汉流体：有个"屈服"高差，低于它就不动）：刚喷出来稀、流得快；一边流一边凉、越来越稠，
+// 前锋停住、后面的堆上去 → 堆成陡的锥 / 塔，不摊成一片（黏稠的安山岩型，不是夏威夷那种稀的）。
+const lavaYield = h => YIELD * (1 + 9 * (1 - h) * (1 - h));        // 烫 0.35 mm → 凉 3.5 mm（≈一格高）
+const lavaRate = (h, dt) => Math.min(0.24, (0.25 + 2.35 * h * h) * dt);
 const REPOSE = MC * 0.6;     // 沙子的休止角：相邻格高差超过这个就滑
 const FILL = 0.0022;         // 水里堆到这么厚就算填出了陆地
 
@@ -36,7 +40,7 @@ export function createMatter(heightFn, kindFn) {
   const m = {
     base: new Float32Array(n), kind: new Uint8Array(n),   // 0 岛外 1 陆地 2 水 3 林子 4 草 5 石头
     lava: new Float32Array(n), heat: new Float32Array(n), rock: new Float32Array(n), sand: new Float32Array(n),
-    fire: new Float32Array(n), fuel: new Float32Array(n), burnt: new Uint8Array(n), filled: new Uint8Array(n),
+    ember: new Float32Array(n), fire: new Float32Array(n), fuel: new Float32Array(n), burnt: new Uint8Array(n), filled: new Uint8Array(n),
     soil: new Float32Array(n), glass: new Float32Array(n), grass: new Float32Array(n), soak: new Float32Array(n),   // 土、玻璃的厚度；土上的草 0–1；沙子 / 石头泡水泡了多久 0–1
     water: new Float32Array(n), flow: new Float32Array(n), soaked: new Float32Array(n),   // 地表水厚度、这一步流过多少（画水流用）、渗进土里多少（给 sim 加湿度，外面读完清零）
     saplings: [], events: [], t: 0, seed: 12345, stats: { steam: 0, burnt: 0, filled: 0, toLake: 0, spilled: 0, soaked: 0 },
@@ -84,7 +88,7 @@ export function pour(m, what, x, z, amount) {
   }
   for (const [k, wgt] of cells) {
     const a = amount * wgt / tot;
-    if (what === 'lava') { m.lava[k] += a; m.heat[k] = 1; }
+    if (what === 'lava') { m.heat[k] = (m.lava[k] * m.heat[k] + a) / (m.lava[k] + a); m.lava[k] += a; }   // 新倒的（烫）和原有的按体积混合
     else if (what === 'water') m.water[k] += a;
     else if (what === 'sand') m.sand[k] += a;
   }
@@ -99,24 +103,24 @@ export function step(m, dt, env = {}) {
   m.dry ??= new Float32Array(MG * MG);
   const wet = (x, z) => { const k = index(x, z); return wet0(x, z) * (k >= 0 ? 1 - m.dry[k] : 1); };
   const n = MG * MG;
-  const dLava = new Float32Array(n), dSand = new Float32Array(n);
+  const dLava = new Float32Array(n), dSand = new Float32Array(n), dHeat = new Float32Array(n), dIn = new Float32Array(n);
   // 1. 岩浆往低处流、沙子往下滑（先按快照算出变化量，再一起加上）
   for (let k = 0; k < n; k++) {
     const L = m.lava[k], Sd = m.sand[k];
     if (L <= 1e-6 && Sd <= 1e-6) continue;
     const i = k % MG, j = (k / MG) | 0, h = top(m, k);
     if (L > 1e-6) {
-      const rate = Math.min(0.24, (0.6 + 2.0 * m.heat[k]) * dt);
+      const hk = m.heat[k], rate = lavaRate(hk, dt), Y = lavaYield(hk);
       let out = 0; const flows = [];
       for (const [di, dj] of N4) {
         const ni = i + di, nj = j + dj;
-        if (ni < 0 || nj < 0 || ni >= MG || nj >= MG || !m.kind[nj * MG + ni]) { if (L > YIELD) { flows.push([-1, (L - YIELD) * rate * 0.5]); } continue; }   // 从岛边流下去
+        if (ni < 0 || nj < 0 || ni >= MG || nj >= MG || !m.kind[nj * MG + ni]) { if (L > Y) { flows.push([-1, (L - Y) * rate * 0.5]); } continue; }   // 从岛边流下去
         const nk = nj * MG + ni, diff = h - top(m, nk);
-        if (diff > YIELD) flows.push([nk, (diff - YIELD) * rate * 0.5]);
+        if (diff > Y) flows.push([nk, (diff - Y) * rate * 0.5]);
       }
       for (const f of flows) out += f[1];
       const lim = Math.min(1, (L * 0.9) / Math.max(out, 1e-12));
-      for (const [nk, a] of flows) { const v = a * lim; dLava[k] -= v; if (nk >= 0) { dLava[nk] += v; m.heat[nk] = Math.max(m.heat[nk], m.heat[k] * 0.97); } }
+      for (const [nk, a] of flows) { const v = a * lim; dLava[k] -= v; if (nk >= 0) { dLava[nk] += v; dIn[nk] += v; dHeat[nk] += v * hk * 0.97; } }   // 带着热流过去，到了按体积和那边的岩浆混合
     }
     if (Sd > 1e-6) {   // 往所有比休止角还低的邻格分
       const flows = []; let out = 0; const [x0, z0] = center(i, j);
@@ -134,7 +138,10 @@ export function step(m, dt, env = {}) {
     }
   }
   for (let k = 0; k < n; k++) {
-    if (dLava[k]) m.lava[k] = Math.max(0, m.lava[k] + dLava[k]);
+    if (dLava[k]) {
+      if (dIn[k] > 0) { const own = Math.max(0, m.lava[k] + dLava[k] - dIn[k]); m.heat[k] = (own * m.heat[k] + dHeat[k]) / (own + dIn[k]); }   // 流进来的热岩浆和这里原有的（可能已经凉了）按体积混合
+      m.lava[k] = Math.max(0, m.lava[k] + dLava[k]);
+    }
     if (dSand[k]) m.sand[k] = Math.max(0, m.sand[k] + dSand[k]);
   }
   for (let k = 0; k < n; k++) if (m.dry[k] > 0) m.dry[k] = Math.max(0, m.dry[k] - dt * (0.02 + 0.4 * rain(...center(k % MG, (k / MG) | 0))));
@@ -147,13 +154,13 @@ export function step(m, dt, env = {}) {
     if (L > 1e-6) {
       const water = m.kind[k] === 2 && !m.filled[k];
       if (water) {   // 岩浆进水：立刻变石头，冒白汽
-        m.rock[k] += L; m.lava[k] = 0; m.heat[k] = 0;
+        m.rock[k] += L; m.lava[k] = 0; m.heat[k] = 0; m.ember[k] = Math.max(m.ember[k], 0.5);
         m.events.push({ type: 'steam', x, z, a: L }); m.stats.steam++;
       } else {
         const r = rain(x, z);
-        m.heat[k] = Math.max(0, m.heat[k] - dt * (0.018 + r * 0.3 + (L < 0.0012 ? 0.03 : 0)));   // 一摊岩浆能烫上半分钟
+        m.heat[k] = Math.max(0, m.heat[k] - dt * (0.012 + 0.00004 / Math.max(L, 0.0001) + r * 0.3));   // 越薄凉得越快（表面散热 / 厚度）：前锋薄、先凉先停；一大摊能烫上半分钟
         if (r > 0.2 && rnd(m) < dt * 2 * r) { m.events.push({ type: 'steam', x, z, a: 0.0005 }); m.stats.steam++; }
-        if (m.heat[k] < 0.35) { const c = Math.min(L, (0.0016 + 0.25 * L) * dt * (1 + r * 4)); m.lava[k] -= c; m.rock[k] += c; }
+        if (m.heat[k] < 0.35) { const c = Math.min(L, (0.0016 + 0.25 * L) * dt * (1 + r * 4)); m.lava[k] -= c; m.rock[k] += c; m.ember[k] = 1; }   // 刚凝的石头：余热
         // 烫的岩浆：三格内的草木被烤干（越近越快），烤干了就着；紧挨着的直接点着
         if (m.heat[k] > 0.3) for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) {
           const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= MG || nj >= MG || (di === 0 && dj === 0)) continue;
@@ -168,6 +175,8 @@ export function step(m, dt, env = {}) {
     // 水里堆满了：填出陆地
     if (m.kind[k] === 2 && !m.filled[k] && m.rock[k] + m.sand[k] + m.soil[k] + m.glass[k] > FILL) { m.filled[k] = 1; m.stats.filled++; m.events.push({ type: 'fill', x, z }); }
   }
+  // 余热：石头里的红慢慢退（约半分钟），淋雨 / 泡水退得快
+  for (let k = 0; k < n; k++) if (m.ember[k] > 0) { const r = rain(...center(k % MG, (k / MG) | 0)); m.ember[k] = Math.max(0, m.ember[k] - dt * (0.035 + r * 0.5 + (m.water[k] > 1e-5 ? 0.4 : 0))); }
   // 3. 火：烧完变焦土；顺风、越干蔓延越快；下雨灭火
   const wm = Math.hypot(wind[0], wind[1]);
   for (let k = 0; k < n; k++) {
@@ -265,7 +274,7 @@ function stepWater(m, dt, rain, wet0, wind, sun) {
     if (W[k] < 2e-7) { W[k] = 0; continue; }
     // 漫到岩浆上：冷成石头，冒白汽，水也蒸掉一些
     if (m.lava[k] > 1e-6 && W[k] > 1e-5) {
-      const c = Math.min(m.lava[k], W[k] * 2); m.lava[k] -= c; m.rock[k] += c; m.heat[k] *= 0.5; W[k] = Math.max(0, W[k] - c * 0.5);
+      const c = Math.min(m.lava[k], W[k] * 2); m.lava[k] -= c; m.rock[k] += c; m.heat[k] *= 0.5; m.ember[k] = Math.max(m.ember[k], 0.5); W[k] = Math.max(0, W[k] - c * 0.5);
       if (rnd(m) < 0.5) { m.events.push({ type: 'steam', x, z, a: 0.0006 }); m.stats.steam++; }
     }
     // 漫到火上：灭

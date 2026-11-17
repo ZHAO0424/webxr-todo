@@ -424,6 +424,100 @@ export function waterfalls() {
 }
 
 // ---------- 水：溪和湖每格一块水面，水位决定盖到哪 ----------
+// ---------- 岛底：一个托着整座岛的半球（一层层往里收的体素，像浮空岛的底） ----------
+// 每层 2 个方块高、方块 2 倍宽（离得远、看得少，省面数）；半径按扁一点的半球收，边上带点岩石的参差。
+// 颜色按深度分层，和岛外沿剖面接上：红土 → 砂砾 → 地下水层（蓝）→ 暖灰岩层 → 发光的岩浆脉 → 紫灰基岩，最底下的尖上长着水晶。
+// 都保持中灰以上——光学透视眼镜里暗 = 看不见。
+export const UNDER_D = 0.13;   // 半球深（比岛半径浅一点，扁一些更像托盘）
+export function buildUnderside() {
+  const G2 = B * 2, LH = B * 2, R = S.R, N2 = Math.ceil(2 * R / G2), NL = Math.ceil(UNDER_D / LH);
+  const X = i => -R + i * G2;
+  const hash = (a, b) => { const q = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return q - Math.floor(q); };
+  const rad = l => { const u = Math.min(1, (l + 0.5) * LH / UNDER_D); return R * Math.sqrt(Math.max(0, 1 - u * u)); };
+  const solid = (i, j, l) => {
+    if (l < 0 || l >= NL || i < 0 || j < 0 || i >= N2 || j >= N2) return false;
+    const x = -R + (i + 0.5) * G2, z = -R + (j + 0.5) * G2, d = Math.hypot(x, z), a = Math.atan2(z, x);
+    // 岩石参差：顶上两层贴着岛边不动，往下越来越参差
+    const jag = l < 2 ? 0 : (0.5 * Math.sin(a * 5 + l * 0.7) + 0.35 * Math.sin(a * 11 - l * 1.3) + 0.6 * (hash(Math.round(a * 30), l) - 0.5)) * G2 * Math.min(1, l / 6) * 1.6;
+    return d < Math.min(R - 0.0005, rad(l) + jag);
+  };
+  // 分层颜色（按这一层的深度比例 u）
+  const band = (l) => {
+    const u = (l + 0.5) * LH / UNDER_D;
+    if (u < 0.06) return [0.74, 0.56, 0.44];        // 红土（接岛外沿）
+    if (u < 0.14) return [0.7, 0.64, 0.58];         // 砂砾
+    if (u < 0.18) return [0.5, 0.74, 0.86];         // 地下水层
+    if (u < 0.3) return [0.76, 0.64, 0.5];          // 暖黄岩
+    if (u < 0.42) return [0.66, 0.6, 0.6];          // 灰岩
+    if (u < 0.46) return [1.0, 0.6, 0.22];          // 岩浆脉（发光）
+    if (u < 0.6) return [0.7, 0.58, 0.52];          // 红褐岩
+    if (u < 0.78) return [0.62, 0.58, 0.64];        // 紫灰岩
+    return [0.6, 0.56, 0.66];                       // 基岩（尖上）
+  };
+  const pos = [], nor = [], col = [], idx = [];
+  const quad = (p, n, c) => { const b0 = pos.length / 3; for (const v of p) { pos.push(...v); nor.push(...n); col.push(...c); } idx.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3); };
+  for (let l = 0; l < NL; l++) {
+    const y1 = -l * LH, y0 = -(l + 1) * LH, c = band(l);
+    // 侧面：沿行 / 列把一样的连成长条
+    for (let i = 0; i < N2; i++) for (const di of [1, -1]) for (let j = 0; j < N2;) {
+      if (!(solid(i, j, l) && !solid(i + di, j, l))) { j++; continue; }
+      let n = 1; while (j + n < N2 && solid(i, j + n, l) && !solid(i + di, j + n, l)) n++;
+      const x = di === 1 ? X(i + 1) : X(i), z0 = X(j), z1 = X(j + n);
+      if (di === 1) quad([[x, y0, z1], [x, y0, z0], [x, y1, z0], [x, y1, z1]], [1, 0, 0], c);
+      else quad([[x, y0, z0], [x, y0, z1], [x, y1, z1], [x, y1, z0]], [-1, 0, 0], c);
+      j += n;
+    }
+    for (let j = 0; j < N2; j++) for (const dj of [1, -1]) for (let i = 0; i < N2;) {
+      if (!(solid(i, j, l) && !solid(i, j + dj, l))) { i++; continue; }
+      let n = 1; while (i + n < N2 && solid(i + n, j, l) && !solid(i + n, j + dj, l)) n++;
+      const z = dj === 1 ? X(j + 1) : X(j), x0 = X(i), x1 = X(i + n);
+      if (dj === 1) quad([[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], [0, 0, 1], c);
+      else quad([[x1, y0, z], [x0, y0, z], [x0, y1, z], [x1, y1, z]], [0, 0, -1], c);
+      i += n;
+    }
+    // 底面（这一层伸出下一层的部分）、顶面（比上一层伸出去的部分）：按行连成长条
+    for (const [dl, ny] of [[1, -1], [-1, 1]]) for (let j = 0; j < N2; j++) for (let i = 0; i < N2;) {
+      const ok = (ii) => solid(ii, j, l) && !solid(ii, j, l + dl) && (dl === 1 || l > 0);
+      if (!ok(i)) { i++; continue; }
+      let n = 1; while (i + n < N2 && ok(i + n)) n++;
+      const y = ny < 0 ? y0 : y1, x0 = X(i), x1 = X(i + n), z0 = X(j), z1 = X(j + 1);
+      if (ny < 0) quad([[x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1]], [0, -1, 0], c);
+      else quad([[x0, y, z0], [x0, y, z1], [x1, y, z1], [x1, y, z0]], [0, 1, 0], c);
+      i += n;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  const mat = new THREE.ShaderMaterial({
+    vertexColors: true,
+    vertexShader: `varying vec3 vP; varying vec3 vN; varying vec3 vC;
+      void main() { vP = position; vN = normal; vC = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `varying vec3 vP; varying vec3 vN; varying vec3 vC;
+      float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float h31(vec3 p) { return h21(p.xz + p.y * 17.3); }
+      void main() {
+        vec3 N = normalize(vN), Pi = vP - N * 0.0001;
+        vec3 vox = floor(Pi / ${(B * 2).toFixed(6)}), px = floor(Pi / ${TX.toFixed(6)});
+        float nv = h31(vox), np = h31(px);
+        vec3 c = vC * (0.93 + 0.1 * nv) * (0.95 + 0.06 * np);   // 每个方块深浅略不同 + 贴图像素颗粒
+        bool lava = vC.r > 0.95 && vC.g > 0.5 && vC.b < 0.3, aquifer = vC.b > 0.8;
+        if (lava) c = np > 0.6 ? vec3(1.0, 0.82, 0.38) : np > 0.25 ? vec3(1.0, 0.6, 0.2) : vec3(0.92, 0.42, 0.16);   // 岩浆脉一闪一闪的熔芯
+        if (aquifer && np > 0.82) c = vec3(0.8, 0.94, 1.0);                                                            // 地下水层里的水光
+        float depth = -vP.y / ${UNDER_D.toFixed(4)};
+        // 矿点和水晶：越深越多（金、铜绿、紫水晶）
+        if (!lava && !aquifer && h31(vox + 3.7) > 0.985 - 0.04 * depth) c = h21(vox.xz) > 0.66 ? vec3(0.98, 0.86, 0.4) : h21(vox.xz) > 0.33 ? vec3(0.5, 0.88, 0.76) : vec3(0.78, 0.62, 0.98);
+        float light = N.y > 0.5 ? 1.0 : N.y < -0.5 ? 0.74 : abs(N.z) > 0.5 ? 0.9 : 0.82;
+        if (!lava) c *= light;
+        gl_FragColor = vec4(pow(c, vec3(2.2)), 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
+  return { geometry: g, material: mat };
+}
+
 export function buildWater(shared) {
   const pos = [], dA = [], pondA = [], idx = [];
   for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) {
@@ -695,6 +789,34 @@ export function crystalGeometry(seed = 1) {
 // 林子里的小东西：倒木、树桩
 export function logGeometry(len = 7) { return voxelGeometry([0, 0, 0], [len, 1, 1], () => true, (x, y, z, f) => f === 0 || f === 1 ? ['#a88a60', 1] : [LOG, 1], B, [-len * B / 2, 0, -B / 2], true); }
 export function stumpGeometry() { return voxelGeometry([0, 0, 0], [1, 2, 1], () => true, (x, y, z, f) => f === 2 ? ['#b8966a', 1] : [LOG, 1], B, [-B / 2, 0, -B / 2], true); }
+// 烧剩的焦树干：一根炭化的主干、根部外张、两三根断枝茬。炭色用偏暖的深灰（不能真黑：眼镜里黑 = 透明），零星浅色是烧裂的炭纹
+const CHAR_C = ['#6a6058', '#5c544e', '#746a62'], CRACK = '#a08670', ASH = '#c8c2b8';
+const hash3 = (x, y, z, s) => { const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7 + s * 19.3) * 43758.5453; return v - Math.floor(v); };
+export function snagGeometry(seed = 1) {
+  const q = rng(seed * 131 + 7), cells = new Set(), key = (x, y, z) => `${x},${y},${z}`;
+  const h = 8 + Math.floor(q() * 3), lean = [Math.round((q() - 0.5) * 2), Math.round((q() - 0.5) * 2)];
+  const at = y => [Math.round(lean[0] * y / h), Math.round(lean[1] * y / h)];
+  for (let y = 0; y < h; y++) { const [ox, oz] = at(y); cells.add(key(ox, y, oz)); }
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (q() < 0.6) cells.add(key(dx, 0, dz));   // 根
+  const nb = 2 + Math.floor(q() * 2);
+  for (let b = 0; b < nb; b++) {
+    const y0 = Math.floor(h * 0.4 + q() * h * 0.45), [ox, oz] = at(y0), d = [[1, 0], [-1, 0], [0, 1], [0, -1]][Math.floor(q() * 4)], n = 1 + Math.floor(q() * 2);
+    for (let i = 1; i <= n; i++) cells.add(key(ox + d[0] * i, y0 + Math.floor(i / 2), oz + d[1] * i));
+  }
+  return voxelGeometry([-3, 0, -3], [4, h + 2, 4], (x, y, z) => cells.has(key(x, y, z)),
+    (x, y, z) => { const r = hash3(x, y, z, seed); return [r < 0.14 ? CRACK : CHAR_C[Math.floor(r * 3) % 3], 1]; }, B, [-B / 2, 0, -B / 2], true);
+}
+// 塌下来的一堆木炭渣：矮矮一摊碎炭块，顶上落一层白灰
+export function charPileGeometry(seed = 1) {
+  const q = rng(seed * 977 + 3), hgt = new Map();
+  for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) {
+    const d = Math.hypot(x, z) + q() * 0.9; if (d > 2.6) continue;
+    hgt.set(x + ',' + z, d < 1 ? 2 + (q() < 0.4 ? 1 : 0) : d < 1.9 ? 1 + (q() < 0.3 ? 1 : 0) : 1);
+  }
+  const top = (x, z) => hgt.get(x + ',' + z) || 0;
+  return voxelGeometry([-2, 0, -2], [3, 4, 3], (x, y, z) => y < top(x, z),
+    (x, y, z, f) => { const r = hash3(x, y, z, seed + 5); return [f === 2 && y === top(x, z) - 1 && r < 0.45 ? ASH : r < 0.1 ? CRACK : CHAR_C[Math.floor(r * 7) % 3], 1]; }, B * 0.75, [-B * 0.375, 0, -B * 0.375], true);
+}
 
 // ---------- 动物（PX 为单位的小方块，原点在脚底中心，朝 +z）：自然的毛色，不描边、不画腮红 ----------
 export function animalGeometry() {

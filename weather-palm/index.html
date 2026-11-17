@@ -79,6 +79,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mirrorThree } from '../shared/xr-mirror.js';
 import { HandTracker, pose, synthHand, features, JOINTS, CFG } from './gesture.js';
 import * as AF from './animals.js';
+import * as DC from './decay.js';
 import * as S from './sim.js';
 import * as A from './art.js';
 import * as MT from './matter.js';
@@ -145,10 +146,10 @@ const BG = (() => {
 })();
 scene.background = BG;
 const camera = new THREE.PerspectiveCamera(36, innerWidth / innerHeight, 0.01, 20);
-camera.position.set(0, 0.34, 0.44);
+camera.position.set(0, 0.29, 0.5);   // 稍远、稍平：看得到岛底的半球
 if (Q.get('cam')) { const c = Q.get('cam').split(',').map(Number); camera.position.set(c[0], c[1], c[2]); }
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0.035, 0); if (Q.get('cam')) { const c = Q.get('cam').split(',').map(Number); if (c.length >= 6) controls.target.set(c[3], c[4], c[5]); }   // ?cam=x,y,z[,tx,ty,tz]
+controls.target.set(0, -0.005, 0); if (Q.get('cam')) { const c = Q.get('cam').split(',').map(Number); if (c.length >= 6) controls.target.set(c[3], c[4], c[5]); }   // ?cam=x,y,z[,tx,ty,tz]
 controls.enableDamping = true; controls.minDistance = Q.get('cam') ? 0.01 : 0.2; controls.maxDistance = 1.5;   // 指定了相机（截图近景）就不限最近距离 controls.maxPolarAngle = 1.45;
 controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: null };
 controls.touches = { ONE: null, TWO: THREE.TOUCH.DOLLY_ROTATE };
@@ -160,7 +161,7 @@ const sunL = new THREE.DirectionalLight(0xfff0d8, 2.2); world.add(sunL, sunL.tar
 
 // 桌面上的"桌子"（XR 里隐藏：真桌子就在那）
 const desk = new THREE.Mesh(new THREE.CircleGeometry(0.42, 64), new THREE.MeshBasicMaterial({ color: 0x141d2c }));
-desk.rotation.x = -Math.PI / 2; desk.position.y = -0.0005; scene.add(desk);
+desk.rotation.x = -Math.PI / 2; desk.position.y = -0.0005 - A.UNDER_D - 0.03; scene.add(desk);   // 岛托在半球上，桌面在半球下面
 
 // 发光物的混合（同萤群）：颜色相加，alpha 取亮度，Liquid 投屏不出黑边
 const GLOW_BLEND = {
@@ -265,6 +266,8 @@ mgTex.magFilter = mgTex.minFilter = THREE.LinearFilter; mgTex.needsUpdate = true
 const TB = A.buildTerrain(U, SHADE_GLSL);
 const terrainMat = TB.material; terrainMat.uniforms.uMG.value = mgTex;
 const terrain = new THREE.Mesh(TB.geometry, terrainMat); terrain.name = 'terrain'; world.add(terrain);
+// 岛底的半球：托着整座岛（浮在空中 / 掌心上）
+const UB = A.buildUnderside(); const underside = new THREE.Mesh(UB.geometry, UB.material); underside.name = 'underside'; world.add(underside);
 // 水：溪和湖
 const WB = A.buildWater(U), waterU = WB.uniforms;
 const water = new THREE.Mesh(WB.geometry, WB.material); water.name = 'water'; world.add(water);
@@ -374,6 +377,9 @@ for (const [kind, n] of Object.entries(TREE_KINDS)) for (let v = 0; v < n; v++) 
   const m = inst(A.treeGeometry(kind, v + 1), blockM(kind === 'pine' || kind === 'spruce' || kind === 'cypress' ? 0.25 : 0.35), spots.length, 'tree-' + kind + v);
   treeMeshes[kind + v] = { m, spots };
 }
+// 树烧掉以后的残骸：焦树干（三种形状）和塌下来的炭渣堆，每棵树一个槽位（生命周期在 decay.js）
+const snagMeshes = [1, 2, 3].map(v => inst(A.snagGeometry(v), blockM(), treeSpots.length, 'snag' + v));
+const charMesh = inst(A.charPileGeometry(1), blockM(), treeSpots.length, 'charPile');
 treeSpots.forEach(t => { const v = rand(); t.tint = v < 0.15 ? [1.06, 1.03, 0.9] : v < 0.3 ? [0.94, 0.98, 1.03] : [1, 1, 1];
   t.k = S.cellIndex(t.x, t.z); t.mk = MT.index(t.x, t.z); t.y = H(t.x, t.z); t.yaw = Math.floor(rand(0, 4)) * Math.PI / 2; t.s = 1;
   t.th = t.kind === 'cactus' ? rand(0.12, 0.3) : t.kind === 'big' ? 0.55 : t.kind === 'bush' ? rand(0.2, 0.45) : rand(0.3, 0.68); });
@@ -479,71 +485,136 @@ const cloudShapes = new Map();
 // ---------- 岩浆、冷却的石头、沙子：每格一根方块柱 ----------
 const MCELL = MT.MC, BOX = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 const MMAX = 3000;
-const rockMesh = inst(BOX, blockM(0, { color: 0x6a6670 }, 'basalt'), MMAX, 'basalt'); rockMesh.count = 0;   // 冷下来的岩浆：深灰的石头（贴图是默认细纹）
+// 冷下来的岩浆石：深灰方块；刚凝的还有余热——石头里一道道裂缝透着橙红（细胞噪声的缝），余热退了缝就暗下去
+const rockGeo = BOX.clone(); const rockEmber = new THREE.InstancedBufferAttribute(new Float32Array(3000), 1).setUsage(THREE.DynamicDrawUsage); rockGeo.setAttribute('aEmber', rockEmber);
+const rockMat = blockM(0, { color: 0x6a6670 }, 'basalt');
+{ const b0 = rockMat.onBeforeCompile; rockMat.onBeforeCompile = sh => { b0(sh);
+  sh.vertexShader = 'attribute float aEmber; varying float vEm; varying vec3 vWP;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    vEm = aEmber; vWP = (modelMatrix * instanceMatrix * vec4(position, 1.0)).xyz;`);
+  sh.fragmentShader = 'varying float vEm; varying vec3 vWP;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+    if (vEm > 0.02) {
+      vec3 pc = floor(vWP / ${A.TX.toFixed(6)});
+      vec2 q = (pc.xz + vec2(pc.y * 0.7, -pc.y * 0.5)) / 4.0, cid = floor(q), f = fract(q); float d1 = 9.0, d2 = 9.0;
+      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 g = vec2(x, y); vec2 o = fract(sin(vec2(dot(cid + g, vec2(127.1, 311.7)), dot(cid + g, vec2(269.5, 183.3)))) * 43758.5453); float d = length(g + o - f); if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d; }
+      float vein = step(d2 - d1, 0.1 + 0.25 * vEm);   // 越烫缝越宽
+      vec3 hot = mix(vec3(1.0, 0.36, 0.08), vec3(1.0, 0.85, 0.4), vEm * vEm);
+      diffuseColor.rgb = mix(diffuseColor.rgb * (1.0 - 0.15 * vEm), hot * 1.4, vein * min(1.0, vEm * 1.5));
+    }`); }; }
+const rockMesh = inst(rockGeo, rockMat, MMAX, 'basalt'); rockMesh.count = 0;   // 冷下来的岩浆：深灰的石头（贴图是默认细纹）
 const sandMesh = inst(BOX, blockM(0, { color: 0xdccd9a }, 'sand'), MMAX, 'sandPile'); sandMesh.count = 0;
 // 土（沙子泡水、石头风化来的）：棕色，长了草变绿；玻璃（岩浆烧沙子）：透青的亮块
 const soilMesh = inst(BOX, blockM(0, { color: 0xffffff }, 'soil'), MMAX, 'soilPile'); soilMesh.count = 0; soilMesh.setColorAt(0, new THREE.Color(1, 1, 1));
 const glassMesh = inst(BOX, blockM(0, { color: 0xa8ece2, transparent: true, opacity: 0.82 }, 'glass'), MMAX, 'glassPile'); glassMesh.count = 0;
 const SOIL_C = new THREE.Color('#a8805a'), GRASS_C = new THREE.Color('#8cc052'), _sc = new THREE.Color();
-// 岩浆：一个个贴图像素里流动的橙黄、深橙；冷下来结一层深灰的皮，裂缝里还是红的
+// ---------- 流体面：岩浆和地表水不是方块柱，而是一张贴着地形顺滑铺开的薄面 ----------
+// （整个世界都是方块，只有流动的东西是顺滑的——这样一眼就分得出"会流的"和"不会动的"）
+// 一张 97×97 顶点的网格，顶点在格子角上：高度 = 相邻有液体的格子液面的平均（没液体的角压到地面下），
+// 厚度 aAmt = 四个相邻格的平均（没液体算 0）→ 边缘自然变薄、片元里按厚度裁掉，前锋是圆润的一条边。
+const FG = MT.MG + 1;
+function fluidSheet(mat, name) {
+  const g = new THREE.BufferGeometry(), N = FG * FG;
+  const pos = new Float32Array(N * 3);
+  for (let j = 0; j < FG; j++) for (let i = 0; i < FG; i++) { const v = (j * FG + i) * 3; pos[v] = -MT.R + i * MCELL; pos[v + 2] = -MT.R + j * MCELL; }
+  const idx = new Uint16Array(MT.MG * MT.MG * 6); let n = 0;
+  for (let j = 0; j < MT.MG; j++) for (let i = 0; i < MT.MG; i++) { const a = j * FG + i, b = a + 1, c = a + FG, d = c + 1; idx.set([a, c, b, b, c, d], n); n += 6; }
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('aAmt', new THREE.BufferAttribute(new Float32Array(N), 1).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('aAux', new THREE.BufferAttribute(new Float32Array(N * 2), 2).setUsage(THREE.DynamicDrawUsage));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  const m = new THREE.Mesh(g, mat); m.name = name; m.frustumCulled = false; m.visible = false; world.add(m);
+  return m;
+}
+// 把一种液体写进流体面。field 每格的量；surf(k) 液面高度；aux(k) 两个附加量（岩浆：热、无；水：流速、无）
+function fillSheet(m, field, thr, surf, aux) {
+  const G = m.geometry, P = G.attributes.position.array, Am = G.attributes.aAmt.array, X = G.attributes.aAux.array, MG = MT.MG;
+  let wet = 0;
+  for (let j = 0; j < FG; j++) for (let i = 0; i < FG; i++) {
+    let sy = 0, sa = 0, nf = 0, gy = 0, ng = 0, x0 = 0, x1 = 0;
+    for (let dj = -1; dj <= 0; dj++) for (let di = -1; di <= 0; di++) {
+      const ci = i + di, cj = j + dj; if (ci < 0 || cj < 0 || ci >= MG || cj >= MG) continue;
+      const k = cj * MG + ci, v = field[k];
+      if (v > thr) { sy += surf(k); nf++; sa += v; const [p0, p1] = aux(k); x0 += p0; x1 += p1; }
+      else { gy += MT.top(mt, k); ng++; }
+    }
+    const vi = j * FG + i;
+    P[vi * 3 + 1] = nf ? sy / nf : (ng ? gy / ng : 0) - 0.0004;
+    Am[vi] = sa / 4; X[vi * 2] = nf ? x0 / nf : 0; X[vi * 2 + 1] = nf ? x1 / nf : 0;
+    if (nf) wet++;
+  }
+  G.attributes.position.needsUpdate = G.attributes.aAmt.needsUpdate = G.attributes.aAux.needsUpdate = true;
+  m.visible = wet > 0; m.userData.cells = wet;
+}
+const SHEET_VS = `attribute float aAmt; attribute vec2 aAux; varying vec3 vP; varying float vA; varying vec2 vX;
+  void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vP = wp.xyz; vA = aAmt; vX = aAux; gl_Position = projectionMatrix * viewMatrix * wp; }`;
+const NOISE_GLSL = `float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }`;
+// 岩浆：底下是亮黄的熔流，上面漂着一块块暗橙的结壳板，板缝发光；越凉板越大越暗、缝越细；前锋（薄的边）先结壳
+// 按贴图像素取整（和方块世界一个像素密度），所以看着还是"像素画"，只是不再是方块
 const lavaMat = new THREE.ShaderMaterial({
   uniforms: { uTime: U.uTime },
-  vertexShader: `varying vec3 vP; varying float vHeat; varying vec3 vN;
-    void main() { vec4 wp = instanceMatrix * vec4(position, 1.0); vP = wp.xyz; vHeat = instanceColor.r; vN = normal; gl_Position = projectionMatrix * modelViewMatrix * wp; }`,
-  fragmentShader: `uniform float uTime; varying vec3 vP; varying float vHeat; varying vec3 vN;
-    float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  vertexShader: SHEET_VS,
+  fragmentShader: `uniform float uTime; varying vec3 vP; varying float vA; varying vec2 vX;
+    ${NOISE_GLSL}
     void main() {
-      vec3 pc = floor(vP / ${A.TX.toFixed(6)});
-      // 结壳石板：一块块（格子 + 抖动的细胞噪声）慢慢漂；石板之间的缝发亮
-      vec2 q = pc.xz / 5.0 + vec2(uTime * 0.05, uTime * 0.03);
-      vec2 cid = floor(q), f = fract(q); float d1 = 9.0, d2 = 9.0;
-      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 g = vec2(x, y), o = vec2(h21(cid + g), h21(cid + g + 7.3)); float d = length(g + o - f); if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d; }
-      float edge = d2 - d1;                                    // 离石板缝多远
-      float flow = sin(pc.x * 0.35 + uTime * 1.6 + sin(pc.z * 0.3) * 2.0) + sin(pc.z * 0.3 - uTime * 1.1);
-      float crustAmt = smoothstep(0.85, 0.2, vHeat);            // 越凉，石板越大、缝越细
-      float crack = edge < 0.12 + 0.35 * (1.0 - crustAmt) ? 1.0 : 0.0;
-      vec3 molten = flow > 1.2 ? vec3(1.0, 0.95, 0.62) : flow > 0.3 ? vec3(1.0, 0.72, 0.22) : vec3(0.98, 0.48, 0.1);
-      vec3 plate = mix(vec3(0.62, 0.32, 0.22), vec3(0.5, 0.42, 0.46), crustAmt) * (0.9 + 0.15 * h21(cid));
-      float isPlate = step(0.25 + 0.6 * (1.0 - crustAmt), h21(cid + 3.1)) * (1.0 - crack);
-      vec3 c = mix(molten, plate, isPlate);
-      if (isPlate > 0.5 && vHeat > 0.15 && h21(pc.xz) > 0.9) c = vec3(1.0, 0.55, 0.15);   // 石板上零星还透红
-      if (vN.y < 0.5) c *= isPlate > 0.5 ? 0.82 : 0.95;
+      if (vA < 0.00010) discard;
+      vec2 pc = floor(vP.xz / ${A.TX.toFixed(6)});
+      float heat = clamp(vX.x, 0.0, 1.0);
+      // 熔流：顺着流的亮纹（两层噪声错开着漂）
+      float fl = vn(pc * 0.18 + vec2(uTime * 0.35, uTime * 0.22)) + 0.6 * vn(pc * 0.4 - vec2(uTime * 0.5, -uTime * 0.3));
+      vec3 molten = fl > 1.05 ? vec3(1.0, 0.96, 0.66) : fl > 0.7 ? vec3(1.0, 0.8, 0.3) : vec3(1.0, 0.56, 0.14);
+      // 结壳板：细胞噪声，板中心离缝远；慢慢漂
+      vec2 q = pc / 6.0 + vec2(uTime * 0.04, uTime * 0.025);
+      vec2 cid = floor(q), f = fract(q); float d1 = 9.0, d2 = 9.0; vec2 best = cid;
+      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 g = vec2(x, y), o = vec2(h21(cid + g), h21(cid + g + 7.3)); float d = length(g + o - f); if (d < d1) { d2 = d1; d1 = d; best = cid + g; } else if (d < d2) d2 = d; }
+      float edge = d2 - d1;
+      float thin = smoothstep(0.0009, 0.0002, vA);                     // 前锋薄，先凉
+      float crust = clamp(smoothstep(0.9, 0.25, heat) + thin * 0.7, 0.0, 1.0);
+      float plateOn = step(0.62 - 0.6 * crust, h21(best + 3.1));        // 越凉越多块板
+      float gap = 0.08 + 0.28 * (1.0 - crust);
+      vec3 c = molten;
+      if (plateOn > 0.5 && edge > gap) {
+        vec3 hotPlate = vec3(0.96, 0.52, 0.16), coldPlate = vec3(0.62, 0.44, 0.4);   // 深的那头也留在中灰附近：眼镜里黑 = 透明
+        c = mix(hotPlate, coldPlate, crust) * (0.88 + 0.18 * h21(best));
+        if (edge < gap + 0.07) c = mix(c, vec3(1.0, 0.62, 0.2), 0.6);   // 板边一圈还红
+      } else if (plateOn > 0.5) c = mix(molten, vec3(1.0, 0.5, 0.12), 0.35);   // 板缝：橙红亮线
+      // 薄边：一圈深一点的硬壳，前锋看得出"在往前推"
+      if (vA < 0.00022) c = mix(c, vec3(0.6, 0.38, 0.32), 0.7);
       gl_FragColor = vec4(pow(c, vec3(2.2)), 1.0);
       #include <colorspace_fragment>
     }`,
 });
-const lavaMesh = inst(BOX, lavaMat, MMAX, 'lava'); lavaMesh.count = 0;
-// 地表水：每格一根柱子，柱顶 = 水面（从地面下一点开始，比水面高的地形方块自然把它挡住 → 水只露在低处）
-// 颜色：浅的发青、深的发蓝；流得急的地方一道道往下走的白纹；水边一圈亮边。都保持亮——光学透视里暗 = 看不见
+const lavaSheet = fluidSheet(lavaMat, 'lavaSheet');
+// 地表水：透明的一层，浅的透出底下的地、发青，深的发蓝；水边一圈白沫；流得急的地方一道道白纹顺流走；水面上缓缓晃的焦散亮纹
+// 都保持亮——光学透视里暗 = 看不见
 const surfWaterMat = new THREE.ShaderMaterial({
   uniforms: { uTime: U.uTime },
-  transparent: true,
-  vertexShader: `varying vec3 vP; varying vec2 vD; varying vec3 vN;
-    void main() { vec4 wp = instanceMatrix * vec4(position, 1.0); vP = wp.xyz; vD = instanceColor.rg; vN = normal; gl_Position = projectionMatrix * modelViewMatrix * wp; }`,
-  fragmentShader: `uniform float uTime; varying vec3 vP; varying vec2 vD; varying vec3 vN;
-    float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  transparent: true, depthWrite: false,
+  vertexShader: SHEET_VS,
+  fragmentShader: `uniform float uTime; varying vec3 vP; varying float vA; varying vec2 vX;
+    ${NOISE_GLSL}
     void main() {
-      vec3 pc = floor(vP / ${A.TX.toFixed(6)});
-      float depth = vD.x, flow = vD.y;
-      vec3 c = mix(vec3(0.42, 0.78, 0.92), vec3(0.24, 0.52, 0.9), smoothstep(0.0, 1.0, depth));
-      // 涟漪：一个个贴图像素慢慢闪
-      float rip = sin(pc.x * 0.9 + uTime * 2.0 + sin(pc.z * 0.7 + uTime) * 2.0) * sin(pc.z * 0.8 - uTime * 1.6);
-      c *= 0.95 + 0.07 * rip;
-      // 流得急：白色的流纹，往前走
-      float streak = sin(pc.x * 0.5 + pc.z * 0.5 - uTime * 8.0 * (0.4 + flow));
-      if (flow > 0.35 && streak > 0.97 - 0.12 * flow) c = mix(c, vec3(0.92, 0.97, 1.0), 0.6);
-      if (rip > 0.9 && h21(pc.xz + floor(uTime * 2.0)) > 0.985) c = mix(c, vec3(0.95, 0.98, 1.0), 0.7);   // 偶尔一点闪光
-      if (vN.y < 0.5) c *= 0.88;
-      gl_FragColor = vec4(pow(c, vec3(2.2)), 0.55 + 0.35 * smoothstep(0.0, 0.6, depth));
+      if (vA < 0.000035) discard;
+      vec2 pc = floor(vP.xz / ${A.TX.toFixed(6)});
+      float depth = smoothstep(0.0, 0.0022, vA), flow = clamp(vX.x, 0.0, 1.0);
+      vec3 c = mix(vec3(0.5, 0.9, 0.9), vec3(0.26, 0.6, 0.92), depth);
+      // 焦散：两层噪声的"山脊"处亮
+      float ca = 1.0 - abs(vn(pc * 0.22 + vec2(uTime * 0.3, uTime * 0.17)) * 2.0 - 1.0);
+      float cb = 1.0 - abs(vn(pc * 0.31 - vec2(uTime * 0.21, -uTime * 0.26)) * 2.0 - 1.0);
+      c += vec3(0.12, 0.14, 0.12) * pow(ca * cb, 6.0) * 3.0;
+      // 流得急：白纹顺流走
+      float streak = vn(vec2(pc.x * 0.25 + pc.y * 0.25 - uTime * 6.0 * (0.4 + flow), (pc.x - pc.y) * 0.6));
+      if (flow > 0.3 && streak > 0.86 - 0.2 * flow) c = mix(c, vec3(0.95, 0.98, 1.0), 0.65);
+      // 水边白沫：薄的一圈，噪声啃出参差
+      float foam = smoothstep(0.00016, 0.00006, vA + (vn(pc * 0.5 + uTime * 0.6) - 0.5) * 0.00008);
+      c = mix(c, vec3(0.96, 0.98, 1.0), foam * 0.85);
+      float al = mix(0.5, 0.88, depth); al = max(al, foam * 0.9);
+      gl_FragColor = vec4(pow(c, vec3(2.2)), al);
       #include <colorspace_fragment>
     }`,
 });
-const WMAX = 5000;
-const surfWaterMesh = inst(BOX, surfWaterMat, WMAX, 'surfaceWater'); surfWaterMesh.count = 0; surfWaterMesh.renderOrder = 2;
-surfWaterMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(WMAX * 3), 3); surfWaterMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
-lavaMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MMAX * 3), 3); lavaMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+const surfWater = fluidSheet(surfWaterMat, 'surfaceWater'); surfWater.renderOrder = 2;
 function updateMatterMeshes() {
-  let nr = 0, ns = 0, nl = 0, no = 0, ng = 0;
+  let nr = 0, ns = 0, no = 0, ng = 0;
   const q = v => Math.max(A.TX * 2, Math.round(v / (A.TX * 2)) * A.TX * 2);   // 高度按两个贴图像素取整
   const put = (m, i, y, h) => { dummy.position.set(dummy.position.x, y, dummy.position.z); dummy.rotation.set(0, 0, 0); dummy.scale.set(MCELL, h, MCELL); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix); };
   for (let k = 0; k < MT.MG * MT.MG; k++) {
@@ -552,24 +623,17 @@ function updateMatterMeshes() {
     const [x, z] = MT.center(k % MT.MG, (k / MT.MG) | 0); let y = mt.base[k];
     dummy.position.x = x; dummy.position.z = z;
     // 从下往上：石头、玻璃、土、沙、岩浆
-    if (rk >= 2e-5 && nr < MMAX) put(rockMesh, nr++, y - 0.0004, q(rk) + 0.0004); y += rk;
+    if (rk >= 2e-5 && nr < MMAX) { put(rockMesh, nr, y - 0.0004, q(rk) + 0.0004); rockEmber.setX(nr++, mt.ember[k]); } y += rk;   // 刚凝的石头：余热发红
     if (gl >= 2e-5 && ng < MMAX) put(glassMesh, ng++, y - 0.0002, q(gl) + 0.0002); y += gl;
     if (sl >= 2e-5 && no < MMAX) { put(soilMesh, no, y - 0.0002, q(sl) + 0.0002); soilMesh.setColorAt(no++, _sc.copy(SOIL_C).lerp(GRASS_C, mt.grass[k])); } y += sl;
     if (sd >= 2e-5 && ns < MMAX) put(sandMesh, ns++, y - 0.0002, q(sd) + 0.0002); y += sd;
-    if (lv >= 2e-5 && nl < MMAX) { put(lavaMesh, nl, y - 0.0002, q(lv) + 0.0002); lavaMesh.instanceColor.setXYZ(nl++, mt.heat[k], 0, 0); }
   }
   soilMesh.count = no; glassMesh.count = ng; doneInst(soilMesh); doneInst(glassMesh);
-  rockMesh.count = nr; sandMesh.count = ns; lavaMesh.count = nl;
-  for (const m of [rockMesh, sandMesh, lavaMesh]) doneInst(m);
+  rockMesh.count = nr; sandMesh.count = ns;
+  for (const m of [rockMesh, sandMesh]) doneInst(m); rockEmber.needsUpdate = true;
+  fillSheet(lavaSheet, mt.lava, 2e-5, k => MT.top(mt, k), k => [mt.heat[k], 0]);
   // 地表水：只画挂得住以上的（再薄的那层只是地湿了，不画水面）
-  let nw = 0;
-  for (let k = 0; k < MT.MG * MT.MG && nw < WMAX; k++) {
-    const wv = mt.water[k]; if (wv < 0.00005) continue;
-    const [x, z] = MT.center(k % MT.MG, (k / MT.MG) | 0), top = MT.top(mt, k) + wv;
-    dummy.position.set(x, top - 0.0025, z); dummy.rotation.set(0, 0, 0); dummy.scale.set(MCELL, 0.0025, MCELL); dummy.updateMatrix();
-    surfWaterMesh.setMatrixAt(nw, dummy.matrix); surfWaterMesh.instanceColor.setXYZ(nw++, Math.min(1, wv / 0.002), Math.min(1, mt.flow[k] / 0.004), 0);
-  }
-  surfWaterMesh.count = nw; doneInst(surfWaterMesh);
+  fillSheet(surfWater, mt.water, 0.00005, k => MT.top(mt, k) + mt.water[k], k => [Math.min(1, mt.flow[k] / 0.004), 0]);
   let changed = false;
   for (let k = 0; k < fillData.length; k++) { const v = mt.filled[k] ? 255 : 0; if (fillData[k] !== v) { fillData[k] = v; changed = true; } }
   if (changed) fillTex.needsUpdate = true;
@@ -1409,13 +1473,61 @@ function onEvent(e) {
 function onMatterEvent(e) {
   if (e.type === 'steam' && rand() < 0.1 && steams.length < 60) { for (let i = 0; i < 1; i++) steams.push({ x: e.x + rand(-0.003, 0.003), z: e.z + rand(-0.003, 0.003), y: G0(e.x, e.z), age: 0, life: rand(1.2, 2.2), s: rand(0.006, 0.012) }); if (rand() < 0.3) sfx.hiss(); }
   if (e.type === 'ignite') { if (rand() < 0.2) sfx.crackle(); }
-  if (e.type === 'burn') { for (const t of treeSpots) if (!t.burnt && Math.hypot(t.x - e.x, t.z - e.z) < MT.MC * 0.9) { t.burnt = 1; shadowsDirty = true; } }
+  if (e.type === 'burn') { for (const t of treeSpots) if (!t.burnt && Math.hypot(t.x - e.x, t.z - e.z) < MT.MC * 0.9) { t.burnt = 1; DC.burnTree(t); shadowsDirty = true; } }
   if (e.type === 'fill') shadowsDirty = true;
   if (e.type === 'spill' && spills.length < 60) spills.push({ x: e.x, z: e.z, y: G0(e.x, e.z), age: 0, a: e.a });
   if (e.type === 'ember' && emberArcs.length < 40) emberArcs.push({ x: e.x, z: e.z, tx: e.tx, tz: e.tz, age: 0 });
   if (e.type === 'grown') { sfx.done(); pops.push({ x: e.x, z: e.z, age: 0, icon: ICON_OF.done }); }
 }
 let shadowsDirty = false;
+// ---------- 树的残骸：焦树干 → 木炭渣 → 灰散了 → 重新长（规则在 decay.js；这里只喂环境、画、出特效） ----------
+const ashPuff = (x, z, y, n, life = 2.4) => { for (let i = 0; i < n && dusts.length < 80; i++) dusts.push({ x: x + rand(-0.003, 0.003), z: z + rand(-0.003, 0.003), y: y + rand(0, 0.004), age: rand(0, 0.3), ash: true, life }); };
+function onRemains(tr, e) {
+  const gy = G0(tr.x, tr.z), hT = (TREE_H[tr.kind] || 0.015) * 0.8;
+  if (e.type === 'quench') { for (let i = 0; i < 2 && steams.length < 60; i++) steams.push({ x: tr.x + rand(-0.002, 0.002), z: tr.z + rand(-0.002, 0.002), y: gy + hT * 0.5, age: 0, life: 1.8, s: 0.008 }); if (rand() < 0.5) sfx.hiss(); }
+  if (e.type === 'collapse') { ashPuff(tr.x, tr.z, gy, 5, 2.8); if (rand() < 0.5) sfx.crackle(); shadowsDirty = true; }
+  if (e.type === 'ash' || e.type === 'wash') ashPuff(tr.x, tr.z, gy, e.type === 'ash' ? 1 : 0, 2.2);
+  if (e.type === 'bury') { if (steams.length < 60) steams.push({ x: tr.x, z: tr.z, y: gy + 0.004, age: 0, life: 2.2, s: 0.007, smoke: true }); }
+  if (e.type === 'gone' || e.type === 'bury') {   // 灰落进土里：这一片接下来长得快、不再算"烧过"
+    ashPuff(tr.x, tr.z, gy, e.type === 'gone' ? 3 : 0);
+    for (const k of S.cellsAround(tr.x, tr.z, 0.008)) { w.boost[k] = Math.max(w.boost[k], 30); w.burnt[k] = 0; }
+    shadowsDirty = true;
+  }
+  if (e.type === 'regrow') { tr.burnt = 0; tr.young = 0; shadowsDirty = true; }
+}
+function updateRemains(dt) {
+  const wm = Math.hypot(w.wind[0], w.wind[1]), used = [0, 0, 0]; let nc = 0;
+  for (let ti = 0; ti < treeSpots.length; ti++) {
+    const tr = treeSpots[ti];
+    if ((tr.young ?? 1) < 1) tr.young = Math.min(1, tr.young + dt / 40);
+    if (!tr.stage) continue;
+    const mk = tr.mk, has = mk >= 0;
+    const env = { rain: tr.k >= 0 ? w.rainCell[tr.k] : 0, wind: wm, flow: has ? mt.flow[mk] : 0, water: has ? mt.water[mk] : 0, lava: has ? mt.lava[mk] : 0, fire: has ? mt.fire[mk] : 0, green: Gat(tr.x, tr.z), th: tr.th };
+    for (const e of DC.stepRemains(tr, env, dt, rand)) onRemains(tr, e);
+    const gy = G0(tr.x, tr.z), g = tr.glow || 0, flick = 0.75 + 0.25 * Math.sin(t * 9 + ti * 2.3) * Math.sin(t * 5.3 + ti);
+    if (tr.stage === DC.STAGE.SNAG) {
+      // 焦树干：高度按树种；快塌时往下矮、歪一点；还烫的时候整根泛红
+      const v = ti % 3, i = used[v]++, hy = (TREE_H[tr.kind] || 0.015) / 0.016 * 0.85 * DC.snagHeight(tr), hw = tr.kind === 'bush' || tr.kind === 'cactus' ? 0.7 : tr.kind === 'big' ? 1.6 : 1;
+      dummy.position.set(tr.x, gy, tr.z); dummy.rotation.set(0, tr.yaw, tr.hp < 0.15 ? (0.15 - tr.hp) * 1.5 : 0); dummy.scale.set(hw, Math.max(0.15, hy), hw); dummy.updateMatrix();
+      snagMeshes[v].setMatrixAt(i, dummy.matrix);
+      _c.setRGB(1 + 0.9 * g * flick, 1 + 0.12 * g, 1 - 0.45 * g); snagMeshes[v].setColorAt(i, _c);
+      if (g > 0.05) {   // 余烬：干上零星的火星一闪一闪，偶尔冒一缕烟
+        const top = gy + 0.016 * hy;
+        for (let f = 0; f < 2; f++) { const u = ((t * 0.4 + f * 0.5 + ti * 0.37) % 1); fx.add(tr.x + Math.sin(ti + f * 3) * 0.0012, gy + (top - gy) * u, tr.z + Math.cos(ti + f * 3) * 0.0012, 0.0011, 1.0 * g * flick, 0.42 * g, 0.08 * g, 3); }
+        fx.add(tr.x, gy + (top - gy) * 0.45, tr.z, 0.007, 0.16 * g, 0.05 * g, 0, 0);
+        if (rand() < dt * 0.8 * g && steams.length < 60) steams.push({ x: tr.x, z: tr.z, y: top, age: 0, life: 2.4, s: 0.005, smoke: true });
+      }
+    } else if (tr.stage === DC.STAGE.CHAR) {
+      // 炭渣堆：越散越矮越小；刚塌时缝里还透红
+      const p = Math.max(0.05, tr.pile);
+      dummy.position.set(tr.x, gy, tr.z); dummy.rotation.set(0, tr.yaw, 0); dummy.scale.set(0.6 + 0.4 * p, 0.25 + 0.75 * p, 0.6 + 0.4 * p); dummy.updateMatrix();
+      charMesh.setMatrixAt(nc, dummy.matrix); _c.setRGB(1 + 0.8 * g * flick, 1 + 0.1 * g, 1 - 0.4 * g); charMesh.setColorAt(nc++, _c);
+      if (g > 0.05) fx.add(tr.x + Math.sin(t + ti) * 0.001, gy + 0.001, tr.z, 0.0012, 1.0 * g * flick, 0.4 * g, 0.06 * g, 3);
+    }
+  }
+  snagMeshes.forEach((m, v) => { m.count = used[v]; doneInst(m); });   // 只画用到的实例（不然几百个空槽也算三角面）
+  charMesh.count = nc; doneInst(charMesh);
+}
 function boltPath(a, b) {
   let pts = [a.clone(), b.clone()];
   for (let k = 0; k < 6; k++) {
@@ -1474,12 +1586,14 @@ function updatePlants() {
   for (const { m, spots } of Object.values(treeMeshes)) {
     spots.forEach((s, i) => {
       const M = s.k >= 0 ? w.M[s.k] : 0.4, fire = s.mk >= 0 ? mt.fire[s.mk] : 0;
-      const st = s.burnt ? 0.8 : treeStage(s); if (st !== s.stg) { s.stg = st; shadowsDirty = true; }
+      if (s.stage) { m.setMatrixAt(i, ZERO); const st0 = s.stage === DC.STAGE.SNAG ? 0.8 : 0; if (st0 !== s.stg) { s.stg = st0; shadowsDirty = true; } return; }   // 焦树干 / 炭渣 / 没了：在 updateRemains 里画
+      let st = treeStage(s); if ((s.young ?? 1) < 1) st = Math.min(st, s.young < 0.35 ? 0.4 : s.young < 0.7 ? 0.7 : 1);   // 重新长的：从小苗一档档长
+      if (st !== s.stg) { s.stg = st; shadowsDirty = true; }
       dummy.position.set(s.x, G0(s.x, s.z), s.z); dummy.rotation.set(0, s.yaw, 0); dummy.scale.setScalar(st); dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
       const dry = smooth(0.2, 0.06, M);
       if (s.burnt) _c.setRGB(0.62, 0.5, 0.44);   // 烧焦的枯树：灰褐
-      else if (fire > 0) _c.setRGB(1.9, 0.9, 0.45);
+      else if (fire > 0) _c.setRGB(1.3, 0.78, 0.55);   // 着火：偏暖（火苗另画），别整棵涂成橙块
       else _c.setRGB((1 + 0.6 * dry) * s.tint[0], (1 - 0.02 * dry) * s.tint[1], (1 - 0.4 * dry) * s.tint[2]);
       const sn = s.k >= 0 ? Math.min(1, w.snow[s.k]) : 0; if (sn > 0.05 && !s.burnt) _c.lerp(new THREE.Color(1.9, 1.95, 2.05), sn * 0.55);   // 树上积了雪
       m.setColorAt(i, _c);
@@ -1502,7 +1616,7 @@ function updateSunShadow(force) {
   const NG = SUNSH_N, C = A.B, R0 = R;
   for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) occH[j * NG + i] = H(-R0 + (i + 0.5) * C, -R0 + (j + 0.5) * C);
   for (const tr of treeSpots) {   // 树冠当成一个方柱挡光
-    const st = tr.burnt ? 0.5 : (tr.stg || 0); if (st <= 0) continue;
+    const st = tr.stage === DC.STAGE.SNAG ? 0.35 : tr.stage ? 0 : (tr.stg || 0); if (st <= 0) continue;
     const top = tr.y + TREE_H[tr.kind] * st, rr = Math.round((tr.kind === 'big' ? 6 : tr.kind === 'cactus' || tr.kind === 'cypress' ? 1 : 3) * st);
     const ci = Math.floor((tr.x + R0) / C), cj = Math.floor((tr.z + R0) / C);
     for (let dj = -rr; dj <= rr; dj++) for (let di = -rr; di <= rr; di++) { const ii = ci + di, jj = cj + dj; if (ii < 0 || jj < 0 || ii >= NG || jj >= NG) continue; const k = jj * NG + ii; if (occH[k] < top) occH[k] = top; }
@@ -1673,10 +1787,10 @@ function visuals(dt, Js, states) {
     const soil = S.soilAt(x2, z2);
     if (k2 >= 0 && (soil === S.SOIL.SAND || soil === S.SOIL.CLAY || w.M[k2] < 0.15) && w.G[k2] < 0.5 && dusts.length < 40) dusts.push({ x: x2, z: z2, y: G0(x2, z2) + 0.002, age: 0, sand: soil === S.SOIL.SAND });
   }
-  dusts = dusts.filter(d => (d.age += dt) < 1.6);
+  dusts = dusts.filter(d => (d.age += dt) < (d.life || 1.6));
   for (const d of dusts) {
-    const u = d.age / 1.6, a3 = (1 - u) * 0.14;
-    for (let n = 0; n < 4; n++) cloudFx.add(d.x + w.wind[0] * u * 0.04 + n * 0.002 * w.wind[0], d.y + u * 0.008 + n * 0.0015, d.z + w.wind[1] * u * 0.04, A.B * (1.5 + u * 2), a3 * (d.sand ? 0.95 : 0.85), a3 * (d.sand ? 0.86 : 0.66), a3 * (d.sand ? 0.66 : 0.5), 3);
+    const u = d.age / (d.life || 1.6), a3 = (1 - u) * (d.ash ? 0.2 : 0.14), cr = d.ash ? 0.86 : d.sand ? 0.95 : 0.85, cg = d.ash ? 0.84 : d.sand ? 0.86 : 0.66, cb = d.ash ? 0.8 : d.sand ? 0.66 : 0.5;
+    for (let n = 0; n < 4; n++) cloudFx.add(d.x + w.wind[0] * u * 0.04 + n * 0.002 * w.wind[0], d.y + u * (d.ash ? 0.016 : 0.008) + n * 0.0015, d.z + w.wind[1] * u * 0.04, A.B * (1.5 + u * 2) * (d.ash ? 1.3 : 1), a3 * cr, a3 * cg, a3 * cb, 3);
   }
   // ---- 地表水从岛边淌下去：顺着岛的外沿往下一串水珠，落到底下散掉 ----
   spills = spills.filter(p => (p.age += dt) < 1.2);
@@ -1693,6 +1807,7 @@ function visuals(dt, Js, states) {
     const u = e.age / 0.9, x = e.x + (e.tx - e.x) * u, z = e.z + (e.tz - e.z) * u, y = G0(x, z) + 0.004 + Math.sin(u * Math.PI) * 0.012;
     fx.add(x, y, z, 0.0018, 1.0, 0.6 * (1 - u * 0.5), 0.15, 3); fx.add(x, y, z, 0.006, 0.25, 0.1, 0.0, 0);
   }
+  updateRemains(dt);
   // ---- 着火的树：树冠上一簇簇火苗往上窜、冒烟 ----
   for (const tr of treeSpots) {
     if (!tr.stg || tr.mk < 0 || !(mt.fire[tr.mk] > 0)) continue;
@@ -2107,6 +2222,32 @@ function applyScene(name) {
     P.hand(0, null); F(60 * Number(Q.get('secs') || 40), true); F(30);
     const tt = MT.totals(mt); document.body.dataset.terra = JSON.stringify({ soil: +tt.soil.toFixed(4), glass: +tt.glass.toFixed(4), sand: +tt.sand.toFixed(4), rock: +tt.rock.toFixed(4) });
   }
+  // 流体近景：不用手，直接往一处倒岩浆（lava=秒）、往另一处倒水（water=秒），看流体面的样子；at / wat 落点
+  if (name === 'fluids') {
+    w.day = 0.42; w.M.fill(0.5); w.G.fill(0.85); S.setLevel(w, 5); F(10);
+    const m1 = L.meadows[0], m2 = L.meadows[1] || L.meadows[0];
+    const [lx, lz] = (Q.get('at') || `${m1.x.toFixed(3)},${m1.z.toFixed(3)}`).split(',').map(Number);
+    const [wx, wz] = (Q.get('wat') || `${m2.x.toFixed(3)},${m2.z.toFixed(3)}`).split(',').map(Number);
+    const nl = 60 * Number(Q.get('lava') ?? 8), nw = 60 * Number(Q.get('water') ?? 8), n = Math.max(nl, nw);
+    for (let i = 0; i < n; i++) { if (i < nl) MT.pour(mt, 'lava', lx, lz, 0.0004 * Number(Q.get('rate') || 1)); if (i < nw) MT.pour(mt, 'water', wx, wz, 0.0005); F(1, i === n - 1); }
+    F(60 * Number(Q.get('secs') || 0) + 2, true);
+    document.body.dataset.fluids = JSON.stringify({ lava: [lx, lz], water: [wx, wz], lavaCells: lavaSheet.userData.cells, waterCells: surfWater.userData.cells });
+  }
+  // 树的残骸：在一棵树旁倒岩浆 → 烧成焦树干 → 等着塌成炭渣；stages=1 直接摆出 活树 / 焦树干(烫) / 焦树干(凉) / 炭渣
+  if (name === 'remains') {
+    w.day = 0.42; w.M.fill(0.4); w.G.fill(0.9); S.setLevel(w, 5); F(10);
+    const ref = treeSpots.find(t2 => t2.kind === 'oak') || treeSpots[0];
+    const [ax, az] = (Q.get('at') || `${ref.x.toFixed(3)},${ref.z.toFixed(3)}`).split(',').map(Number);
+    if (Q.get('stages')) {
+      const near = treeSpots.filter(t2 => Math.hypot(t2.x - ax, t2.z - az) < 0.05).sort((a2, b2) => a2.x - b2.x);
+      near.forEach((t2, i) => { const ph = i % 4; if (!ph) return; t2.burnt = 1; DC.burnTree(t2); if (ph === 2) t2.glow = 0; if (ph === 3) { t2.stage = DC.STAGE.CHAR; t2.pile = 0.9; t2.glow = 0.3; } });
+      F(30, true);
+    } else {
+      pourKind = 'lava'; P.hand(0, 'pour', [ax, 0.12, az]); F(60 * 3); P.hand(0, null); F(60 * Number(Q.get('secs') || 20), true); F(10);
+    }
+    const cnt = [0, 0, 0, 0]; for (const t2 of treeSpots) cnt[t2.stage || 0]++;
+    document.body.dataset.remains = JSON.stringify({ alive: cnt[0], snag: cnt[1], char: cnt[2], gone: cnt[3], at: [ax, az] });
+  }
   // 看"需要"的标记：地上的光点圈 + 小图标
   if (name === 'request') {
     w.day = 0.42; w.M.fill(0.5); w.G.fill(0.85); S.setLevel(w, 3);
@@ -2177,7 +2318,7 @@ async function selftest() {
   pourKind = 'lava'; P.hand(0, 'pour', [0.03, 0.15, -0.045]); F(60 * 3);
   ok('立掌指尖朝下 → 倒', trackers[0].mode === 'pour', trackers[0].mode);
   const tot = MT.totals(mt); ok('岩浆倒进了岛', tot.lava + tot.rock > 0.005, (tot.lava + tot.rock).toFixed(4));
-  P.hand(0, null); F(60 * 2, true); ok('岩浆方块画出来了', lavaMesh.count > 5, lavaMesh.count);
+  P.hand(0, null); F(60 * 2, true); ok('岩浆流体面画出来了', lavaSheet.visible && lavaSheet.userData.cells > 5, lavaSheet.userData.cells);
   // 左手菜单：左手掌心朝着头 → 菜单出来；右手食指尖点在"水"那一格 → 选中水
   {
     const cam = camera.position, lp = new V3(-0.06, 0.2, 0.2), n = cam.clone().sub(lp).normalize();
@@ -2205,7 +2346,7 @@ async function selftest() {
     ok('放水 → 落点的草甸湿了', avgM() > 0.3, avgM().toFixed(2));
     { const tw = MT.totals(mt).water; let cells = 0; for (const v of mt.water) if (v > 0.00005) cells++;
       ok('倒的水落地变成地表水、摊开一片', tw > 0.005 && cells > 6, tw.toFixed(4) + ' / ' + cells + ' 格');
-      ok('地表水画出来了', surfWaterMesh.count > 6, surfWaterMesh.count);
+      ok('地表水画出来了', surfWater.visible && surfWater.userData.cells > 6, surfWater.userData.cells);
       F(60 * 30, true); ok('不倒了：地表水慢慢渗掉 / 流走', MT.totals(mt).water < tw * 0.8, MT.totals(mt).water.toFixed(4)); }
     // 食物：动物会去吃
     pourKind = 'food'; const r = w.animals.find(a => a.sp === 'rabbit'); P.hand(0, null); F(20);
