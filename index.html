@@ -174,8 +174,9 @@ const C = s => s.map(h => new THREE.Color(h));
 // 轨道是算出来的（tools/solve-orbits.mjs 算出来的，用 node 跑）：三条轨道，同一条轨道上的星球等距排开——
 // 同轨道同周期，夹角永远不变，所以同轨道永不相碰；相邻轨道的半长轴取「屏幕投影里任意相位都不碰」的最小值 + 10 的余量。
 // 每条轨道自身是平衡的（两颗对置、三颗相隔 120°），所以整体始终均匀分布在太阳四周。模拟 6 小时：最小间隙 12，偏向一侧最多 2.9%。
+const urlOf = w => w.href || w.dir + '/';   // 作品地址：本仓库里的文件夹，或者外部网址（href）
 const WORKS = [
-  { dir: 'particle-fields', group: 'works', dev: 'mhx', kepler: { a: 522, e: 0.04, w: 2.2, M: 5.689, xi: 0.06 }, r: 14,
+  { dir: 'particle-fields', group: 'works', dev: 'mhx', kepler: { a: 522, e: 0.04, w: 2.2, M: 6.212, xi: 0.06 }, r: 14,
     planet: { type: 7, ext: 9, spin: 0.3, A: C(['#4a6cb8', '#86b4f0', '#c6e6ff', '#f4fcff']), E1: '#ffffff', E2: '#ffd98a' },
     zh: { title: '粒子场', sub: 'Particle Fields', blurb: '伸手搅动一团悬浮的粒子。八章轮流接管同一团粒子：旋度噪声、洛伦兹吸引子、霍普夫纤维化、叶序、克拉尼图形、密度波，然后是黑洞和极光。', tags: ['生成艺术', '数学', '手势'], note: '单个 HTML · 零依赖' },
     en: { title: 'Particle Fields', sub: '粒子场', blurb: 'Reach in and stir a floating cloud of particles. Eight chapters take turns driving it: curl noise, the Lorenz attractor, the Hopf fibration, phyllotaxis, Chladni figures, a density wave, then a black hole and an aurora.', tags: ['Generative', 'Mathematics', 'Hands'], note: 'Single HTML · no dependencies' } },
@@ -184,11 +185,16 @@ const WORKS = [
               A: C(['#0d1a4a', '#1b3a8a', '#2f62c0', '#6e9be0']), B: C(['#5a3a10', '#a8741c', '#e0b030', '#f8e27a']), Cc: C(['#0f3a3a', '#1f6a5a', '#4fa07a', '#e8a8c8']), D: C(['#3a1020', '#a8301c', '#e8702a', '#f8c050']), E1: '#fff3a0' },
     zh: { title: '入画', sub: 'Into the Painting', blurb: '把凡·高、修拉、蒙克、透纳、莫奈、克里姆特、勃克林、弗里德里希的名画放进空间，九件作品各用一种算法，再配一个只属于它的交互。', tags: ['名画', '画廊', '视线 · 手 · 声音'], note: '九件作品 · three.js · 需联网' },
     en: { title: 'Into the Painting', sub: '入画', blurb: 'Paintings by Van Gogh, Seurat, Munch, Turner, Monet, Klimt, Böcklin and Friedrich placed in space. Nine works, each with an algorithm that suits the painting and an interaction of its own.', tags: ['Paintings', 'Gallery', 'Gaze · hands · voice'], note: 'Nine works · three.js · needs a connection' } },
-  { dir: 'jelly-harbor', group: 'works', dev: 'mx', kepler: { a: 522, e: 0.04, w: 2.2, M: 3.594, xi: 0.06 }, r: 33, moon: true,
+  { dir: 'jelly-harbor', group: 'works', dev: 'mx', kepler: { a: 522, e: 0.04, w: 2.2, M: 4.642, xi: 0.06 }, r: 33, moon: true,
     planet: { type: 9, tilt: -0.2, spin: 0.06,   // 生态园绿 / 港口海 / 集装箱 / 废土沙
               A: C(['#123322', '#24603a', '#4f9a4a', '#a8d878']), B: C(['#0c1a2e', '#15304e', '#24507a', '#3f78a8']), Cc: C(['#e0702a', '#2aa8a0', '#c83a3a', '#e8e4d8']), D: C(['#4a3018', '#8a5a2a', '#c89048', '#ecc888']), E1: '#ffd27a', E2: '#bff4ff' },
     zh: { title: 'NEXUS / 2086', sub: '三境圆筒沙盘', blurb: '工业港口、生态研究园区、废土配给站共用一个原地翻转的圆筒装置：货轮与机械臂、玻璃屋顶与双轨运输车、飞轮连杆与蒸汽动力。', tags: ['沙盘', '机械联动', '天气'], note: 'three.js · 需联网' },
     en: { title: 'NEXUS / 2086', sub: 'A three-sided cylinder diorama', blurb: 'An industrial harbour, an ecological research park and a wasteland ration station share one cylinder that flips in place: freighters and cranes, glass roofs and twin-rail carts, flywheels, linkages and steam.', tags: ['Diorama', 'Machinery', 'Weather'], note: 'three.js · needs a connection' } },
+  { dir: 'star-clash', href: 'https://star-clash.onrender.com/', group: 'games', dev: 'mx', kepler: { a: 522, e: 0.04, w: 2.2, M: 3.071, xi: 0.06 }, r: 33,
+    planet: { type: 12, tilt: 0.24, spin: 0.08,   // 一张对战场：两极双方核心、赤道交火前线、两条兵线小兵相向推进、漂着几张发光卡牌
+              A: C(['#1d1640', '#2e2470', '#5a46b0', '#9b7cf0']), B: C(['#3a1020', '#7a1e30', '#c8384a', '#ff7a6a']), Cc: C(['#10284a', '#1f4f8a', '#3f88d0', '#9fd4ff']), E1: '#e9b8ff', E2: '#ffd27a' },
+    zh: { title: '星轨对决', sub: 'Star Clash', blurb: '桌面上的实时卡牌对战：四个阵营（钢铁、机甲、虫群、混沌），三张地图（星核、火山、冰川）。出牌部署单位，沿兵线推进，拆掉对方基地。可以单人对战 AI，也可以联机对战，还能进 XR 在桌面上玩。', tags: ['卡牌对战', '实时', '联机'], note: '联机版 · 首次打开可能要等半分钟' },
+    en: { title: 'Star Clash', sub: '星轨对决', blurb: 'A real-time card battle on your desk: four factions (Steel, Mech, Swarm, Chaos) and three maps (Star Core, Volcano, Glacier). Play cards to deploy units, push down the lanes and tear down the enemy base. Play solo against the AI or online, or enter XR to play on your table.', tags: ['Card battle', 'Real-time', 'Online'], note: 'Online build · first load may take ~30 s' } },
   { dir: 'pixel-village', group: 'works', dev: 'm', kepler: { a: 314, e: 0.04, w: 0.3, M: 2.494, xi: 0 }, r: 33,
     planet: { type: 0, tilt: 0.25, spin: 0.1, scale: 3.0, sea: 0.5, cloud: 0.63, lights: 24,
               A: C(['#2b3a22', '#4a6b2f', '#7fa046', '#c9c27a']), B: C(['#123047', '#1d4f6b', '#2f7c8f', '#58a9b0']), Cc: C(['#2a3340', '#8a97a8', '#d5dde6', '#ffffff']), E1: '#ffcf6a', E2: '#bfe6ff' },
@@ -552,7 +558,7 @@ const PL_FRAG = /* glsl */`
             if (abs(r - .46) < .06 || abs(r - .26) < .05) col = uE1 * sh;
             if (abs(abs(lat) - .2) < .02) col = uE2 * sh;           // 河岸一道亮金线
           }
-        } else if (uType > 10.5) {                                 // 掌心气象台：方块小岛——地形和云都取整成一格一格，清水、沙滩、红岩、雪顶
+        } else if (uType > 10.5 && uType < 11.5) {                 // 掌心气象台：方块小岛——地形和云都取整成一格一格，清水、沙滩、红岩、雪顶
           float lv = level(lam, px, 0.);
           vec3 qb = (floor(q * 14.) + .5) / 14.;
           float h = fbm3(qb * uScale + uSeed * 7.);
@@ -570,6 +576,43 @@ const PL_FRAG = /* glsl */`
             vec3 g = floor(q * uLights);
             if (h31(g + uSeed) > .9) col = uE1 * (.7 + .3 * sin(uTime * 2. + h31(g) * 9.));
           }
+        } else if (uType > 11.5) {                                 // 星轨对决：整颗星球是一张对战场——北极我方核心（蓝）、南极敌方核心（红），赤道是交火前线
+          float lv = level(lam, px, 0.), sh = .5 + .5 * lv / 3.;
+          float lon = atan(q.z, q.x), lat = q.y, cl = sqrt(max(1. - lat * lat, .02));
+          col = rA(lv);                                            // 紫色星核地面，六边形地格
+          vec2 uv = vec2(lon * 5. * cl, lat * 8.);
+          vec2 R = vec2(1., 1.732), H = R * .5, ha = mod(uv, R) - H, hb = mod(uv - H, R) - H, hg = dot(ha, ha) < dot(hb, hb) ? ha : hb;
+          if (max(abs(hg.x) * .866 + abs(hg.y) * .5, abs(hg.y)) > .44) col = rA(min(lv + 1., 3.));
+          float side = smoothstep(.04, .5, abs(lat));               // 越靠近自家核心，地面越染上阵营色
+          col = mix(col, lat > 0. ? rC(lv) : rB(lv), side * .45);
+          for (int i = 0; i < 2; i++) {                            // 两条兵线（经线），小兵从两极往赤道推进
+            float L = i == 0 ? .9 : -2.2;
+            float dl = abs(atan(sin(lon - L), cos(lon - L))) * cl;
+            if (dl < .035) {
+              col = uE2 * sh * .75;
+              float fi = float(i);
+              float u1 = fract(uTime * .09 + fi * .37), u2 = fract(uTime * .09 + fi * .37 + .5);
+              if (abs(lat - (.86 - u1 * .82)) < .03 || abs(lat - (.86 - u2 * .82)) < .03) col = vec3(.5, .82, 1.);      // 我方（蓝）
+              if (abs(lat + (.86 - u1 * .82)) < .03 || abs(lat + (.86 - u2 * .82)) < .03) col = vec3(1., .42, .36);     // 敌方（红）
+              if (abs(lat) < .05) col = mix(uE2, vec3(1.), .5 + .5 * sin(uTime * 14. + fi * 3.));                     // 交火：一闪一闪
+            }
+          }
+          if (abs(lat) < .018) col = mix(uE2, vec3(1.), .25) * sh;   // 赤道前线：一道亮金线
+          if (abs(lat) > .86) {                                      // 两极：双方核心，一圈圈光环
+            float rr = (1. - abs(lat)) * 30.;
+            col = fract(rr - uTime * .8) < .45 ? (lat > 0. ? vec3(.55, .85, 1.) : vec3(1., .5, .4)) : (lat > 0. ? rC(lv) : rB(lv));
+          }
+          {                                                          // 地面上漂着几张发光的卡牌：金边、内里一点阵营色
+            vec2 cuv = vec2(lon * 1.5 * cl + uTime * .05, lat * 2.4);
+            vec2 cid = floor(cuv), cf = fract(cuv) - .5;
+            float hc = h21(cid + uSeed);
+            if (hc > .62 && abs(lat) < .78) {
+              vec2 o = (vec2(h21(cid + 2.), h21(cid + 5.)) - .5) * .3, c2 = cf - o;
+              vec2 bx = abs(c2) - vec2(.15, .21);
+              if (max(bx.x, bx.y) < 0.) col = max(bx.x, bx.y) > -.04 ? uE2 : (hc > .86 ? uE1 : (lat > 0. ? rC(3.) : rB(3.)));
+            }
+          }
+          if (h31(floor(q * 16.) + uSeed) > .95 && abs(lat) < .8) col = uE1 * (.75 + .25 * sin(uTime * 2.5 + h31(floor(q * 16.)) * 9.));   // 紫水晶
         } else {                               // 卫星：灰色、坑
           float lv = level(lam, px, -.05);
           float h = vn3(q * 5. + uSeed * 3.);
@@ -602,7 +645,7 @@ const reduce = matchMedia('(prefers-reduced-motion: reduce)');
 WORKS.forEach((w, i) => {
   w.i = i;
   w.label = document.createElement('div'); w.label.className = 'pl'; labels.appendChild(w.label);
-  w.link = document.createElement('a'); w.link.href = w.dir + '/'; list.appendChild(w.link);
+  w.link = document.createElement('a'); w.link.href = urlOf(w); list.appendChild(w.link);
   w.link.addEventListener('focus', () => focusOn(i));
   w.link.addEventListener('click', e => { if (!renderer) return; e.preventDefault(); enter(i); });   // 没有 WebGL：就是普通链接
 });
@@ -631,12 +674,12 @@ function fillCard(i) {
   cv.setAttribute('aria-label', t.title); g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
   img.onload = () => { if (focused !== i) return; g.imageSmoothingEnabled = true; g.drawImage(img, 0, 0, cv.width, cv.height); };
   img.src = `covers/${w.dir}.jpg`;
-  $('c-dir').textContent = w.dir + '/'; $('c-note').textContent = t.note;
+  $('c-dir').textContent = w.href ? new URL(w.href).host : w.dir + '/'; $('c-note').textContent = t.note;
   $('c-title').innerHTML = `${esc(t.title)}<small>${esc(t.sub)}</small>`;
   $('c-blurb').textContent = t.blurb;
   $('c-dev').innerHTML = [...w.dev].map(k => `<span>${esc(DEV[k][LANG])}</span>`).join('');
   $('c-tags').innerHTML = t.tags.map(g => `<span>${esc(g)}</span>`).join('');
-  $('c-go').href = w.dir + '/'; $('c-go').textContent = T.enter + ' ▶';
+  $('c-go').href = urlOf(w); $('c-go').textContent = T.enter + ' ▶';
 }
 function toggleLang() {   // 页面右上角的按钮和 XR 里的按钮共用
   LANG = LANG === 'en' ? 'zh' : 'en';
@@ -866,14 +909,14 @@ function overview() {
 }
 function enter(i) {
   const w = WORKS[i];
-  if (reduce.matches) { location.href = w.dir + '/'; return; }
+  if (reduce.matches) { location.href = urlOf(w); return; }
   if (focused !== i) focusOn(i);
   entering = i; mode = 'enter';
   card.classList.remove('on');
   const c = (w.planet.B || w.planet.A)[1];
   fade.style.background = '#' + c.getHexString();
   setTimeout(() => { fade.style.opacity = 1; }, TUNE.enterHold * .45);
-  setTimeout(() => { location.href = w.dir + '/'; }, TUNE.enterHold + 260);
+  setTimeout(() => { location.href = urlOf(w); }, TUNE.enterHold + 260);
 }
 addEventListener('pageshow', e => {   // 从作品页按「返回」回来（bfcache）：退回星图
   if (!e.persisted) return;
@@ -1062,7 +1105,7 @@ const xrRingLines = XR_RINGS.map(a => {
 // 每颗星球在 XR 里的轨道 = { a: 哪一层, ph: 相位 }，存在本机（下次进来还在你放的位置）
 const ORBIT_KEY = 'webxr-home-xr-orbits-v2';   // v2：默认轨道带高低差，旧的存档不再沿用
 // 默认高度（盘面单位，约 0.00135 米 / 单位）：同一层的星球一上一下，外层起伏大、内层小；七个加起来是 0
-const XR_DEFAULT_H = { 'neon-strike': 70, 'pixel-village': -60, 'particle-fields': 120, 'masterpieces': -90, 'jelly-harbor': -30, 'swarm': -130, 'beat-gates': 120, 'dragon-boat': 40, 'weather-palm': -40 };
+const XR_DEFAULT_H = { 'neon-strike': 70, 'pixel-village': -60, 'particle-fields': 120, 'masterpieces': -90, 'jelly-harbor': -30, 'swarm': -130, 'beat-gates': 120, 'dragon-boat': 40, 'weather-palm': -40, 'star-clash': 0 };
 const nearestRing = rho => XR_RINGS.reduce((b, a) => Math.abs(a - rho) < Math.abs(b - rho) ? a : b);
 function loadOrbits() {
   let saved = {}; try { saved = JSON.parse(localStorage.getItem(ORBIT_KEY) || '{}') || {}; } catch (e) {}
@@ -1267,7 +1310,7 @@ function xrSetFocus(i) {
   xrView.anchor.copy(headPos).addScaledVector(f, XR_FOCUS_D).addScaledVector(r, -.07); xrView.anchor.y -= .05;
 }
 function xrTap(hit) {
-  if (hit.card) { if (hit.btn && xrFocus >= 0) location.href = WORKS[xrFocus].dir + '/'; return; }   // 在 Liquid 里，XR 中跳转的页面会自己进 XR
+  if (hit.card) { if (hit.btn && xrFocus >= 0) location.href = urlOf(WORKS[xrFocus]); return; }   // 在 Liquid 里，XR 中跳转的页面会自己进 XR
   if (hit.i >= 0) { if (hit.i !== xrFocus) xrSetFocus(hit.i); return; }
   if (hit.reset) { xrResetAll(); return; }
   if (hit.lang) { toggleLang(); return; }
