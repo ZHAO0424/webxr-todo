@@ -725,7 +725,7 @@ const cloudFx = new Sprites(1400, 'clouds', true); cloudFx.mesh.renderOrder = 2;
 
 // ---------- 倒出来的流：一道"瀑布"带子（水、岩浆、沙） ----------
 // 从指尖出发，顺着手指方向冲出去一点、划弧落到地上；越往下越宽、左右微微摆；
-// 带子上一道道亮暗条纹往下流（按 0.4 mm 的格子，和方块世界的颗粒一致），落地处溅起水花 / 火星
+// 带子用和地上流体面同一套画法（岩浆结壳板 + 发光缝、水的深浅色 + 白纹白沫、沙一粒粒），顺着流往下走；落地处溅起水花 / 火星
 class PourStream {
   constructor() {
     this.N = 28;
@@ -733,30 +733,48 @@ class PourStream {
     for (let i = 0; i < N; i++) { uv.set([-1, i / (N - 1), 1, i / (N - 1)], i * 4); if (i < N - 1) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx);
     this.g = g; this.pos = pos;
-    this.u = { uTime: U.uTime, uKind: { value: 0 }, uA: { value: 0 }, uLen: { value: 0.1 } };
+    this.u = { uTime: U.uTime, uKind: { value: 0 }, uA: { value: 0 }, uLen: { value: 0.1 }, uW: { value: 0.002 } };
     this.mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({
       uniforms: this.u, transparent: true, depthWrite: false, side: THREE.DoubleSide,
       vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform float uTime, uKind, uA, uLen; varying vec2 vUv;
-        float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      fragmentShader: `uniform float uTime, uKind, uA, uLen, uW; varying vec2 vUv;
+        ${NOISE_GLSL}
+        // 和地上的流体面同一套画法（同一像素密度、同一调色），只是坐标顺着流往下走：落下来是什么样，落地还是什么样
         void main() {
-          float col = floor((vUv.x * 0.5 + 0.5) * 5.0);                         // 横着 5 条
-          float speed = uKind > 1.5 ? 10.0 : uKind > 0.5 ? 5.0 : 14.0;
-          float row = floor(vUv.y * uLen / ${A.TX.toFixed(6)} - uTime * speed + h21(vec2(col, 3.0)) * 9.0);
-          float r = h21(vec2(col, row)), edge = abs(vUv.x);
+          float speed = uKind > 1.5 ? 0.09 : uKind > 0.5 ? 0.035 : 0.16;                // 米/秒：水快、沙中、岩浆稠所以慢
+          vec2 pc = floor(vec2(vUv.x * uW, vUv.y * uLen - uTime * speed) / ${A.TX.toFixed(6)});
+          float ax = abs(vUv.x);
           float tail = smoothstep(1.0, 0.86, vUv.y), head = smoothstep(0.0, 0.06, vUv.y);
+          float rim = ax + (vn(pc * vec2(0.9, 0.35)) - 0.5) * 0.45;                       // 轮廓被噪声啃得参差，不是直边
+          if (rim > 1.0) discard;
           vec3 c; float a;
-          if (uKind < 0.5) {          // 水：浅蓝的水带，一道道白条往下冲，边上薄一点
-            c = r > 0.72 ? vec3(0.95, 0.99, 1.0) : r > 0.35 ? vec3(0.62, 0.86, 0.97) : vec3(0.45, 0.72, 0.94);
-            a = (edge > 0.75 ? 0.55 : 0.85);
-            if (edge > 0.75 && r < 0.45) discard;                                 // 边上断断续续，像水帘
-          } else if (uKind < 1.5) {   // 岩浆：金黄的芯、橙红的边，零星暗的结块
-            c = edge < 0.45 ? (r > 0.6 ? vec3(1.0, 0.95, 0.6) : vec3(1.0, 0.76, 0.26)) : vec3(0.98, 0.5, 0.12);
-            if (r < 0.12 && edge > 0.3) c = vec3(0.55, 0.3, 0.24);
+          if (uKind < 0.5) {          // 水：中间厚发蓝、两边薄发青；顺流的白纹；边上白沫
+            float depth = 1.0 - ax * ax;
+            c = mix(vec3(0.5, 0.9, 0.9), vec3(0.26, 0.6, 0.92), depth);
+            float ca = 1.0 - abs(vn(pc * vec2(0.45, 0.1)) * 2.0 - 1.0), cb = 1.0 - abs(vn(pc * vec2(0.3, 0.07) + 5.3) * 2.0 - 1.0);
+            c += vec3(0.12, 0.14, 0.12) * pow(ca * cb, 4.0) * 3.0;
+            if (vn(pc * vec2(0.7, 0.08) + 11.0) > 0.7) c = mix(c, vec3(0.95, 0.98, 1.0), 0.65);
+            float foam = smoothstep(0.7, 0.95, rim);
+            c = mix(c, vec3(0.96, 0.98, 1.0), foam * 0.85);
+            a = max(mix(0.5, 0.88, depth), foam * 0.9);
+          } else if (uKind < 1.5) {   // 岩浆：熔流亮纹 + 漂着的结壳板、板缝发光；边上先凉一圈
+            float fl = vn(pc * vec2(0.3, 0.12)) + 0.6 * vn(pc * vec2(0.6, 0.25) + 3.0);
+            vec3 molten = fl > 1.05 ? vec3(1.0, 0.96, 0.66) : fl > 0.7 ? vec3(1.0, 0.8, 0.3) : vec3(1.0, 0.56, 0.14);
+            vec2 q = pc / vec2(3.0, 4.5);
+            vec2 cid = floor(q), f = fract(q); float d1 = 9.0, d2 = 9.0; vec2 best = cid;
+            for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 g = vec2(x, y), o = vec2(h21(cid + g), h21(cid + g + 7.3)); float d = length(g + o - f); if (d < d1) { d2 = d1; d1 = d; best = cid + g; } else if (d < d2) d2 = d; }
+            float crust = smoothstep(0.35, 0.95, ax);                                       // 中间是热芯，越靠边越凉
+            float edge = d2 - d1, gap = 0.08 + 0.28 * (1.0 - crust);
+            c = molten;
+            if (step(0.62 - 0.6 * crust, h21(best + 3.1)) > 0.5) {
+              if (edge > gap) { c = mix(vec3(0.96, 0.52, 0.16), vec3(0.62, 0.44, 0.4), crust) * (0.88 + 0.18 * h21(best)); if (edge < gap + 0.07) c = mix(c, vec3(1.0, 0.62, 0.2), 0.6); }
+              else c = mix(molten, vec3(1.0, 0.5, 0.12), 0.35);
+            }
             a = 1.0;
-          } else {                    // 沙：一粒粒的细流，有空隙
-            if (r < 0.4) discard;
-            c = r > 0.8 ? vec3(0.96, 0.9, 0.7) : vec3(0.88, 0.78, 0.56);
+          } else {                    // 沙：一粒粒往下落，中间密、边上稀
+            float r = h21(pc + vec2(0.0, floor(h21(vec2(pc.x, 1.0)) * 7.0)));
+            if (r < 0.25 + 0.5 * ax) discard;
+            c = r > 0.85 ? vec3(0.96, 0.9, 0.7) : r > 0.55 ? vec3(0.9, 0.8, 0.58) : vec3(0.8, 0.68, 0.48);
             a = 1.0;
           }
           a *= tail * head * uA;
@@ -788,10 +806,10 @@ class PourStream {
       const a = P[Math.max(0, i - 1)], b = P[Math.min(N - 1, i + 1)], tan = b.clone().sub(a).normalize();
       if (i) len += P[i].distanceTo(P[i - 1]);
       const view = cw.clone().sub(P[i]).normalize(), side = tan.clone().cross(view).normalize();
-      const wdt = (kind === 1 ? 0.0016 : kind === 2 ? 0.0013 : 0.0018) * (0.7 + 0.9 * (i / (N - 1)));   // 越往下越宽
+      const wdt = (kind === 1 ? 0.0022 : kind === 2 ? 0.0016 : 0.0022) * (0.6 + 0.8 * (i / (N - 1)));   // 越往下越宽；岩浆稠，一股粗的
       this.pos.set([P[i].x - side.x * wdt, P[i].y - side.y * wdt, P[i].z - side.z * wdt, P[i].x + side.x * wdt, P[i].y + side.y * wdt, P[i].z + side.z * wdt], i * 6);
     }
-    this.u.uLen.value = len;
+    this.u.uLen.value = len; this.u.uW.value = kind === 1 ? 0.0021 : kind === 2 ? 0.0017 : 0.0023;   // 平均半宽（给着色器按真实尺寸取像素）
     this.g.attributes.position.needsUpdate = true;
     // 落地：水溅起白水珠、一圈白沫；岩浆溅火星、底下一团光；沙扬起一点尘
     const gx = x1, gz = z1, gy = y1;
@@ -1828,12 +1846,13 @@ function visuals(dt, Js, states) {
     const k = Math.max(0, Math.sin(t * (1.1 + (i % 5) * 0.27) + i * 1.9)) ** 2;
     fx.add(x, y, z, 0.0014, 0.85 * k, 1.0 * k, 0.45 * k, 3); fx.add(x, y, z, 0.006, 0.14 * k, 0.2 * k, 0.05 * k, 0);
   }
-  // 倒出来的流：从指尖落到地上的一串像素块
+  // 倒出来的流：水 / 岩浆 / 沙是一道流（PourStream），别的道具是一颗颗往下掉
   const liveStreams = new Set();
   for (const p of pourFx) {
     if (p.stream) { const sIdx = Math.min(1, Math.max(0, p.id)); liveStreams.add(sIdx); pourStreams[sIdx].set(p, dt); continue; }
     const g = G0(p.x, p.z), col = { lava: [1, 0.55, 0.15], sand: [0.95, 0.85, 0.6], water: [0.45, 0.7, 1.0], smog: [0.55, 0.52, 0.42], food: [0.85, 0.3, 0.3], fish: [0.95, 0.55, 0.2], firefly: [0.75, 1.0, 0.4], flower: [0.95, 0.6, 0.8] }[p.kind] || [0.6, 0.9, 0.4];
-    for (let y = g; y < p.y; y += 0.0024) { const j = rand(-0.0012, 0.0012); fx.add(p.x + j, y, p.z - j, p.kind === 'seed' ? 0.0022 : 0.0034, ...col, 3); }
+    const hgt = p.y - g, nP = Math.max(3, Math.round(hgt / 0.006));   // 一颗颗往下掉（越往下越快），不是一根静止的柱子
+    for (let n = 0; n < nP; n++) { const u = ((n * 0.618 + t * 1.6) % 1) ** 1.6, sw = Math.sin(n * 12.9 + t * 3) * 0.0012 * u; fx.add(p.x + sw, p.y - u * hgt, p.z - sw, p.kind === 'seed' ? 0.0022 : 0.003, ...col, 3); }
     if (p.kind === 'lava') fx.add(p.x, g + 0.003, p.z, 0.016, 0.35, 0.12, 0.02, 0);
   }
   pourFx = [];
@@ -1949,9 +1968,13 @@ function visuals(dt, Js, states) {
     _c.setRGB(lerp(0.97, 0.62, st), lerp(0.97, 0.64, st), lerp(1.0, 0.76, st)); if (c.snow) _c.setRGB(0.86, 0.9, 0.98);
     // 云按格子网格对齐（一格一格挪，像方块游戏的云）
     const gx = Math.round(c.x / CC) * CC, gz = Math.round(c.z / CC) * CC, gy = Math.round(c.y / CH) * CH;
+    // 手里托着的云：云顶压在手最低的关节下 1.2 cm（手放得很低时云顶被压平，不穿进手里）
+    const hJ = c.holder != null ? Js[c.holder] : null; let hLow = 9; if (hJ) for (let k = 1; k < 75; k += 3) hLow = Math.min(hLow, hJ[k]);
+    const capH = hJ ? Math.max(1, Math.floor((hLow - 0.012 - gy) / CH + 0.5)) : 99;
     for (const cell of shape) {
       if (cell.r > a * 1.1 - cell.edge * 0.15 || nc >= CLOUD_MAX * CLOUD_CELLS) continue;
-      dummy.position.set(gx + cell.i * CC, gy + (cell.h - 1) * CH * 0.5, gz + cell.j * CC); dummy.rotation.set(0, 0, 0); dummy.scale.set(CC, CH * cell.h, CC); dummy.updateMatrix();
+      const ch = Math.min(cell.h, capH);
+      dummy.position.set(gx + cell.i * CC, gy + (ch - 1) * CH * 0.5, gz + cell.j * CC); dummy.rotation.set(0, 0, 0); dummy.scale.set(CC, CH * ch, CC); dummy.updateMatrix();
       // 积云的明暗：越高的格子越亮（顶上被太阳照着），矮的边缘偏灰蓝（云底）；早晚顶上染粉橙
       const hr = Math.min(1, cell.h / (shape.maxH || (shape.maxH = Math.max(...shape.map(c2 => c2.h)))));
       _c2.copy(_c).multiplyScalar(0.84 + 0.22 * hr);
@@ -2151,9 +2174,11 @@ function visuals(dt, Js, states) {
   }
   // 桌面上的"手"：线框 + 影子（XR 里有真手就不画）
   deskHand.set(Js[2] || (TEST ? Js[0] : null), 0.55);   // 截图 / 自测里画注入的那只手
-  // 手的遮挡体
+  // 手的遮挡体：只在光学透视（additive，黑 = 透明）里用——挖出的洞露出真手。
+  // Quest 透视 / VR（alpha-blend、opaque）里挖洞 = 一只黑手，所以那里不挖洞、也不画手模型，直接看真手
   let n = 0;
-  if (renderer.xr.isPresenting) for (let i = 0; i < 2; i++) {
+  const blend = renderer.xr.isPresenting ? renderer.xr.getSession()?.environmentBlendMode : null, holes = blend === 'additive';
+  if (holes) for (let i = 0; i < 2; i++) {
     const J = Js[i]; if (!J || inject[i]) continue;
     for (let k = 0; k < 25; k++) { dummy.position.set(J[k * 3], J[k * 3 + 1], J[k * 3 + 2]); dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(k === 0 ? 2 : 1); dummy.updateMatrix(); occ.setMatrixAt(n++, dummy.matrix); }
     for (const [a, b] of BONES.slice(0, 24)) { dummy.position.set((J[a * 3] + J[b * 3]) / 2, (J[a * 3 + 1] + J[b * 3 + 1]) / 2, (J[a * 3 + 2] + J[b * 3 + 2]) / 2); dummy.scale.setScalar(a === 0 ? 1.6 : 0.95); dummy.updateMatrix(); if (n < 90) occ.setMatrixAt(n++, dummy.matrix); }
@@ -2427,6 +2452,11 @@ async function selftest() {
   P.hand(0, 'down', [m0.x, 0.17, m0.z]); F(60 * 6);
   ok('手掌朝下 → 下雨模式', trackers[0].mode === 'rain', trackers[0].mode);
   ok('手下有云且在下雨', w.clouds.length === 1 && w.clouds[0].rain > 0.5, JSON.stringify(w.clouds.map(c => c.rain.toFixed(2))));
+  { // 云顶在手的最低点下面，不穿模
+    const m4 = new THREE.Matrix4(); let top = -1; for (let i = 0; i < cloudBox.count; i++) { cloudBox.getMatrixAt(i, m4); top = Math.max(top, m4.elements[13] + m4.elements[5] / 2); }
+    const J = inject[0].J; let low = 9; for (let k = 1; k < 75; k += 3) low = Math.min(low, J[k]);
+    ok('雨云在手下面、不穿进手里', top > 0 && top < low - 0.005, `云顶 ${top.toFixed(3)} 手最低 ${low.toFixed(3)}`);
+  }
   ok('草甸变湿', avg(w.M) > M0 + 0.2, `${M0.toFixed(2)} → ${avg(w.M).toFixed(2)}`);
   ok('识别环显示', rings[0].visible);
   renderOnce(); ok('雨丝 uniform 有值', rainU.uRain.value[0] > 0.5);

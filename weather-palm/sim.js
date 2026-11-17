@@ -338,7 +338,7 @@ function newCloud(w, x, z, y, holder) {
   w.clouds.push(c); w.events.push({ type: 'cloud', x, z });
   return c;
 }
-const cloudY = h => Math.max(0.12, Math.min(0.26, h.y - 0.035));
+const cloudY = h => Math.max(0.09, Math.min(0.24, h.y - 0.06));   // 云底在手掌下 6 cm：云顶鼓起来也碰不到手
 
 export function sunHeight(w) { return -Math.cos(2 * Math.PI * w.day); }   // day 0.25 日出，0.5 正午，0.75 日落
 export const isNight = w => sunHeight(w) < -0.05;
