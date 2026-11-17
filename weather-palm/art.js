@@ -806,6 +806,34 @@ export function snagGeometry(seed = 1) {
   return voxelGeometry([-3, 0, -3], [4, h + 2, 4], (x, y, z) => cells.has(key(x, y, z)),
     (x, y, z) => { const r = hash3(x, y, z, seed); return [r < 0.14 ? CRACK : CHAR_C[Math.floor(r * 3) % 3], 1]; }, B, [-B / 2, 0, -B / 2], true);
 }
+// 会对道具起反应的小东西（reactors.js）的方块模型。单位 PX；颜色都在中灰以上（眼镜里黑 = 透明）
+export function reactorGeometry() {
+  const W = '#f0e8d8', WOOD = '#a87a52', DARKW = '#8a6644';
+  // 风车：白色塔身 + 红顶 + 小门；叶片单独一个（绕中心转），中心在 (0,0,0)，叶片在 xy 平面
+  const millTower = boxesGeometry([
+    [-3, 0, -3, 3, 5, 3, W], [-2, 5, -2, 2, 15, 2, W],
+    [-3, 15, -3, 3, 16, 3, '#c85a3e'], [-2, 16, -2, 2, 17, 2, '#c85a3e'], [-1, 17, -1, 1, 18, 1, '#d8704e'],
+    [-1, 0, 3, 1, 3, 4, WOOD], [-1, 8, 2, 1, 10, 3, '#7ab8e0'], [0, 13, 2, 1, 14, 4, DARKW]]);
+  const blade = (rot) => { const b = []; for (let i = 1; i <= 7; i++) for (let j = 0; j < 2; j++) { const [x, y] = rot(j, i); b.push([x, y, 0, x + 1, y + 1, 1, j === 0 ? DARKW : (i % 2 ? W : '#e2d6c2')]); } return b; };
+  const millBlades = boxesGeometry([[-1, -1, 0, 1, 1, 2, DARKW],
+    ...blade((j, i) => [j, i]), ...blade((j, i) => [-1 - j, -1 - i]), ...blade((j, i) => [i, -1 - j]), ...blade((j, i) => [-1 - i, j])], [0, 0, 0]);
+  // 水车：一圈木轮 + 辐条 + 桨板，轮面在 xy 平面，绕 z 转
+  const wheel = voxelGeometry([-7, -7, -1], [8, 8, 2], (x, y, z) => { const r = Math.hypot(x, y); return (r > 5.4 && r < 6.6 && z >= 0 && z < 1) || ((x === 0 || y === 0) && r < 6 && z === 0) || (r >= 6 && r < 7.6 && (Math.abs(x) < 0.5 || Math.abs(y) < 0.5 || Math.abs(Math.abs(x) - Math.abs(y)) < 0.6)) || (r < 1.5 && z >= -1 && z < 2); },
+    (x, y, z) => [Math.hypot(x, y) >= 6.6 ? '#c09468' : WOOD, 1], PX, [0, 0, 0], false);
+  const wheelPosts = boxesGeometry([[-1, 0, -3, 1, 7, -2, DARKW], [-1, 0, 2, 1, 7, 3, DARKW], [-1, 6, -3, 1, 7, 3, DARKW]]);
+  // 向日葵：茎 + 两片叶；花盘单独（朝 +z，中心在原点）
+  const sunStem = boxesGeometry([[0, 0, 0, 1, 10, 1, '#6aa848'], [1, 3, 0, 3, 4, 1, '#7ab854'], [-2, 5, 0, 0, 6, 1, '#7ab854']], [-PX / 2, 0, -PX / 2]);
+  const sunHead = voxelGeometry([-3, -3, 0], [4, 4, 1], (x, y) => Math.hypot(x, y) < 3.3, (x, y) => [Math.hypot(x, y) < 1.6 ? '#9a6a3c' : (Math.abs(x) + Math.abs(y)) % 2 ? '#f4cc38' : '#f8dc5a', 2], PX, [0, 0, 0], false);
+  // 蘑菇：白杆 + 红伞带白点（伞单独，好单独发光）
+  const shroomStem = boxesGeometry([[0, 0, 0, 1, 2, 1, '#f0ead8']], [-PX / 2, 0, -PX / 2]);
+  const shroomCap = voxelGeometry([-2, 0, -2], [3, 2, 3], (x, y, z) => y === 0 ? Math.hypot(x, z) < 2.5 : Math.hypot(x, z) < 1.5, (x, y, z, f) => [f === 2 && (x * 3 + z * 5) % 4 === 0 ? '#f8f4ec' : '#e05a4a', 1], PX, [0, 2 * PX, 0], true);
+  // 雪人：两段身子 + 头（头单独，被雷劈了会飞）；胡萝卜鼻子，石子眼睛用中灰
+  const snowBody = boxesGeometry([[-3, 0, -3, 3, 4, 3, '#f4f6fa'], [-2, 4, -2, 2, 7, 2, '#eef2f8'], [0, 5, 2, 1, 6, 3, '#6a6a74'], [-2, 6, -2, 2, 7, 2, '#d84a3a']]);
+  const snowHead = boxesGeometry([[-1, 0, -1, 2, 3, 2, '#f8fafc'], [-1, 2, 2, 0, 3, 3, '#5a5a64'], [1, 2, 2, 2, 3, 3, '#5a5a64'], [0, 1, 2, 1, 2, 4, '#f08a2a']]);
+  // 小鸟：身子 + 两只翅膀（翅膀张合靠缩放）
+  const bird = boxesGeometry([[-1, 0, -2, 1, 2, 2, '#7a9ac8'], [-1, 1, 2, 1, 3, 3, '#8aaad4'], [0, 1, 3, 1, 2, 4, '#f0b040'], [0, 1, -3, 1, 2, -2, '#6a88b8'], [-3, 2, -1, 3, 3, 1, '#9ab8e0']], [0, 0, 0], PX * 0.6);
+  return { millTower, millBlades, wheel, wheelPosts, sunStem, sunHead, shroomStem, shroomCap, snowBody, snowHead, bird };
+}
 // 塌下来的一堆木炭渣：矮矮一摊碎炭块，顶上落一层白灰
 export function charPileGeometry(seed = 1) {
   const q = rng(seed * 977 + 3), hgt = new Map();

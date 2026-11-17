@@ -36,6 +36,8 @@
   #status { position: fixed; right: 18px; bottom: 100px; font-size: 16px; color: var(--dim); text-align: right; line-height: 20px; pointer-events: none; text-shadow: 2px 2px 0 var(--ink); }
   #err { position: fixed; left: 10px; bottom: 70px; max-width: 70vw; color: #ff9a8a; font-size: 11px; white-space: pre-wrap; display: none; background: #200c0ccc; padding: 8px; font-family: monospace; }
   #dbg { position: fixed; left: 10px; bottom: 10px; font: 11px/1.4 monospace; color: #9fe; white-space: pre; pointer-events: none; }
+  #ARButton { position: fixed; top: 112px; right: 18px; z-index: 999; width: 100px; padding: 12px 6px; border: 1px solid #fff; background: rgba(0, 0, 0, 0.1); color: #fff; font: 13px 'PixelZh', sans-serif; text-align: center; cursor: pointer; opacity: 0.5; }
+  #ARButton:hover { opacity: 1; }
   #VRButton, button[id^="VRButton"] { bottom: auto !important; top: 64px !important; left: auto !important; right: 18px !important; font-family: 'PixelZh', sans-serif !important; border-radius: 0 !important; }
   @media (max-width: 760px) { #card { left: 12px; right: 12px; top: 12px; max-width: none; } #card h1 { font-size: 24px; } #card p, #card ul { display: none; } #status { display: none; } }
 </style>
@@ -80,6 +82,7 @@ import { mirrorThree } from '../shared/xr-mirror.js';
 import { HandTracker, pose, synthHand, features, JOINTS, CFG } from './gesture.js';
 import * as AF from './animals.js';
 import * as DC from './decay.js';
+import * as RX from './reactors.js';
 import * as S from './sim.js';
 import * as A from './art.js';
 import * as MT from './matter.js';
@@ -92,12 +95,13 @@ const TEST = Q.has('test') || Q.has('selftest') || Q.has('scene');
 const DEBUG = Q.has('debug');
 let rs = 12345; const rand = (a = 0, b = 1) => { rs = (rs * 16807) % 2147483647; return a + (rs / 2147483647) * (b - a); };
 const { R, PLINTH, LAYOUT: L } = S;
+const THUMB = 4;   // 拇指尖在 25 关节里的序号（食指尖是 9，即 J[27..29]）
 
 // ---------- 双语 ----------
 const STR = {
   zh: {
     name: '掌心气象台', alt: 'WEATHER IN YOUR PALM', tag: '桌上一座荒岛：沙丘、红土、碎石，只有山泉还在流。你是巨人，手就是天气——下雨、晒太阳、撒种子，让它一点点活过来。',
-    how: ['手掌朝下悬在岛上 —— 下雨（停得越久雨越大，手移云跟着走）', '掌心朝上摊开 —— 放晴', '手立起来横扫 —— 刮风', '握拳蓄力再张开 —— 打雷', '左手掌心朝向自己 —— 打开道具菜单（水、食物、雪、雾霾、旋风、岩浆、闪电、沙、树种、花种、鱼苗、萤火虫），右手指尖点一下选中', '右手立起来、指尖朝下停住 —— 把选中的东西放出去', '手挡住太阳 —— 投下手影',
+    how: ['手掌朝下悬在岛上 —— 下雨（停得越久雨越大，手移云跟着走）', '掌心朝上摊开 —— 放晴', '手立起来横扫 —— 刮风', '握拳蓄力再张开 —— 打雷', '左手掌心朝向自己 —— 打开道具菜单（下雨、水、食物、雪、雾霾、旋风、岩浆、闪电、沙、树种、花种、鱼苗、萤火虫），右手指尖点一下选中', '选中下雨：手掌朝下就下雨；选中其他道具：在岛上方捏住（拇指碰食指）—— 在捏的地方放出去', '手挡住太阳 —— 投下手影',
       '电脑：选工具后左键按住；右键放晴；按住快拖刮风；Shift 按住再松开打雷；中键转视角、滚轮缩放'],
     tools: ['雨', '晴', '风', '雷', '水', '食物', '雪', '雾霾', '旋风', '岩浆', '闪电', '沙', '树种', '花种', '鱼苗', '萤火虫'], lang: 'EN', mute: '静音', unmute: '声音', reset: '重来',
     status: (w) => `第 ${Math.floor(w.t / S.DAY_LEN) + 1} 天 · ${S.isNight(w) ? '夜' : '昼'} · 生灵 ${w.animals.length} · 等级 ${w.level}/${S.MAX_LEVEL} · 水位 ${Math.round(w.water * 100)}%${w.drought ? ' · 干旱' : ''}${w.flood ? ' · 涨水' : ''}`,
@@ -105,7 +109,7 @@ const STR = {
   },
   en: {
     name: 'WEATHER IN YOUR PALM', alt: '掌心气象台', tag: 'A barren island on your desk: dunes, red clay, scree — only the springs still flow. You are the giant; your hand is the weather. Rain, sun and seeds bring it back to life.',
-    how: ['Hold your palm down over the island — rain (longer = heavier; the cloud follows your hand)', 'Open your palm upward — clear skies', 'Sweep a raised hand sideways — wind', 'Make a fist, then open it — lightning', 'Turn your left palm toward you — tool menu (water, food, snow, smog, whirlwind, lava, lightning, sand, tree seeds, flowers, fish, fireflies); tap one with your right fingertip', 'Right hand raised, fingertips down, hold — release the selected thing', 'Block the sun — your hand casts a shadow',
+    how: ['Hold your palm down over the island — rain (longer = heavier; the cloud follows your hand)', 'Open your palm upward — clear skies', 'Sweep a raised hand sideways — wind', 'Make a fist, then open it — lightning', 'Turn your left palm toward you — tool menu (rain, water, food, snow, smog, whirlwind, lava, lightning, sand, tree seeds, flowers, fish, fireflies); tap one with your right fingertip', 'Rain selected: palm down to rain. Any other tool: pinch (thumb to index) above the island to release it there', 'Block the sun — your hand casts a shadow',
       'Desktop: pick a tool, hold left; right = sun; fast left-drag = wind; Shift-hold then release = thunder; middle-drag to orbit, wheel to zoom'],
     tools: ['Rain', 'Sun', 'Wind', 'Storm', 'Water', 'Food', 'Snow', 'Smog', 'Whirl', 'Lava', 'Bolt', 'Sand', 'Tree', 'Flower', 'Fish', 'Firefly'], lang: '中文', mute: 'Mute', unmute: 'Sound', reset: 'Reset',
     status: (w) => `Day ${Math.floor(w.t / S.DAY_LEN) + 1} · ${S.isNight(w) ? 'night' : 'day'} · creatures ${w.animals.length} · level ${w.level}/${S.MAX_LEVEL} · water ${Math.round(w.water * 100)}%${w.drought ? ' · drought' : ''}${w.flood ? ' · flood' : ''}`,
@@ -116,7 +120,7 @@ let lang; try { lang = localStorage.getItem('pf-lang') || (/^zh/i.test(navigator
 if (!STR[lang]) lang = 'zh';
 let tool = 0;   // 桌面左键的工具：0 雨 1 晴 2 风 3 雷 4 岩浆 5 沙 6 种子
 const POUR = S.TOOLS;   // 左手菜单里的 12 样东西
-let pourKind = 'water';   // 右手放出去的是哪一样（XR：左手菜单选；桌面：底部工具栏选）
+let pourKind = 'rain';   // 选中的道具（XR：左手菜单选；桌面：底部工具栏选）。'rain' = 手掌朝下下雨；其他 = 捏住放出去
 function applyLang() {
   const s = STR[lang];
   document.getElementById('t-name').textContent = s.name; document.getElementById('t-alt').textContent = s.alt;
@@ -380,6 +384,32 @@ for (const [kind, n] of Object.entries(TREE_KINDS)) for (let v = 0; v < n; v++) 
 // 树烧掉以后的残骸：焦树干（三种形状）和塌下来的炭渣堆，每棵树一个槽位（生命周期在 decay.js）
 const snagMeshes = [1, 2, 3].map(v => inst(A.snagGeometry(v), blockM(), treeSpots.length, 'snag' + v));
 const charMesh = inst(A.charPileGeometry(1), blockM(), treeSpots.length, 'charPile');
+// ---------- 会对道具起反应的小东西（规则在 reactors.js） ----------
+const RG = A.reactorGeometry();
+const landOK = (x, z, clear = 0) => Math.hypot(x, z) < R - 0.012 && S.cellType(x, z) !== S.T.WATER && S.riverDist(x, z) > 0.008 && S.lakeDist(x, z) > 0.004 && (!clear || treeSpots.every(t2 => Math.hypot(t2.x - x, t2.z - z) > clear));   // clear：离树多远（别被树挡住）
+const rxSpots = (() => {
+  const M = L.meadows, around = (c, n, r0, r1, seed, clear = 0.009) => { const out = []; for (let i = 0; i < 240 && out.length < n; i++) { const a = i * 2.39 + seed, r = r0 + (r1 - r0) * ((i * 0.618 + seed) % 1), x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r; if (landOK(x, z, clear) && out.every(p => Math.hypot(p.x - x, p.z - z) > 0.006)) out.push({ x, z }); } return out; };
+  const mills = [around(M[2], 1, 0.0, 0.04, 0.3, 0.012)[0], around(M[4], 1, 0.0, 0.04, 1.1, 0.012)[0]].filter(Boolean);
+  // 水车：贴着第一条溪的岸
+  let wheel = null; { const P = L.rivers[0]; for (let i = 3; i < P.length - 1 && !wheel; i++) { const [ax, az] = P[i], [bx, bz] = P[i + 1], mx = (ax + bx) / 2, mz = (az + bz) / 2, dx = bx - ax, dz = bz - az, dl = Math.hypot(dx, dz); for (const sgn of [1, -1]) { const x = mx - dz / dl * 0.0075 * sgn, z = mz + dx / dl * 0.0075 * sgn; if (!wheel && Math.hypot(x, z) < R - 0.02) wheel = { x, z, yaw: Math.atan2(dx, dz) }; } } }
+  const suns = around(M[3], 8, 0.0, 0.035, 0.7, 0.006);
+  const forest = treeSpots.filter(t2 => ['oak', 'spruce', 'pine', 'big', 'birch', 'maple'].includes(t2.kind));
+  const shrooms = []; for (let i = 0; i < forest.length && shrooms.length < 18; i += Math.max(1, Math.floor(forest.length / 18))) { const t2 = forest[i], x = t2.x + 0.0035, z = t2.z + 0.002; if (landOK(x, z)) shrooms.push({ x, z }); }
+  const snowmen = [around(M[0], 1, 0.0, 0.04, 2.2, 0.01)[0], around(M[1], 1, 0.0, 0.04, 0.9, 0.01)[0]].filter(Boolean);
+  const perch = treeSpots.filter(t2 => t2.kind === 'oak' || t2.kind === 'big' || t2.kind === 'maple').slice(0, 30).filter((_, i) => i % 10 === 0);
+  const birds = []; perch.forEach((t2, j) => { for (let i = 0; i < 4; i++) birds.push({ x: t2.x + (i - 1.5) * 0.002, z: t2.z + (i % 2) * 0.002, y: 0, tree: t2 }); });
+  return { mills, wheels: wheel ? [wheel] : [], suns, shrooms, snowmen, birds };
+})();
+const rx = RX.createReactors(rxSpots);
+const rxMesh = {
+  tower: inst(RG.millTower, blockM(), 4, 'millTower'), blades: inst(RG.millBlades, blockM(), 4, 'millBlades'),
+  wheel: inst(RG.wheel, blockM(), 2, 'waterWheel'), posts: inst(RG.wheelPosts, blockM(), 2, 'wheelPosts'),
+  stem: inst(RG.sunStem, blockM(0.4), 12, 'sunStem'), head: inst(RG.sunHead, blockM(), 12, 'sunHead'),
+  sstem: inst(RG.shroomStem, blockM(), 20, 'shroomStem'), cap: inst(RG.shroomCap, blockM(), 20, 'shroomCap'),
+  sbody: inst(RG.snowBody, blockM(), 3, 'snowBody'), shead: inst(RG.snowHead, blockM(), 3, 'snowHead'),
+  bird: inst(RG.bird, blockM(), 16, 'birds'),
+};
+for (const m of Object.values(rxMesh)) m.setColorAt(0, new THREE.Color(1, 1, 1));
 treeSpots.forEach(t => { const v = rand(); t.tint = v < 0.15 ? [1.06, 1.03, 0.9] : v < 0.3 ? [0.94, 0.98, 1.03] : [1, 1, 1];
   t.k = S.cellIndex(t.x, t.z); t.mk = MT.index(t.x, t.z); t.y = H(t.x, t.z); t.yaw = Math.floor(rand(0, 4)) * Math.PI / 2; t.s = 1;
   t.th = t.kind === 'cactus' ? rand(0.12, 0.3) : t.kind === 'big' ? 0.55 : t.kind === 'bush' ? rand(0.2, 0.45) : rand(0.3, 0.68); });
@@ -1137,7 +1167,13 @@ function mouseHand() {
   const thunder = mouse.shift || tool === 3 || keysDown.has('Space');
   if (mouse.left && thunder || keysDown.has('Space')) name = 'fist';
   else if (mouse.right || (mouse.left && tool === 1)) name = 'up';
-  else if (mouse.left && tool >= 4) { pourKind = POUR[tool - 4]; return pose('pour', [g.x, Math.max(g.y, 0.02) + 0.09, g.z - 0.009], 0, 'right'); }
+  else if (mouse.left && tool >= 4) {   // 放道具：手捏住，捏的那一点（拇指尖和食指尖中间）正好悬在光标上方 2.5 cm
+    pourKind = POUR[tool - 4];
+    const J = pose('pinch', pos, 0, 'right'), mx = (J[THUMB * 3] + J[27]) / 2, my = (J[THUMB * 3 + 1] + J[28]) / 2, mz = (J[THUMB * 3 + 2] + J[29]) / 2;
+    const dx = g.x - mx, dy = Math.max(g.y, 0.02) + 0.025 - my, dz = g.z - mz;
+    for (let k = 0; k < J.length; k += 3) { J[k] += dx; J[k + 1] += dy; J[k + 2] += dz; }
+    return J;
+  }
   else if (mouse.left) {
     mouse.edge = tool === 2 || (mouse.edge ? tr.speed > 0.2 : tr.speed > 0.42);
     name = mouse.edge ? 'edge' : 'down';
@@ -1232,7 +1268,8 @@ function place() {
 }
 function xrMeta(dt, Js) {
   // 双手同时捏住 1.2 s：把岛重新摆到眼前
-  const pinch = trackers.slice(0, 2).map(t => t.mode === 'pinch');
+  const outside = i => { const J = Js[i]; return J && Math.hypot(J[27], J[29]) > R + 0.01; };
+  const pinch = trackers.slice(0, 2).map((t, i) => t.mode === 'pinch' && outside(i));
   bothT = pinch[0] && pinch[1] && !grab[0] && !grab[1] ? bothT + dt : 0;
   if (bothT > 1.2) { bothT = -99; needPlace = true; }
   for (let i = 0; i < 2; i++) {
@@ -1240,7 +1277,7 @@ function xrMeta(dt, Js) {
     if (!J || t.mode !== 'pinch') { grab[i] = null; continue; }
     const tip = new V3(J[12], J[13], J[14]), r = Math.hypot(tip.x, tip.z);
     const wp = world.localToWorld(tip.clone());
-    if (!grab[i] && r > 0.12 && r < 0.26 && tip.y < 0.12) grab[i] = { last: wp };
+    if (!grab[i] && r > R + 0.01 && r < 0.26 && tip.y < 0.12) grab[i] = { last: wp };
     if (grab[i]) { world.position.add(wp.clone().sub(grab[i].last)); world.updateMatrixWorld(); grab[i].last = world.localToWorld(new V3(J[12], J[13], J[14])); }
   }
   // 手掌平放按在岛外的桌面上 1.2 s：把岛底落到桌面高度
@@ -1258,10 +1295,11 @@ let flashRim = 0;
 // 左手掌心朝着自己 → 掌心上方浮出一块 4×3 的方格菜单（物品栏的样子），右手食指尖点一下格子（或指着捏一下）选中。
 // 菜单在世界坐标里（不跟岛走），一直正对着头。
 const TOOL_NAMES = {
-  zh: { water: '水', food: '食物', snow: '雪', smog: '雾霾', whirl: '旋风', lava: '岩浆', lightning: '闪电', sand: '沙', seed: '树种', flower: '花种', fish: '鱼苗', firefly: '萤火虫' },
-  en: { water: 'Water', food: 'Food', snow: 'Snow', smog: 'Smog', whirl: 'Whirl', lava: 'Lava', lightning: 'Bolt', sand: 'Sand', seed: 'Tree', flower: 'Flower', fish: 'Fish', firefly: 'Firefly' },
+  zh: { rain: '下雨', water: '水', food: '食物', snow: '雪', smog: '雾霾', whirl: '旋风', lava: '岩浆', lightning: '闪电', sand: '沙', seed: '树种', flower: '花种', fish: '鱼苗', firefly: '萤火虫' },
+  en: { rain: 'Rain', water: 'Water', food: 'Food', snow: 'Snow', smog: 'Smog', whirl: 'Whirl', lava: 'Lava', lightning: 'Bolt', sand: 'Sand', seed: 'Tree', flower: 'Flower', fish: 'Fish', firefly: 'Firefly' },
 };
-const MENU_W = 0.13, MENU_H = 0.1, MCOLS = 4, MROWS = 3, MCELLPX = 64;
+const MENU_TOOLS = ['rain', ...S.TOOLS];   // 第一格是下雨（选它时手掌朝下下雨），其余捏住放出去
+const MENU_W = 0.16, MENU_H = 0.1, MCOLS = 5, MROWS = 3, MCELLPX = 64;
 const menuCv = document.createElement('canvas'); menuCv.width = MCOLS * MCELLPX + 16; menuCv.height = MROWS * (MCELLPX + 12) + 16;
 const menuTex = new THREE.CanvasTexture(menuCv); menuTex.colorSpace = THREE.SRGBColorSpace; menuTex.magFilter = menuTex.minFilter = THREE.NearestFilter; menuTex.generateMipmaps = false;
 const menuMesh = new THREE.Mesh(new THREE.PlaneGeometry(MENU_W, MENU_H), new THREE.MeshBasicMaterial({ map: menuTex, transparent: true, depthTest: false }));
@@ -1276,7 +1314,7 @@ function drawMenu() {
   g.fillStyle = '#121216'; g.fillRect(0, 0, menuCv.width, menuCv.height);
   g.fillStyle = '#34343a'; g.fillRect(2, 2, menuCv.width - 4, menuCv.height - 4);
   g.fillStyle = '#6a6a72'; g.fillRect(2, 2, menuCv.width - 4, 2); g.fillRect(2, 2, 2, menuCv.height - 4);
-  S.TOOLS.forEach((k, i) => {
+  MENU_TOOLS.forEach((k, i) => {
     const cx = 8 + (i % MCOLS) * MCELLPX, cy = 8 + Math.floor(i / MCOLS) * (MCELLPX + 12);
     const sel = k === pourKind, hov = i === menuHover;
     g.fillStyle = sel ? '#f2f2f4' : hov ? '#9a9aa2' : '#1e1e24'; g.fillRect(cx + 4, cy + 2, MCELLPX - 8, MCELLPX - 8);
@@ -1312,12 +1350,12 @@ function updateMenu(dt, Js, hands) {
     const u = _mt.x / MENU_W + 0.5, v = 0.5 - _mt.y / MENU_H;
     if (Math.abs(_mt.z) < 0.015 && u > 0 && u < 1 && v > 0 && v < 1) {
       const col = Math.min(MCOLS - 1, Math.floor(u * MCOLS)), row = Math.min(MROWS - 1, Math.floor(v * MROWS));
-      hov = row * MCOLS + col;
+      hov = row * MCOLS + col; if (hov >= MENU_TOOLS.length) hov = -1;
     }
     const pinching = trackers[ri].mode === 'pinch';
     if (hov !== menuHover) { menuHoverT = 0; menuPicked = -1; }
     menuHoverT += dt;
-    if (hov >= 0 && menuPicked !== hov && (menuHoverT > 0.3 || pinching)) { pourKind = S.TOOLS[hov]; menuPicked = hov; sfx.cand('pinch'); tool = 4 + hov; applyLang(); }
+    if (hov >= 0 && menuPicked !== hov && (menuHoverT > 0.3 || pinching)) { pourKind = MENU_TOOLS[hov]; menuPicked = hov; sfx.cand('pinch'); tool = pourKind === 'rain' ? 0 : 4 + S.TOOLS.indexOf(pourKind); applyLang(); }
   }
   menuHover = hov;
   drawMenu();
@@ -1349,7 +1387,7 @@ function frame(dt, render = true) {
   const states = [];
   const strikes = [];
   for (let i = 0; i < 3; i++) {
-    const tr = trackers[i]; tr.update(i === menuIdx ? null : Js[i], hands[i], dt);
+    const tr = trackers[i]; tr.allowRain = i === 2 || pourKind === 'rain'; tr.update(i === menuIdx ? null : Js[i], hands[i], dt);
     for (const e of tr.events) { if (e.type === 'strike') strikes.push(e); if (e.type === 'fizzle') sfx.fizzle(); }
     const st = tr.state; if (st) states.push(st);
     if (tr.cand && tr.cand !== candPrev[i]) sfx.cand(tr.cand);
@@ -1365,8 +1403,18 @@ function frame(dt, render = true) {
   // 模拟 10 Hz
   pendingStrikes.push(...strikes);
   simAcc += dt;
-  // 放东西：右手"指尖朝下"时，按左手菜单选中的道具往落点放（各有各的节奏）
-  for (const st of states) if (st.mode === 'pour' && st.over) {
+  // 放东西：在岛上方捏住（拇指碰食指）→ 在捏的那一点正下方放出选中的道具（各有各的节奏）
+  // 旧的"立掌、指尖朝下"姿势也还能用；岛外边缘的捏合留给拖岛（xrMeta）
+  const pinchUse = [];
+  for (let i = 0; i < 3; i++) {   // 0、1 真手；2 电脑上的鼠标手
+    const tr = trackers[i], J = Js[i];
+    if (!J || i === menuIdx || tr.mode !== 'pinch' || pourKind === 'rain') { tr.pinchT = 0; continue; }
+    const x = (J[THUMB * 3] + J[27]) / 2, y = (J[THUMB * 3 + 1] + J[28]) / 2, z = (J[THUMB * 3 + 2] + J[29]) / 2;
+    if (Math.hypot(x, z) > R * 0.97 || y < G0(x, z) + 0.01 || y > 0.3) { tr.pinchT = 0; continue; }
+    tr.pinchT = (tr.pinchT || 0) + dt;
+    pinchUse.push({ id: i, x, y, z, px: x, pz: z, over: true, mode: 'pour', strength: Math.min(1, 0.4 + tr.pinchT), pinch: true });
+  }
+  for (const st of [...states, ...pinchUse]) if (st.mode === 'pour' && st.over && pourKind !== 'rain') {
     const k = pourKind, s = st.strength, sx = st.px, sz = st.pz;
     // 像倒水一样：出手时顺着手指方向有一点速度，落下来是一道弧；越高冲得越远
     let dx = st.px - st.x, dz = st.pz - st.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
@@ -1480,6 +1528,71 @@ function onMatterEvent(e) {
   if (e.type === 'grown') { sfx.done(); pops.push({ x: e.x, z: e.z, age: 0, icon: ICON_OF.done }); }
 }
 let shadowsDirty = false;
+// ---------- 会对道具起反应的小东西：每帧喂环境 → reactors.js 推进 → 画 + 出特效 ----------
+let rxStrikes = 0, headFly = [];
+const cellOf = (arr, x, z) => { const k = S.cellIndex(x, z); return k >= 0 ? arr[k] : 0; };
+const mtAt = (arr, x, z, sc) => { const k = MT.index(x, z); return k >= 0 ? Math.min(1, arr[k] / sc) : 0; };
+function updateReactors(dt, nightK) {
+  for (const b of rx.birds) if (b.tree) { const top = b.tree.y + (TREE_H[b.tree.kind] || 0.016) * (b.tree.stg || 1) * 0.95; if (b.st === 'perch' && !b.hy) { b.y = top; } b.hy = top; }
+  const strikes = []; if (w.stats.strikes > rxStrikes && w.lastStrike) strikes.push(w.lastStrike); rxStrikes = w.stats.strikes;
+  const sp = sunPos();
+  const env = {
+    wind: w.wind, whirls: w.whirls, strikes, sunYaw: Math.atan2(sp.x, sp.z), sun: w.sun, sunBoost: w.sunBoost, night: nightK, ice: w.ice, river: w.water,
+    rain: (x, z) => cellOf(w.rainCell, x, z), wet: (x, z) => cellOf(w.M, x, z), snow: (x, z) => cellOf(w.snow, x, z), smog: (x, z) => cellOf(w.smog, x, z),
+    lava: (x, z) => mtAt(mt.lava, x, z, 0.0004), fire: (x, z) => mtAt(mt.fire, x, z, 1), food: w.food, groundY: (x, z) => G0(x, z),
+  };
+  for (const e of RX.stepReactors(rx, env, dt, rand)) {
+    const gy = G0(e.x ?? 0, e.z ?? 0);
+    if (e.type === 'spark') { fx.add(e.x, gy + 0.012, e.z, 0.02, 0.8, 0.85, 1.0, 0); sfx.crackle(); }
+    if (e.type === 'millBurn' || e.type === 'burnPlant') ashPuff(e.x, e.z, gy, 3);
+    if (e.type === 'steam' && steams.length < 60) steams.push({ x: e.x, z: e.z, y: gy + 0.004, age: 0, life: 1.6, s: 0.007 });
+    if (e.type === 'snowmanUp') { pops.push({ x: e.x, z: e.z, age: 0, icon: ICON_OF.done }); sfx.done(); }
+    if (e.type === 'headPop') { const sm = rx.snowmen.find(s2 => Math.hypot(s2.x - e.x, s2.z - e.z) < 1e-6); headFly.push({ x: e.x, z: e.z, y: gy + 0.0056 * (sm ? sm.s : 1), vx: rand(-0.03, 0.03), vz: rand(-0.03, 0.03), vy: 0.06, age: 0 }); }
+    if (e.type === 'snowmanGone') ashPuff(e.x, e.z, gy, 2, 1.6);
+    if (e.type === 'scatter') sfx.bird();
+  }
+  const M = rxMesh, put = (m, i, x, y, z, ry, rz, sx, sy, sz, c) => { dummy.position.set(x, y, z); dummy.rotation.set(0, ry, rz); dummy.scale.set(sx, sy ?? sx, sz ?? sx); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix); if (c) m.setColorAt(i, c); };
+  const col = (r, g, b) => _c.setRGB(r, g, b);
+  // 风车：塔身固定朝 +z（朝着默认视角），叶片绕塔前的轴转
+  rx.mills.forEach((m, i) => { const gy = G0(m.x, m.z), k = m.burnt ? 0.62 : 1;
+    put(M.tower, i, m.x, gy, m.z, 0, 0, 1, 1, 1, col(k, k * (m.burnt ? 0.92 : 1), k * (m.burnt ? 0.9 : 1)));
+    put(M.blades, i, m.x, gy + 13 * A.PX, m.z + 3.2 * A.PX, 0, m.ang, 1, 1, 1, col(k, k, k)); });
+  M.tower.count = M.blades.count = rx.mills.length;
+  // 水车：轮面顺着溪
+  rx.wheels.forEach((h, i) => { const gy = G0(h.x, h.z); const c = h.frozen ? col(1.15, 1.2, 1.35) : col(1, 1, 1);
+    dummy.position.set(h.x, gy + 5 * A.PX, h.z); dummy.rotation.set(0, h.yaw + Math.PI / 2, 0); dummy.updateMatrix(); dummy.rotateZ(h.ang); dummy.updateMatrix(); M.wheel.setMatrixAt(i, dummy.matrix); M.wheel.setColorAt(i, c);
+    put(M.posts, i, h.x, gy - 0.001, h.z, h.yaw + Math.PI / 2, 0, 1, 1, 1, c); });
+  M.wheel.count = M.posts.count = rx.wheels.length;
+  // 向日葵：茎按长高缩放，花盘朝太阳、低头 = 往前俯
+  rx.suns.forEach((f, i) => { const gy = G0(f.x, f.z), sz = f.size, b = f.burnt;
+    const sc = b ? col(0.62, 0.55, 0.5) : null;
+    put(M.stem, i, f.x, gy, f.z, f.yaw, f.droop * 0.25, 1, sz * (b ? 0.6 : 1), 1, sc || col(1, 1, 1));
+    dummy.position.set(f.x + Math.sin(f.yaw) * 0.0006, gy + 9.5 * A.PX * sz * (b ? 0.6 : 1) - f.droop * 0.002, f.z + Math.cos(f.yaw) * 0.0006);
+    dummy.rotation.set(0, f.yaw, 0); dummy.updateMatrix(); dummy.rotateX(0.2 + f.droop * 1.1); const o = b ? 0.5 : 0.45 + 0.55 * f.open; dummy.scale.set(o, o, 1); dummy.updateMatrix();
+    M.head.setMatrixAt(i, dummy.matrix); M.head.setColorAt(i, b ? col(0.6, 0.52, 0.46) : col(1, 1, 1)); });
+  M.stem.count = M.head.count = rx.suns.length;
+  // 蘑菇：长出来 = 缩放；夜里伞发光（偏青）
+  let ns = 0; rx.shrooms.forEach(m => { if (m.g < 0.03) return; const gy = G0(m.x, m.z), g = m.g, gl = m.glow;
+    put(M.sstem, ns, m.x, gy, m.z, m.x * 50, 0, g * 1.2, g * 1.2, g * 1.2, col(1, 1, 1));
+    put(M.cap, ns++, m.x, gy, m.z, m.x * 50, 0, g * 1.2, g * 1.2, g * 1.2, col(1 + 0.2 * gl, 1 + 1.4 * gl, 1 + 1.8 * gl));
+    if (gl > 0.2) fx.add(m.x, gy + 0.003 * g, m.z, 0.006, 0.05 * gl, 0.18 * gl, 0.22 * gl, 0); });
+  M.sstem.count = M.cap.count = ns;
+  // 雪人
+  let nm = 0; rx.snowmen.forEach(sm => { if (sm.s <= 0.02) return; const gy = G0(sm.x, sm.z), s2 = sm.s;
+    put(M.sbody, nm, sm.x, gy, sm.z, 0.4, 0, Math.min(1, s2 * 1.4), s2, Math.min(1, s2 * 1.4), col(1, 1, 1));
+    if (sm.head) put(M.shead, nm, sm.x, gy + 7 * A.PX * s2, sm.z, 0.4, 0, s2, s2, s2, col(1, 1, 1)); else M.shead.setMatrixAt(nm, ZERO);
+    nm++; });
+  M.sbody.count = M.shead.count = nm;
+  headFly = headFly.filter(h => (h.age += dt) < 1.4);
+  for (const h of headFly) { h.vy -= dt * 0.18; h.x += h.vx * dt; h.z += h.vz * dt; h.y = Math.max(G0(h.x, h.z), h.y + h.vy * dt); if (M.shead.count < 3) { put(M.shead, M.shead.count, h.x, h.y, h.z, h.age * 8, h.age * 5, 1, 1, 1, col(1, 1, 1)); M.shead.count++; } }
+  // 鸟：飞的时候翅膀一张一合
+  rx.birds.forEach((b, i) => { const fly = b.st === 'fly' || b.st === 'home', flap = fly ? 0.3 + 0.7 * Math.abs(Math.sin(t * 18 + i)) : 0.35;
+    const yaw = fly ? -b.a : (b.st === 'peck' ? Math.atan2(b.tx - b.x, b.tz - b.z) : i);
+    const hop = b.st === 'peck' ? Math.max(0, Math.sin(t * 9 + i)) * 0.0008 : 0;
+    put(M.bird, i, b.x, b.y + hop, b.z, yaw, 0, 1, flap, 1, col(1, 1, 1)); });
+  M.bird.count = rx.birds.length;
+  for (const m of Object.values(M)) doneInst(m);
+}
 // ---------- 树的残骸：焦树干 → 木炭渣 → 灰散了 → 重新长（规则在 decay.js；这里只喂环境、画、出特效） ----------
 const ashPuff = (x, z, y, n, life = 2.4) => { for (let i = 0; i < n && dusts.length < 80; i++) dusts.push({ x: x + rand(-0.003, 0.003), z: z + rand(-0.003, 0.003), y: y + rand(0, 0.004), age: rand(0, 0.3), ash: true, life }); };
 function onRemains(tr, e) {
@@ -1808,6 +1921,7 @@ function visuals(dt, Js, states) {
     fx.add(x, y, z, 0.0018, 1.0, 0.6 * (1 - u * 0.5), 0.15, 3); fx.add(x, y, z, 0.006, 0.25, 0.1, 0.0, 0);
   }
   updateRemains(dt);
+  updateReactors(dt, nightK);
   // ---- 着火的树：树冠上一簇簇火苗往上窜、冒烟 ----
   for (const tr of treeSpots) {
     if (!tr.stg || tr.mk < 0 || !(mt.fire[tr.mk] > 0)) continue;
@@ -1894,14 +2008,7 @@ function visuals(dt, Js, states) {
     const k = Math.sin(Math.PI * p.age / p.life);
     fx.add(p.x, p.y, p.z, p.s, p.c[0] * k, p.c[1] * k, p.c[2] * k, 3);
   }
-  // 晴天的蝴蝶，雨后夜里的萤火
-  if (dayK > 0.6 && w.sun > 0.35 && w.rainNow < 0.1) for (let i = 0; i < 7; i++) {
-    const f = flowerSpots[(i * 47) % flowerSpots.length], a = t * (0.6 + i * 0.07) + i;
-    const x = f.x + Math.cos(a) * 0.012, z = f.z + Math.sin(a * 1.3) * 0.012, y = f.y + 0.012 + Math.abs(Math.sin(t * 9 + i)) * 0.004;
-    const c = [[0.95, 0.5, 0.8], [0.95, 0.8, 0.25], [0.45, 0.75, 1.0], [1.0, 0.55, 0.25]][i % 4], fl = Math.abs(Math.sin(t * 22 + i));
-    // 两片翅膀一张一合（合上时只剩一条线）；一只蝴蝶约两三个像素
-    fx.add(x - 0.0011 * (0.3 + fl), y, z, 0.0013 + 0.0005 * fl, ...c, 3); fx.add(x + 0.0011 * (0.3 + fl), y, z, 0.0013 + 0.0005 * fl, ...c, 3);
-  }
+  // 雨后夜里的萤火（蝴蝶已去掉）
   const wetness = Math.min(1, (w.water - 0.2) * 2 + (t - 0 < 0 ? 0 : 0));
   if (nightK > 0.4) for (let i = 0; i < 40; i++) {
     const lk = L.lakes[i % 2], base = i < 20 ? treeSpots[(i * 7) % treeSpots.length] : { x: lk.x + Math.cos(i) * lk.r * 1.1, z: lk.z + Math.sin(i) * lk.r * 1.1, y: 0.015 };
@@ -2150,11 +2257,27 @@ function toggleMute() { muted = !muted; try { localStorage.setItem('weather-palm
 document.getElementById('mute').onclick = () => { initAudio(); toggleMute(); };
 document.getElementById('lang').onclick = () => { lang = lang === 'zh' ? 'en' : 'zh'; try { localStorage.setItem('pf-lang', lang); } catch (e) { } applyLang(); };
 document.getElementById('reset').onclick = () => { if (!confirm(STR[lang].confirmReset)) return; location.replace(location.pathname + '?fresh=1'); };
-document.getElementById('tools').onclick = e => { const b = e.target.closest('button'); if (!b) return; tool = Number(b.dataset.i); if (tool >= 4) pourKind = POUR[tool - 4]; menuDirty = true; applyLang(); };
+document.getElementById('tools').onclick = e => { const b = e.target.closest('button'); if (!b) return; tool = Number(b.dataset.i); if (tool >= 4) pourKind = POUR[tool - 4]; else if (tool === 0) pourKind = 'rain'; menuDirty = true; applyLang(); };
 applyLang();
 const vrBtn = VRButton.createButton(renderer, { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] });
 document.body.appendChild(vrBtn);
 vrBtn.addEventListener('click', initAudio);
+// Quest 透视：immersive-ar = 真实房间 + 桌上的岛（Quest 上 immersive-vr 是一片黑，看不到桌子）。
+// VITURE 光学透视仍走上面的 immersive-vr（黑 = 透明，已验证的路径）；进 XR 后的处理（透明清屏、藏桌面圆盘、摆岛）两种会话共用 sessionstart。
+const arBtn = document.createElement('button');
+arBtn.id = 'ARButton'; arBtn.textContent = 'ENTER AR'; arBtn.title = 'Passthrough · 透视（Quest）'; arBtn.style.display = 'none';
+document.body.appendChild(arBtn);
+navigator.xr?.isSessionSupported('immersive-ar').then(ok => { if (ok) arBtn.style.display = ''; }).catch(() => { });
+arBtn.addEventListener('click', async () => {
+  initAudio();
+  if (renderer.xr.isPresenting) { renderer.xr.getSession().end(); return; }
+  try {
+    const session = await navigator.xr.requestSession('immersive-ar', { optionalFeatures: ['local-floor', 'hand-tracking'] });
+    session.addEventListener('end', () => { arBtn.textContent = 'ENTER AR'; });
+    await renderer.xr.setSession(session);
+    arBtn.textContent = 'EXIT AR';
+  } catch (e) { console.warn('[AR] 进不了透视会话', e); }
+});
 function saveNow() { if (TEST) return; try { localStorage.setItem('weather-palm-v3', S.save(w)); } catch (e) { } }
 setInterval(saveNow, 5000);
 const statusEl = document.getElementById('status');
@@ -2221,6 +2344,14 @@ function applyScene(name) {
     pourKind = 'lava'; P.hand(0, 'pour', [ax + 0.025, 0.12, az]); F(60 * 3);
     P.hand(0, null); F(60 * Number(Q.get('secs') || 40), true); F(30);
     const tt = MT.totals(mt); document.body.dataset.terra = JSON.stringify({ soil: +tt.soil.toFixed(4), glass: +tt.glass.toFixed(4), sand: +tt.sand.toFixed(4), rock: +tt.rock.toFixed(4) });
+  }
+  // 会对道具起反应的小东西：起风、雨后（蘑菇冒出来）、堆好雪人，看它们（位置写进 data-gadgets）
+  if (name === 'gadgets') {
+    w.day = Number(Q.get('day') || 0.42); w.M.fill(0.8); w.G.fill(0.9); S.setLevel(w, 5);
+    for (const sm of rx.snowmen) { sm.s = 1; sm.head = true; }
+    for (const m of rx.shrooms) m.g = 1;
+    for (let i = 0; i < 60 * 4; i++) { w.wind[0] = 0.6; w.wind[1] = 0.2; F(1, i === 60 * 4 - 1); }
+    document.body.dataset.gadgets = JSON.stringify({ mills: rx.mills.map(m => [+m.x.toFixed(3), +m.z.toFixed(3), +m.spd.toFixed(2)]), wheel: rx.wheels.map(h => [+h.x.toFixed(3), +h.z.toFixed(3)]), suns: rx.suns.length && [+rx.suns[0].x.toFixed(3), +rx.suns[0].z.toFixed(3)], shrooms: rx.shrooms.length, snow: rx.snowmen.map(m => [+m.x.toFixed(3), +m.z.toFixed(3)]), birds: rx.birds.length && [+rx.birds[0].x.toFixed(3), +rx.birds[0].y.toFixed(3), +rx.birds[0].z.toFixed(3)] });
   }
   // 流体近景：不用手，直接往一处倒岩浆（lava=秒）、往另一处倒水（water=秒），看流体面的样子；at / wat 落点
   if (name === 'fluids') {
@@ -2317,6 +2448,14 @@ async function selftest() {
   // 倒岩浆：流下去、发光、冷成石头
   pourKind = 'lava'; P.hand(0, 'pour', [0.03, 0.15, -0.045]); F(60 * 3);
   ok('立掌指尖朝下 → 倒', trackers[0].mode === 'pour', trackers[0].mode);
+  { P.hand(0, null); F(5); const lv0 = MT.totals(mt).lava;
+    pourKind = 'lava'; P.hand(0, 'pinch', [-0.03, 0.2, 0.04]); F(60);
+    ok('选中岩浆、在岛上方捏住 → 在捏的地方放出岩浆', trackers[0].mode === 'pinch' && MT.totals(mt).lava > lv0 + 1e-4, trackers[0].mode + ' ' + (MT.totals(mt).lava - lv0).toFixed(5));
+    P.hand(0, null); F(5); P.hand(0, 'down', [L.meadows[0].x, 0.17, L.meadows[0].z]); F(90);
+    ok('选中别的道具时，手掌朝下不下雨', trackers[0].mode !== 'rain', trackers[0].mode);
+    pourKind = 'rain'; F(90);
+    ok('选中下雨 → 手掌朝下下雨', trackers[0].mode === 'rain', trackers[0].mode);
+    P.hand(0, null); F(5); pourKind = 'lava'; }
   const tot = MT.totals(mt); ok('岩浆倒进了岛', tot.lava + tot.rock > 0.005, (tot.lava + tot.rock).toFixed(4));
   P.hand(0, null); F(60 * 2, true); ok('岩浆流体面画出来了', lavaSheet.visible && lavaSheet.userData.cells > 5, lavaSheet.userData.cells);
   // 左手菜单：左手掌心朝着头 → 菜单出来；右手食指尖点在"水"那一格 → 选中水
@@ -2325,8 +2464,8 @@ async function selftest() {
     inject[1] = { J: synthHand({ pos: lp.toArray(), n: n.toArray(), f: [0, 1, 0], curl: 0.05, handedness: 'left' }), hand: 'left' };
     F(3, true);
     ok('左手掌心朝向自己 → 菜单打开', menuMesh.visible && menuOpen, menuMesh.visible);
-    // 第 0 格（水）在菜单上的世界坐标
-    const target = new V3((0.5 / MCOLS - 0.5) * MENU_W, (0.5 - 0.5 / MROWS) * MENU_H, 0.004).applyMatrix4(menuMesh.matrixWorld);
+    // 第 1 格（水；第 0 格是下雨）在菜单上的世界坐标
+    const target = new V3((1.5 / MCOLS - 0.5) * MENU_W, (0.5 - 0.5 / MROWS) * MENU_H, 0.004).applyMatrix4(menuMesh.matrixWorld);
     const J = synthHand({ pos: [target.x + 0.02, target.y - 0.02, target.z + 0.07], n: [0, -1, 0], f: [0, 0, -1], curl: 0.05 });
     const dx = target.x - J[27], dy = target.y - J[28], dz = target.z - J[29];
     for (let k = 0; k < 25; k++) { J[k * 3] += dx; J[k * 3 + 1] += dy; J[k * 3 + 2] += dz; }
@@ -2347,7 +2486,7 @@ async function selftest() {
     { const tw = MT.totals(mt).water; let cells = 0; for (const v of mt.water) if (v > 0.00005) cells++;
       ok('倒的水落地变成地表水、摊开一片', tw > 0.005 && cells > 6, tw.toFixed(4) + ' / ' + cells + ' 格');
       ok('地表水画出来了', surfWater.visible && surfWater.userData.cells > 6, surfWater.userData.cells);
-      F(60 * 30, true); ok('不倒了：地表水慢慢渗掉 / 流走', MT.totals(mt).water < tw * 0.8, MT.totals(mt).water.toFixed(4)); }
+      F(60 * 30, true); ok('不倒了：地表水渗得很慢，半分钟后还在地面上', MT.totals(mt).water > tw * 0.5, MT.totals(mt).water.toFixed(4) + ' / ' + tw.toFixed(4)); }
     // 食物：动物会去吃
     pourKind = 'food'; const r = w.animals.find(a => a.sp === 'rabbit'); P.hand(0, null); F(20);
     const fx0 = r.x + 0.012, fz0 = r.z; let seenPour = 0;
@@ -2378,6 +2517,13 @@ async function selftest() {
   const hc = w.clouds.find(c => c.holder === 2);
   ok('雨落在鼠标指的地方', hc && Math.hypot(hc.x - mx.x, hc.z - mx.z) < 0.02, hc && `${hc.x.toFixed(3)},${hc.z.toFixed(3)}`);
   window.dispatchEvent(new PointerEvent('pointerup', { button: 0, bubbles: true })); F(10);
+  { // 电脑上放道具：鼠标手也是捏合（不是立掌指尖朝下），放在光标处
+    tool = 4 + S.TOOLS.indexOf('sand'); const sd0 = MT.totals(mt).sand;
+    cv.dispatchEvent(new PointerEvent('pointermove', { clientX: cx, clientY: cy, bubbles: true }));
+    cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: cx, clientY: cy, button: 0, bubbles: true }));
+    F(60);
+    ok('电脑：选沙子左键按住 → 手是捏合、在光标处放沙', trackers[2].mode === 'pinch' && MT.totals(mt).sand > sd0 + 1e-4, trackers[2].mode + ' ' + (MT.totals(mt).sand - sd0).toFixed(5));
+    window.dispatchEvent(new PointerEvent('pointerup', { button: 0, bubbles: true })); F(10); tool = 0; }
   controls.enabled = true;
   // 光学透视暗部审计：黑底直接渲染，岛上暗到亮度 < 55（0–255）的像素占比；暗 = 眼镜里看不见
   const ostDark = () => {

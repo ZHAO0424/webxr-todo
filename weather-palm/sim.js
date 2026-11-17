@@ -65,10 +65,16 @@ function vnoise(x, z) {
 export const CANYON = {
   buttes: [{ x: 0.142, z: 0.03, r: 0.011, h: 0.05 }, { x: 0.128, z: -0.008, r: 0.008, h: 0.04 }, { x: 0.118, z: 0.075, r: 0.007, h: 0.034 }],
   spires: [{ x: 0.135, z: 0.055, r: 0.0035, h: 0.03 }, { x: 0.112, z: 0.022, r: 0.003, h: 0.024 }, { x: 0.146, z: 0.0, r: 0.003, h: 0.026 }],
+  // 峡谷外围的小石柱、矮台地（风化剩下的"孤岛"）：让峡谷不是一刀切的方块，而是往外慢慢散开
+  hoodoos: [{ x: 0.052, z: -0.046, r: 0.005, h: 0.016 }, { x: 0.082, z: -0.05, r: 0.0035, h: 0.012 }, { x: 0.104, z: -0.04, r: 0.006, h: 0.019 },
+    { x: 0.036, z: 0.098, r: 0.0035, h: 0.011 }, { x: 0.088, z: 0.1, r: 0.005, h: 0.014 }, { x: 0.03, z: 0.03, r: 0.003, h: 0.009 }, { x: 0.026, z: -0.014, r: 0.004, h: 0.012 }],
 };
-export function inCanyon(x, z) {
-  return x > 0.034 + 0.007 * Math.sin(z * 50) && z > -0.032 && z < 0.088 && Math.hypot(x, z) < R - 0.018;
+// 峡谷边界离这一点多远（>0 在里面）；边界线带噪声，不是直线
+function canyonInset(x, z) {
+  const n = 0.006 * (vnoise(x * 55, z * 55) - 0.5);
+  return Math.min(x - (0.034 + 0.007 * Math.sin(z * 50)) + n, z + 0.032 + 0.006 * Math.sin(x * 70) + n, 0.088 + 0.006 * Math.sin(x * 60 + 1) - z + n, (R - 0.018) - Math.hypot(x, z));
 }
+export function inCanyon(x, z) { return canyonInset(x, z) > 0; }
 const canyonRiver = (x, z) => { const P = LAYOUT.rivers[2]; let best = 1; for (let i = 0; i < P.length - 1; i++) { const [ax, az] = P[i], [bx, bz] = P[i + 1], dx = bx - ax, dz = bz - az; const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz))); best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t)); } return best; };
 // 植被分区（种什么树、地上落什么叶）：maple 枫林 / sakura 樱花林 / ginkgo 银杏 / conifer 针叶林 / canyon 峡谷 / mixed 杂树
 export function biomeAt(x, z) {
@@ -135,9 +141,22 @@ export function height(x, z) {
     else if (rd2 + wob < 0.016) hc = base + 0.021;                 // 崖腰平台
     else if (rd2 + wob < plateauW) hc = base + 0.04 + 0.003 * (vnoise(x * 40, z * 40) > 0.6 ? 1 : 0);   // 台地顶
     else hc = base + 0.004 + 0.002 * vnoise(x * 60, z * 60);       // 台地外的荒漠
-    for (const b of CANYON.buttes) if (Math.hypot(x - b.x, z - b.z) < b.r * (1 + 0.15 * Math.sin(Math.atan2(z - b.z, x - b.x) * 5))) hc = Math.max(hc, base + b.h);
-    for (const sp of CANYON.spires) { const d = Math.hypot(x - sp.x, z - sp.z); if (d < sp.r) hc = Math.max(hc, base + sp.h * (d < sp.r * 0.6 ? 1 : 0.7)); }
-    h = hc;
+    // 靠近峡谷边界：台地一级级矮下去（风化剥蚀的阶梯，每级边缘带噪声），最后融进外面的地形，不再是一刀切的墙
+    const cw = Math.min(1, canyonInset(x, z) / 0.026);
+    const stepK = Math.min(1, Math.floor(cw * 3 + 0.8 * vnoise(x * 70 + 3, z * 70)) / 3);
+    hc = base + (hc - base) * stepK;
+    for (const b of CANYON.buttes) {   // 孤山：脚下一圈碎石坡（两级缓台），不是直接插在地上
+      const d = Math.hypot(x - b.x, z - b.z), rr = b.r * (1 + 0.15 * Math.sin(Math.atan2(z - b.z, x - b.x) * 5));
+      if (d < rr) hc = Math.max(hc, base + b.h); else if (d < rr * 1.7) hc = Math.max(hc, base + b.h * (d < rr * 1.35 ? 0.32 : 0.16));
+    }
+    for (const sp of CANYON.spires) { const d = Math.hypot(x - sp.x, z - sp.z); if (d < sp.r) hc = Math.max(hc, base + sp.h * (d < sp.r * 0.6 ? 1 : 0.7)); else if (d < sp.r * 2) hc = Math.max(hc, base + sp.h * 0.18); }
+    const blend = Math.min(1, cw * 2.5);
+    h = h * (1 - blend) + hc * blend;
+  }
+  // 峡谷外围零散的小石柱 / 矮台地（脚下也有一圈碎石坡）
+  for (const b of CANYON.hoodoos) {
+    const d = Math.hypot(x - b.x, z - b.z), rr = b.r * (1 + 0.2 * Math.sin(Math.atan2(z - b.z, x - b.x) * 4 + b.x * 100));
+    if (d < rr * 1.8) { const hb = PLINTH + 0.003 + b.h * (d < rr ? 1 : d < rr * 1.35 ? 0.35 : 0.15); h = Math.max(h, hb); }
   }
   // 边缘是卵石滩，往下收
   const e = Math.max(0, (r - (R - 0.014)) / 0.014);

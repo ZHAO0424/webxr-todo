@@ -62,7 +62,7 @@ export class HandTracker {
   constructor(id = 0) { this.id = id; this.reset(); }
   reset() {
     this.mode = 'idle'; this.cand = null; this.candT = 0; this.activeT = 0; this.failT = 0;
-    this.pinch = false; this.fist = false; this.prev = null; this.vel = [0, 0, 0]; this.chargeT = 0;
+    this.pinch = false; this.fist = false; this.allowRain = true; this.prev = null; this.vel = [0, 0, 0]; this.chargeT = 0;
     this.f = null; this.over = false; this.events = []; this.windDir = [0, 0];
   }
   // J：Float32Array(75) 或 null（手丢了）
@@ -92,7 +92,7 @@ export class HandTracker {
       const openOK = f.open > (m === 'rain' || m === 'sun' || m === 'wind' ? C.OPEN_OFF : C.OPEN_ON);
       if (f.edge > (m === 'wind' ? C.EDGE_OFF : C.EDGE_ON) && hs > (m === 'wind' ? C.WIND_OFF : C.WIND_ON) && f.open > C.OPEN_OFF) return 'wind';
       if (f.edge > (m === 'pour' ? C.EDGE_OFF : C.EDGE_ON) && f.fdir[1] < -(m === 'pour' ? C.POUR_DOWN - 0.15 : C.POUR_DOWN) && sp < (m === 'pour' ? C.RAIN_MOVE : C.STILL)) return 'pour';
-      if (openOK && f.down > (m === 'rain' ? C.DOWN_OFF : C.DOWN_ON) && sp < (m === 'rain' ? C.RAIN_MOVE : C.STILL)) return 'rain';
+      if (this.allowRain && openOK && f.down > (m === 'rain' ? C.DOWN_OFF : C.DOWN_ON) && sp < (m === 'rain' ? C.RAIN_MOVE : C.STILL)) return 'rain';
       if (openOK && f.up > (m === 'sun' ? C.UP_OFF : C.UP_ON) && sp < (m === 'sun' ? C.RAIN_MOVE : C.STILL)) return 'sun';
       return null;
     })();

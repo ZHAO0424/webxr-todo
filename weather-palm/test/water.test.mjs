@@ -40,12 +40,12 @@ test('流进湖里就并进湖', () => {
   assert.ok(m.stats.toLake > 0.015, 'to lake ' + m.stats.toLake);
 });
 
-test('干地把水吸进去，湿透的地吸不动', () => {
+test('干地慢慢吸水（很慢），湿透的地吸不动', () => {
   const a = createMatter(() => 0.02, () => 'grass'), b = createMatter(() => 0.02, () => 'grass');
   pour(a, 'water', 0, 0, 0.01); pour(b, 'water', 0, 0, 0.01);
-  run(a, 20, { wet: () => 0.1 }); run(b, 20, { wet: () => 0.98 });
-  assert.ok(soaked(a) > soaked(b) * 1.5 && totals(b).water > totals(a).water * 3, `dry ${soaked(a)} vs wet ${soaked(b)}`);
-  assert.ok(totals(a).water < 0.01 * 0.5, 'dry ground drank most of it');
+  run(a, 60, { wet: () => 0.1 }); run(b, 60, { wet: () => 0.98 });
+  assert.ok(soaked(a) > soaked(b) * 20, `dry ${soaked(a)} vs wet ${soaked(b)}`);
+  assert.ok(soaked(a) < 0.01 * 0.3, '吸得很慢：一分钟只吸进去一小部分（其余流走 / 还在地面） ' + soaked(a));
 });
 
 test('大雨下在湿透的地上：多出来的水汇成地表水', () => {
