@@ -1400,7 +1400,7 @@ function frame(dt, render = true) {
     if (inject[i]) { Js[i] = inject[i].J; hands[i] = inject[i].hand || 'right'; continue; }
     if (xr) { Js[i] = readXRHand(xrH[i]); hands[i] = xrH[i].hand || (i ? 'left' : 'right'); }
   }
-  Js[2] = inject[2] ? inject[2].J : (xr && (Js[0] || Js[1]) ? null : mouseHand());
+  Js[2] = inject[2] ? inject[2].J : (xr ? null : mouseHand());   // 头显里不要鼠标手：没追到真手时也不画一只悬空的手
   const menuIdx = updateMenu(dt, Js, hands);   // 左手开着菜单：这只手不参与天气手势
   const states = [];
   const strikes = [];
@@ -2148,7 +2148,7 @@ function visuals(dt, Js, states) {
     // 教学：第一次请求某种天气、还没用过对应手势 → 浮出示范手
     if (!ghostOn && !performed.has(r.type === 'storm' ? 'storm' : r.type === 'shade' ? 'shade' : r.type) && (order.includes(r.type) || r.type === 'shade')) { ghostOn = true; showGhost(r); }
   }
-  if (!ghostOn) ghost.set(null);
+  if (!ghostOn || renderer.xr.isPresenting) ghost.set(null);   // 头显里不画示范手（只留地上的光圈和图标）
   pops = pops.filter(p => (p.age += dt) < (p.fish ? 0.7 : 1.4));
   for (const p of pops) {
     if (p.fish) { const u = p.age / 0.7, wy = waterY(p.x, p.z), y = wy + Math.sin(u * Math.PI) * 0.012; fx.add(p.x + u * 0.008, y, p.z, 0.004, 0.6, 0.9, 1, 3); if (u > 0.9) fx.add(p.x + 0.008, wy, p.z, 0.008, 0.3, 0.6, 0.8, 1); continue; }
@@ -2184,8 +2184,6 @@ function visuals(dt, Js, states) {
     for (const [a, b] of BONES.slice(0, 24)) { dummy.position.set((J[a * 3] + J[b * 3]) / 2, (J[a * 3 + 1] + J[b * 3 + 1]) / 2, (J[a * 3 + 2] + J[b * 3 + 2]) / 2); dummy.scale.setScalar(a === 0 ? 1.6 : 0.95); dummy.updateMatrix(); if (n < 90) occ.setMatrixAt(n++, dummy.matrix); }
   }
   occ.count = n; occ.instanceMatrix.needsUpdate = true;
-  // 桌面校准提示：进 XR 头 12 s 没校准，在岛外右前方示意"手掌按桌面"
-  if (renderer.xr.isPresenting && !calibrated && xrT < 12 && !ghostOn) { ghost.set(pose('down', [0.27, 0.035 + Math.abs(Math.sin(t * 2)) * 0.03, 0.08]), 0.8); }
   // 底座亮边
   flashRim = Math.max(0, flashRim - dt * 1.5);
   terrainMat.uniforms.uFlash.value = Math.max(terrainMat.uniforms.uFlash.value, flashRim * 0.6);
