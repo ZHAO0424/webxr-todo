@@ -1471,6 +1471,8 @@ function frame(dt, render = true) {
     if (k !== 'snow' && k !== 'whirl') pourFx.push({ x, z, y: st.y - 0.02, kind: k, sx, sz, stream: STREAM, id: states.indexOf(st) });
     performed.add('pour');
   }
+  // 捏住放雪：手变成"下雪"的手交给模拟（雪云跟着手）——捏合的手不在 states 里，要替换进去，不然雪云出不来
+  for (const p of pinchUse) if (p.mode === 'snow') { const j = states.findIndex(s2 => s2.id === p.id); if (j >= 0) states[j] = p; else states.push(p); }
   while (simAcc >= S.DT) {
     simAcc -= S.DT;
     const env = { rain: (x, z) => { const k = S.cellIndex(x, z); return k >= 0 ? w.rainCell[k] : 0; }, wet: (x, z) => { const k = S.cellIndex(x, z); return k >= 0 ? w.M[k] : 0; }, wind: w.wind, sun: Math.max(0.2, w.sun),
@@ -2671,6 +2673,14 @@ async function selftest() {
     cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: cx, clientY: cy, button: 0, bubbles: true }));
     F(60);
     ok('电脑：选沙子左键按住 → 手是捏合、在光标处放沙', trackers[2].mode === 'pinch' && MT.totals(mt).sand > sd0 + 1e-4, trackers[2].mode + ' ' + (MT.totals(mt).sand - sd0).toFixed(5));
+    window.dispatchEvent(new PointerEvent('pointerup', { button: 0, bubbles: true })); F(10);
+    // 电脑：选雪左键按住 → 光标上方聚一朵雪云在下雪
+    tool = 4 + S.TOOLS.indexOf('snow');
+    cv.dispatchEvent(new PointerEvent('pointermove', { clientX: cx, clientY: cy, bubbles: true }));
+    cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: cx, clientY: cy, button: 0, bubbles: true }));
+    F(90);
+    const sc = w.clouds.find(c => c.holder === 2);
+    ok('电脑：选雪左键按住 → 光标上方的雪云在下雪', sc && sc.snow && sc.rain > 0.2 && Math.hypot(sc.x - mx.x, sc.z - mx.z) < 0.03, sc ? `snow=${sc.snow} rain=${sc.rain.toFixed(2)}` : 'no cloud, mode ' + trackers[2].mode);
     window.dispatchEvent(new PointerEvent('pointerup', { button: 0, bubbles: true })); F(10); tool = 0; }
   controls.enabled = true;
   // 光学透视暗部审计：黑底直接渲染，岛上暗到亮度 < 55（0–255）的像素占比；暗 = 眼镜里看不见
