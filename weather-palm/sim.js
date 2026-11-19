@@ -43,6 +43,20 @@ const segDist = (P, x, z) => {
   }
   return best;
 };
+// 离哪条溪最近、在溪上走了多远（从泉眼算起，米）、离中线多远：{ ri, s, d }（堵溪、画溪的下游断流用）
+export function riverAlong(x, z) {
+  let best = { ri: -1, s: 0, d: 1 };
+  LAYOUT.rivers.forEach((P, ri) => {
+    let acc = 0;
+    for (let i = 0; i < P.length - 1; i++) {
+      const [ax, az] = P[i], [bx, bz] = P[i + 1], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz);
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (L * L))), d = Math.hypot(x - ax - dx * t, z - az - dz * t);
+      if (d < best.d) best = { ri, s: acc + t * L, d };
+      acc += L;
+    }
+  });
+  return best;
+}
 export function riverDist(x, z) { let b = 1; for (const P of LAYOUT.rivers) b = Math.min(b, segDist(P, x, z)); return b; }
 // 湖岸不是正圆：半径随方向起伏（两三个"湖湾"）
 export function lakeDist(x, z) {
@@ -477,6 +491,11 @@ export function step(w, inputs = {}, dt = DT) {
   }
   w.clouds = w.clouds.filter(c => (c.alpha > 0.01 || c.age < 0.5) && c.water > -0.2 && Math.hypot(c.x, c.z) < R + 0.12);
   const wasRaining = w.rainNow > 0.1;
+  // 大雪：雪下得大（≥0.5）又下够 5 秒 → 整座岛都下起来，积雪盖住所有地方
+  w.heavySnowT = snowing > 0.5 ? (w.heavySnowT || 0) + dt : Math.max(0, (w.heavySnowT || 0) - dt * 2);
+  const blizzard = w.heavySnowT > 5;
+  if (blizzard !== !!w.blizzard) { w.blizzard = blizzard; w.events.push({ type: blizzard ? 'blizzard' : 'blizzardEnd' }); }
+  if (blizzard) for (let k = 0; k < N * N; k++) if (w.type[k] !== T.OUT && w.type[k] !== T.WATER) w.snowCell[k] = Math.max(w.snowCell[k], 0.7 * snowing);
   w.rainNow = raining; w.snowNow = snowing;
   if (raining > 0.1) { w.lastRainT = w.t; w.drySince = 0; } else w.drySince += dt;
   if (wasRaining && raining <= 0.1) w.events.push({ type: 'rainStop' });
@@ -493,7 +512,10 @@ export function step(w, inputs = {}, dt = DT) {
 
   // --- 湖面结冰：冷了结、暖了化 ---
   const iceWas = w.ice > 0.5;
-  w.ice = Math.max(0, Math.min(1, w.ice + (w.T < 0.24 ? dt * 0.05 : w.T > 0.32 ? -dt * 0.04 : 0)));
+  w.ice = Math.max(0, Math.min(1, w.ice + (w.T < 0.24 ? dt * 0.05 : w.T > 0.32 ? -dt * 0.04 : 0) - dt * 0.12 * w.sunBoost));   // 手掌召唤太阳：冰化得快
+  // 冬眠：雪积厚了（全岛平均 > 0.45）、水也冻上了 → 整座岛睡过去（植物不长、动物睡、鱼不动）；雪化了 / 冰化了醒过来
+  const winter = w.winter ? !(w.snowAvg < 0.2 || w.ice < 0.2) : (w.snowAvg > 0.45 && w.ice > 0.5);
+  if (winter !== !!w.winter) { w.winter = winter; w.events.push({ type: winter ? 'hibernate' : 'wake' }); }
   if (iceWas !== w.ice > 0.5) w.events.push({ type: w.ice > 0.5 ? 'freeze' : 'thaw' });
 
   // --- 水位（溪、湖一起涨落；泉水一直往里补一点） ---
@@ -512,8 +534,8 @@ export function step(w, inputs = {}, dt = DT) {
     const shade = w.shade[k];
     let m = w.M[k];
     // 积雪：下雪积起来；太阳、气温高就化，化的雪水渗进地里
-    let sn = w.snow[k] + 0.06 * w.snowCell[k] * dt;
-    const melt = Math.min(sn, (0.003 + 0.08 * w.sun * Math.max(0, w.T - 0.2)) * dt);
+    let sn = Math.min(1.2, w.snow[k] + 0.06 * w.snowCell[k] * dt);   // 积雪最厚 1.2（不然召唤太阳要晒很久）
+    const melt = Math.min(sn, ((w.T > 0.25 ? 0.003 : 0) + 0.08 * w.sun * Math.max(0, w.T - 0.2) + 0.35 * (w.lit?.[k] || 0)) * dt);   // 手掌晒着：雪化得飞快
     sn -= melt; w.snow[k] = sn;
     w.melt ??= new Float32Array(N * N);
     if (m > 0.7) { m += melt * 0.45; w.melt[k] += melt * 0.45; } else m += melt * 0.9;   // 湿透了吸不动：一半雪水在地面上流走（外面读完清零）
@@ -533,7 +555,7 @@ export function step(w, inputs = {}, dt = DT) {
     const light = Math.max(0.15, w.sun) * (1 - 0.5 * shade) * (1 - 0.7 * w.smog[k]);
     let g = w.G[k];
     const lit = w.lit[k];   // 手掌晒着：长得飞快（要有点水，太干的地晒了也长不出来）
-    if (m > 0.28 - 0.13 * lit && m < 0.98 && (sh > -0.05 || lit > 0.1) && w.snow[k] < 0.4) g += 0.022 * Math.max(light, lit) * (w.boost[k] > 0 ? 2.2 : 1) * (w.burnt[k] > 0 ? 0.6 : 1) * w.soilGrow[k] * (1 + SUN_GROW * lit) * dt;
+    if (m > 0.28 - 0.13 * lit && m < 0.98 && (sh > -0.05 || lit > 0.1) && w.snow[k] < 0.4 && (!w.winter || lit > 0.1)) g += 0.022 * Math.max(light, lit) * (w.boost[k] > 0 ? 2.2 : 1) * (w.burnt[k] > 0 ? 0.6 : 1) * w.soilGrow[k] * (1 + SUN_GROW * lit) * dt;
     if (w.dryT[k] > 20) g -= 0.012 * dt;
     if (w.smog[k] > 0.4) g -= 0.008 * (w.smog[k] - 0.4) * dt;   // 雾霾久了，植物发黄
     w.G[k] = Math.max(w.burnt[k] > 0.5 ? 0.05 : 0.1, Math.min(1, g));
@@ -658,7 +680,8 @@ function updateAnimals(w, hands, dt, blocked) {
       const food = (night && !S.nocturnal) || storm ? null : w.food.filter(f => Math.hypot(f.x - a.x, f.z - a.z) < 0.1).sort((p, q) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(q.x - a.x, q.z - a.z))[0];
       a.food = food ? food.id : null;
       a.fleeFrom = whirl || (smogHere > 0.45 ? { x: a.x + (rng(w) - 0.5) * 0.01, z: a.z + (rng(w) - 0.5) * 0.01 } : null);
-      if (blocked && blocked(a.x, a.z)) act = 'flee';
+      if (w.winter) act = 'sleep';   // 冬眠：缩着不动（兔子钻洞）
+      else if (blocked && blocked(a.x, a.z)) act = 'flee';
       else if (storm || a.fleeFrom) act = 'flee';
       else if (food && rainHere < 0.15) act = 'eat';
       else if (night && !S.nocturnal) act = 'sleep';
@@ -734,7 +757,7 @@ function updateAnimals(w, hands, dt, blocked) {
     }
     if (a.grow < 1) a.grow = Math.min(1, a.grow + dt / 60);   // 小的一分钟长大
     const sp = (a.act === 'flee' ? 2.2 : a.act === 'play' ? 1.5 : a.act === 'graze' ? 0.5 : 1) * S.speed;
-    const still = a.act === 'sleep' && !S.nocturnal || a.act === 'look' || a.act === 'hide' || a.eating;
+    const still = a.act === 'sleep' && (!S.nocturnal || w.winter) || a.act === 'look' || a.act === 'hide' || a.eating;
     const dx = a.tx - a.x, dz = a.tz - a.z, d = Math.hypot(dx, dz);
     if (!still && d > 0.0015) {
       const s = Math.min(d, sp * dt), nx = a.x + dx / d * s, nz = a.z + dz / d * s;
@@ -747,7 +770,7 @@ function updateAnimals(w, hands, dt, blocked) {
       else { a.tx = a.x; a.tz = a.z; a.moving = false; }
     } else a.moving = false;
     if (a.look != null) a.face = a.look;
-    a.hidden = a.act === 'hide' || (a.act === 'sleep' && a.sp === 'rabbit');
+    a.hidden = a.act === 'hide' || (a.act === 'sleep' && (a.sp === 'rabbit' || (w.winter && (S.hides || a.sp === 'squirrel' || a.sp === 'bear'))));
   }
 }
 

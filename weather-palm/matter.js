@@ -146,7 +146,7 @@ export function step(m, dt, env = {}) {
     if (dSand[k]) m.sand[k] = Math.max(0, m.sand[k] + dSand[k]);
   }
   for (let k = 0; k < n; k++) if (m.dry[k] > 0) m.dry[k] = Math.max(0, m.dry[k] - dt * (0.02 + 0.4 * rain(...center(k % MG, (k / MG) | 0))));
-  stepWater(m, dt, rain, wet0, wind, env.sun ?? 1);
+  if (!env.frozen) stepWater(m, dt, rain, wet0, wind, env.sun ?? 1);   // 结冰：地表水冻住，不流、不渗、不蒸发
   transmute(m, dt, rain, wet0, env.sun ?? 1, env.lit || (() => 0));
   // 2. 冷却、遇水、点火
   for (let k = 0; k < n; k++) {
@@ -207,6 +207,7 @@ export function step(m, dt, env = {}) {
   for (const s of m.saplings) {
     const k = index(s.x, s.z);
     if (k < 0 || m.lava[k] > 0.0003 || m.fire[k] > 0) { s.dead = true; continue; }
+    if (m.rock[k] + m.glass[k] > 0.0002 && m.soil[k] < 0.0002) { s.dead = true; m.events.push({ type: 'seedFail', x: s.x, z: s.z }); continue; }   // 光秃秃的石头上种不活：先铺土（或等石头风化）
     s.t += dt;
     const wv = wet(s.x, s.z);
     if (wv > 0.25) s.g = Math.min(1, s.g + dt * 0.03 * (env.sun ?? 1) * (1 + 10 * (env.lit ? env.lit(s.x, s.z) : 0)));   // 手掌晒着：小苗几秒就长成树
@@ -297,8 +298,8 @@ function transmute(m, dt, rain, wet0, sun, lit) {
     m.soak[k] = wetNow > 0.2 ? Math.min(1, m.soak[k] + dt * 0.25 * wetNow) : Math.max(0, m.soak[k] - dt * 0.01);
     // 沙子泡透 → 土
     if (sd > 1e-6 && m.soak[k] > 0.6 && L < 1e-6) { const c = Math.min(sd, dt * 0.00025); m.sand[k] -= c; m.soil[k] += c; }
-    // 冷石头常被水泡 → 风化成土（慢）
-    if (rk > 1e-6 && m.soak[k] > 0.5 && L < 1e-6 && m.heat[k] < 0.05) { const c = Math.min(rk, dt * 0.00004); m.rock[k] -= c; m.soil[k] += c; }
+    // 冷石头常被水泡 → 风化成土（下雨、倒水泡着，几十秒一层看得见）
+    if (rk > 1e-6 && m.soak[k] > 0.5 && L < 1e-6 && m.heat[k] < 0.05) { const c = Math.min(rk, dt * 0.00012); m.rock[k] -= c; m.soil[k] += c; }
     // 烫的岩浆：沙子烧成玻璃，土烤成石头、草烧光
     if (L > 0.00008 && m.heat[k] > 0.3) {
       if (sd > 1e-6) { const c = Math.min(sd, dt * 0.002 * m.heat[k]); m.sand[k] -= c; m.glass[k] += c; if (rnd(m) < dt * 2) m.events.push({ type: 'glass', x, z }); }

@@ -520,16 +520,16 @@ export function buildUnderside() {
 }
 
 export function buildWater(shared) {
-  const pos = [], dA = [], pondA = [], idx = [];
+  const pos = [], dA = [], pondA = [], idx = [], riA = [], sA = [];   // riA / sA：哪条溪、离泉眼多远（堵溪时坝下游不画）
   for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) {
     const h = hq[j * NG + i]; if (Number.isNaN(h)) continue;
     const x = -S.R + (i + 0.5) * CELL, z = -S.R + (j + 0.5) * CELL;
-    const rd = S.riverDist(x, z), ld = S.lakeDist(x, z), pd = 1 + ld / 0.03;
+    const rd = S.riverDist(x, z), ld = S.lakeDist(x, z), pd = 1 + ld / 0.03, ra = S.riverAlong(x, z);
     const pond = ld < 0.006, river = rd < 0.012;
     if (!pond && !river) continue;
     const x0 = -S.R + i * CELL, z0 = -S.R + j * CELL, b = pos.length / 3;
     pos.push(x0, h, z0, x0, h, z0 + CELL, x0 + CELL, h, z0 + CELL, x0 + CELL, h, z0);
-    for (let k = 0; k < 4; k++) { dA.push(pond && (!river || pd < 1) ? pd : rd); pondA.push(pond && (!river || pd < 1) ? 1 : 0); }
+    for (let k = 0; k < 4; k++) { const isPond = pond && (!river || pd < 1); dA.push(isPond ? pd : rd); pondA.push(isPond ? 1 : 0); riA.push(isPond ? -1 : ra.ri); sA.push(ra.s); }
     idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
   }
   // 溪往下跌一格的地方：立一面竖着的水（落下来的水），贴图往下流
@@ -547,7 +547,7 @@ export function buildWater(shared) {
       else if (di === -1) q = [[x0, lo, z0 + CELL], [x0, lo, z0], [x0, h, z0], [x0, h, z0 + CELL]];
       else if (dj === 1) q = [[x0 + CELL, lo, z0 + CELL], [x0, lo, z0 + CELL], [x0, h, z0 + CELL], [x0 + CELL, h, z0 + CELL]];
       else q = [[x0, lo, z0], [x0 + CELL, lo, z0], [x0 + CELL, h, z0], [x0, h, z0]];
-      for (const v of q) { pos.push(...v); dA.push(rd); pondA.push(0); vA.push(1); }
+      const ra = S.riverAlong(x0 + CELL / 2, z0 + CELL / 2); for (const v of q) { pos.push(...v); dA.push(rd); pondA.push(0); vA.push(1); riA.push(ra.ri); sA.push(ra.s); }
       idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
     }
   }
@@ -555,13 +555,15 @@ export function buildWater(shared) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('aD', new THREE.Float32BufferAttribute(dA, 1)); g.setAttribute('aPond', new THREE.Float32BufferAttribute(pondA, 1));
   g.setAttribute('aV', new THREE.Float32BufferAttribute(vA, 1));
+  g.setAttribute('aRi', new THREE.Float32BufferAttribute(riA, 1)); g.setAttribute('aS', new THREE.Float32BufferAttribute(sA, 1));
   g.setIndex(idx);
   const u = { uIce: { value: 0 }, uWater: { value: 0.3 }, uRain: { value: 0 }, uTime: shared.uTime, uFill: { value: null }, uR: { value: S.R }, uLight: { value: new THREE.Color(1, 1, 1) },
-    uCam: { value: new THREE.Vector3(0, 0.4, 0.4) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunK: { value: 1 }, uWind: { value: new THREE.Vector2() } };
+    uCam: { value: new THREE.Vector3(0, 0.4, 0.4) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunK: { value: 1 }, uWind: { value: new THREE.Vector2() }, uCut: { value: new THREE.Vector3(9, 9, 9) } };   // uCut：每条溪从多远开始断流（dam.js）
   const mat = new THREE.ShaderMaterial({
     uniforms: u, transparent: true, side: THREE.DoubleSide, depthWrite: false,
-    vertexShader: `attribute float aD, aPond, aV; uniform float uWater; varying float vD, vPond, vCov, vV; varying vec3 vP;
+    vertexShader: `attribute float aD, aPond, aV, aRi, aS; uniform float uWater; uniform vec3 uCut; varying float vD, vPond, vCov, vV, vDry; varying vec3 vP;
       void main() {
+        vDry = aRi < -0.5 ? 0.0 : aS - (aRi < 0.5 ? uCut.x : aRi < 1.5 ? uCut.y : uCut.z);   // > 0：堵住的坝下游，不画
         float cov = aPond > 0.5 ? 0.82 + 0.32 * uWater : 0.0034 + 0.0062 * uWater;
         vD = aD; vPond = aPond; vCov = cov; vV = aV;
         vec3 p = position; p.y += 0.0009 + 0.0032 * uWater; vP = p;
@@ -570,10 +572,10 @@ export function buildWater(shared) {
     // 照 Terraglass 的水：清的水体（浅处看得见底、越深越蓝越不透明）、平滑的小波浪、
     // 斜着看反射天光（菲涅尔）、太阳的高光一闪一闪、岸边一圈白浪；波浪按 0.4 mm 的格子取样，和方块世界的颗粒一致
     fragmentShader: COMMON_GLSL + `
-      uniform float uTime, uRain, uR, uIce, uSunK; uniform sampler2D uFill; uniform vec3 uLight, uCam, uSunDir; uniform vec2 uWind; varying float vD, vPond, vCov, vV; varying vec3 vP;
+      uniform float uTime, uRain, uR, uIce, uSunK; uniform sampler2D uFill; uniform vec3 uLight, uCam, uSunDir; uniform vec2 uWind; varying float vD, vPond, vCov, vV, vDry; varying vec3 vP;
       const float TXS = ${TX.toFixed(6)};
       void main() {
-        if (vD > vCov) discard;
+        if (vD > vCov || vDry > 0.0) discard;
         if (texture(uFill, (vP.xz + uR) / (2.0 * uR)).r > 0.5) discard;   // 被岩浆石、沙子填出来的陆地
         vec2 t = floor(vP.xz / TXS);
         vec2 q = (t + 0.5) * TXS;

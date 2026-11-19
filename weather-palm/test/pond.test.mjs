@@ -84,3 +84,13 @@ test('手掌晒着：水草长得飞快；小苗几秒长成树', async () => {
   for (let t = 0; t < 4; t += 0.1) { step(s1, 0.1, { wet: () => 0.6, lit: () => 1 }); step(s2, 0.1, { wet: () => 0.6 }); }
   assert.ok(s1.saplings[0].grown && !s2.saplings[0].grown, `${s1.saplings[0].g} vs ${s2.saplings[0].g}`);
 });
+
+test('结冰：地表水冻住不流；池塘里鱼不动、水草不长（冬眠）', async () => {
+  const { step } = await import('../matter.js');
+  const slope = createMatter((x, z) => 0.03 - x * 0.1, () => 'rock'); pour(slope, 'water', -0.05, 0, 0.004);
+  for (let t = 0; t < 2; t += 0.1) step(slope, 0.1, { frozen: true });
+  assert.ok(slope.water[index(-0.05 + MC * 6, 0)] < 1e-7, 'frozen water stays put');
+  const m = pondWorld(), p = createPond(); addFish(p, m, 0, 0); const f = p.fish[0], x0 = f.x, full0 = f.full;
+  run(p, m, 20, { frozen: true });
+  assert.ok(f.x === x0 && f.full === full0 && weedSum(p) === 0, 'fish still, no weed');
+});

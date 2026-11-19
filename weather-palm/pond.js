@@ -32,6 +32,7 @@ export function addFish(p, m, x, z, size = 0.8) {
 
 export function stepPond(p, m, dt, env = {}) {
   const sun = env.sun ?? 1, n = MG * MG, W = m.water, weed = p.weed, lit = env.lit || (() => 0);
+  if (env.frozen) { for (const f of p.fish) f.age += dt; return; }   // 结冰：水草不长、鱼在冰下不动不饿（冬眠）
   // 水草
   let pondCells = 0;
   for (let k = 0; k < n; k++) {

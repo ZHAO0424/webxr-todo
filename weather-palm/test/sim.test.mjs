@@ -212,3 +212,29 @@ test('手掌放晴晒着的那一片：草飞快地长（比别处快好几倍�
   assert.ok(avg(a.lit, ks) > 0.5);
   run(a, 6); assert.ok(avg(a.lit, ks) < 0.05, 'lit faded ' + avg(a.lit, ks));
 });
+
+test('大雪 → 全岛积雪 → 结冰 → 冬眠（草不长、动物睡）；手掌召唤太阳：手下雪化得飞快、冰化开、醒过来', () => {
+  const w = noon(createWorld(6)); w.clouds.length = 0; setLevel(w, 3);
+  const P = LAYOUT.peaks[0];
+  let blizzard = false;
+  run(w, 40, () => ({ hands: [hand('snow', 0, 0.02, { strength: 1 })] }));
+  blizzard = w.events.some(e => e.type === 'blizzard') || w.blizzard;
+  assert.ok(blizzard, 'blizzard started');
+  const far = cellsAround(-0.11, 0.05, 0.01);   // 离手很远的草甸也盖上了
+  assert.ok(avg(w.snow, far) > 0.4, 'far snow ' + avg(w.snow, far).toFixed(2));
+  run(w, 60);   // 停了雪：冷，冻上
+  assert.ok(w.ice > 0.5 && w.winter, `ice ${w.ice.toFixed(2)} winter ${w.winter} snowAvg ${w.snowAvg.toFixed(2)} T ${w.T.toFixed(2)}`);
+  const ks = cellsAround(M0.x, M0.z, 0.01), g0 = avg(w.G, ks);
+  run(w, 10, () => { for (const k of ks) w.M[k] = 0.6; return {}; });
+  assert.ok(avg(w.G, ks) <= g0 + 0.01, 'no growth in winter');
+  assert.ok(w.animals.every(a => a.act === 'sleep'), w.animals.map(a => a.act).join());
+  // 召唤太阳：手下的雪先化掉
+  const under = cellsAround(M0.x, M0.z, 0.02), s0 = avg(w.snow, under);
+  run(w, 3, () => ({ hands: [hand('sun', M0.x, M0.z)] }));
+  assert.ok(avg(w.snow, under) < s0 * 0.5, `melt under palm ${s0.toFixed(2)} → ${avg(w.snow, under).toFixed(2)}`);
+  // 一直晒（手在岛上来回扫）：冰化、醒过来
+  let woke = false;
+  for (let t = 0; t < 60 && !woke; t += DT) { const a = t * 0.8; step(w, { hands: [hand('sun', Math.cos(a) * 0.07, Math.sin(a) * 0.07)] }); woke = !w.winter; }
+  assert.ok(woke, `still winter: snowAvg ${w.snowAvg.toFixed(2)} ice ${w.ice.toFixed(2)}`);
+  void P;
+});
