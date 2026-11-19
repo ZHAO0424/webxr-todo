@@ -91,6 +91,7 @@ export function pour(m, what, x, z, amount) {
     if (what === 'lava') { m.heat[k] = (m.lava[k] * m.heat[k] + a) / (m.lava[k] + a); m.lava[k] += a; }   // 新倒的（烫）和原有的按体积混合
     else if (what === 'water') m.water[k] += a;
     else if (what === 'sand') m.sand[k] += a;
+    else if (what === 'soil') m.soil[k] += a;   // 土：比沙子站得住，用来围堰
   }
 }
 
@@ -146,7 +147,7 @@ export function step(m, dt, env = {}) {
   }
   for (let k = 0; k < n; k++) if (m.dry[k] > 0) m.dry[k] = Math.max(0, m.dry[k] - dt * (0.02 + 0.4 * rain(...center(k % MG, (k / MG) | 0))));
   stepWater(m, dt, rain, wet0, wind, env.sun ?? 1);
-  transmute(m, dt, rain, wet0, env.sun ?? 1);
+  transmute(m, dt, rain, wet0, env.sun ?? 1, env.lit || (() => 0));
   // 2. 冷却、遇水、点火
   for (let k = 0; k < n; k++) {
     const i = k % MG, j = (k / MG) | 0, [x, z] = center(i, j);
@@ -208,7 +209,7 @@ export function step(m, dt, env = {}) {
     if (k < 0 || m.lava[k] > 0.0003 || m.fire[k] > 0) { s.dead = true; continue; }
     s.t += dt;
     const wv = wet(s.x, s.z);
-    if (wv > 0.25) s.g = Math.min(1, s.g + dt * 0.03 * (env.sun ?? 1));
+    if (wv > 0.25) s.g = Math.min(1, s.g + dt * 0.03 * (env.sun ?? 1) * (1 + 10 * (env.lit ? env.lit(s.x, s.z) : 0)));   // 手掌晒着：小苗几秒就长成树
     if (s.g >= 1 && !s.grown) { s.grown = true; m.events.push({ type: 'grown', x: s.x, z: s.z }); }
   }
   m.saplings = m.saplings.filter(s => !s.dead);
@@ -284,7 +285,7 @@ function stepWater(m, dt, rain, wet0, wind, sun) {
 }
 // 东西互相变：泡水、晒太阳、被岩浆烤
 const SOIL_REPOSE = MC * 1.1;   // 土比沙子站得住（坡更陡才塌）
-function transmute(m, dt, rain, wet0, sun) {
+function transmute(m, dt, rain, wet0, sun, lit) {
   const n = MG * MG, dSoil = new Float32Array(n);
   for (let k = 0; k < n; k++) {
     if (!m.kind[k]) continue;
@@ -308,7 +309,7 @@ function transmute(m, dt, rain, wet0, sun) {
     if (m.soil[k] > 0.0002) {
       const wv = Math.max(wet0(x, z), m.soak[k]);
       if (m.fire[k] > 0) m.grass[k] = 0;
-      else if (wv > 0.25 && L < 1e-6) m.grass[k] = Math.min(1, m.grass[k] + dt * 0.03 * sun);
+      else if (wv > 0.25 && L < 1e-6) m.grass[k] = Math.min(1, m.grass[k] + dt * 0.03 * sun * (1 + 10 * lit(x, z)));   // 手掌晒着长得飞快
       else if (wv < 0.1) m.grass[k] = Math.max(0, m.grass[k] - dt * 0.004);
       if (m.grass[k] > 0.3 && m.fuel[k] < 0.5 && !m.burnt[k]) m.fuel[k] = 0.5;   // 长了草就能烧
     } else m.grass[k] = 0;

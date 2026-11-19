@@ -201,3 +201,14 @@ test('性能：一步模拟 < 1.5 ms', () => {
   const per = (performance.now() - t0) / 1000;
   assert.ok(per < 1.5, per + ' ms/step');
 });
+
+test('手掌放晴晒着的那一片：草飞快地长（比别处快好几倍），手挪开一会儿就恢复正常速度', () => {
+  const a = noon(createWorld(3)), b = noon(createWorld(3)), ks = cellsAround(M0.x, M0.z, 0.01);
+  for (const w of [a, b]) { for (const k of ks) { w.G[k] = 0.15; w.M[k] = 0.6; } w.clouds.length = 0; }
+  run(a, 4, () => ({ hands: [hand('sun', M0.x, M0.z)] }));
+  run(b, 4, () => { for (const k of ks) b.M[k] = Math.max(b.M[k], 0.6); return {}; });
+  const ga = avg(a.G, ks) - 0.15, gb = avg(b.G, ks) - 0.15;
+  assert.ok(ga > 0.3 && ga > gb * 4, `sunlit ${ga.toFixed(3)} vs normal ${gb.toFixed(3)}`);
+  assert.ok(avg(a.lit, ks) > 0.5);
+  run(a, 6); assert.ok(avg(a.lit, ks) < 0.05, 'lit faded ' + avg(a.lit, ks));
+});

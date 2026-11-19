@@ -229,12 +229,14 @@ function rng(w) { let t = (w.seed += 0x6D2B79F5); t = Math.imul(t ^ (t >>> 15), 
 // ---------- 动物 ----------
 // green：荒岛上绿到多少它才来；where：在哪出生（不给就在草甸）；cap：吃饱了最多繁殖到几只
 export const SPECIES = {
-  rabbit: { speed: 0.016, range: 0.03, home: [T.GRASS, T.FLOWER], hides: true, green: 0.3, cap: 14 },
-  deer: { speed: 0.012, range: 0.045, home: [T.GRASS, T.FLOWER, T.FOREST], green: 0.45, cap: 7 },
+  rabbit: { speed: 0.016, range: 0.03, home: [T.GRASS, T.FLOWER], hides: true, green: 0.3, cap: 14, bite: 0.005 },
+  deer: { speed: 0.012, range: 0.045, home: [T.GRASS, T.FLOWER, T.FOREST], green: 0.45, cap: 7, bite: 0.01 },
+  sheep: { speed: 0.01, range: 0.035, home: [T.GRASS, T.FLOWER], green: 0.4, cap: 10, flock: true, bite: 0.03 },
+  cow: { speed: 0.008, range: 0.04, home: [T.GRASS, T.FLOWER], green: 0.5, cap: 5, flock: true, bite: 0.05 },
   fox: { speed: 0.02, range: 0.05, home: [T.FOREST, T.GRASS], nocturnal: true, green: 0.6, cap: 4 },
   squirrel: { speed: 0.018, range: 0.02, home: [T.FOREST], green: 0.4, cap: 8, where: (x, z) => cellType(x, z) === T.FOREST && !inCanyon(x, z) },
   heron: { speed: 0.007, range: 0.016, home: [T.MARSH, T.BEACH, T.GRASS], green: 0.35, cap: 3, where: (x, z) => lakeDist(x, z) > 0.002 && lakeDist(x, z) < 0.012 },
-  goat: { speed: 0.012, range: 0.03, home: [T.GRASS], green: 0.4, cap: 5, where: (x, z) => inCanyon(x, z) && cellType(x, z) === T.GRASS },
+  goat: { speed: 0.012, range: 0.03, home: [T.GRASS], green: 0.4, cap: 5, bite: 0.01, where: (x, z) => inCanyon(x, z) && cellType(x, z) === T.GRASS },
   boar: { speed: 0.013, range: 0.05, home: [T.FOREST, T.GRASS], green: 0.55, cap: 4, where: (x, z) => cellType(x, z) === T.FOREST && !inCanyon(x, z) },
   bear: { speed: 0.01, range: 0.05, home: [T.FOREST, T.GRASS], green: 0.7, cap: 2, where: (x, z) => cellType(x, z) === T.FOREST && z < -0.02 },
 };
@@ -262,8 +264,11 @@ export function walkable(x, z, blocked) {
 }
 
 // ---------- 左手菜单里的东西（右手"倒"出去） ----------
-// 水、食物、雪、雾霾、旋风、岩浆、闪电、沙、树种、花种、鱼苗、萤火虫
-export const TOOLS = ['water', 'food', 'snow', 'smog', 'whirl', 'lava', 'lightning', 'sand', 'seed', 'flower', 'fish', 'firefly'];
+// 水、土、沙、岩浆、雪、树种、花种、动物（随机一种；放进水里是鱼）、食物、旋风
+export const SUN_R = 0.045;     // 手掌放晴晒到多大一片
+export const SUN_GROW = 10;    // 晒着的地方长得快几倍（再加 1）
+export const TOOLS = ['water', 'soil', 'sand', 'lava', 'snow', 'seed', 'flower', 'animal', 'food', 'whirl'];
+export const PLACE_SPECIES = ['sheep', 'cow', 'rabbit', 'deer', 'goat', 'boar'];   // "动物"道具在陆地上随机放这几种之一
 
 // ---------- 世界 ----------
 export function createWorld(seed = 1, opts = {}) {
@@ -274,7 +279,7 @@ export function createWorld(seed = 1, opts = {}) {
     rainbow: 0, rainbowT: 0, stormUntil: -99, lastStrike: null, gustAccum: 0,
     level: 0, done: 0, festival: false, drought: false, flood: false,
     requests: [], nextReqT: 4, reqSeq: 0, tutorial: ['rain', 'sun', 'wind', 'storm'],
-    M: new Float32Array(N * N), G: new Float32Array(N * N), type: new Uint8Array(N * N), boost: new Float32Array(N * N),
+    M: new Float32Array(N * N), G: new Float32Array(N * N), type: new Uint8Array(N * N), boost: new Float32Array(N * N), lit: new Float32Array(N * N),
     dryT: new Float32Array(N * N), wetT: new Float32Array(N * N), rainCell: new Float32Array(N * N), shade: new Float32Array(N * N), burnt: new Float32Array(N * N),
     snow: new Float32Array(N * N), smog: new Float32Array(N * N), snowCell: new Float32Array(N * N),
     ice: 0, snowNow: 0, smogAvg: 0, snowAvg: 0, food: [], nextFoodId: 1, whirls: [], fish: 6,
@@ -349,6 +354,8 @@ export function step(w, inputs = {}, dt = DT) {
   const sh = sunHeight(w);
   w.day = (w.day + dt / DAY_LEN * (sh < 0 ? 2 : 1)) % 1;
 
+  w.lit ??= new Float32Array(N * N);   // 旧存档没有
+  for (let k = 0; k < w.lit.length; k++) if (w.lit[k] > 0) w.lit[k] = w.lit[k] < 0.01 ? 0 : w.lit[k] * Math.exp(-dt / 1.2);   // 手挪开一两秒就不晒了
   // --- 手 → 云 / 风 / 太阳 ---
   const held = new Set();
   for (const h of hands) {
@@ -369,6 +376,8 @@ export function step(w, inputs = {}, dt = DT) {
     }
     if (h.mode === 'sun') {
       w.sunBoost = Math.min(1, w.sunBoost + dt * 2 * h.strength);
+      // 手掌下面那一片被晒着（lit）：草、树、苗、水草在这里飞快地长（见下面的生长，和 index / matter / pond 里读 lit 的地方）
+      forCells(h.x, h.z, SUN_R, (k, d) => { w.lit[k] = Math.max(w.lit[k], Math.min(1, (h.strength ?? 1) * 1.5) * (1 - 0.6 * d / SUN_R)); });
       for (const c of w.clouds) if (Math.hypot(c.x - h.x, c.z - h.z) < 0.09) { c.water -= dt * 0.6; c.rain *= Math.exp(-dt * 3); }
     }
     if (h.mode === 'wind') {
@@ -410,6 +419,16 @@ export function step(w, inputs = {}, dt = DT) {
       if (w.whirls.length < 3) { const ang = rng(w) * Math.PI * 2; w.whirls.push({ x: tl.x, z: tl.z, vx: Math.cos(ang) * 0.012, vz: Math.sin(ang) * 0.012, life: 8, age: 0 }); w.events.push({ type: 'whirl', x: tl.x, z: tl.z }); }
     } else if (tl.kind === 'flower') {   // 花种：那一片草长起来
       forCells(tl.x, tl.z, 0.014, k => { w.G[k] = Math.min(1, w.G[k] + 0.5 * a); });
+    } else if (tl.kind === 'animal') {   // 动物：落在水里是鱼；落在能站的地上随机一种（每种有上限）
+      if (lakeDist(tl.x, tl.z) < 0 || riverDist(tl.x, tl.z) < 0.007) { if (w.fish < 40) { w.fish++; w.events.push({ type: 'fish', x: tl.x, z: tl.z }); } }
+      else if (walkable(tl.x, tl.z)) {
+        const ok = PLACE_SPECIES.filter(sp => w.animals.filter(b => b.sp === sp).length < SPECIES[sp].cap);
+        if (ok.length) {
+          const sp = ok[Math.floor(rng(w) * ok.length)];
+          w.animals.push({ id: w.nextAnimalId++, sp, x: tl.x, z: tl.z, hx: tl.x, hz: tl.z, tx: tl.x, tz: tl.z, act: 'graze', think: rng(w), timer: rng(w) * 3, face: rng(w) * 6.28, moving: false, hidden: false, look: null, fed: 0, grow: 1 });
+          w.events.push({ type: 'animal', sp, x: tl.x, z: tl.z });
+        }
+      }
     } else if (tl.kind === 'fish') {   // 鱼苗：只有放进水里才算数
       if (lakeDist(tl.x, tl.z) < 0 || riverDist(tl.x, tl.z) < 0.007) { if (w.fish < 40) { w.fish++; w.events.push({ type: 'fish', x: tl.x, z: tl.z }); } }
       else w.events.push({ type: 'fishFlop', x: tl.x, z: tl.z });
@@ -513,11 +532,12 @@ export function step(w, inputs = {}, dt = DT) {
     w.wetT[k] = m > 0.96 ? w.wetT[k] + dt : Math.max(0, w.wetT[k] - dt);
     const light = Math.max(0.15, w.sun) * (1 - 0.5 * shade) * (1 - 0.7 * w.smog[k]);
     let g = w.G[k];
-    if (m > 0.28 && m < 0.98 && sh > -0.05 && w.snow[k] < 0.4) g += 0.022 * light * (w.boost[k] > 0 ? 2.2 : 1) * (w.burnt[k] > 0 ? 0.6 : 1) * w.soilGrow[k] * dt;
+    const lit = w.lit[k];   // 手掌晒着：长得飞快（要有点水，太干的地晒了也长不出来）
+    if (m > 0.28 - 0.13 * lit && m < 0.98 && (sh > -0.05 || lit > 0.1) && w.snow[k] < 0.4) g += 0.022 * Math.max(light, lit) * (w.boost[k] > 0 ? 2.2 : 1) * (w.burnt[k] > 0 ? 0.6 : 1) * w.soilGrow[k] * (1 + SUN_GROW * lit) * dt;
     if (w.dryT[k] > 20) g -= 0.012 * dt;
     if (w.smog[k] > 0.4) g -= 0.008 * (w.smog[k] - 0.4) * dt;   // 雾霾久了，植物发黄
     w.G[k] = Math.max(w.burnt[k] > 0.5 ? 0.05 : 0.1, Math.min(1, g));
-    if (w.burnt[k] > 0 && g > 0.5) w.burnt[k] = Math.max(0, w.burnt[k] - dt * 0.02);   // 烧过的地方长回来了
+    if (w.burnt[k] > 0 && g > 0.5) w.burnt[k] = Math.max(0, w.burnt[k] - dt * 0.02 * (1 + SUN_GROW * lit));   // 烧过的地方长回来了
     if (w.boost[k] > 0) w.boost[k] -= dt;
   }
   if (Math.floor(w.t / 2) !== Math.floor((w.t - dt) / 2)) { greenness(w); if (w.barren) syncAnimals(w); }
@@ -623,6 +643,7 @@ function pickNear(w, a, r, pred) {
   return null;
 }
 function updateAnimals(w, hands, dt, blocked) {
+  if (w.animals.some(a => a.gone)) w.animals = w.animals.filter(a => !a.gone);
   const night = isNight(w), storm = w.t < w.stormUntil;
   for (const a of w.animals) {
     const S = SPECIES[a.sp];
@@ -667,7 +688,14 @@ function updateAnimals(w, hands, dt, blocked) {
       else if (a.act === 'drink') {
         t = pickNear(w, a, 0.06, (x, z) => ok(x, z) && (riverDist(x, z) < 0.012 || lakeDist(x, z) < 0.01));
         if (t) a.thirst = 0;
-      } else if (a.act === 'graze' || a.act === 'wander' || (a.act === 'sleep' && S.nocturnal)) t = pickNear(w, a, S.range * (a.act === 'graze' ? 0.4 : 1), (x, z) => ok(x, z) && S.home.includes(cellType(x, z)));
+      } else if (a.act === 'graze' || a.act === 'wander' || (a.act === 'sleep' && S.nocturnal)) {
+        // 成群的（羊、牛）：往同伴中间靠；饿了（脚下草吃秃了）走远一点去找草
+        let c = a; if (S.flock) { const mates = w.animals.filter(b => b.sp === a.sp && b !== a && Math.hypot(b.x - a.x, b.z - a.z) < 0.06); if (mates.length) c = { x: (a.x + mates.reduce((s, b) => s + b.x, 0)) / (mates.length + 1), z: (a.z + mates.reduce((s, b) => s + b.z, 0)) / (mates.length + 1) }; }
+        const hungry = (a.hunger || 0) > 8, r0 = S.range * (a.act === 'graze' && !hungry ? 0.4 : 1);
+        t = pickNear(w, c, r0, (x, z) => ok(x, z) && S.home.includes(cellType(x, z)) && (!hungry || (w.G[cellIndex(x, z)] ?? 0) > 0.35));
+        if (!t && hungry) t = pickNear(w, a, S.range * 1.5, (x, z) => walkable(x, z, blocked) && S.home.includes(cellType(x, z)));   // 附近都秃了：走出原来的地盘去找
+        if (t && hungry) { a.hx = t[0]; a.hz = t[1]; }   // 搬家
+      }
       else if (a.act === 'play') t = pickNear(w, a, 0.012, ok);
       else if (a.act === 'eat') { const f = w.food.find(f => f.id === a.food); if (f) t = [f.x + (rng(w) - 0.5) * 0.003, f.z + (rng(w) - 0.5) * 0.003]; a.timer = 0.6; }
       if (t) { a.tx = t[0]; a.tz = t[1]; }
@@ -688,6 +716,21 @@ function updateAnimals(w, hands, dt, blocked) {
           }
         }
       }
+    }
+    if (S.bite && k >= 0) {
+      if (a.act === 'graze' && w.G[k] > 0.2) {   // 边走边低头吃草：那一格的草被吃短（吃多了就秃）
+        const b = Math.min(w.G[k] - 0.15, S.bite * dt); w.G[k] -= b; a.fed += b * 4; a.hunger = Math.max(0, (a.hunger || 0) - dt * 2);
+        a.dungT = (a.dungT || 0) + dt;
+        if (a.dungT > 12) { a.dungT = 0; w.boost[k] = Math.max(w.boost[k], 6); w.events.push({ type: 'dung', sp: a.sp, x: a.x, z: a.z }); }   // 粪：那一格接下来长得快
+      } else if (w.G[k] < 0.25 && a.act !== 'sleep') a.hunger = (a.hunger || 0) + dt;   // 脚下没草：饿
+      if (a.fed >= 1) {   // 吃饱一份：可能生一只小的
+        a.fed = 0;
+        if (a.grow >= 1 && w.animals.filter(b => b.sp === a.sp).length < S.cap && rng(w) < 0.5) {
+          w.animals.push({ id: w.nextAnimalId++, sp: a.sp, x: a.x + 0.003, z: a.z + 0.003, hx: a.hx, hz: a.hz, tx: a.x, tz: a.z, act: 'graze', think: 0.5, timer: 1, face: a.face, moving: false, hidden: false, look: null, fed: 0, grow: 0.45 });
+          w.stats.born++; w.events.push({ type: 'born', sp: a.sp, x: a.x, z: a.z });
+        }
+      }
+      if ((a.hunger || 0) > 90) { a.gone = true; w.events.push({ type: 'leave', sp: a.sp, x: a.x, z: a.z }); }   // 饿太久：走掉了
     }
     if (a.grow < 1) a.grow = Math.min(1, a.grow + dt / 60);   // 小的一分钟长大
     const sp = (a.act === 'flee' ? 2.2 : a.act === 'play' ? 1.5 : a.act === 'graze' ? 0.5 : 1) * S.speed;

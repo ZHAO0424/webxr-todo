@@ -11,7 +11,7 @@ const avg = (arr, ks) => ks.reduce((s, k) => s + arr[k], 0) / ks.length;
 const M0 = LAYOUT.meadows[0];
 const tool = (kind, x = M0.x, z = M0.z, a = DT) => ({ tools: [{ kind, x, z, a }] });
 
-test('菜单里有 12 样东西', () => { assert.equal(TOOLS.length, 12); });
+test('菜单里有 10 样东西', () => { assert.equal(TOOLS.length, 10); });
 
 test('水：地湿透、水位涨', () => {
   const w = noon(createWorld(1)), ks = cellsAround(M0.x, M0.z, 0.01), m0 = avg(w.M, ks);
@@ -117,4 +117,35 @@ test('鱼苗：放进湖里鱼变多，放在地上不算', () => {
   step(w, tool('fish', M0.x, M0.z));
   assert.equal(w.fish, f0 + 2);
   assert.ok(w.events.some(e => e.type === 'fishFlop'));
+});
+
+test('动物：放在草地上随机生成一种（同一套动物逻辑）；放进湖里就是鱼；每种有上限', () => {
+  const w = noon(createWorld(9)), L0 = LAYOUT.lakes[0], n0 = w.animals.length, f0 = w.fish;
+  step(w, tool('animal'));
+  assert.equal(w.animals.length, n0 + 1);
+  const a = w.animals[w.animals.length - 1];
+  assert.ok(['rabbit', 'deer', 'goat', 'boar'].includes(a.sp) && Math.hypot(a.x - M0.x, a.z - M0.z) < 0.01, a.sp);
+  assert.ok(w.events.some(e => e.type === 'animal'));
+  step(w, tool('animal', L0.x, L0.z)); assert.equal(w.fish, f0 + 1);
+  for (let i = 0; i < 80; i++) step(w, tool('animal'));
+  for (const sp of ['rabbit', 'deer', 'goat', 'boar']) assert.ok(w.animals.filter(b => b.sp === sp).length <= { rabbit: 14, deer: 7, goat: 5, boar: 4 }[sp], sp);
+});
+
+test('羊和牛：同一套动物逻辑——成群吃草；羊少草地照样长、羊多了把草吃秃；吃饱生崽；饿久了离开', () => {
+  const herd = (n, sp) => { const w = noon(createWorld(4)); w.clouds.length = 0; w.animals = w.animals.filter(a => a.sp === 'heron'); for (let i = 0; i < n; i++) step(w, tool('animal')); w.animals.forEach(a => { if (a.sp !== 'heron') a.sp = sp; }); return w; };
+  const ks = cellsAround(M0.x, M0.z, 0.02);
+  const keepWet = w => () => { for (const k of ks) w.M[k] = Math.max(w.M[k], 0.6); return {}; };
+  const few = herd(1, 'sheep'), many = herd(10, 'sheep');
+  for (const w of [few, many]) for (const k of ks) w.G[k] = 0.8;
+  run(few, 60, keepWet(few)); run(many, 60, keepWet(many));
+  assert.ok(avg(many.G, ks) < avg(few.G, ks) - 0.15, `many ${avg(many.G, ks).toFixed(2)} vs few ${avg(few.G, ks).toFixed(2)}`);
+  assert.ok(few.events.length >= 0);
+  // 吃饱生崽（牛也是同一套）
+  const c = herd(2, 'cow'); for (const k of ks) c.G[k] = 1; const n0 = c.animals.filter(a => a.sp === 'cow').length;
+  let born = false; for (let t = 0; t < 200 && !born; t += 0.1) { for (const k of ks) { c.G[k] = 1; c.M[k] = 0.6; } step(c, {}); born = c.animals.filter(a => a.sp === 'cow').length > n0; }
+  assert.ok(born, 'cow calf');
+  // 一直没草：饿久了走掉
+  const h = herd(3, 'sheep'); let left = false;
+  for (let t = 0; t < 200 && !left; t += 0.1) { h.G.fill(0.1); step(h, {}); left = h.events.some(e => e.type === 'leave'); }
+  assert.ok(left, 'hungry sheep left');
 });

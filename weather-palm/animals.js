@@ -122,6 +122,35 @@ export const ANIMAL_ART = {
     legs: [['.W.W....W.W....', '.f.f....f.f....'], ['..WW.....WW....', '..ff.....ff....']],
     head: 9, plump: 2, scale: 0.95,
   },
+  sheep: {    // 绵羊：一团米白的毛、深色的脸和腿（成群吃草）
+    keys: { w: '#f4f0e6', W: '#dcd6c8', f: '#6a5e58', k: '#3a3230', n: '#e0b0a8' },
+    body: [
+      '..wWwwwWww....',
+      '.wwwwwwwwwwff.',
+      'wwwwwwwwwwwfkf',
+      'wwwwwwwwwwwfff',
+      'wwwwwwwwwww.fn',
+      '.wwwwwwwwww...',
+      '..WWWWWWWW....',
+    ],
+    legs: [['..f.f...f.f...', '..f.f...f.f...'], ['...ff....ff...', '...ff....ff...']],
+    head: 11, plump: 3, scale: 0.9,
+  },
+  cow: {      // 奶牛：白底灰斑（不用纯黑：眼镜里黑 = 看不见）、粉鼻子、米色小角
+    keys: { w: '#f2efe8', b: '#6a6068', k: '#2e2628', n: '#e8a8a0', h: '#e8dcc0' },
+    body: [
+      '............h..h',
+      '............wbbw',
+      '.bbwwwwwbbwwwbkb',
+      'bbbwwwwbbbwwwwbb',
+      'wwwwwbbwwwwwwwnn',
+      'wwwbbbwwwwbbww..',
+      'wwwwwwwwwwwwww..',
+      '.wwwnnwwwwwwww..',
+    ],
+    legs: [['..w.w......w.w..', '..k.k......k.k..'], ['...ww......ww...', '...kk......kk...']],
+    head: 12, plump: 3, scale: 1.35,
+  },
   bear: {     // 棕熊：棕色、浅色口鼻（针叶林里，个子大）
     keys: { b: '#946a4a', B: '#78563c', m: '#cca882', k: '#2e2622' },
     body: [

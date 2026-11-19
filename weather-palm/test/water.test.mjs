@@ -71,3 +71,17 @@ test('水漫到岩浆上冷成石头，漫到火上灭火', () => {
   assert.ok(m.rock[index(0.02, 0)] > 0 && m.stats.steam > 0, 'lava quenched');
   assert.equal(m.fire[index(-0.02, 0)], 0, 'fire out');
 });
+
+test('土围一圈，中间倒水：水被圈住成池塘，水面高过圈外的地，土墙不塌、不被冲走', () => {
+  const m = createMatter(() => 0.02, inIsland(() => 'grass'));
+  // 半径 0.02 一圈土墙，约 3 mm 高（一格一格倒，像玩家沿着画一圈）
+  for (let a = 0; a < 64; a++) for (let r = 0.019; r <= 0.024; r += MC * 0.5) pour(m, 'soil', Math.cos(a / 64 * 2 * Math.PI) * r, Math.sin(a / 64 * 2 * Math.PI) * r, 0.0024);
+  run(m, 2);
+  const soil0 = totals(m).soil;
+  for (let i = 0; i < 120; i++) { pour(m, 'water', 0, 0, 0.0015); run(m, 0.1, { wet: () => 1 }); }
+  run(m, 3, { wet: () => 1 });
+  const inside = m.water[index(0, 0)], outside = m.water[index(0.05, 0)];
+  assert.ok(inside > 0.0012, 'pond depth ' + inside);
+  assert.ok(outside < inside * 0.1, `leaked: in ${inside} out ${outside}`);
+  assert.ok(totals(m).soil > soil0 * 0.95, 'wall held ' + totals(m).soil / soil0);
+});
