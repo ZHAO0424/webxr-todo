@@ -53,6 +53,7 @@ vec3 objTex(vec3 base, vec3 P, vec3 N, float pat) {
   float nb = h21(tb + floor(P.y / ${B.toFixed(6)}) * 0.37);
   int k = int(pat + 0.5);
   if (k == 5) return base;
+  if (k == 7) { vec2 px = floor(faceUV(P, N) * 4.0 + 0.001); float r = h21(px + N.xz * 5.0 + N.y * 9.0); return base * (r > 0.82 ? 1.1 : r < 0.18 ? 0.9 : 0.98 + 0.05 * r); }   // 堆积方块：每面 4×4 像素（单位方块坐标）
   if (k == 1) return base * (0.95 + 0.07 * nb);                                   // 树皮
   if (k == 3) return h21(vec2(tb.x, floor(P.y / ${B.toFixed(6)}) + 3.0)) > 0.78 ? s2l(vec3(0.4, 0.38, 0.38)) : base * (0.97 + 0.04 * nb);   // 白桦：一块块黑灰斑
   if (k == 2) return base * (0.94 + 0.09 * nb);                                   // 树叶
@@ -585,26 +586,17 @@ export function buildWater(shared) {
           #include <colorspace_fragment>
           return;
         }
-        // 小波浪的法线（三组正弦叠起来；下雨时更碎）
-        float a = 0.00007 + 0.00006 * uRain;
-        float p1 = q.x * 900.0 + uTime * 1.7, p2 = q.y * 760.0 - uTime * 1.3, p3 = (q.x + q.y) * 1400.0 + uTime * 2.6, p4 = (q.x - q.y) * 2100.0 - uTime * 3.4;
-        float dx = a * (900.0 * cos(p1) + 0.6 * 1400.0 * cos(p3) + uRain * 0.5 * 2100.0 * cos(p4));
-        float dz = a * (760.0 * cos(p2) + 0.6 * 1400.0 * cos(p3) - uRain * 0.5 * 2100.0 * cos(p4));
-        vec3 N = normalize(vec3(-dx, 1.0, -dz)), V = normalize(uCam - vP), L = normalize(uSunDir);
-        float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-        vec3 R = reflect(-V, N);
-        vec3 sky = mix(vec3(0.62, 0.76, 0.9), vec3(0.42, 0.62, 0.88), clamp(R.y * 1.4, 0.0, 1.0));   // 天光偏蓝，不发白
-        float spec = pow(max(dot(R, L), 0.0), 400.0) * uSunK;   // 高光收小
-        // 水体：浅处青绿（透得见底）→ 深处蓝
-        vec3 body = mix(vec3(0.36, 0.8, 0.8), vec3(0.2, 0.5, 0.78), smoothstep(0.1, 0.6, depth));
-        body = mix(body, vec3(0.14, 0.36, 0.66), smoothstep(0.6, 1.0, depth));
-        float al = mix(0.32, 0.86, smoothstep(0.05, 0.75, depth));
-        // 浅水底的焦散：水底一道道亮纹
-        float ca = abs(sin(t.x * 0.55 + uTime * 1.3 + sin(t.y * 0.4 + uTime))) * abs(sin(t.y * 0.5 - uTime * 1.1 + sin(t.x * 0.35)));
-        body += vec3(0.1, 0.14, 0.12) * smoothstep(0.78, 0.95, ca) * (1.0 - smoothstep(0.15, 0.5, depth));   // 焦散淡一点
-        vec3 c = mix(body, sky, fres * 0.4);
-        al = max(al, fres * 0.6);
-        c += vec3(1.0, 0.95, 0.85) * spec * 0.7; al = min(1.0, al + spec * 0.5);
+        // 和倒出来的地表水同一套画法（同调色、同一像素密度）：浅处青、深处蓝；水底焦散亮纹；溪水流着一道道白纹；岸边一圈参差的白沫
+        float flow = vPond > 0.5 ? 0.0 : 0.6;
+        vec3 c = mix(vec3(0.5, 0.9, 0.9), vec3(0.26, 0.6, 0.92), depth);
+        float ca = 1.0 - abs(vnoise(t * 0.22 + vec2(uTime * 0.3, uTime * 0.17)) * 2.0 - 1.0);
+        float cb = 1.0 - abs(vnoise(t * 0.31 - vec2(uTime * 0.21, -uTime * 0.26)) * 2.0 - 1.0);
+        c += vec3(0.12, 0.14, 0.12) * pow(ca * cb, 6.0) * 3.0;
+        float streak = vnoise(vec2(t.x * 0.25 + t.y * 0.25 - uTime * 6.0 * (0.4 + flow), (t.x - t.y) * 0.6));
+        if (flow > 0.3 && streak > 0.86 - 0.2 * flow) c = mix(c, vec3(0.95, 0.98, 1.0), 0.65);
+        float foam = smoothstep(0.12, 0.04, depth + (vnoise(t * 0.5 + uTime * 0.6) - 0.5) * 0.08);
+        c = mix(c, vec3(0.96, 0.98, 1.0), foam * 0.85);
+        float al = max(mix(0.5, 0.88, depth), foam * 0.9);
         if (uRain > 0.05 && h21(t + floor(uTime * 4.0)) > 0.997 - uRain * 0.02) { c = vec3(0.9, 0.96, 1.0); al = 0.95; }   // 雨点溅起的白点（只在下雨时）
         // 风浪：顺着风一道道的浪，风大时浪尖起白头（只在湖面上）
         float wm = length(uWind);
@@ -613,10 +605,6 @@ export function buildWater(shared) {
           c *= 1.0 + 0.08 * crest * min(1.0, wm);
           if (crest > 0.92 - 0.25 * min(1.0, wm - 0.15) && h21(floor(t / 2.0) + floor(uTime * 2.0)) > 0.45) { c = vec3(0.92, 0.96, 1.0); al = max(al, 0.85); }
         }
-        // 岸边一圈白浪：贴着岸，一涌一涌
-        float surf = vPond > 0.5 ? 0.07 + 0.05 * sin(uTime * 1.6 + (t.x + t.y) * 0.18) + 0.025 * h21(floor(t / 2.0)) : 0.04 * step(0.7, h21(floor(t / 2.0) + floor(uTime * 3.0)));   // 溪边只零星几点白（不然整条溪发白）
-        if (depth < surf) { c = vec3(0.95, 0.98, 1.0); al = 0.92; }
-        else if (depth < surf + 0.025 && h21(t + floor(uTime * 2.0)) > 0.75) { c = mix(c, vec3(0.95, 0.98, 1.0), 0.4); al = max(al, 0.6); }
         // 结冰：淡蓝白的冰面，一道道白的裂纹；冰从岸边往里结
         if (uIce > 0.02 && h21(floor(t / 2.0) + 2.3) < uIce * (1.2 - depth * 0.6)) {
           c = vec3(0.8, 0.9, 0.97) * (0.95 + 0.05 * h21(floor(t / 3.0)));

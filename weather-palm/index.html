@@ -512,9 +512,11 @@ const cloudShapes = new Map();
 
 // ---------- 岩浆、冷却的石头、沙子：每格一根方块柱 ----------
 const MCELL = MT.MC, BOX = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-const MMAX = 3000;
+// 堆出来的东西一格一个整方块（和地形同一个 1.6 mm 网格），每个面 4×4 像素的贴图——像方块游戏里的沙块、土块
+const PILE_BOX = BOX.clone(); PILE_BOX.setAttribute('aPat', new THREE.Float32BufferAttribute(new Float32Array(PILE_BOX.attributes.position.count).fill(7), 1));
+const MMAX = 16000;
 // 冷下来的岩浆石：深灰方块；刚凝的还有余热——石头里一道道裂缝透着橙红（细胞噪声的缝），余热退了缝就暗下去
-const rockGeo = BOX.clone(); const rockEmber = new THREE.InstancedBufferAttribute(new Float32Array(3000), 1).setUsage(THREE.DynamicDrawUsage); rockGeo.setAttribute('aEmber', rockEmber);
+const rockGeo = PILE_BOX.clone(); const rockEmber = new THREE.InstancedBufferAttribute(new Float32Array(MMAX), 1).setUsage(THREE.DynamicDrawUsage); rockGeo.setAttribute('aEmber', rockEmber);
 const rockMat = blockM(0, { color: 0x6a6670 }, 'basalt');
 { const b0 = rockMat.onBeforeCompile; rockMat.onBeforeCompile = sh => { b0(sh);
   sh.vertexShader = 'attribute float aEmber; varying float vEm; varying vec3 vWP;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -529,10 +531,10 @@ const rockMat = blockM(0, { color: 0x6a6670 }, 'basalt');
       diffuseColor.rgb = mix(diffuseColor.rgb * (1.0 - 0.15 * vEm), hot * 1.4, vein * min(1.0, vEm * 1.5));
     }`); }; }
 const rockMesh = inst(rockGeo, rockMat, MMAX, 'basalt'); rockMesh.count = 0;   // 冷下来的岩浆：深灰的石头（贴图是默认细纹）
-const sandMesh = inst(BOX, blockM(0, { color: 0xdccd9a }, 'sand'), MMAX, 'sandPile'); sandMesh.count = 0;
+const sandMesh = inst(PILE_BOX, blockM(0, { color: 0xecd9a0 }, 'sand'), MMAX, 'sandPile'); sandMesh.count = 0; sandMesh.setColorAt(0, new THREE.Color(1, 1, 1));
 // 土（沙子泡水、石头风化来的）：棕色，长了草变绿；玻璃（岩浆烧沙子）：透青的亮块
-const soilMesh = inst(BOX, blockM(0, { color: 0xffffff }, 'soil'), MMAX, 'soilPile'); soilMesh.count = 0; soilMesh.setColorAt(0, new THREE.Color(1, 1, 1));
-const glassMesh = inst(BOX, blockM(0, { color: 0xa8ece2, transparent: true, opacity: 0.82 }, 'glass'), MMAX, 'glassPile'); glassMesh.count = 0;
+const soilMesh = inst(PILE_BOX, blockM(0, { color: 0xffffff }, 'soil'), MMAX, 'soilPile'); soilMesh.count = 0; soilMesh.setColorAt(0, new THREE.Color(1, 1, 1));
+const glassMesh = inst(PILE_BOX, blockM(0, { color: 0xa8ece2, transparent: true, opacity: 0.82 }, 'glass'), MMAX, 'glassPile'); glassMesh.count = 0; glassMesh.setColorAt(0, new THREE.Color(1, 1, 1));
 const SOIL_C = new THREE.Color('#a8805a'), GRASS_C = new THREE.Color('#8cc052'), _sc = new THREE.Color();
 // ---------- 流体面：岩浆和地表水不是方块柱，而是一张贴着地形顺滑铺开的薄面 ----------
 // （整个世界都是方块，只有流动的东西是顺滑的——这样一眼就分得出"会流的"和"不会动的"）
@@ -641,20 +643,47 @@ const surfWaterMat = new THREE.ShaderMaterial({
     }`,
 });
 const surfWater = fluidSheet(surfWaterMat, 'surfaceWater'); surfWater.renderOrder = 2;
+// 堆积物按地形的方块网格码：每个地形格（1.6 mm）在物质格之间双线性取各层厚度，层顶取整到整方块，
+// 从这一格地形方块的顶上一块块往上叠（石头 → 玻璃 → 土 → 沙）。只画露在外面的方块（被四邻挡死的内部不画）。
+const BK = A.B, NGB = A.NG, pileLv = new Int16Array(NGB * NGB * 5), pileTop = new Int16Array(NGB * NGB), _pm = new THREE.Matrix4();
+function bil(f, x, z) {
+  const MG = MT.MG, u = (x + MT.R) / MCELL - 0.5, v = (z + MT.R) / MCELL - 0.5, i = Math.floor(u), j = Math.floor(v), a = u - i, b = v - j;
+  const g = (ii, jj) => ii < 0 || jj < 0 || ii >= MG || jj >= MG ? 0 : f[jj * MG + ii];
+  return (g(i, j) * (1 - a) + g(i + 1, j) * a) * (1 - b) + (g(i, j + 1) * (1 - a) + g(i + 1, j + 1) * a) * b;
+}
+const jit = (i, j, a) => { const s = Math.sin(i * 12.9898 + j * 78.233 + a * 37.719) * 43758.5453; return 0.97 + 0.1 * (s - Math.floor(s)); };   // 每块一点色差
 function updateMatterMeshes() {
   let nr = 0, ns = 0, no = 0, ng = 0;
-  const q = v => Math.max(A.TX * 2, Math.round(v / (A.TX * 2)) * A.TX * 2);   // 高度按两个贴图像素取整
-  const put = (m, i, y, h) => { dummy.position.set(dummy.position.x, y, dummy.position.z); dummy.rotation.set(0, 0, 0); dummy.scale.set(MCELL, h, MCELL); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix); };
-  for (let k = 0; k < MT.MG * MT.MG; k++) {
-    const rk = mt.rock[k], gl = mt.glass[k], sl = mt.soil[k], sd = mt.sand[k], lv = mt.lava[k];
-    if (rk < 2e-5 && gl < 2e-5 && sl < 2e-5 && sd < 2e-5 && lv < 2e-5) continue;
-    const [x, z] = MT.center(k % MT.MG, (k / MT.MG) | 0); let y = mt.base[k];
-    dummy.position.x = x; dummy.position.z = z;
-    // 从下往上：石头、玻璃、土、沙、岩浆
-    if (rk >= 2e-5 && nr < MMAX) { put(rockMesh, nr, y - 0.0004, q(rk) + 0.0004); rockEmber.setX(nr++, mt.ember[k]); } y += rk;   // 刚凝的石头：余热发红
-    if (gl >= 2e-5 && ng < MMAX) put(glassMesh, ng++, y - 0.0002, q(gl) + 0.0002); y += gl;
-    if (sl >= 2e-5 && no < MMAX) { put(soilMesh, no, y - 0.0002, q(sl) + 0.0002); soilMesh.setColorAt(no++, _sc.copy(SOIL_C).lerp(GRASS_C, mt.grass[k])); } y += sl;
-    if (sd >= 2e-5 && ns < MMAX) put(sandMesh, ns++, y - 0.0002, q(sd) + 0.0002); y += sd;
+  const MG = MT.MG; let i0 = MG, i1 = -1, j0 = MG, j1 = -1;
+  for (let k = 0; k < MG * MG; k++) if (mt.rock[k] + mt.glass[k] + mt.soil[k] + mt.sand[k] >= 2e-5) { const i = k % MG, j = (k / MG) | 0; if (i < i0) i0 = i; if (i > i1) i1 = i; if (j < j0) j0 = j; if (j > j1) j1 = j; }
+  if (i1 >= 0) {
+    const toB = c => Math.floor(c * MCELL / BK);
+    const bi0 = Math.max(0, toB(i0 - 1) - 1), bi1 = Math.min(NGB - 1, toB(i1 + 2) + 1), bj0 = Math.max(0, toB(j0 - 1) - 1), bj1 = Math.min(NGB - 1, toB(j1 + 2) + 1);
+    const LAYERS = [mt.rock, mt.glass, mt.soil, mt.sand];
+    for (let bj = bj0; bj <= bj1; bj++) for (let bi = bi0; bi <= bi1; bi++) {
+      const x = -MT.R + (bi + 0.5) * BK, z = -MT.R + (bj + 0.5) * BK, kb = bj * NGB + bi, o = kb * 5, base = Math.round(H(x, z) / BK);
+      const inIsle = Math.hypot(x, z) < MT.R - BK * 0.3;
+      let c = 0; pileLv[o] = base;
+      for (let L = 0; L < 4; L++) { if (inIsle) c += bil(LAYERS[L], x, z); pileLv[o + L + 1] = base + Math.round(c / BK); }
+      pileTop[kb] = pileLv[o + 4];
+    }
+    const nTop = (bi, bj) => bi < bi0 || bj < bj0 || bi > bi1 || bj > bj1 ? -9999 : pileTop[bj * NGB + bi];
+    const meshes = [rockMesh, glassMesh, soilMesh, sandMesh], cnt = [0, 0, 0, 0];
+    for (let bj = bj0 + 1; bj < bj1; bj++) for (let bi = bi0 + 1; bi < bi1; bi++) {
+      const kb = bj * NGB + bi, o = kb * 5, top = pileTop[kb]; if (top <= pileLv[o]) continue;
+      const lowest = Math.min(top - 1, nTop(bi + 1, bj), nTop(bi - 1, bj), nTop(bi, bj + 1), nTop(bi, bj - 1));   // 再往下的被四邻挡住了
+      const x = -MT.R + (bi + 0.5) * BK, z = -MT.R + (bj + 0.5) * BK, mk = MT.index(x, z);
+      for (let L = 0; L < 4; L++) for (let a = Math.max(pileLv[o + L], lowest); a < pileLv[o + L + 1]; a++) {
+        const n = cnt[L]; if (n >= MMAX) break; cnt[L]++;
+        meshes[L].setMatrixAt(n, _pm.makeScale(BK, BK, BK).setPosition(x, a * BK, z));
+        const j = jit(bi, bj, a);
+        if (L === 0) rockEmber.setX(n, mk >= 0 ? mt.ember[mk] : 0);   // 刚凝的石头：余热发红
+        else if (L === 1) glassMesh.setColorAt(n, _sc.setScalar(j));
+        else if (L === 2) soilMesh.setColorAt(n, _sc.copy(SOIL_C).lerp(GRASS_C, a === top - 1 && mk >= 0 ? mt.grass[mk] : 0).multiplyScalar(j));   // 草只长在最上面那块
+        else sandMesh.setColorAt(n, _sc.setScalar(j));
+      }
+    }
+    [nr, ng, no, ns] = cnt;
   }
   soilMesh.count = no; glassMesh.count = ng; doneInst(soilMesh); doneInst(glassMesh);
   rockMesh.count = nr; sandMesh.count = ns;
@@ -818,6 +847,21 @@ class PourStream {
   fade(dt) { if (!this.mesh.visible) return; this.a = Math.max(0, this.a - dt * 5); this.u.uA.value = this.a; if (this.a <= 0) this.mesh.visible = false; }
 }
 const pourStreams = [new PourStream(), new PourStream()];
+// 沙子倒下来：一块块和地上一样的小沙块（一个方块大），顺着弧线往下掉、越往下越快、越散；落地就并进沙堆
+const FALL_MAX = 600, fallBlocks = inst(PILE_BOX, blockM(0, { color: 0xecd9a0 }, 'sandFall'), FALL_MAX, 'sandFall'); fallBlocks.count = 0; fallBlocks.setColorAt(0, new THREE.Color(1, 1, 1));
+function sandFall(p, n, dt) {
+  const x0 = p.sx, z0 = p.sz, y0 = p.y, x1 = p.x, z1 = p.z, y1 = G0(x1, z1), hgt = Math.max(0.005, y0 - y1);
+  const m = Math.min(FALL_MAX - n, Math.round(hgt / 0.0012) * 3);
+  for (let i = 0; i < m; i++, n++) {
+    const u = (i * 0.618 + t * 1.3 + (i % 3) * 0.29) % 1, s2 = u * u;   // 下落加速
+    const hx = x0 + (x1 - x0) * Math.sqrt(s2), hz = z0 + (z1 - z0) * Math.sqrt(s2), spread = 0.0006 + 0.0022 * s2;
+    const ox = Math.sin(i * 12.9 + 1.7) * spread, oz = Math.cos(i * 7.3 + 0.4) * spread, sc = BK * (0.75 + 0.25 * ((i * 0.37) % 1));
+    fallBlocks.setMatrixAt(n, _pm.makeScale(sc, sc, sc).setPosition(hx + ox, y0 + (y1 - y0) * s2, hz + oz));
+    fallBlocks.setColorAt(n, _sc.setScalar(jit(i, 3, 1)));
+  }
+  if (rand() < dt * 8 && steams.length < 60) steams.push({ x: x1, z: z1, y: y1 + 0.002, age: 0, life: 0.8, s: 0.003, smoke: true });   // 落地扬一点尘
+  return n;
+}
 
 // ---------- 雨丝：每朵云 360 道，位置在顶点着色器里算 ----------
 const RAIN_PER = 360;
@@ -1363,8 +1407,8 @@ function frame(dt, render = true) {
     // 像倒水一样：出手时顺着手指方向有一点速度，落下来是一道弧；越高冲得越远
     let dx = st.px - st.x, dz = st.pz - st.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
     const fallH = Math.max(0.01, st.y - 0.02 - G0(sx, sz)), reach = Math.min(0.022, 0.12 * fallH + 0.004);
-    const STREAM = k === 'water' || k === 'lava' || k === 'sand';
-    const x = STREAM ? sx + dx * reach : sx, z = STREAM ? sz + dz * reach : sz;
+    const STREAM = k === 'water' || k === 'lava', ARC = STREAM || k === 'sand';
+    const x = ARC ? sx + dx * reach : sx, z = ARC ? sz + dz * reach : sz;
     const every = (sec) => { if (t - (emitT[k] ?? -9) < sec) return false; emitT[k] = t; return true; };
     if (k === 'lava' || k === 'sand') { MT.pour(mt, k, x, z, dt * 0.03 * s); if (k === 'lava' && rand() < dt * 3) sfx.lava(); }
     else if (k === 'seed') { if (every(0.17)) MT.pour(mt, 'seed', x, z, 0); }
@@ -1774,14 +1818,16 @@ function visuals(dt, Js, states) {
   }
   // 倒出来的流：水 / 岩浆 / 沙是一道流（PourStream），别的道具是一颗颗往下掉
   const liveStreams = new Set();
+  let nFall = 0;
   for (const p of pourFx) {
+    if (p.kind === 'sand') { nFall = sandFall(p, nFall, dt); continue; }
     if (p.stream) { const sIdx = Math.min(1, Math.max(0, p.id)); liveStreams.add(sIdx); pourStreams[sIdx].set(p, dt); continue; }
     const g = G0(p.x, p.z), col = { lava: [1, 0.55, 0.15], sand: [0.95, 0.85, 0.6], water: [0.45, 0.7, 1.0], smog: [0.55, 0.52, 0.42], food: [0.85, 0.3, 0.3], fish: [0.95, 0.55, 0.2], firefly: [0.75, 1.0, 0.4], flower: [0.95, 0.6, 0.8] }[p.kind] || [0.6, 0.9, 0.4];
     const hgt = p.y - g, nP = Math.max(3, Math.round(hgt / 0.006));   // 一颗颗往下掉（越往下越快），不是一根静止的柱子
     for (let n = 0; n < nP; n++) { const u = ((n * 0.618 + t * 1.6) % 1) ** 1.6, sw = Math.sin(n * 12.9 + t * 3) * 0.0012 * u; fx.add(p.x + sw, p.y - u * hgt, p.z - sw, p.kind === 'seed' ? 0.0022 : 0.003, ...col, 3); }
     if (p.kind === 'lava') fx.add(p.x, g + 0.003, p.z, 0.016, 0.35, 0.12, 0.02, 0);
   }
-  pourFx = [];
+  pourFx = []; fallBlocks.count = nFall; doneInst(fallBlocks);
   for (let i = 0; i < 2; i++) if (!liveStreams.has(i)) pourStreams[i].fade(dt);
   // 岩浆：上面一层橙红的光、零星火星往上飘
   for (let k = 0; k < MT.MG * MT.MG; k += 1) {
