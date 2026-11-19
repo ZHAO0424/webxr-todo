@@ -1077,9 +1077,6 @@ class HandViz {
 }
 const ghost = new HandViz('right'), deskHand = new HandViz('right');   // 示范手、桌面的手：同一种半透明手
 
-// 手的遮挡体：只写深度、不写颜色。黑 = 透明，所以被它挡住的虚拟物体会露出你的真手
-const occ = inst(new THREE.SphereGeometry(0.0105, 8, 6), new THREE.MeshBasicMaterial({ colorWrite: false }), 2 * 45, 'handOccluder');
-occ.renderOrder = -10; occ.count = 0;
 
 // ---------- 声音（Web Audio 实时合成） ----------
 let AC = null, OUT, SFX, MUS, NOISE, muted = false;
@@ -2174,16 +2171,7 @@ function visuals(dt, Js, states) {
   }
   // 桌面上的"手"：线框 + 影子（XR 里有真手就不画）
   deskHand.set(Js[2] || (TEST ? Js[0] : null), 0.55);   // 截图 / 自测里画注入的那只手
-  // 手的遮挡体：只在光学透视（additive，黑 = 透明）里用——挖出的洞露出真手。
-  // Quest 透视 / VR（alpha-blend、opaque）里挖洞 = 一只黑手，所以那里不挖洞、也不画手模型，直接看真手
-  let n = 0;
-  const blend = renderer.xr.isPresenting ? renderer.xr.getSession()?.environmentBlendMode : null, holes = blend === 'additive';
-  if (holes) for (let i = 0; i < 2; i++) {
-    const J = Js[i]; if (!J || inject[i]) continue;
-    for (let k = 0; k < 25; k++) { dummy.position.set(J[k * 3], J[k * 3 + 1], J[k * 3 + 2]); dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(k === 0 ? 2 : 1); dummy.updateMatrix(); occ.setMatrixAt(n++, dummy.matrix); }
-    for (const [a, b] of BONES.slice(0, 24)) { dummy.position.set((J[a * 3] + J[b * 3]) / 2, (J[a * 3 + 1] + J[b * 3 + 1]) / 2, (J[a * 3 + 2] + J[b * 3 + 2]) / 2); dummy.scale.setScalar(a === 0 ? 1.6 : 0.95); dummy.updateMatrix(); if (n < 90) occ.setMatrixAt(n++, dummy.matrix); }
-  }
-  occ.count = n; occ.instanceMatrix.needsUpdate = true;
+  // 头显里不画任何手：不画模型、也不用遮挡体挖洞（挖洞在 Quest 透视里是一只黑手），直接看真手
   // 底座亮边
   flashRim = Math.max(0, flashRim - dt * 1.5);
   terrainMat.uniforms.uFlash.value = Math.max(terrainMat.uniforms.uFlash.value, flashRim * 0.6);
