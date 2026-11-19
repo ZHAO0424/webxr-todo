@@ -70,8 +70,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -1007,75 +1005,6 @@ class Icons {
 }
 const icons = new Icons(64);
 
-// ---------- 手的线框（教学示范手 / 桌面上的"手"） ----------
-const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [8, 9], [0, 10], [10, 11], [11, 12], [12, 13], [13, 14], [0, 15], [15, 16], [16, 17], [17, 18], [18, 19], [0, 20], [20, 21], [21, 22], [22, 23], [23, 24], [6, 11], [11, 16], [16, 21]];
-// 半透明手模型：和其他项目（星轨对决等）同一套——WebXR Input Profiles 的 generic-hand（MIT，见 assets/hands/LICENSE.md）
-// + 菲涅尔边缘光（白底、边缘 (0.5, 0.72, 1)、不透明度 ≈0.35、不写深度，参照 VITURE SDK 的 M_VitureHands）。
-// 这里不靠 XRHand：25 个关节（岛坐标）直接摆骨头——鼠标的合成手、教学示范手都能用
-const HAND_RIM = new THREE.Color(0.5, 0.72, 1);
-const handMat = () => new THREE.ShaderMaterial({
-  uniforms: { uBase: { value: new THREE.Color(1, 1, 1) }, uRim: { value: HAND_RIM.clone() }, uRimStrength: { value: 1 }, uOpacity: { value: 0.35 } },
-  vertexShader: `
-    #include <common>
-    #include <skinning_pars_vertex>
-    varying vec3 vNormal; varying vec3 vView;
-    void main() {
-      #include <skinbase_vertex>
-      #include <beginnormal_vertex>
-      #include <skinnormal_vertex>
-      #include <begin_vertex>
-      #include <skinning_vertex>
-      vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
-      vNormal = normalize(normalMatrix * objectNormal); vView = normalize(-mvPosition.xyz);
-      gl_Position = projectionMatrix * mvPosition;
-    }`,
-  fragmentShader: `
-    uniform vec3 uBase, uRim; uniform float uRimStrength, uOpacity; varying vec3 vNormal; varying vec3 vView;
-    void main() {
-      float fresnel = pow(1.0 - abs(dot(normalize(vNormal), normalize(vView))), 3.0);
-      vec3 color = uBase * 0.55 + uRim * fresnel * uRimStrength;
-      gl_FragColor = vec4(color, clamp(uOpacity * (0.55 + fresnel * 1.6 * uRimStrength), 0.0, 1.0));
-      #include <colorspace_fragment>
-    }`,
-  transparent: true, depthWrite: false,
-});
-const handAssets = {};
-const handLoader = new GLTFLoader().setPath('assets/hands/');
-for (const side of ['left', 'right']) handLoader.load(`${side}.glb`, g => { handAssets[side] = g; }, undefined, e => console.warn('手模型没加载上', side, e));
-const _hz = new V3(), _hy = new V3(), _hx = new V3(), _hm = new THREE.Matrix4();
-class HandViz {
-  constructor(side = 'right') { this.side = side; this.root = null; this.bones = null; this.mat = handMat(); }
-  build() {
-    const g = handAssets[this.side]; if (!g) return false;
-    this.root = SkeletonUtils.clone(g.scene.children[0]);
-    const mesh = this.root.getObjectByProperty('type', 'SkinnedMesh');
-    mesh.material = this.mat; mesh.frustumCulled = false; mesh.renderOrder = 40;
-    this.bones = JOINTS.map(n => this.root.getObjectByName(n));
-    this.root.visible = false; this.root.name = 'handViz'; world.add(this.root);
-    return true;
-  }
-  // J：25 个关节（岛坐标），a：0–1 显隐
-  set(J, a = 1) {
-    if (!this.root && !this.build()) return;
-    if (!J || a <= 0.01) { this.root.visible = false; return; }
-    this.root.visible = true;
-    this.mat.uniforms.uOpacity.value = 0.35 * a;
-    // 每节骨头的朝向照 WebXR 的约定：−Z 顺着骨头指向指尖，+Y 朝手背
-    const f = features(J, this.side), up = new V3(-f.n[0], -f.n[1], -f.n[2]);
-    const P = k => new V3(J[k * 3], J[k * 3 + 1], J[k * 3 + 2]);
-    for (let k = 0; k < 25; k++) {
-      const bone = this.bones[k]; if (!bone) continue;
-      const p = P(k);
-      const tipEnd = k % 5 === 4 && k > 0;
-      const nxt = k === 0 ? P(10) : tipEnd ? p.clone().multiplyScalar(2).sub(P(k - 1)) : P(k + 1);
-      _hz.copy(p).sub(nxt).normalize();                      // +Z 朝手腕方向（−Z 朝指尖）
-      _hx.copy(up).cross(_hz).normalize(); _hy.copy(_hz).cross(_hx).normalize();
-      _hm.makeBasis(_hx, _hy, _hz);
-      bone.position.copy(p); bone.quaternion.setFromRotationMatrix(_hm);
-    }
-  }
-}
-const ghost = new HandViz('right'), deskHand = new HandViz('right');   // 示范手、桌面的手：同一种半透明手
 
 
 // ---------- 声音（Web Audio 实时合成） ----------
@@ -2129,8 +2058,6 @@ function visuals(dt, Js, states) {
   updateAnimals(dt);
 
   // 请求气泡
-  const order = ['rain', 'sun', 'wind', 'storm'];
-  let ghostOn = false;
   for (const r of w.requests) {
     // 不再悬一个方框挡住岛：地上一圈光点圈出需要的地方（完成多少就点亮多少颗），上面低低地浮一个小图标
     const a = Math.min(1, (w.t - r.t0) * 2), g0 = G0(r.x, r.z), prog = clamp(r.p, 0, 1);
@@ -2142,10 +2069,7 @@ function visuals(dt, Js, states) {
       fx.add(px, Math.max(g0, G0(px, pz)) + 0.003, pz, on ? 0.0022 : 0.0016, rc[0] * k, rc[1] * k, rc[2] * k, 3);
     }
     icons.add(r.x, g0 + 0.015 + Math.sin(t * 2 + r.id) * 0.0015, r.z, ICON_OF[r.type], 0.011, a * 0.85);
-    // 教学：第一次请求某种天气、还没用过对应手势 → 浮出示范手
-    if (!ghostOn && !performed.has(r.type === 'storm' ? 'storm' : r.type === 'shade' ? 'shade' : r.type) && (order.includes(r.type) || r.type === 'shade')) { ghostOn = true; showGhost(r); }
   }
-  if (!ghostOn || renderer.xr.isPresenting) ghost.set(null);   // 头显里不画示范手（只留地上的光圈和图标）
   pops = pops.filter(p => (p.age += dt) < (p.fish ? 0.7 : 1.4));
   for (const p of pops) {
     if (p.fish) { const u = p.age / 0.7, wy = waterY(p.x, p.z), y = wy + Math.sin(u * Math.PI) * 0.012; fx.add(p.x + u * 0.008, y, p.z, 0.004, 0.6, 0.9, 1, 3); if (u > 0.9) fx.add(p.x + 0.008, wy, p.z, 0.008, 0.3, 0.6, 0.8, 1); continue; }
@@ -2170,23 +2094,12 @@ function visuals(dt, Js, states) {
     if (st.mode === 'sun') { const k = st.strength; fx.add(st.x, st.y + 0.02, st.z, 0.04 * k, 0.6 * k, 0.45 * k, 0.15 * k, 0); fx.add(st.x, st.y + 0.02, st.z, 0.025 * k, 0.9 * k, 0.75 * k, 0.4 * k, 2); }
   }
   // 桌面上的"手"：线框 + 影子（XR 里有真手就不画）
-  deskHand.set(Js[2] || (TEST ? Js[0] : null), 0.55);   // 截图 / 自测里画注入的那只手
   // 头显里不画任何手：不画模型、也不用遮挡体挖洞（挖洞在 Quest 透视里是一只黑手），直接看真手
   // 底座亮边
   flashRim = Math.max(0, flashRim - dt * 1.5);
   terrainMat.uniforms.uFlash.value = Math.max(terrainMat.uniforms.uFlash.value, flashRim * 0.6);
 
   fx.end(); cloudFx.end(); icons.end();
-}
-function showGhost(r) {
-  const y0 = H(r.x, r.z), ph = (t % 2.4) / 2.4;
-  let J;
-  if (r.type === 'rain') J = pose('down', [r.x, y0 + 0.12 + Math.sin(t * 2) * 0.006, r.z]);
-  else if (r.type === 'sun') J = pose('up', [r.x, y0 + 0.1 + Math.sin(t * 2) * 0.006, r.z]);
-  else if (r.type === 'wind') { const x = r.x - 0.05 + ph * 0.1; J = synthHand({ pos: [x, y0 + 0.08, r.z], n: [0.8, -0.1, 0.55], f: [0, 1, -0.25], curl: 0.08 }); }   // 立掌、掌心半朝你，横着扫
-  else if (r.type === 'storm') J = pose(ph < 0.55 ? 'fist' : 'down', [r.x, y0 + 0.11, r.z]);
-  else { const sp = sunPos().normalize(); J = pose('down', [r.x + sp.x * 0.1, y0 + 0.1, r.z + sp.z * 0.1]); }
-  ghost.set(J, 0.55 + 0.45 * Math.sin(t * 3) ** 2);
 }
 function mulberry(a) { return () => { let t = (a += 0x6D2B79F5); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function xrCamPos() { return renderer.xr.isPresenting ? new V3().setFromMatrixPosition(renderer.xr.getCamera().matrixWorld) : camera.position.clone(); }
