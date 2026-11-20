@@ -284,8 +284,13 @@ const KIND_NAME = { [S.T.OUT]: 'out', [S.T.WATER]: 'water', [S.T.FOREST]: 'fores
 const mt = MT.createMatter((x, z) => H(x, z), (x, z) => KIND_NAME[S.cellType(x, z)]);
 const pond = PD.createPond();   // 积水里的水草和鱼（pond.js）
 const restore = RS.createRestore();   // 岩浆、火毁掉的地方恢复了多少（restore.js）
-const dams = DM.createDams(mt, S.LAYOUT.rivers, S.riverAlong);   // 溪被堵住：下游断流、上游憋水漫出去（dam.js）
-const cutAt = (x, z) => { const a = S.riverAlong(x, z); return a.ri >= 0 && a.s >= dams.cut[a.ri]; };   // 这一点的溪被坝截断了吗
+const rivers = DM.createRivers(mt, S.LAYOUT.rivers, S.riverAlong);   // 活的溪：流量一节节往下走，堵住挡住水路（dam.js）
+const QW = Math.max(...rivers.paths.map(p => p.length)), qData = new Uint8Array(QW * 3);
+const qTex = new THREE.DataTexture(qData, QW, 3, THREE.RedFormat, THREE.UnsignedByteType); qTex.unpackAlignment = 1; qTex.magFilter = qTex.minFilter = THREE.NearestFilter;
+waterU.uQ.value = qTex; waterU.uQW.value = QW; waterU.uQSP.value = DM.SP;
+const riverQ = (x, z) => { const a = S.riverAlong(x, z); return a.ri >= 0 ? DM.qAt(rivers, a.ri, a.s) : 1; };   // 这一点溪里的流量
+function pushQ() { rivers.q.forEach((q, r) => { for (let i = 0; i < q.length; i++) qData[r * QW + i] = Math.min(255, q[i] * 127.5); }); qTex.needsUpdate = true; }
+pushQ();
 const fillData = new Uint8Array(MT.MG * MT.MG);
 const fillTex = new THREE.DataTexture(fillData, MT.MG, MT.MG, THREE.RedFormat, THREE.UnsignedByteType);
 fillTex.unpackAlignment = 1; fillTex.magFilter = fillTex.minFilter = THREE.NearestFilter; fillTex.needsUpdate = true;
@@ -1478,16 +1483,16 @@ function frame(dt, render = true) {
     const env = { rain: (x, z) => { const k = S.cellIndex(x, z); return k >= 0 ? w.rainCell[k] : 0; }, wet: (x, z) => { const k = S.cellIndex(x, z); return k >= 0 ? w.M[k] : 0; }, wind: w.wind, sun: Math.max(0.2, w.sun),
       fuel: (x, z) => { const k = S.cellIndex(x, z); if (k < 0) return 0; const ty = w.type[k]; return ty === S.T.FOREST ? Math.min(1, w.G[k] * 1.25) : (ty === S.T.GRASS || ty === S.T.FLOWER || ty === S.T.MARSH) ? w.G[k] * 0.8 : 0; } };   // 能烧多少 = 实际长了多少
     env.lit = litAt;
-    DM.stepDams(dams, mt, S.DT, { flow: w.water, frozen: w.ice > 0.5 });
+    DM.stepRivers(rivers, mt, S.DT, { flow: w.water, frozen: w.ice > 0.5 });
     for (const wh of w.whirls) {   // 旋风卷沙：脚下的沙子被卷起来，甩到 2–3 cm 外落下
       const k = MT.index(wh.x, wh.z); if (k < 0) continue;
       const c = Math.min(mt.sand[k], S.DT * 0.0004); if (c <= 0) continue;
       mt.sand[k] -= c; const an = rand(0, TAU), d = rand(0.02, 0.03), k2 = MT.index(wh.x + Math.cos(an) * d, wh.z + Math.sin(an) * d);
       if (k2 >= 0 && mt.kind[k2]) mt.sand[k2] += c; matterDirty = true;
     }
-    for (const e of dams.events) if (e.type === 'dammed') sfx.hiss?.();
-    dams.events.length = 0;
-    waterU.uCut.value.set(...dams.cut.map(c => Math.min(9, c)));
+    for (const e of rivers.events) if (e.type === 'dammed') sfx.hiss?.();
+    rivers.events.length = 0;
+    pushQ();
     env.frozen = w.ice > 0.5;
     MT.step(mt, S.DT, env);
     PD.stepPond(pond, mt, S.DT, { sun: w.sun, lit: litAt, frozen: w.ice > 0.5 });
@@ -1613,7 +1618,7 @@ function updateReactors(dt, nightK) {
   const strikes = []; if (w.stats.strikes > rxStrikes && w.lastStrike) strikes.push(w.lastStrike); rxStrikes = w.stats.strikes;
   const sp = sunPos();
   const env = {
-    wind: w.wind, whirls: w.whirls, strikes, sunYaw: Math.atan2(sp.x, sp.z), sun: w.sun, sunBoost: w.sunBoost, night: nightK, ice: w.ice, river: rx.wheels[0] && cutAt(rx.wheels[0].x, rx.wheels[0].z) ? 0 : w.water,
+    wind: w.wind, whirls: w.whirls, strikes, sunYaw: Math.atan2(sp.x, sp.z), sun: w.sun, sunBoost: w.sunBoost, night: nightK, ice: w.ice, river: rx.wheels[0] ? w.water * Math.min(1, riverQ(rx.wheels[0].x, rx.wheels[0].z) / 0.6) : w.water,
     rain: (x, z) => cellOf(w.rainCell, x, z), wet: (x, z) => cellOf(w.M, x, z), snow: (x, z) => cellOf(w.snow, x, z), smog: (x, z) => cellOf(w.smog, x, z),
     lava: (x, z) => mtAt(mt.lava, x, z, 0.0004), fire: (x, z) => mtAt(mt.fire, x, z, 1), food: w.food, groundY: (x, z) => G0(x, z),
   };
@@ -2225,7 +2230,7 @@ function visuals(dt, Js, states) {
   }
   // 小瀑布：每级台阶往下跌的地方冒白沫，水大沫多
   for (const [i, f] of FALLS.entries()) {
-    if (cutAt(f.x, f.z)) continue;   // 坝下游断流了：没有瀑布沫
+    if (riverQ(f.x, f.z) < 0.1) continue;   // 这段溪干了：没有瀑布沫
     const n = 2 + Math.round(waterU.uWater.value * 3);
     for (let k = 0; k < n; k++) {
       const ph = (t * 1.6 + k / n + i * 0.37) % 1, wy = f.y + 0.0012 + 0.0032 * waterU.uWater.value;

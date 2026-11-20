@@ -42,7 +42,7 @@ export function createMatter(heightFn, kindFn) {
     lava: new Float32Array(n), heat: new Float32Array(n), rock: new Float32Array(n), sand: new Float32Array(n),
     ember: new Float32Array(n), fire: new Float32Array(n), fuel: new Float32Array(n), burnt: new Uint8Array(n), filled: new Uint8Array(n),
     soil: new Float32Array(n), glass: new Float32Array(n), grass: new Float32Array(n), soak: new Float32Array(n),   // 土、玻璃的厚度；土上的草 0–1；沙子 / 石头泡水泡了多久 0–1
-    water: new Float32Array(n), flow: new Float32Array(n), soaked: new Float32Array(n),   // 地表水厚度、这一步流过多少（画水流用）、渗进土里多少（给 sim 加湿度，外面读完清零）
+    water: new Float32Array(n), flow: new Float32Array(n), soaked: new Float32Array(n), absorbed: new Float32Array(n),   // absorbed：这格（湖 / 溪）吞掉了多少地表水（dam.js 读完清零：漫回河道的水）   // 地表水厚度、这一步流过多少（画水流用）、渗进土里多少（给 sim 加湿度，外面读完清零）
     saplings: [], events: [], t: 0, seed: 12345, stats: { steam: 0, burnt: 0, filled: 0, toLake: 0, spilled: 0, soaked: 0 },
   };
   const K = { out: 0, water: 2, forest: 3, grass: 4, flower: 4, marsh: 4, rock: 5, snow: 5, beach: 1 };
@@ -227,7 +227,7 @@ function stepWater(m, dt, rain, wet0, wind, sun) {
   m.flow.fill(0);
   // 湖、河吞掉流进来的水；岛外清零；下雨时地湿透了（或是石头）吸不动，多出来的在地面上汇成水
   for (let k = 0; k < n; k++) {
-    if (m.kind[k] === 2 && !m.filled[k]) { if (W[k] > 0) { m.stats.toLake += W[k]; W[k] = 0; } continue; }
+    if (m.kind[k] === 2 && !m.filled[k]) { if (W[k] > 0) { m.stats.toLake += W[k]; m.absorbed[k] += W[k]; W[k] = 0; } continue; }
     if (!m.kind[k]) { W[k] = 0; continue; }
     const [x, z] = center(k % MG, (k / MG) | 0), r = rain(x, z);
     if (r > 0.05) { const sat = m.kind[k] === 5 ? 1 : Math.max(0, (wet0(x, z) - 0.6) / 0.4); W[k] += dt * r * 0.00012 * (0.15 + 0.85 * sat); }
@@ -264,7 +264,7 @@ function stepWater(m, dt, rain, wet0, wind, sun) {
       if (dS[k]) m.sand[k] = Math.max(0, m.sand[k] + dS[k]);
     }
     // 流进湖河的这一小步就并进去
-    for (let k = 0; k < n; k++) if (W[k] > 0 && m.kind[k] === 2 && !m.filled[k]) { m.stats.toLake += W[k]; W[k] = 0; }
+    for (let k = 0; k < n; k++) if (W[k] > 0 && m.kind[k] === 2 && !m.filled[k]) { m.stats.toLake += W[k]; m.absorbed[k] += W[k]; W[k] = 0; }
   }
   for (let k = 0; k < n; k++) {
     if (W[k] <= 0) continue;

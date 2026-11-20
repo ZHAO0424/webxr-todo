@@ -558,13 +558,14 @@ export function buildWater(shared) {
   g.setAttribute('aRi', new THREE.Float32BufferAttribute(riA, 1)); g.setAttribute('aS', new THREE.Float32BufferAttribute(sA, 1));
   g.setIndex(idx);
   const u = { uIce: { value: 0 }, uWater: { value: 0.3 }, uRain: { value: 0 }, uTime: shared.uTime, uFill: { value: null }, uR: { value: S.R }, uLight: { value: new THREE.Color(1, 1, 1) },
-    uCam: { value: new THREE.Vector3(0, 0.4, 0.4) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunK: { value: 1 }, uWind: { value: new THREE.Vector2() }, uCut: { value: new THREE.Vector3(9, 9, 9) } };   // uCut：每条溪从多远开始断流（dam.js）
+    uCam: { value: new THREE.Vector3(0, 0.4, 0.4) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunK: { value: 1 }, uWind: { value: new THREE.Vector2() }, uQ: { value: null }, uQW: { value: 1 }, uQSP: { value: 1 } };   // uQ：每条溪沿途的流量（dam.js，一行一条溪），uQW 宽、uQSP 取样间距
   const mat = new THREE.ShaderMaterial({
     uniforms: u, transparent: true, side: THREE.DoubleSide, depthWrite: false,
-    vertexShader: `attribute float aD, aPond, aV, aRi, aS; uniform float uWater; uniform vec3 uCut; varying float vD, vPond, vCov, vV, vDry; varying vec3 vP;
+    vertexShader: `attribute float aD, aPond, aV, aRi, aS; uniform float uWater, uQW, uQSP; uniform sampler2D uQ; varying float vD, vPond, vCov, vV, vDry; varying vec3 vP;
       void main() {
-        vDry = aRi < -0.5 ? 0.0 : aS - (aRi < 0.5 ? uCut.x : aRi < 1.5 ? uCut.y : uCut.z);   // > 0：堵住的坝下游，不画
-        float cov = aPond > 0.5 ? 0.82 + 0.32 * uWater : 0.0034 + 0.0062 * uWater;
+        float q = aRi < -0.5 ? 1.0 : texture(uQ, vec2((floor(aS / uQSP + 0.5) + 0.5) / uQW, (aRi + 0.5) / 3.0)).r * 2.0;   // 这一段的流量（0 干、≈0.6 平时）
+        vDry = smoothstep(0.03, 0.45, q);   // 0 = 干了
+        float cov = aPond > 0.5 ? 0.82 + 0.32 * uWater : (0.0034 + 0.0062 * uWater) * vDry;   // 水少了溪变窄，干了就没了
         vD = aD; vPond = aPond; vCov = cov; vV = aV;
         vec3 p = position; p.y += 0.0009 + 0.0032 * uWater; vP = p;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
@@ -575,7 +576,7 @@ export function buildWater(shared) {
       uniform float uTime, uRain, uR, uIce, uSunK; uniform sampler2D uFill; uniform vec3 uLight, uCam, uSunDir; uniform vec2 uWind; varying float vD, vPond, vCov, vV, vDry; varying vec3 vP;
       const float TXS = ${TX.toFixed(6)};
       void main() {
-        if (vD > vCov || vDry > 0.0) discard;
+        if (vD > vCov || vDry < 0.02) discard;
         if (texture(uFill, (vP.xz + uR) / (2.0 * uR)).r > 0.5) discard;   // 被岩浆石、沙子填出来的陆地
         vec2 t = floor(vP.xz / TXS);
         vec2 q = (t + 0.5) * TXS;

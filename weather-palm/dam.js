@@ -1,86 +1,98 @@
-// 掌心气象台 · 堵溪：在溪里堆土 / 沙 / 石头堵住，下游断流，上游的水憋在坝前、涨起来、从旁边或坝顶漫过去（纯数据，Node 里能测）
+// 掌心气象台 · 活的溪：每条溪是一串"流量"，从泉眼一节节往下传；堵住就挡住水的路（纯数据，Node 里能测）
 //
-// 溪本身是固定画好的（sim 的布局），水不在物质格里流；堵住以后改成这样：
-//   1. 顺着每条溪从泉眼往下找：第一处溪床上堆的东西（土 + 沙 + 石 + 玻璃）超过 DAM_H 的地方就是坝；
-//   2. 坝前 BACK 米到下游的溪格子变成"干河床"（物质格的 kind 从 2 水 改成 1 陆地）：不再吞水，画面上那段溪也不画了；
-//   3. 泉水照样来：每秒往坝前 FEED 米那一格放一些地表水（溪水越满放得越多，结冰就不放）。
-//      地表水自己按高差流：在坝前积成一汪，涨过坝顶或从旁边低的地方漫出去，顺着旧河床往下淌；
-//      漫过土坝的急流会慢慢把坝冲开（matter.js 的冲刷）。坝没了，河床恢复成溪。
+// 溪画面上还是那几条固定的溪（sim 的布局），但水多少是活的：
+//   - 每条溪沿途每 SP 米一个取样点，存流量 q（0 = 干，1 ≈ 平时）。泉眼一直出水；每一步每个点的 q 朝"上一个点上一步的 q"
+//     靠近——所以水是一节节往下走的：堵住以后下游一段段慢慢干下去，坝没了一段段重新流起来，不是一刀截断。
+//   - 堵住：溪床上堆的东西（土 + 沙 + 石 + 玻璃）超过 DAM_H 的那个点挡住了水。流到坝前的水不再往下传，
+//     而是变成坝前的地表水（物质格 matter.js 里真的水）：积起来、涨、从坝顶或旁边低处漫出去、顺着地形自己找路。
+//   - 汇回：地表水流进下游的溪床（物质格里溪的格子会吞水），吞进去的水就加进那一段的流量——漫出去的水绕一圈回到河道，下游又流起来。
+//   - 坝上游的溪格子（连同流进它的支流）不吞水：坝前积的水就是水库，会一直往上游涨，不会被河道吞回去又放出来。
+//   - 支流的流量在汇流口加进主流。结冰：流量冻住不动、也不往外放水。
 //
-// 用法：const d = createDams(m, rivers, along)；每 0.1 s stepDams(d, m, dt, { flow, frozen })。
-//   rivers 是 sim 的 LAYOUT.rivers（点列，第一个点是泉眼）；along(x,z) → { ri, s, d }（sim.riverAlong）。
-//   d.cut[ri]：这条溪从多远开始不画（没堵是 Infinity）。事件放在 d.events：dammed / undammed。
+// 用法：const d = createRivers(m, rivers, along)；每 0.1 s stepRivers(d, m, dt, { flow, frozen })。
+//   rivers：sim 的 LAYOUT.rivers（点列，第一个点是泉眼）；along(x,z) → { ri, s, d }（sim.riverAlong）。
+//   读 d.q[ri][i]（第 i 个取样点的流量）、d.dam[ri]（坝在哪个取样点，没堵是 -1）；qAt(d, ri, s)。
+//   需要 matter 把溪格子吞掉的水记在 m.absorbed[k]（本模块读完清零）。事件：dammed / undammed。
 
 import { MG, MC, center, index } from './matter.js';
 
-export const DAM_H = 0.0015;   // 溪床上堆了这么厚才算堵住
-const BACK = 0.03;             // 坝前多长一段变成"水库"（地表水在这里积起来）
-const FEED = 0.012;            // 泉水放在坝前多远
-const RIVER_W = 0.009;         // 离中线这么近的水格子才算溪（再远是湖）
+export const SP = MC * 0.5;      // 取样间距
+export const DAM_H = 0.0015;     // 溪床上堆了这么厚就挡住水
+export const V0 = 0.004;         // 流量 1 每秒相当于多少地表水（物质格的"厚度×格"单位；溪水比倒的水多得多，坝前一两分钟能涨起来）
+const RIVER_W = 0.009;           // 离中线这么近的水格子算溪（再远是湖）
+const FRONT = 6;                 // 每秒往前传多少个取样点（水头的速度 ≈ FRONT × SP）
 
-export function createDams(m, rivers, along) {
-  const n = MG * MG, ri = new Int8Array(n).fill(-1), s = new Float32Array(n);
+export function createRivers(m, rivers, along) {
+  const n = MG * MG, cellRi = new Int8Array(n).fill(-1), cellI = new Int32Array(n);
+  const paths = rivers.map(P => {
+    const pts = []; let seg = 0, segStart = 0;
+    const lens = P.slice(1).map((p, i) => Math.hypot(p[0] - P[i][0], p[1] - P[i][1])), total = lens.reduce((a, b) => a + b, 0);
+    for (let s = 0; s <= total; s += SP) {
+      while (seg < lens.length - 1 && s > segStart + lens[seg]) { segStart += lens[seg]; seg++; }
+      const t = Math.min(1, (s - segStart) / lens[seg]), [ax, az] = P[seg], [bx, bz] = P[seg + 1];
+      pts.push({ x: ax + (bx - ax) * t, z: az + (bz - az) * t, s });
+    }
+    return pts;
+  });
+  // 溪格子归哪条溪的哪个取样点（按最近的溪）
   for (let k = 0; k < n; k++) {
     if (m.kind[k] !== 2) continue;
     const [x, z] = center(k % MG, (k / MG) | 0), a = along(x, z);
-    if (a.ri >= 0 && a.d < RIVER_W) { ri[k] = a.ri; s[k] = a.s; }
+    if (a.ri >= 0 && a.d < RIVER_W) { cellRi[k] = a.ri; cellI[k] = Math.min(paths[a.ri].length - 1, Math.round(a.s / SP)); }
   }
-  // 每条溪沿途的取样点（半格一个）
-  const paths = rivers.map(P => {
-    const out = []; let acc = 0;
-    for (let i = 0; i < P.length - 1; i++) {
-      const [ax, az] = P[i], [bx, bz] = P[i + 1], L = Math.hypot(bx - ax, bz - az), nS = Math.max(1, Math.ceil(L / (MC * 0.5)));
-      for (let q = 0; q < nS; q++) { const t = q / nS; out.push({ x: ax + (bx - ax) * t, z: az + (bz - az) * t, s: acc + L * t }); }
-      acc += L;
-    }
-    return out;
+  // 支流汇进哪条溪的哪个点
+  const joins = paths.map((pts, r) => {
+    const e = pts[pts.length - 1]; let best = null;
+    paths.forEach((o, r2) => { if (r2 === r) return; o.forEach((p, i) => { const dd = Math.hypot(p.x - e.x, p.z - e.z); if (dd < 0.006 && (!best || dd < best.d)) best = { r: r2, i, d: dd }; }); });
+    return best;
   });
-  // 每个取样点周围（RIVER_W 内）是溪的那些格子：按每条溪自己的路径算干河床（汇流口附近的格子算到哪条溪都对）
-  for (const path of paths) for (const p of path) {
-    p.cells = [];
-    const i0 = Math.floor((p.x + 0.17) / MC), j0 = Math.floor((p.z + 0.17) / MC), rr = Math.ceil(RIVER_W / MC);
-    for (let dj = -rr; dj <= rr; dj++) for (let di = -rr; di <= rr; di++) {
-      const i = i0 + di, j = j0 + dj; if (i < 0 || j < 0 || i >= MG || j >= MG) continue;
-      const k = j * MG + i, [x, z] = center(i, j);
-      if (ri[k] >= 0 && Math.hypot(x - p.x, z - p.z) < RIVER_W) p.cells.push(k);
-    }
-  }
-  return { ri, s, paths, dam: rivers.map(() => Infinity), cut: rivers.map(() => Infinity), dry: new Uint8Array(n), want: new Uint8Array(n), events: [] };
+  return { paths, cellRi, cellI, joins, q: paths.map(p => new Float32Array(p.length).fill(1)), dam: paths.map(() => -1), held: paths.map(() => false), blockedCell: new Uint8Array(n), events: [] };
 }
 
 const piled = (m, k) => m.soil[k] + m.sand[k] + m.rock[k] + m.glass[k];
+export const qAt = (d, ri, s) => { const q = d.q[ri]; if (!q) return 1; return q[Math.max(0, Math.min(q.length - 1, Math.round(s / SP)))]; };
 
-export function stepDams(d, m, dt, env = {}) {
-  const flow = env.flow ?? 0.3;
-  d.paths.forEach((path, r) => {
-    let dam = Infinity;
-    for (const p of path) { if (p.s < 0.008) continue; const k = index(p.x, p.z); if (k >= 0 && piled(m, k) > DAM_H) { dam = p.s; break; } }
-    if ((dam === Infinity) !== (d.dam[r] === Infinity)) d.events.push({ type: dam === Infinity ? 'undammed' : 'dammed', ri: r });
-    d.dam[r] = dam; d.cut[r] = dam === Infinity ? Infinity : Math.max(0, dam - BACK);
-    // 泉水憋在坝前：放进地表水
-    if (dam !== Infinity && !env.frozen) {
-      const fs = Math.max(0, dam - FEED), p = path.reduce((b, q) => Math.abs(q.s - fs) < Math.abs(b.s - fs) ? q : b, path[0]), k = index(p.x, p.z);
-      if (k >= 0) m.water[k] += dt * 0.0012 * (0.3 + flow);
-    }
+export function stepRivers(d, m, dt, env = {}) {
+  const spring = 0.4 + 0.8 * (env.flow ?? 0.3), absorbed = m.absorbed;
+  // 1. 找坝
+  d.paths.forEach((pts, r) => {
+    let dam = -1;
+    for (let i = 3; i < pts.length; i++) { const k = index(pts[i].x, pts[i].z); if (k >= 0 && piled(m, k) > DAM_H) { dam = i; break; } }
+    if ((dam < 0) !== (d.dam[r] < 0)) d.events.push({ type: dam < 0 ? 'undammed' : 'dammed', ri: r });
+    d.dam[r] = dam;
   });
-  // 坝前到下游的溪格子：干河床（陆地），不吞水；没堵了恢复成溪
-  d.want.fill(0);
-  d.paths.forEach((path, r) => { if (d.cut[r] < Infinity) for (const p of path) if (p.s >= d.cut[r]) for (const k of p.cells) d.want[k] = 1; });
-  // 没堵的支流，汇流口落进了别的溪被截断的那段：它最后一小截也变成河床（不然它会把水库的水吞掉），水从那里流进水库
-  d.paths.forEach((path, r) => {
-    if (d.dam[r] !== Infinity) return;
-    const end = path[path.length - 1], k = index(end.x, end.z);
-    if (k >= 0 && d.want[k]) { d.cut[r] = Math.max(0, end.s - BACK); for (const p of path) if (p.s >= d.cut[r]) for (const kk of p.cells) d.want[kk] = 1; }
-  });
-  for (let k = 0; k < d.ri.length; k++) {
-    if (d.ri[k] < 0) continue;
-    if (d.want[k] && !d.dry[k]) { d.dry[k] = 1; m.kind[k] = 1; }
-    else if (!d.want[k] && d.dry[k]) { d.dry[k] = 0; m.kind[k] = 2; }
+  // 哪些溪的水被挡着（自己有坝，或汇进的那条溪在汇流口下游有坝）：它们坝前的格子不吞水（坝前的水库往上游涨）
+  d.paths.forEach((_, r) => { const j = d.joins[r]; d.held[r] = d.dam[r] >= 0 || (!!j && d.dam[j.r] > j.i); });
+  // 2. 溪格子吞掉的地表水 → 加到那个取样点的流量里（漫出去的水回到下游河道）
+  const add = d.paths.map(p => new Float32Array(p.length));
+  if (absorbed) for (let k = 0; k < absorbed.length; k++) {
+    const v = absorbed[k]; if (!v) continue; absorbed[k] = 0;
+    const r = d.cellRi[k]; if (r >= 0) add[r][d.cellI[k]] += v / (V0 * dt);
   }
-  // 没堵的支流：汇流口落在别的溪被截断的那段（干河床 / 水库）里 → 它的水也放进那里
-  if (!env.frozen) d.paths.forEach((path, r) => {
-    if (d.dam[r] !== Infinity) return;
-    const end = path[path.length - 1], k = index(end.x, end.z);
-    if (k >= 0 && d.dry[k]) m.water[k] += dt * 0.0012 * (0.3 + flow);
-  });
+  // 3. 被挡着的溪：坝前的格子不吞水（kind 2 → 1，记下来，恢复时改回）；坝下游照常吞水（汇回）
+  for (let k = 0; k < d.cellRi.length; k++) {
+    const r = d.cellRi[k]; if (r < 0) continue;
+    const hold = d.held[r] && (d.dam[r] < 0 || d.cellI[k] <= d.dam[r] + 1);
+    if (hold && !d.blockedCell[k]) { d.blockedCell[k] = 1; m.kind[k] = 1; }
+    else if (!hold && d.blockedCell[k]) { d.blockedCell[k] = 0; m.kind[k] = 2; }
+  }
+  if (env.frozen) return;
+  // 4. 往下传：每个点朝上一个点"上一步"的流量靠（一节节走）；支流先算，汇进主流
+  const order = d.paths.map((_, r) => r).sort((a, b) => (d.joins[a] ? 0 : 1) - (d.joins[b] ? 0 : 1));
+  const joinIn = d.paths.map(p => new Float32Array(p.length));
+  const k0 = Math.min(1, dt * FRONT);
+  for (const r of order) {
+    const q = d.q[r], old = q.slice(), dam = d.dam[r];
+    for (let i = 0; i < q.length; i++) {
+      let inflow = (i === 0 ? spring : old[i - 1]) + add[r][i] + joinIn[r][i];
+      if (dam >= 0 && i === dam) {   // 坝：水不往下走，放进坝前的地表水
+        const p = d.paths[r][Math.max(0, dam - 3)], kk = index(p.x, p.z);
+        if (kk >= 0) m.water[kk] += (old[Math.max(0, i - 1)] + joinIn[r][i]) * V0 * dt;
+        inflow = add[r][i];
+      }
+      q[i] += (Math.min(3, inflow) - q[i]) * k0;
+      if (q[i] < 0.002) q[i] = 0;
+    }
+    const j = d.joins[r]; if (j) joinIn[j.r][j.i] += q[q.length - 1];
+  }
 }
