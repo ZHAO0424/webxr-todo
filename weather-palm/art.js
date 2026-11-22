@@ -968,10 +968,10 @@ export function cloudCells(id, rCells = 7) {
   return out;
 }
 
-// ---------- 手里拿的工具：沙 / 土用小桶、水用水壶、岩浆用铁杯、铲子（体素：容器 1.36 mm 一格，铲子 0.88 mm） ----------
+// ---------- 手里拿的工具：沙 / 土用小桶、水用水壶、岩浆用铁杯、铲子（体素：容器 0.72 mm 一格，铲子 0.48 mm） ----------
 // 原点 = 手捏住的那一点；lip = 倒出来的口（局部坐标，米），倒的时候绕 z 轴往 +x 那边倾
 export function heldToolGeometry(kind) {
-  const V = kind === 'shovel' ? B * 0.55 : B * 0.85, box = [];
+  const V = kind === 'shovel' ? B * 0.3 : B * 0.45, box = [];   // 缩到原来的一半左右：小桶约 1 cm 宽、铲子约 2 cm 长
   const add = (x0, y0, z0, x1, y1, z1, c) => box.push([x0, y0, z0, x1, y1, z1, c]);
   let lip = [0, 0, 0];
   if (kind === 'sand' || kind === 'soil') {   // 红色的小沙桶（海边玩沙那种）：提手挂在手上，桶里装着沙 / 土

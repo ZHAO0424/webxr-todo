@@ -1529,7 +1529,7 @@ function frame(dt, render = true) {
     if (Math.hypot(px, pz) > R * 1.15 || py > 0.35) { held[i] = null; heldTilt[i] = 0; continue; }
     heldTilt[i] += ((trackers[i].mode === 'pinch' ? 1 : 0) - heldTilt[i]) * Math.min(1, dt * 10);
     const h = heldPose(kind, J, heldTilt[i]); h.kind = kind;
-    if (kind === 'shovel') { const gy = G0(h.lx, h.lz); if (h.ly < gy) { h.y += gy - h.ly; h.ly = gy; } h.reach = h.ly < gy + 0.006; }   // 铲尖顶到地面就停住（手往下按也穿不过地）；够得着地才能铲
+    if (kind === 'shovel') { const gy = G0(h.lx, h.lz); if (h.ly < gy) { h.y += gy - h.ly; h.ly = gy; } h.reach = h.ly < gy + 0.012; }   // 铲尖顶到地面就停住（手往下按也穿不过地）；铲尖离地 1.2 cm 内就能铲（铲子小了，别要求手贴得太低）
     held[i] = h;
   }
   const pinchUse = [];
