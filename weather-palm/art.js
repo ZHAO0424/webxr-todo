@@ -152,6 +152,9 @@ for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) {
   tq[j * NG + i] = S.cellType(x, z);
   sq[j * NG + i] = S.soilAt(x, z);
 }
+const hq0 = hq.slice(), dug = new Uint8Array(NG * NG);   // 原始高度（最多往下挖 DIG_MAX 块）；铲子挖过的格子（顶面露土）
+export const DIG_MAX = 4;
+export const dugAt = (x, z) => { const i = Math.floor((x + S.R) / CELL), j = Math.floor((z + S.R) / CELL); return i >= 0 && j >= 0 && i < NG && j < NG && dug[j * NG + i] === 1; };
 // 渲染层用的地面高度（和画出来的方块一致）
 export function H(x, z) {
   const i = Math.floor((x + S.R) / CELL), j = Math.floor((z + S.R) / CELL);
@@ -183,13 +186,17 @@ export const contact = {
   commit() { shadowTex.needsUpdate = true; },
 };
 
+// 地形分成 CH×CH 格一块：铲子挖一下只重建碰到的那几块（整座岛重建一次要几十毫秒，一块几毫秒）
+const CH = 54, NCH = Math.ceil(NG / CH);   // 4×4 块：多一块多一次 draw call，块太小 draw call 超预算
 export function buildTerrain(shared, SHADE_GLSL) {
-  const pos = [], nor = [], kind = [], ext = [], top = [], bot = [], idx = [];
+  let pos, nor, kind, ext, top, bot, idx;
   const quad = (p, n, k, e) => { const b = pos.length / 3; const tp = Math.max(...p.map(v => v[1])), bt = Math.min(...p.map(v => v[1])); for (const v of p) pos.push(...v); for (let i = 0; i < 4; i++) { nor.push(...n); kind.push(k); ext.push(e); top.push(tp); bot.push(bt); } idx.push(b, b + 1, b + 2, b, b + 2, b + 3); };
   const X = i => -S.R + i * CELL;
+  const used = new Uint8Array(NG * NG);
   const kindAt = (i, j) => {
     const t = tq[j * NG + i], h = hq[j * NG + i] - S.PLINTH;
     const q = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453, r = q - Math.floor(q), wob = (Math.sin(i * 0.7) + Math.sin(j * 0.9)) * 0.004 + (r - 0.5) * 0.006;
+    if (dug[j * NG + i]) return 11;   // 铲子挖开的：露出的土
     if (t === T.SNOW || t === T.ROCK || t === T.FOREST) {
       if (h + wob > 0.072) return 3;
       if (t !== T.FOREST && h + wob > 0.058) return 6;
@@ -202,14 +209,19 @@ export function buildTerrain(shared, SHADE_GLSL) {
     return kk;
   };
   // 顶面：二维贪心，同高同种类的拼成矩形
-  const KA = new Int8Array(NG * NG).fill(-1), used = new Uint8Array(NG * NG);
-  for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) if (!Number.isNaN(hq[j * NG + i])) { const kk = kindAt(i, j); KA[j * NG + i] = (kk <= 2 || kk >= 8) ? kk + 16 * sq[j * NG + i] : kk; }
+  const KA = new Int8Array(NG * NG).fill(-1);
+  const setKA = (i, j) => { if (Number.isNaN(hq[j * NG + i])) return; const kk = kindAt(i, j); KA[j * NG + i] = (kk <= 2 || kk >= 8) ? kk + 16 * sq[j * NG + i] : kk; };
+  for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) setKA(i, j);
   const same = (a, b) => KA[b] >= 0 && !used[b] && hq[b] === hq[a] && KA[b] === KA[a];
-  for (let j = 0; j < NG; j++) for (let i = 0; i < NG; i++) {
+  function chunkGeometry(c) {
+  const i0 = (c % NCH) * CH, j0 = Math.floor(c / NCH) * CH, i1 = Math.min(NG, i0 + CH), j1 = Math.min(NG, j0 + CH);
+  pos = []; nor = []; kind = []; ext = []; top = []; bot = []; idx = [];
+  for (let j = j0; j < j1; j++) used.fill(0, j * NG + i0, j * NG + i1);
+  for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
     const a = j * NG + i; if (KA[a] < 0 || used[a]) continue;
-    let w = 1; while (i + w < NG && same(a, j * NG + i + w)) w++;
+    let w = 1; while (i + w < i1 && same(a, j * NG + i + w)) w++;
     let hgt = 1;
-    grow: while (j + hgt < NG) { for (let q = 0; q < w; q++) if (!same(a, (j + hgt) * NG + i + q)) break grow; hgt++; }
+    grow: while (j + hgt < j1) { for (let q = 0; q < w; q++) if (!same(a, (j + hgt) * NG + i + q)) break grow; hgt++; }
     for (let jj = 0; jj < hgt; jj++) for (let q = 0; q < w; q++) used[(j + jj) * NG + i + q] = 1;
     const h = hq[a];
     quad([[X(i), h, X(j)], [X(i), h, X(j + hgt)], [X(i + w), h, X(j + hgt)], [X(i + w), h, X(j)]], [0, 1, 0], KA[a], 0);
@@ -226,18 +238,18 @@ export function buildTerrain(shared, SHADE_GLSL) {
   const eq = (a, b) => a && b && a.h === b.h && a.lo === b.lo && a.k === b.k && a.e === b.e;
   for (const [di, dj] of DIRS) {
     if (di !== 0) {
-      for (let i = 0; i < NG; i++) for (let j = 0; j < NG;) {
+      for (let i = i0; i < i1; i++) for (let j = j0; j < j1;) {
         const s0 = sideKey(i, j, di, dj); if (!s0) { j++; continue; }
-        let n = 1; while (j + n < NG && eq(s0, sideKey(i, j + n, di, dj))) n++;
+        let n = 1; while (j + n < j1 && eq(s0, sideKey(i, j + n, di, dj))) n++;
         const x = di === 1 ? X(i + 1) : X(i), z0 = X(j), z1 = X(j + n);
         if (di === 1) quad([[x, s0.lo, z1], [x, s0.lo, z0], [x, s0.h, z0], [x, s0.h, z1]], [1, 0, 0], s0.k, s0.e);
         else quad([[x, s0.lo, z0], [x, s0.lo, z1], [x, s0.h, z1], [x, s0.h, z0]], [-1, 0, 0], s0.k, s0.e);
         j += n;
       }
     } else {
-      for (let j = 0; j < NG; j++) for (let i = 0; i < NG;) {
+      for (let j = j0; j < j1; j++) for (let i = i0; i < i1;) {
         const s0 = sideKey(i, j, di, dj); if (!s0) { i++; continue; }
-        let n = 1; while (i + n < NG && eq(s0, sideKey(i + n, j, di, dj))) n++;
+        let n = 1; while (i + n < i1 && eq(s0, sideKey(i + n, j, di, dj))) n++;
         const z = dj === 1 ? X(j + 1) : X(j), x0 = X(i), x1 = X(i + n);
         if (dj === 1) quad([[x0, s0.lo, z], [x1, s0.lo, z], [x1, s0.h, z], [x0, s0.h, z]], [0, 0, 1], s0.k, s0.e);
         else quad([[x1, s0.lo, z], [x0, s0.lo, z], [x0, s0.h, z], [x1, s0.h, z]], [0, 0, -1], s0.k, s0.e);
@@ -253,6 +265,9 @@ export function buildTerrain(shared, SHADE_GLSL) {
   g.setAttribute('aTop', new THREE.Float32BufferAttribute(top, 1));
   g.setAttribute('aBot', new THREE.Float32BufferAttribute(bot, 1));
   g.setIndex(idx);
+  return g;
+  }
+  const chunks = Array.from({ length: NCH * NCH }, (_, c) => chunkGeometry(c));
   // 每根柱子有几个方块高（着色器里查邻居，做方块角落的环境光遮蔽）
   const ht = new Uint8Array(NG * NG);
   for (let k = 0; k < NG * NG; k++) ht[k] = Number.isNaN(hq[k]) ? 0 : Math.round(hq[k] / STEP);
@@ -307,7 +322,7 @@ export function buildTerrain(shared, SHADE_GLSL) {
       vec2 gXZ;   // 当前像素的位置（群系色按地方变）
       vec3 grassTint(float G, float M, int k) {
         float reg = vnoise(gXZ * 38.0 + 3.0), reg2 = vnoise(gXZ * 21.0 - 7.0);
-        vec3 lush = k == 1 || k >= 8 ? vec3(0.4, 0.58, 0.3) : k == 2 ? vec3(0.46, 0.56, 0.34) : vec3(0.52, 0.68, 0.32);
+        vec3 lush = k == 1 || (k >= 8 && k <= 10) ? vec3(0.4, 0.58, 0.3) : k == 2 ? vec3(0.46, 0.56, 0.34) : vec3(0.52, 0.68, 0.32);
         lush *= 0.97 + 0.06 * reg;                                       // 大片的明暗起伏，色相不变
         if (canyonZone(vec3(gXZ.x, 0.0, gXZ.y))) lush = mix(lush, vec3(0.72, 0.68, 0.4), 0.6);   // 峡谷台地上是干黄的荒漠草
         vec3 dry = vec3(0.76, 0.7, 0.44);
@@ -325,7 +340,8 @@ export function buildTerrain(shared, SHADE_GLSL) {
         vec3 col;
         if (N.y > 0.5) {
           vec3 tint = grassTint(G, M, k);
-          if (k == 0 || k == 1 || k == 2 || k >= 8) {
+          if (k == 11) col = soil == 0 ? texDirt(n, n2) * (0.9 + 0.08 * n2) : texSoil(soil, t, Pc, n, n2) * 0.92;   // 铲子挖开的：新翻的土
+          else if (k == 0 || k == 1 || k == 2 || (k >= 8 && k <= 10)) {
             // 草：一个个贴图像素深浅不一；长得不好的地方露出土
             bool bare = h21(t * 0.71 + 3.3) > smoothstep(0.05, 0.45, G) + 0.15;
             col = tint * (0.95 + 0.07 * n);
@@ -351,8 +367,8 @@ export function buildTerrain(shared, SHADE_GLSL) {
           float ty = mod(floor((vTop - Pc.y) / TXS), 4.0);   // 方块里从上往下第几个贴图像素
           float fringe = 1.0 + floor(h21(vec2(t.x, kb)) * 2.0);   // 草皮、雪往下挂 1–2 个像素，参差不齐
           if ((vTop - vBot) / BK < 1.5) fringe += 1.0;             // 只有一格高的小坎：草皮盖得更多，草地上不会满是褐色的线
-          bool grassy = k == 0 || k == 1 || k == 2 || k >= 8;
-          float stoneFrom = grassy ? 4.0 : k == 4 ? 3.0 : 0.0;
+          bool grassy = k == 0 || k == 1 || k == 2 || (k >= 8 && k <= 10);
+          float stoneFrom = grassy || k == 11 ? 4.0 : k == 4 ? 3.0 : 0.0;
           if (vE > 0.5) stoneFrom += floor(h21(vec2(floor(Pc.x / BK), floor(Pc.z / BK))) * 2.0);
           if (kb < 0.5 && SN > 0.3) col = texSnow(n);   // 积了雪，侧面上沿也是白的
           else if (kb < 0.5 && grassy && G > 0.2 + 0.3 * h21(vec2(t.x, 3.0))) col = grassTint(G, M, k) * (0.92 + 0.05 * n);   // 荒的时候坎子上沿没有草皮
@@ -404,7 +420,25 @@ export function buildTerrain(shared, SHADE_GLSL) {
         #include <colorspace_fragment>
       }`,
   });
-  return { geometry: g, material: mat };
+  // 铲子：挖掉 (x,z) 半径 r 里的地面（ok(x,z) 可以否掉某格），每格最多挖 n 块（总深不超过 DIG_MAX 块；最低的地方也能往下挖，底下至少留两块）；返回挖掉了几块
+  const dirty = new Set();
+  function dig(x, z, r, n = 1, ok = null) {
+    let got = 0;
+    const ia = Math.floor((x - r + S.R) / CELL), ib = Math.floor((x + r + S.R) / CELL), ja = Math.floor((z - r + S.R) / CELL), jb = Math.floor((z + r + S.R) / CELL);
+    for (let j = Math.max(0, ja); j <= Math.min(NG - 1, jb); j++) for (let i = Math.max(0, ia); i <= Math.min(NG - 1, ib); i++) {
+      const k = j * NG + i; if (Number.isNaN(hq[k])) continue;
+      if (Math.hypot(-S.R + (i + 0.5) * CELL - x, -S.R + (j + 0.5) * CELL - z) > r) continue;
+      if (ok && !ok(-S.R + (i + 0.5) * CELL, -S.R + (j + 0.5) * CELL)) continue;   // 调用方说这格不能挖（树下、水里）
+      const floor = Math.max(2 * STEP, hq0[k] - DIG_MAX * STEP), m = Math.min(n, Math.round((hq[k] - floor) / STEP));
+      if (m <= 0) continue;
+      hq[k] = Math.round(hq[k] / STEP - m) * STEP; got += m; dug[k] = 1; ht[k] = Math.round(hq[k] / STEP);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= NG || jj >= NG) continue; setKA(ii, jj); dirty.add(Math.floor(jj / CH) * NCH + Math.floor(ii / CH)); }
+    }
+    return got;
+  }
+  // 重建挖过的那几块，返回 [[块号, 新几何体]]（旧的由调用方 dispose）
+  function refresh() { if (!dirty.size) return []; const out = [...dirty].map(c => [c, chunkGeometry(c)]); dirty.clear(); htTex.needsUpdate = true; return out; }
+  return { chunks, material: mat, dig, refresh };
 }
 
 // 溪往下跌一级的地方（画瀑布的白沫）
@@ -932,4 +966,52 @@ export function cloudCells(id, rCells = 7) {
     out.push({ i, j, h: Math.max(1, Math.round(h + (q() - 0.5) * 0.8)), r: q(), edge: e });
   }
   return out;
+}
+
+// ---------- 手里拿的工具：沙 / 土用小桶、水用水壶、岩浆用铁杯、铲子（体素：容器 1.36 mm 一格，铲子 0.88 mm） ----------
+// 原点 = 手捏住的那一点；lip = 倒出来的口（局部坐标，米），倒的时候绕 z 轴往 +x 那边倾
+export function heldToolGeometry(kind) {
+  const V = kind === 'shovel' ? B * 0.55 : B * 0.85, box = [];
+  const add = (x0, y0, z0, x1, y1, z1, c) => box.push([x0, y0, z0, x1, y1, z1, c]);
+  let lip = [0, 0, 0];
+  if (kind === 'sand' || kind === 'soil') {   // 红色的小沙桶（海边玩沙那种）：提手挂在手上，桶里装着沙 / 土
+    const fill = kind === 'sand' ? '#ecd9a0' : '#8a5e3c';
+    add(-7, -24, -7, 7, -23, 7, '#8a2e24');                                    // 桶底
+    add(-7, -23, -7, 7, -9, -6, '#d0503c'); add(-7, -23, 6, 7, -9, 7, '#d0503c');   // 前后壁
+    add(-7, -23, -6, -6, -9, 6, '#b84432'); add(6, -23, -6, 7, -9, 6, '#b84432');   // 左右壁
+    add(-7, -19, -7, 7, -18, 7, '#8a2e24');                                    // 一道深色箍
+    add(-7, -9, -7, 7, -8, 7, '#ece4d6'); box.push([-6, -9, -6, 6, -8, 6, null]);   // 白色卷边（中间空）
+    add(-6, -23, -6, 6, -10, 6, fill);                                         // 装满的沙 / 土
+    for (let a = 0; a <= 32; a++) { const t = a / 32 * Math.PI, x = Math.round(Math.cos(t) * 7), y = Math.round(-8 + Math.sin(t) * 8); add(x, y - 1, 0, x + 1, y, 1, '#4a4f58'); }   // 提手
+    lip = [7 * V, -8 * V, 0];
+  } else if (kind === 'water') {   // 水壶：手捏着壶把，壶嘴朝前
+    const o = 10;   // 壶身中心在手前 1 cm
+    add(o - 6, -22, -6, o + 6, -8, 6, '#5aa8c8');
+    add(o - 6, -18, -6, o + 6, -17, 6, '#3a86a8');                             // 一道深色腰线
+    add(o - 4, -8, -4, o + 4, -6, 4, '#4a98b8'); add(o - 1, -6, -1, o + 1, -5, 1, '#2a5a70');   // 盖子、钮
+    for (let i = 0; i < 8; i++) add(o + 6 + i, -18 + i, -1, o + 8 + i, -16 + i, 1, '#4a98b8');   // 壶嘴（斜着往上）
+    add(o - 9, -9, -1, o - 6, -8, 1, '#2a5a70'); add(o - 10, -18, -1, o - 9, -8, 1, '#2a5a70'); add(o - 9, -18, -1, o - 6, -17, 1, '#2a5a70');   // 壶把
+    for (const v of box) { v[1] += 9; v[4] += 9; v[0] -= 0; }
+    lip = [(o + 15) * V, (-9 + 9) * V, 0];
+  } else if (kind === 'lava') {   // 铁杯：长把，杯里是烫的岩浆
+    const o = 12;
+    add(o - 5, -14, -5, o + 5, -13, 5, '#2e2a2c');
+    add(o - 5, -13, -5, o + 5, -2, -4, '#45403f'); add(o - 5, -13, 4, o + 5, -2, 5, '#45403f');
+    add(o - 5, -13, -4, o - 4, -2, 4, '#3c3736'); add(o + 4, -13, -4, o + 5, -2, 4, '#3c3736');
+    add(o - 4, -13, -4, o + 4, -3, 4, '#ff7a1a'); add(o - 2, -4, -2, o + 2, -3, 2, '#ffd060');   // 岩浆，中间更亮
+    for (let i = 0; i < 8; i++) add(o - 6 - i, -6 + Math.round(i * 0.6), -1, o - 5 - i, -5 + Math.round(i * 0.6), 1, '#2e2a2c');   // 长把
+    for (const v of box) { v[0] -= 0; v[1] += 1; v[4] += 1; }
+    lip = [(o + 5) * V, -1 * V, 0];
+  } else if (kind === 'shovel') {   // 铲子：手捏着 T 形把，铲头朝下
+    add(-3, -1, -1, 3, 1, 1, '#6a4024');                                       // T 把
+    add(-1, -26, -1, 1, -1, 1, '#b0703a');                                     // 木柄
+    add(-2, -28, -2, 2, -26, 2, '#5a5f68');                                    // 套筒
+    add(-4, -37, -1, 4, -28, 0, '#9aa3ad'); add(-3, -39, -1, 3, -37, 0, '#9aa3ad'); add(-1, -40, -1, 1, -39, 0, '#c4ccd4');   // 铲头（尖）
+    lip = [0, -40 * V, 0];
+  }
+  let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+  for (const b of box) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], b[k]); mx[k] = Math.max(mx[k], b[k + 3]); }
+  const find = (x, y, z) => { for (let i = box.length - 1; i >= 0; i--) { const b = box[i]; if (x >= b[0] && x < b[3] && y >= b[1] && y < b[4] && z >= b[2] && z < b[5]) return b; } return null; };
+  const g = voxelGeometry(mn, mx, (x, y, z) => !!find(x, y, z)?.[6], (x, y, z) => find(x, y, z)[6], V, [0, 0, 0], false);
+  return { geometry: g, lip };
 }

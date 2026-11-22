@@ -281,7 +281,7 @@ export function walkable(x, z, blocked) {
 // 水、土、沙、岩浆、雪、树种、花种、动物（随机一种；放进水里是鱼）、食物、旋风
 export const SUN_R = 0.045;     // 手掌放晴晒到多大一片
 export const SUN_GROW = 10;    // 晒着的地方长得快几倍（再加 1）
-export const TOOLS = ['water', 'soil', 'sand', 'lava', 'snow', 'seed', 'flower', 'animal', 'food', 'whirl'];
+export const TOOLS = ['water', 'soil', 'sand', 'lava', 'snow', 'seed', 'flower', 'animal', 'food', 'whirl', 'shovel'];   // shovel：铲子，挖掉堆的东西和地面（在 index.html 里）
 export const PLACE_SPECIES = ['sheep', 'cow', 'rabbit', 'deer', 'goat', 'boar'];   // "动物"道具在陆地上随机放这几种之一
 
 // ---------- 世界 ----------

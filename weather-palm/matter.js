@@ -339,6 +339,21 @@ export function douse(m, x, z, r = 0.014) {
     if (m.lava[k] > 1e-5) { m.rock[k] += m.lava[k]; m.lava[k] = 0; m.heat[k] = 0; m.events.push({ type: 'steam', x: cx, z: cz, a: 0.001 }); m.stats.steam++; }
   }
 }
+// 铲子：从 (x,z) 半径 r 里的格子顶上往下铲，每格最多铲 depth 厚（先铲最上面的：沙 → 土 → 玻璃 → 石头；岩浆烫、铲不动）
+// 返回铲掉了多少 { sand, soil, glass, rock, cells }；cells = 铲之前上面就没东西的格子（调用方可以接着挖地面）
+export function scoop(m, x, z, r, depth) {
+  const got = { sand: 0, soil: 0, glass: 0, rock: 0, cells: [] };
+  const i0 = Math.floor((x - r + R) / MC), i1 = Math.floor((x + r + R) / MC), j0 = Math.floor((z - r + R) / MC), j1 = Math.floor((z + r + R) / MC);
+  for (let j = Math.max(0, j0); j <= Math.min(MG - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(MG - 1, i1); i++) {
+    const [cx, cz] = center(i, j); if (Math.hypot(cx - x, cz - z) > r) continue;
+    const k = j * MG + i; if (!m.kind[k] || m.lava[k] > 0.0002) continue;
+    let left = depth;
+    if (m.sand[k] + m.soil[k] + m.glass[k] + m.rock[k] < 1e-6) { got.cells.push(k); continue; }
+    for (const f of ['sand', 'soil', 'glass', 'rock']) { const c = Math.min(m[f][k], left); if (c <= 0) continue; m[f][k] -= c; got[f] += c; left -= c; if (left <= 0) break; }
+    if (m.soil[k] < 1e-5) m.grass[k] = 0;
+  }
+  return got;
+}
 // 闪电劈到干的草木上：点着
 export function ignite(m, x, z, wet = 0.3) {
   const k = index(x, z);

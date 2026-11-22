@@ -11,7 +11,7 @@ const avg = (arr, ks) => ks.reduce((s, k) => s + arr[k], 0) / ks.length;
 const M0 = LAYOUT.meadows[0];
 const tool = (kind, x = M0.x, z = M0.z, a = DT) => ({ tools: [{ kind, x, z, a }] });
 
-test('菜单里有 10 样东西', () => { assert.equal(TOOLS.length, 10); });
+test('菜单里有 11 样东西', () => { assert.equal(TOOLS.length, 11); });
 
 test('水：地湿透、水位涨', () => {
   const w = noon(createWorld(1)), ks = cellsAround(M0.x, M0.z, 0.01), m0 = avg(w.M, ks);
